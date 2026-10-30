@@ -38,6 +38,8 @@ export class Net {
   /** Fired for every terrain event, in order, exactly once (sync replay included). */
   onTerrain: (e: TerrainEvent, replay: boolean) => void = () => {}
   onChat: (m: ChatOut) => void = () => {}
+  /** Fired once the join-time replay is done, with how many events it held. */
+  onSynced: (events: number) => void = () => {}
   /** Fired after each state patch from the server. */
   onPatch: () => void = () => {}
 
@@ -67,6 +69,7 @@ export class Net {
       this.room = room
       room.onMessage(MSG.sync, (m: SyncMsg) => {
         for (const e of m.events) this.accept(e, true)
+        this.onSynced(m.events.length)
       })
       room.onMessage(MSG.terrain, (e: TerrainEvent) => this.accept(e, false))
       room.onMessage(MSG.chat, (m: ChatOut) => this.onChat(m))

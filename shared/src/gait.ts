@@ -221,5 +221,9 @@ export class TitanGait {
     this.swingFrom.z = s.fromZ
     this.swingTo.x = s.toX
     this.swingTo.z = s.toZ
+    // The next drag segment starts from the swing's start: re-cutting that
+    // stretch is harmless (trenches cut with lowerTo), a cut from (0, 0) is not.
+    this.dragFrom.x = s.fromX
+    this.dragFrom.z = s.fromZ
   }
 }

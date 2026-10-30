@@ -553,6 +553,25 @@ export class LakeSystem {
     return l.down ? (this.byId(l.down) ?? null) : null
   }
 
+  /**
+   * A world you return to has had its rain: fill every lake to its brim, let
+   * the spill find (and fill) the pools below, and let surfaces that now meet
+   * merge — repeated until nothing changes.
+   */
+  fillAll(): void {
+    for (let round = 0; round < 64; round++) {
+      for (const l of this.lakes) {
+        l.volume = volumeAt(l.basin, l.basin.spill)
+        l.level = l.basin.spill
+        l.carry = 0
+      }
+      const count = this.lakes.length
+      for (const l of [...this.lakes]) this.downstream(l) // may create pools
+      this.step(0) // may merge one pair
+      if (this.lakes.length === count && this.lakes.every((l) => this.isFull(l))) break
+    }
+  }
+
   isFull(l: Lake): boolean {
     return l.level >= l.basin.spill
   }

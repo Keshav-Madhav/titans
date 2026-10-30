@@ -63,8 +63,16 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
 - Offline fallback: no server (or `?offline`) → the client simulates the Titan itself, as before
 
 ## P7 — Memory
-- [ ] SQLite: players, titans, terrain_events, region_snaps, lakes
-- [ ] Gate: walk, kill the server, restart, rejoin → identical craters and lakes
+- [x] SQLite (`node:sqlite`, `server/data/world.db`, gitignored): `terrain_events` (appended every
+      tick in a transaction, tagged with a 512 m region), `titans` (every 2 s + shutdown), `players`
+      (keyed by a hash of a private per-browser token; saved on leave)
+- [x] Boot replays the log; returning Wanderers wake where they left; lakes come back full
+      (`LakeSystem.fillAll` fills, spills and merges to equilibrium)
+- [x] Gate (`node tools/persist.mjs`, own server on :2568): Titan walks, Wanderer leaves, server
+      **SIGKILLed**, restarted → craters identical at every footfall, Titan 0.00 m from where it
+      stopped, Wanderer 0.00 m from where they left, all lakes full. Passed 3/3 runs.
+- [ ] Deferred: `region_snaps` compaction (replaying the log is fine at this size) and
+      server-authoritative lake levels (clients derive lakes from the same events today)
 
 ## P8 — Climbing
 - [ ] Rapier kinematic colliders on Titan parts; climb state with part-local attach

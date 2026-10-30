@@ -160,6 +160,10 @@ function onGait(ev: GaitEvent, replay = false): void {
 
 net.onTerrain = (e, replay) => onGait(e, replay)
 net.onChat = (m) => chat.add(m)
+// A world you come back to has had its rain: its lakes are already full.
+net.onSynced = (n) => {
+  if (n > 0) lakes.fillAll()
+}
 net.onPatch = () => {
   const s = net.state
   if (!s) return

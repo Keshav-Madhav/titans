@@ -24,6 +24,8 @@ export type TerrainEvent = GaitEvent & { seq: number }
 export interface JoinOptions {
   name: string
   color: string
+  /** Private per-browser secret; the server keeps only its hash. Returning players wake where they left. */
+  token?: string
 }
 
 export type Role = 'wanderer' | 'titan'

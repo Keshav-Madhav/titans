@@ -8,6 +8,8 @@ const CLOAKS = ['#b8352a', '#2f6f8f', '#7a8f2f', '#8f5a2f', '#6a3f8f', '#2f8f6f'
 export interface Identity {
   name: string
   color: string
+  /** Private: lets the server recognise this browser next visit (it stores only a hash). */
+  token: string
 }
 
 export function loadIdentity(): Identity {
@@ -15,17 +17,29 @@ export function loadIdentity(): Identity {
     const raw = localStorage.getItem('titans.identity')
     if (raw) {
       const id = JSON.parse(raw) as Identity
-      if (id.name && id.color) return id
+      if (id.name && id.color) {
+        if (!id.token) {
+          id.token = newToken()
+          localStorage.setItem('titans.identity', JSON.stringify(id))
+        }
+        return id
+      }
     }
   } catch {
     // Private mode or blocked storage: a fresh identity each visit is fine.
   }
   const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
-  const id = { name: `${pick(FIRST)} ${pick(SECOND)}`, color: pick(CLOAKS) }
+  const id = { name: `${pick(FIRST)} ${pick(SECOND)}`, color: pick(CLOAKS), token: newToken() }
   try {
     localStorage.setItem('titans.identity', JSON.stringify(id))
   } catch {
     // ignore
   }
   return id
+}
+
+function newToken(): string {
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  return [...b].map((v) => v.toString(16).padStart(2, '0')).join('')
 }

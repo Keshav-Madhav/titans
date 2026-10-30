@@ -30,6 +30,7 @@ import {
   type TitanSnapshot,
 } from '@titans/shared'
 import { Player, TitanState, WorldState } from './schema'
+import { hashToken, WorldStore } from './store'
 
 /** Where the first Titan stands. Must match the client's offline spawn. */
 export const TITAN_SPAWN = { x: 230, z: -400, heading: Math.PI * 0.62 }
@@ -51,11 +52,28 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   private readonly snap = {} as TitanSnapshot
   private titanInput: TitanInputMsg = { forward: 0, turn: 0 }
   private readonly seen = new Map<string, Seen>()
+  private readonly tokens = new Map<string, string>() // sessionId → token hash
+  private readonly pending: TerrainEvent[] = []
+  private store!: WorldStore
+  private lastTitanSave = 0
 
   onCreate(): void {
     this.setState(new WorldState())
     this.state.titan = new TitanState()
     this.state.titan.driver = ''
+
+    // Wake the world up exactly as it was: replay every terrain event in
+    // order, and put the Titan back where it stood.
+    this.store = new WorldStore(process.env.TITANS_DB ?? 'data/world.db')
+    const events = this.store.loadEvents()
+    for (const e of events) {
+      this.apply(e)
+      this.log.push(e)
+    }
+    this.state.seq = events.length ? events[events.length - 1].seq : 0
+    const saved = this.store.loadTitan(1)
+    if (saved) this.gait.restore(saved)
+    console.log(`world loaded: ${events.length} terrain events, Titan at ${this.gait.x.toFixed(0)}, ${this.gait.z.toFixed(0)} after ${this.gait.steps} steps`)
     this.copyTitan()
     this.setPatchRate(PATCH_MS)
     this.setFixedTimestep((ctx) => this.tick(ctx.dt), SERVER_TICK_HZ)
@@ -79,8 +97,12 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     p.name = String(options?.name ?? 'Wanderer').slice(0, 24)
     p.color = /^#[0-9a-f]{6}$/i.test(options?.color ?? '') ? options.color : '#b8352a'
     p.role = 'wanderer'
-    const sx = (Math.random() - 0.5) * 20
-    const sz = (Math.random() - 0.5) * 20
+    // A returning Wanderer wakes where they left; a new one near the origin.
+    const token = typeof options?.token === 'string' && options.token.length >= 16 ? hashToken(options.token) : ''
+    if (token) this.tokens.set(client.sessionId, token)
+    const back = token ? this.store.loadPlayer(token) : null
+    const sx = back ? back.x : (Math.random() - 0.5) * 20
+    const sz = back ? back.z : (Math.random() - 0.5) * 20
     p.x = sx
     p.z = sz
     p.y = this.terrain.heightAt(sx, sz)
@@ -91,6 +113,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   }
 
   onLeave(client: Client): void {
+    this.savePlayer(client.sessionId)
+    this.tokens.delete(client.sessionId)
     if (this.state.titan.driver === client.sessionId) {
       this.state.titan.driver = ''
       this.titanInput = { forward: 0, turn: 0 }
@@ -139,6 +163,27 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     s.at = now
   }
 
+  onBeforeShutdown(): void {
+    this.saveAll()
+    super.onBeforeShutdown()
+  }
+
+  onDispose(): void {
+    this.saveAll()
+    this.store.close()
+  }
+
+  private saveAll(): void {
+    this.store.saveTitan(1, this.gait.snapshot(this.snap))
+    for (const id of this.tokens.keys()) this.savePlayer(id)
+  }
+
+  private savePlayer(sessionId: string): void {
+    const token = this.tokens.get(sessionId)
+    const p = this.state.players.get(sessionId)
+    if (token && p) this.store.savePlayer(token, p.name, p.color, { x: p.x, y: p.y, z: p.z })
+  }
+
   private tick(dt: number): void {
     this.events.length = 0
     this.gait.step(dt, this.state.titan.driver ? this.titanInput : { forward: 0, turn: 0 }, this.events)
@@ -146,7 +191,16 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       const e = { ...ev, seq: ++this.state.seq } as TerrainEvent
       this.apply(e)
       this.log.push(e)
+      this.pending.push(e)
       this.broadcast(MSG.terrain, e)
+    }
+    // Durable before anyone could act on it: a crash loses no ground.
+    this.store.appendEvents(this.pending)
+    this.pending.length = 0
+    const now = Date.now()
+    if (now - this.lastTitanSave > 2000) {
+      this.lastTitanSave = now
+      this.store.saveTitan(1, this.gait.snapshot(this.snap))
     }
     this.copyTitan()
   }
