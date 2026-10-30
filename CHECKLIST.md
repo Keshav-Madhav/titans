@@ -162,6 +162,28 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       founded with 6 buildings; 6 townsfolk, 5 walking; a footfall crushes all 6 under it and spares
       one 75 m away); `single.mjs` builds a house by hand (B, 2, aim, click) and the town survives reload
 
+## A living land (user, 2026-10-31: "the world still looks really empty and plain and the village has just 2 houses")
+- [x] Vegetation (`vegetation.ts`, `biome.ts`): forests and copses (conifer + broadleaf), lone trees,
+      boulders, bushes at forest edges and shores, grass tufts and wildflowers near you, reeds in the
+      lakes' shallows; seeded per 96 m cell, instanced, two tree looks by distance, swaying; the
+      terrain shows the same forests as canopy from afar; Titans flatten what they tread on;
+      vegetation radii follow the quality governor
+- [x] Old villages (`settlement.ts`): a fresh world starts with 3 — square, well, 3 market stalls,
+      church with a spire, ~27 houses and huts along two streets, a windmill with turning sails,
+      4 fields; dirt roads (`paint.ts`, painted into the terrain) between them and in from spawn
+- [x] Towns grow: one with a well and a few homes adds a home every 40 s (old villages along their
+      main street, yours in rings with paths), up to 44 buildings; catch-up growth while away
+- [x] Build mode gains church, market stall, windmill, field (1–8)
+- [x] Townsfolk for every town (one per hut, two per house, a merchant per stall; up to 140),
+      instanced; buildings merged per town per material: a village street went 1,003 → 189 draw calls,
+      all towns together 36
+- [x] Fixed on the way: offline events are applied exactly as saved (mm-rounded), so a reload is
+      identical to the last digit; returning worlds refill with real rain until stable (merges that
+      only happen on overflow used to leave lakes part-filled); a pair settled once and still
+      mutual stops circling its water
+- [x] Gates: `shot.mjs village` (3 villages with church/well/≥15 homes; your town 3 → 33 and the
+      village to its cap in 20 simulated minutes; 36 calls); all other gates re-run green
+
 ## P12 — Beta polish → Beta 1
 - [x] Clouds: cumulus clusters of billboard puffs (lit crowns, shaded bases) at a Titan's waist,
       drifting, wrapping round the camera, fading into the haze

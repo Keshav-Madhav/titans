@@ -44,6 +44,9 @@ import { Wildlife, type Threat } from './wildlife'
 import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
 import { Townsfolk } from './townsfolk'
 import { Clouds } from './clouds'
+import { Biome } from './biome'
+import { PaintField } from './paint'
+import { Vegetation } from './vegetation'
 import { Sound } from './audio'
 import { Tips } from './tips'
 import { toScreen } from './screen'
@@ -75,6 +78,10 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.15, 9
 const terrain = new Terrain(WORLD_SEED)
 const terrainView = new TerrainView(terrain, WORLD_SEED)
 scene.add(terrainView.group)
+const biome = new Biome(WORLD_SEED)
+const paint = new PaintField()
+terrainView.biome = biome
+terrainView.paint = paint
 
 const sky = new SkySystem(scene, renderer)
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
@@ -86,12 +93,31 @@ const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
 const wildlife = new Wildlife(terrain, lakes)
 scene.add(wildlife.group)
-const settlement = new Settlement(terrain, lakes)
+const settlement = new Settlement(terrain, lakes, paint)
 scene.add(settlement.group)
 const townsfolk = new Townsfolk(terrain, settlement)
 scene.add(townsfolk.group)
+let lastGrowNote = -Infinity
+settlement.onGrow = (t, b) => {
+  townsfolk.sync()
+  saveDirty = true
+  // Word of your own towns growing — now and then, not every roof.
+  const now = performance.now()
+  if (t.player && now - lastGrowNote > 180000) {
+    lastGrowNote = now
+    chat.system(`${t.name} is growing: a new ${KIND_NAME[b.kind].toLowerCase()} went up.`)
+  }
+}
 const clouds = new Clouds()
 scene.add(clouds.mesh)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, (x, z) => settlement.occupies(x, z))
+scene.add(vegetation.group)
+quality.vegetation = vegetation
+quality.refresh()
+paint.onPaint = (x0, z0, x1, z1) => {
+  terrainView.markDirty(x0, z0, x1, z1)
+  vegetation.markDirty(x0, z0, x1, z1)
+}
 /** Build mode: the chosen piece (null = not building) and its turn. */
 let building: BuildingKind | null = null
 let buildRot = 0
@@ -203,6 +229,8 @@ function grow(b: Box): void {
   strideBox.x1 = Math.max(strideBox.x1, b.x1)
   strideBox.z1 = Math.max(strideBox.z1, b.z1)
   terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
+  // A Titan's foot flattens whatever grew there.
+  vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
 
 /** Buildings a Titan just crushed: rubble, and word of it. */
@@ -214,7 +242,8 @@ function crushed(gone: ReturnType<Settlement['crush']>, replay: boolean): void {
   for (const b of gone) effects.impact(b.x, terrain.heightAt(b.x, b.z), b.z, 24)
   sound.rubble(Math.hypot(camera.position.x - gone[0].x, camera.position.z - gone[0].z))
   const names = gone.map((b) => KIND_NAME[b.kind].toLowerCase())
-  chat.system(`A Titan crushed ${names.length === 1 ? `the ${names[0]}` : `${names.length} buildings`} in ${settlement.name}.`)
+  const where = settlement.townById(gone[0].town)?.name ?? 'the town'
+  chat.system(`A Titan crushed ${names.length === 1 ? `the ${names[0]}` : `${names.length} buildings`} in ${where}.`)
 }
 
 /** Every footfall so far (tools read it to measure prints and canals). */
@@ -330,6 +359,7 @@ if (mode === 'connecting') {
       wildOffline = true
       localSave = true
       loadLocal()
+      ensureVillages()
     }
     chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the nearest Titan.` : 'Multiplayer server not reachable: playing single player.')
   })
@@ -417,6 +447,9 @@ function loadLocal(): void {
   lakes.fillAll()
   if (d.settlement) {
     settlement.load(d.settlement)
+    // Towns kept growing while you were away.
+    const grew = settlement.catchUp(Math.min(8, Math.floor((Date.now() - d.savedAt) / 120000)))
+    if (grew) chat.system(`While you were away, the towns built ${grew} new home${grew === 1 ? '' : 's'}.`)
     townsfolk.sync()
   }
   // You left while walking a Titan: it sat down where it stood, alone from
@@ -433,6 +466,16 @@ function loadLocal(): void {
     if (a.titan.gait.resting && a.aloneSince && Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
   }
   chat.system(`Welcome back, ${d.name}. Your world remembers ${d.events.length.toLocaleString()} footsteps and drags.`)
+}
+
+/**
+ * A fresh single-player world (and tool mode) starts with its old villages.
+ * Multiplayer worlds do not have them yet (the server would have to own them).
+ */
+function ensureVillages(): void {
+  if (settlement.towns.length > 0 || params.has('novillages')) return
+  settlement.generate(WORLD_SEED, 3, [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 }))], (x, z) => biome.forest(x, z))
+  townsfolk.sync()
 }
 
 addEventListener('pagehide', () => saveLocal())
@@ -513,7 +556,7 @@ function simulate(dt: number): void {
           else {
             townsfolk.sync()
             saveDirty = true
-            if (founded) chat.system(`You founded ${settlement.name}.`)
+            if (founded) chat.system(`You founded ${settlement.name}. Give it a well and a few homes, and it will grow.`)
           }
         }
       }
@@ -568,7 +611,7 @@ function simulate(dt: number): void {
       const o = a.brain.think(dt, t.gait, {
         heightAt: (x, z) => terrain.heightAt(x, z),
         avoid: [
-          ...(settlement.name ? [{ x: settlement.cx, z: settlement.cz, r: TOWN_RADIUS + TITAN_HEIGHT }] : []),
+          ...settlement.towns.map((tw) => ({ x: tw.cx, z: tw.cz, r: TOWN_RADIUS + TITAN_HEIGHT })),
           ...mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
           ...[...titans.values()].filter((b) => b !== a).map((b) => ({ x: b.titan.gait.x, z: b.titan.gait.z, r: TITAN_HEIGHT * 2.5 })),
         ],
@@ -585,8 +628,12 @@ function simulate(dt: number): void {
     gaitEvents.length = 0
     t.step(dt, inp, gaitEvents)
     for (const ev of gaitEvents) {
-      onGait(ev)
-      record(ev)
+      // Apply exactly what is saved (positions rounded to the millimetre), so
+      // a reloaded world is the same to the last digit.
+      const packed = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
+      const exact = packed ? (unpackEvent(packed) as GaitEvent) : ev
+      onGait(exact)
+      record(exact)
     }
     // The server's rule, offline: resting with nobody walking it, it falls asleep.
     if (t.gait.resting && !ours && !toolMode) {
@@ -606,7 +653,8 @@ function simulate(dt: number): void {
   }
   if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
-  townsfolk.step(dt, threats)
+  townsfolk.step(dt, threats, camera.position)
+  if (!toolMode || params.has('grow')) settlement.grow(dt)
   if (role === 'wanderer' && !climber.active) tipState.moved += wanderer.speed * dt
   if (role === 'titan' || climber.active) tipState.titanOrClimb = true
 }
@@ -773,8 +821,10 @@ function frame(now: number): void {
   water.update(dt)
   effects.update(dt)
   clouds.update(dt, camera.position)
+  vegetation.update(dt, camera.position)
   wildlife.render()
   townsfolk.render(dt)
+  settlement.update(dt)
   if (building) {
     aimAtGround()
     // Green where it fits, red where it does not; the click says why.
@@ -836,6 +886,7 @@ const lore = setInterval(() => {
 setRole('wanderer')
 rig.yaw = Math.PI * 0.85
 if (localSave) loadLocal()
+if (!wantsMp) ensureVillages()
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
@@ -871,6 +922,9 @@ const g = {
   },
   mountains,
   wildlife,
+  vegetation,
+  paint,
+  biome,
   clouds,
   sound,
   tips,

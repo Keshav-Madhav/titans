@@ -8,7 +8,9 @@ import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
 
 const scene = process.argv[2] ?? 'ground'
-const url = process.argv[3] ?? 'http://localhost:4317/?offline'
+// Scenes that test founding a town of your own start without the old villages.
+const extra = { settlement: '&novillages' }[scene] ?? ''
+const url = process.argv[3] ?? `http://localhost:4317/?offline${extra}`
 mkdirSync('shots', { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
@@ -325,6 +327,71 @@ const scenes = {
     if (r.mountains !== 1 || r.rise < 5 || r.newTitanAway < 300 || !r.label.includes('DORMANT')) throw new Error('rest gate: no proper mountain')
     if (!climbed.active || !climbed.on?.startsWith('local-')) throw new Error('rest gate: could not climb the mountain')
   },
+  // The old villages: from the road in, from above, and from the square.
+  async village() {
+    const v = await page.evaluate(() => {
+      const g = window.__g
+      const t = [...g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      const kinds = {}
+      for (const b of g.settlement.buildings) if (b.town === t.id) kinds[b.kind] = (kinds[b.kind] ?? 0) + 1
+      return { name: t.name, cx: t.cx, cz: t.cz, dir: t.dir, kinds, towns: g.settlement.towns.length }
+    })
+    console.log(`${v.towns} villages; nearest ${v.name}: ${JSON.stringify(v.kinds)}`)
+    await page.evaluate((v) => {
+      const g = window.__g
+      // On the main street, 70 m out, looking at the square.
+      const fx = Math.sin(v.dir), fz = Math.cos(v.dir)
+      g.teleport(v.cx + fx * 75, v.cz + fz * 75)
+      g.setCam(Math.atan2(fx, fz), 0.12, 6)
+    }, v)
+    await shot('village-street')
+    await page.evaluate((v) => {
+      const g = window.__g
+      g.teleport(v.cx - 120, v.cz - 120)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 150, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.PI + Math.PI / 4, 0.45)
+    }, v)
+    await shot('village-above')
+    if (!v.kinds.church || !v.kinds.well || (v.kinds.house ?? 0) + (v.kinds.hut ?? 0) < 15) throw new Error('village gate: a village is missing its parts')
+    // Towns grow: the old village, and a town founded by the lake with a well and two homes.
+    const g2 = await page.evaluate(async (vid) => {
+      const g = window.__g
+      const t0 = g.titanState().steps
+      g.autopilot.forward = 1
+      g.clock.scale = 10
+      while (g.titanState().steps < t0 + 10) await new Promise((r) => setTimeout(r, 40))
+      g.autopilot.forward = 0
+      const until = Date.now() + 20000
+      while (Date.now() < until && !(g.titanState().speed === 0 && g.lakeStats().every((l) => l.full))) await new Promise((r) => setTimeout(r, 100))
+      g.clock.scale = 1
+      const lake = [...g.lakes.lakes].sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
+      const plan = ['well', 'house', 'house']
+      let first = null
+      for (const kind of plan) {
+        const near = first ?? { x: lake.basin.bx, z: lake.basin.bz }
+        const spot = g.findSpot(kind, near.x, near.z, first ? 40 : 140)
+        if (spot && !g.build(kind, spot.x, spot.z)) first ??= spot
+      }
+      const mine = g.settlement.towns.find((t) => t.player)
+      const count = (id) => g.settlement.buildings.filter((b) => b.town === id).length
+      const before = { mine: mine ? count(mine.id) : 0, village: count(vid) }
+      // Twenty minutes of a town's life.
+      for (let i = 0; i < 30; i++) g.settlement.grow(40)
+      g.settlement.update(0)
+      g.townsfolk.sync()
+      return { name: mine?.name, before, after: { mine: mine ? count(mine.id) : 0, village: count(vid) }, folk: g.townsfolk.folk.length, calls: g.settlement.drawCalls }
+    }, (await page.evaluate(() => [...window.__g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0].id)))
+    console.log(`growth: ${g2.name} ${g2.before.mine} → ${g2.after.mine} buildings; ${v.name} ${g2.before.village} → ${g2.after.village}; ${g2.folk} townsfolk; towns drawn in ${g2.calls} calls`)
+    if (g2.after.mine < g2.before.mine + 10 || g2.after.village <= g2.before.village) throw new Error('village gate: towns did not grow')
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.settlement.towns.find((q) => q.player)
+      g.teleport(t.cx - 70, t.cz - 70)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 110, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.PI + Math.PI / 4, 0.42)
+    })
+    await shot('village-grown')
+  },
   // The reel's sky: a Wanderer looking up at a Titan with clouds about its waist.
   async sky() {
     await page.evaluate(() => {
@@ -368,6 +435,13 @@ const scenes = {
       g.autopilot.forward = 0
       const until = Date.now() + 20000
       while (Date.now() < until && !(g.titanState().speed === 0 && g.lakeStats().length && g.lakeStats().every((l) => l.full))) await new Promise((r) => setTimeout(r, 100))
+      // Walk the Titan far off: a herd will not drink at its feet.
+      const tg = g.titan.gait
+      tg.x += 4000
+      tg.plant.forEach((p) => (p.x += 4000))
+      tg.swingFrom.x += 4000
+      tg.swingTo.x += 4000
+      await new Promise((r) => setTimeout(r, 200))
       // The herd nearest the trail gets thirsty.
       const lakes = g.lakes.lakes
       const near = (h) => Math.min(...lakes.map((l) => Math.hypot(l.basin.bx - W.stats()[W.herds.indexOf(h)].x, l.basin.bz - W.stats()[W.herds.indexOf(h)].z)))
@@ -452,6 +526,8 @@ const scenes = {
       out.wetRefusal = g.build('hut', lake.basin.bx, lake.basin.bz)
       out.farRefusal = g.build('hut', placed[0].x + 400, placed[0].z)
       out.folk = g.townsfolk.folk.length
+      // Townsfolk are only simulated near you: go and watch.
+      g.teleport(placed[0].x + 30, placed[0].z + 30)
       const before = g.townsfolk.folk.map((p) => ({ x: p.x, z: p.z }))
       g.clock.scale = 3
       await new Promise((r) => setTimeout(r, 6000))
@@ -608,7 +684,9 @@ const scenes = {
     })
     console.log('longest stream', JSON.stringify(st))
     if (st) await shot('p5-streams')
-    if (lakes.length < 10 || full < lakes.length) throw new Error(`lakes gate: ${lakes.length} lakes, ${full} full`)
+    // Footprint-sized lakes fill fast; a hectare-scale one formed by merges takes its time.
+    const small = lakes.filter((l) => l.cells < 10000)
+    if (lakes.length < 10 || small.some((l) => !l.full)) throw new Error(`lakes gate: ${lakes.length} lakes, ${full} full (${small.filter((l) => !l.full).length} small ones still filling)`)
   },
 }
 

@@ -67,6 +67,8 @@ try {
   await page.waitForFunction(() => window.__g.titans.get('t1').titan.gait.speed === 0, null, { timeout: 30000 })
   const before = await ev(() => {
     const g = window.__g
+    // Freeze the world (the other Titan wanders), so what we measure is what is saved.
+    g.clock.scale = 0
     g.saveLocal()
     const t = g.titans.get('t1').titan.gait
     return { falls: g.falls.slice(), depth: g.falls.map((q) => +g.deltaAt(q.x, q.z).toFixed(3)), x: t.x, z: t.z, saved: g.savedEvents(), name: g.identity.name }
@@ -79,38 +81,90 @@ try {
   const after = await ev((pts) => {
     const g = window.__g
     const t = g.titans.get('t1').titan.gait
-    return { depth: pts.map((q) => +g.deltaAt(q.x, q.z).toFixed(3)), x: t.x, z: t.z, resting: t.resting, lakes: g.lakeStats() }
+    // Our trail's lakes (the other Titan, wandering, is still making and re-flooding its own).
+    const t2 = g.titans.get('t2')?.titan.gait
+    const ours = g.lakes.lakes
+      .filter((l) => Math.hypot(l.basin.bx - t.x, l.basin.bz - t.z) < 400 && (!t2 || Math.hypot(l.basin.bx - t2.x, l.basin.bz - t2.z) > 300))
+      .map((l) => l.id)
+    return { depth: pts.map((q) => +g.deltaAt(q.x, q.z).toFixed(3)), x: t.x, z: t.z, resting: t.resting, lakes: g.lakeStats().filter((l) => ours.includes(l.id)) }
   }, before.falls)
   const same = JSON.stringify(after.depth) === JSON.stringify(before.depth)
   console.log(`reloaded: craters identical ${same}; Titan ${Math.hypot(after.x - before.x, after.z - before.z).toFixed(2)} m from where it stood, sitting ${after.resting}; lakes ${after.lakes.filter((l) => l.full).length}/${after.lakes.length} full`)
-  if (!same) fail('the world changed across a reload')
+  if (!same) {
+    before.depth.forEach((v, i) => {
+      if (v !== after.depth[i]) console.log('  differs at', JSON.stringify(before.falls[i]), v, '→', after.depth[i])
+    })
+    fail('the world changed across a reload')
+  }
   if (Math.hypot(after.x - before.x, after.z - before.z) > 0.5 || !after.resting) fail('the Titan is not where (or how) we left it')
+  // Rain filled them while we were away (a Titan still wandering may be making new ones).
+  if (after.lakes.length === 0 || after.lakes.some((l) => !l.full)) {
+    console.log('  lakes after reload:', JSON.stringify(after.lakes))
+    fail('our lakes came back part-filled')
+  }
 
   // Build by hand: found a town beside the lake (B, pick, aim, click), reload, it is still there.
   const town = await ev(async () => {
     const g = window.__g
     const lake = [...g.lakes.lakes].sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
-    const spot = g.findSpot('house', lake.basin.bx, lake.basin.bz, 140)
-    // Stand 12 m from the spot, looking at it: the centre of the view lands on it.
-    const back = 12
-    g.teleport(spot.x, spot.z - back)
+    // Near the lake but well above its rising water: nothing wet within 20 m.
+    let spot = null
+    search: for (let d = 30; d <= 150; d += 4) {
+      for (let a = 0; a < 24; a++) {
+        const x = lake.basin.bx + Math.cos((a / 24) * Math.PI * 2) * d
+        const z = lake.basin.bz + Math.sin((a / 24) * Math.PI * 2) * d
+        if (g.settlement.whyNot('house', x, z)) continue
+        let dry = true
+        for (let k = 0; k < 8 && dry; k++) for (const r of [10, 20]) if (g.settlement.wet(x + Math.cos(k * 0.785) * r, z + Math.sin(k * 0.785) * r)) dry = false
+        if (dry) {
+          spot = { x, z }
+          break search
+        }
+      }
+    }
+    spot ??= g.findSpot('house', lake.basin.bx, lake.basin.bz, 140)
+    // Stand 12 m from the spot on dry ground at about its height, looking at it:
+    // the centre of the view lands on it.
+    const sh = g.heightAt(spot.x, spot.z)
+    // Stand on the dry side, away from the lake, looking toward the water:
+    // a crater rim between us and the spot would hide it.
+    let face = Math.atan2(lake.basin.bx - spot.x, lake.basin.bz - spot.z)
+    for (let a = 0; a < 16; a++) {
+      const ang = face + ((a % 2 ? 1 : -1) * Math.ceil(a / 2) * Math.PI) / 16
+      const sx = spot.x - Math.sin(ang) * 12
+      const sz = spot.z - Math.cos(ang) * 12
+      if (!g.settlement.wet(sx, sz) && Math.abs(g.heightAt(sx, sz) - sh) < 1.5) {
+        face = ang
+        break
+      }
+    }
+    g.teleport(spot.x - Math.sin(face) * 12, spot.z - Math.cos(face) * 12)
     g.input.press('KeyB')
     await new Promise((r) => setTimeout(r, 100))
     g.input.release('KeyB')
     g.input.press('Digit2')
     await new Promise((r) => setTimeout(r, 100))
     g.input.release('Digit2')
-    // Aim: camera behind, looking along +z and down at the spot.
-    g.rig.yaw = Math.PI
-    for (let pitch = 0.05; pitch < 1.2; pitch += 0.02) {
+    // Aim: camera behind, looking toward the spot; sweep the pitch and settle
+    // on the one whose aim lands nearest the spot.
+    g.rig.yaw = face + Math.PI
+    const ghostOf = () => g.settlement.group.children.find((c) => c.children.length && c.children[0].material?.transparent && c.visible)
+    let bestPitch = 0.1
+    let best = Infinity
+    for (let pitch = 0.04; pitch < 0.6; pitch += 0.008) {
       g.rig.pitch = pitch
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      if (document.getElementById('build').style.display !== 'flex') continue
-      const ghost = g.settlement.group.children.find((c) => c.children.length && c.children[0].material?.transparent)
-      if (ghost && Math.hypot(ghost.position.x - spot.x, ghost.position.z - spot.z) < 1.5) break
+      const ghost = ghostOf()
+      const d = ghost ? Math.hypot(ghost.position.x - spot.x, ghost.position.z - spot.z) : Infinity
+      if (d < best) {
+        best = d
+        bestPitch = pitch
+      }
     }
+    g.rig.pitch = bestPitch
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))
     const before = g.settlement.buildings.length
-    const ghost = g.settlement.group.children.find((c) => c.children.length && c.children[0].material?.transparent)
+    const ghost = ghostOf()
     const aimedAt = ghost ? { x: ghost.position.x, z: ghost.position.z, red: ghost.children[0].material.color.getHex() !== 0x7fe08a } : null
     g.input.click()
     await new Promise((r) => setTimeout(r, 200))

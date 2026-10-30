@@ -10,6 +10,8 @@
 import * as THREE from 'three'
 import { makeSimplex2, smoothstep, type Noise2, type Terrain } from '@titans/shared'
 import { makeDetailTexture } from './detail-texture'
+import type { Biome } from './biome'
+import type { PaintField } from './paint'
 
 const ROOT = 32768
 const LEAF = 64
@@ -45,6 +47,10 @@ const WET_SOIL = lin(0x5c4f3e)
 const ROCK = lin(0x8e877d)
 const ROCK_DARK = lin(0x5d5852)
 const SNOW = lin(0xeef1f5)
+const MEADOW = lin(0x6f8a3c)
+const CANOPY = lin(0x4a5e2f)
+const CANOPY_DARK = lin(0x33452a)
+const ROAD = lin(0xa58f68)
 
 interface Chunk {
   key: number
@@ -143,6 +149,10 @@ export class TerrainView {
    * finer distant terrain and more triangles; the quality governor sets it.
    */
   splitK = 1.5
+  /** Where forests and meadows are (forests read as dark canopy from afar). */
+  biome: Biome | null = null
+  /** Roads and squares painted onto the ground. */
+  paint: PaintField | null = null
 
   constructor(private readonly terrain: Terrain, seed: number) {
     this.detail = makeSimplex2(seed + 999)
@@ -412,6 +422,24 @@ export class TerrainView {
     g += (SOIL[1] - g) * t
     b += (SOIL[2] - b) * t
 
+    if (this.biome) {
+      // Lush meadow, then forest: canopy from afar, shaded floor up close.
+      t = this.biome.meadow(x, z) * 0.55
+      r += (MEADOW[0] - r) * t
+      g += (MEADOW[1] - g) * t
+      b += (MEADOW[2] - b) * t
+      const f = this.biome.forest(x, z) * (1 - smoothstep(170, 260, h))
+      if (f > 0) {
+        // Mottled crowns: a fine noise across the canopy so it reads as trees, not a stain.
+        const crowns = this.detail(x * 0.09, z * 0.09)
+        const cv = smoothstep(-0.6, 0.6, v * 0.5 + crowns * 0.6)
+        t = f * 0.8
+        r += (CANOPY[0] + (CANOPY_DARK[0] - CANOPY[0]) * cv - r) * t
+        g += (CANOPY[1] + (CANOPY_DARK[1] - CANOPY[1]) * cv - g) * t
+        b += (CANOPY[2] + (CANOPY_DARK[2] - CANOPY[2]) * cv - b) * t
+      }
+    }
+
     // Freshly disturbed ground (Titan footprints) reads as turned soil.
     if (delta !== 0) {
       t = smoothstep(0.15, 1.8, Math.abs(delta))
@@ -422,6 +450,14 @@ export class TerrainView {
       r += (sr - r) * t
       g += (sg - g) * t
       b += (sb - b) * t
+    }
+
+    // Roads and village squares.
+    const p = this.paint ? this.paint.at(x, z) : 0
+    if (p > 0) {
+      r += (ROAD[0] - r) * p * 0.9
+      g += (ROAD[1] - g) * p * 0.9
+      b += (ROAD[2] - b) * p * 0.9
     }
 
     const alpine = smoothstep(140, 330, h) * 0.75

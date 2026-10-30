@@ -12,12 +12,14 @@ interface Level {
   res: number
   maxDpr: number
   shadow: number
+  /** Vegetation: detailed trees, simple trees, grass radii. */
+  veg: [number, number, number]
 }
 
 const LEVELS: Level[] = [
-  { splitK: 1.6, res: 64, maxDpr: 2, shadow: 4096 },
-  { splitK: 1.35, res: 64, maxDpr: 1.5, shadow: 2048 },
-  { splitK: 1.35, res: 32, maxDpr: 1, shadow: 1024 },
+  { splitK: 1.6, res: 64, maxDpr: 2, shadow: 4096, veg: [240, 750, 70] },
+  { splitK: 1.35, res: 64, maxDpr: 1.5, shadow: 2048, veg: [180, 550, 50] },
+  { splitK: 1.35, res: 32, maxDpr: 1, shadow: 1024, veg: [120, 380, 32] },
 ]
 
 export class Quality {
@@ -32,15 +34,23 @@ export class Quality {
     private readonly terrain: TerrainView,
     private readonly sun: THREE.DirectionalLight,
     pin: string | null,
+    /** Set later (it is built after the governor). */
+    public vegetation: { nearR: number; midR: number; grassR: number; markDirty?: unknown } | null = null,
   ) {
     this.pinned = pin !== null && /^[012]$/.test(pin)
     this.apply(this.pinned ? Number(pin) : 0)
+  }
+
+  /** Re-apply the current level (after late-built parts attach). */
+  refresh(): void {
+    this.apply(this.level)
   }
 
   private apply(level: number): void {
     this.level = level
     const L = LEVELS[level]
     this.terrain.splitK = L.splitK
+    if (this.vegetation) [this.vegetation.nearR, this.vegetation.midR, this.vegetation.grassR] = L.veg
     this.terrain.setResolution(L.res)
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, L.maxDpr))
     this.renderer.setSize(innerWidth, innerHeight, false)

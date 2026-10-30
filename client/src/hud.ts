@@ -7,7 +7,7 @@ const HINTS = {
   wanderer:
     'Click to look · <kbd>W A S D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become a Titan · <kbd>B</kbd> build · <kbd>M</kbd> world',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
-  building: 'Look where it goes · click to build · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>1</kbd>–<kbd>4</kbd> choose · <kbd>B</kbd> done',
+  building: 'Look where it goes · click to build · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>1</kbd>–<kbd>8</kbd> choose · <kbd>B</kbd> done',
   titan:
     '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call · <kbd>X</kbd> rest · <kbd>T</kbd> step out',
 }

@@ -690,16 +690,26 @@ export class LakeSystem {
    * merge — repeated until nothing changes.
    */
   fillAll(): void {
-    for (let round = 0; round < 64; round++) {
+    // Rain for real (a step with no rain never overflows, so the merges that
+    // only happen when water spills never fired), until a step changes nothing.
+    let calm = 0
+    for (let round = 0; round < 300 && calm < 2; round++) {
       for (const l of this.lakes) {
         l.volume = volumeAt(l.basin, l.basin.spill)
         l.level = l.basin.spill
         l.carry = 0
       }
       const count = this.lakes.length
-      for (const l of [...this.lakes]) this.downstream(l) // may create pools
-      this.step(0) // may merge one pair
-      if (this.lakes.length === count && this.lakes.every((l) => this.isFull(l))) break
+      const shapes = this.lakes.map((l) => l.basin.sorted.length).join(',')
+      this.step(30)
+      const same = this.lakes.length === count && this.lakes.map((l) => l.basin.sorted.length).join(',') === shapes
+      calm = same ? calm + 1 : 0
+    }
+    // Whatever the last merge left half-filled: brim-full, as rain would have it.
+    for (const l of this.lakes) {
+      l.volume = volumeAt(l.basin, l.basin.spill)
+      l.level = l.basin.spill
+      l.carry = 0
     }
   }
 
@@ -737,11 +747,21 @@ export class LakeSystem {
       const pair = shapeKey(l, d)
       // Two full lakes each spilling into the other cannot both be right:
       // settle them first (each distinct shape is tried once).
-      if (this.isFull(d) && this.downstream(d) === l && !this.resolved.has(pair)) {
-        this.resolved.add(pair)
-        if (this.resolveMutual(l, d)) {
-          changed = true
-          break
+      if (this.isFull(d) && this.downstream(d) === l) {
+        if (!this.resolved.has(pair)) {
+          this.resolved.add(pair)
+          if (this.resolveMutual(l, d)) {
+            changed = true
+            break
+          }
+        } else {
+          // Settled once and still each spilling into the other: stop the
+          // water circling. Both stay full; their overflow runs off.
+          this.lowland.add(shapeKey(l, d))
+          this.lowland.add(shapeKey(d, l))
+          l.down = 0
+          d.down = 0
+          continue
         }
       }
       if (d.level < l.basin.spill || this.failed.has(pair)) continue

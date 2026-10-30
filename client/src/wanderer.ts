@@ -3,6 +3,7 @@
 // character replaces it.
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { type Terrain } from '@titans/shared'
 
 const WALK = 4.2
@@ -45,6 +46,30 @@ function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
   g.dispose()
   return out
+}
+
+/**
+ * The cloaked body's pieces as plain geometry, in body space, for drawing
+ * many people at once (townsfolk are instanced): the cloak, the hood (both
+ * take the cloak colour), the face and one leg (hung from its hip).
+ */
+export function cloakedBodyGeometry(): { cloak: THREE.BufferGeometry; face: THREE.BufferGeometry; leg: THREE.BufferGeometry } {
+  const profile = [
+    new THREE.Vector2(0.02, 1.5),
+    new THREE.Vector2(0.17, 1.46),
+    new THREE.Vector2(0.26, 1.36),
+    new THREE.Vector2(0.29, 1.12),
+    new THREE.Vector2(0.33, 0.78),
+    new THREE.Vector2(0.41, 0.16),
+    new THREE.Vector2(0.4, 0.12),
+  ]
+  const lathe = new THREE.LatheGeometry(profile, 14).toNonIndexed()
+  lathe.deleteAttribute('uv')
+  const hood = hoodShell(0.16, 0.74).scale(1, 1.18, 1.08).translate(0, 1.62, -0.015)
+  const cloak = mergeGeometries([lathe, hood])!
+  const face = new THREE.SphereGeometry(0.118, 10, 8).translate(0, 1.6, 0)
+  const leg = new THREE.CapsuleGeometry(0.075, 0.38, 3, 6).translate(0, -0.24, 0)
+  return { cloak, face, leg }
 }
 
 export class Wanderer {
