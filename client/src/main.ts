@@ -20,6 +20,7 @@ import {
   type MountainRise,
   type Role,
   type TitanSnapshot,
+  TitanBrain,
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
@@ -37,6 +38,7 @@ import { Chat } from './chat'
 import { loadIdentity } from './identity'
 import { Climber } from './climb'
 import { Mountains } from './mountains'
+import { toScreen } from './screen'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
@@ -94,6 +96,12 @@ scene.add(mountains.group)
 /** Any Titan by climb id: '' is the awake one, anything else a mountain. */
 const titanOf = (id: string) => (id === '' ? titan : mountains.get(id))
 const climber = new Climber(() => [{ id: '', titan }, ...mountains.targets()])
+/** Offline, with no server to run it, the wild Titan's mind runs here. */
+const brain = new TitanBrain(20261030)
+const titanLabel = document.createElement('div')
+titanLabel.className = 'label titan-name'
+document.getElementById('labels')!.appendChild(titanLabel)
+let titanName = ''
 
 const TITAN_CAM: CameraProfile = {
   minDist: 0.9 * TITAN_HEIGHT,
@@ -208,6 +216,9 @@ net.onPatch = () => {
   const s = net.state
   if (!s) return
   titan.gait.restore(s.titan)
+  // Who walks it: a player's name, or nobody (it walks itself).
+  const driver = s.titan.driver ? s.players.get(s.titan.driver) : undefined
+  titanName = driver ? driver.name : s.titan.wild ? 'A wild Titan' : 'A waiting Titan'
   for (const id of mountains.sync(s.mountains)) holdOnAsItSleeps(id)
   remotes.ingest(s.players, net.sessionId)
   const me = net.me()
@@ -224,9 +235,12 @@ chat.onSend = (text) => {
 }
 
 let mode: 'connecting' | 'online' | 'offline' = params.has('offline') ? 'offline' : 'connecting'
+// Tools open ?offline and need a Titan that stands still; real offline play gets the wild one.
+let wildOffline = params.has('wild')
 if (mode === 'connecting') {
   net.connect(Net.defaultUrl(), identity).then((ok) => {
     mode = ok ? 'online' : 'offline'
+    if (!ok) wildOffline = true
     chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the Titan.` : 'No server found: playing offline.')
   })
 }
@@ -307,6 +321,21 @@ function simulate(dt: number): void {
     }
   }
 
+  // Offline (no server found, or ?wild), an unattended Titan wanders by itself.
+  if (mode === 'offline' && wildOffline && role !== 'titan' && autopilot.forward === 0 && !titan.gait.resting) {
+    const o = brain.think(dt, titan.gait, {
+      heightAt: (x, z) => terrain.heightAt(x, z),
+      avoid: mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
+    })
+    gaitInput = o
+    titan.gait.plough = o.plough
+    if (o.stomp) titan.gait.stompArmed = true
+    if (o.call) {
+      hud.showCall('A wild Titan', titan.gait.x, titan.gait.z)
+      chat.system('A wild Titan calls out.')
+    }
+  }
+
   if (mode === 'online') {
     // Extrapolate the server's Titan between patches. Its events are the
     // server's to make; ours are thrown away.
@@ -323,6 +352,21 @@ function simulate(dt: number): void {
 }
 
 const chest = new THREE.Vector3()
+
+const labelPos = new THREE.Vector3()
+const labelPx = { x: 0, y: 0 }
+/** "Morag_77 · TITAN · 1,412 STEPS", over the awake Titan's head (the reel's label). */
+function placeTitanLabel(): void {
+  const name = mode === 'online' ? titanName : role === 'titan' ? identity.name : wildOffline ? 'A wild Titan' : 'A waiting Titan'
+  labelPos.copy(titan.head)
+  labelPos.y += 0.12 * TITAN_HEIGHT
+  const dist = labelPos.distanceTo(camera.position)
+  const show = role !== 'titan' && dist < 5000 && !titan.gait.resting && toScreen(labelPos, camera, labelPx)
+  titanLabel.style.display = show ? 'block' : 'none'
+  if (!show) return
+  titanLabel.innerHTML = `<b>${name.replace(/[&<>]/g, '')}</b><small>TITAN · ${titan.gait.steps.toLocaleString()} STEPS</small>`
+  titanLabel.style.transform = `translate(-50%, -100%) translate(${labelPx.x}px, ${labelPx.y}px)`
+}
 
 /** Let go of the Titan: fall with its motion plus a push off the rock. */
 function letGo(push: number): void {
@@ -421,6 +465,7 @@ function frame(now: number): void {
   water.sync(lakes.lakes)
   effects.update(dt)
   remotes.update(dt, camera, titanOf)
+  placeTitanLabel()
   hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers, {
     plough: titan.gait.plough,
     stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
@@ -474,6 +519,10 @@ const g = {
   mountains,
   climber,
   goDormant,
+  brain,
+  setWild(on: boolean) {
+    wildOffline = on
+  },
   lakes,
   sky,
   net,

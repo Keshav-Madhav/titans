@@ -23,6 +23,7 @@ import {
   STOMP_COOLDOWN_S,
   Terrain,
   TITAN_HEIGHT,
+  TitanBrain,
   TitanGait,
   titanBody,
   WORLD_SEED,
@@ -63,6 +64,10 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   private readonly dormantAfter = Number(process.env.TITANS_DORMANT_MS ?? DORMANT_AFTER_MS)
   /** Mountains by id, for climb checks without parsing schema JSON. */
   private readonly mountains = new Map<string, MountainInfo>()
+  /** When nobody walks it, the Titan wanders on its own (TITANS_AI=0 turns that off). */
+  private readonly brain = new TitanBrain(20261030)
+  private readonly wildAfter = process.env.TITANS_AI === '0' ? Infinity : Number(process.env.TITANS_AI_DELAY_MS ?? 8000)
+  private unattendedSince = Date.now()
   private readonly log: TerrainEvent[] = []
   private readonly events: GaitEvent[] = []
   private readonly snap = {} as TitanSnapshot
@@ -255,7 +260,34 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
   private tick(dt: number): void {
     this.events.length = 0
-    this.gait.step(dt, this.state.titan.driver ? this.titanInput : { forward: 0, turn: 0 }, this.events)
+    const now = Date.now()
+    let input = this.titanInput
+    const t = this.state.titan
+    if (t.driver || this.gait.resting) {
+      this.unattendedSince = now
+      t.wild = false
+      if (!t.driver) input = { forward: 0, turn: 0 }
+    } else if (now - this.unattendedSince > this.wildAfter) {
+      // Nobody walks it: it walks itself.
+      t.wild = true
+      const o = this.brain.think(dt, this.gait, {
+        heightAt: (x, z) => this.terrain.heightAt(x, z),
+        avoid: [...this.mountains.values()].map((m) => ({ x: m.pose.x, z: m.pose.z, r: TITAN_HEIGHT * 2 })),
+      })
+      input = o
+      this.gait.plough = o.plough
+      if (o.stomp && now - this.lastStomp > STOMP_COOLDOWN_S * 1000) {
+        this.lastStomp = now
+        this.gait.stompArmed = true
+      }
+      if (o.call && now - this.lastCall > 8000) {
+        this.lastCall = now
+        this.broadcast(MSG.call, { name: 'A wild Titan', x: this.gait.x, z: this.gait.z })
+      }
+    } else {
+      input = { forward: 0, turn: 0 }
+    }
+    this.gait.step(dt, input, this.events)
     for (const ev of this.events) this.emit(ev)
 
     // A Titan left resting with nobody driving it falls asleep.
@@ -269,7 +301,6 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     // Durable before anyone could act on it: a crash loses no ground.
     this.store.appendEvents(this.pending)
     this.pending.length = 0
-    const now = Date.now()
     if (now - this.lastTitanSave > 2000) {
       this.lastTitanSave = now
       this.store.saveTitan(1, this.gait.snapshot(this.snap))

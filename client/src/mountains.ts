@@ -8,6 +8,7 @@ import * as THREE from 'three'
 import { TITAN_HEIGHT, type MountainInfo, type Terrain } from '@titans/shared'
 import { Titan } from './titan'
 import type { ClimbTarget } from './climb'
+import { toScreen } from './screen'
 
 interface Entry {
   titan: Titan
@@ -30,6 +31,7 @@ export class Mountains {
   private readonly list = new Map<string, Entry>()
   private readonly layer = document.getElementById('labels')!
   private readonly v = new THREE.Vector3()
+  private readonly px = { x: 0, y: 0 }
 
   /** Make the set match the server's (or offline list). Returns ids that are new. */
   sync(all: { forEach(cb: (m: { name: string; since: number; pose: string }, id: string) => void): void }): string[] {
@@ -72,12 +74,11 @@ export class Mountains {
       this.v.copy(e.titan.head)
       this.v.y += 0.12 * TITAN_HEIGHT
       const dist = this.v.distanceTo(camera.position)
-      this.v.project(camera)
-      const show = this.v.z < 1 && dist < 4000
+      const show = dist < 4000 && toScreen(this.v, camera, this.px)
       e.label.style.display = show ? 'block' : 'none'
       if (!show) continue
       e.label.innerHTML = `<b>${escapeHtml(e.info.name)}</b><small>DORMANT · ${slept(now - e.info.since)}</small>`
-      e.label.style.transform = `translate(-50%, -100%) translate(${((this.v.x + 1) / 2) * innerWidth}px, ${((1 - this.v.y) / 2) * innerHeight}px)`
+      e.label.style.transform = `translate(-50%, -100%) translate(${this.px.x}px, ${this.px.y}px)`
     }
   }
 

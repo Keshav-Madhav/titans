@@ -291,7 +291,7 @@ const scenes = {
         rise: g.heightAt(before.x, before.z) - groundBefore,
         newTitanAway: Math.hypot(after.x - before.x, after.z - before.z),
         mountainAt: m && Math.hypot(m.titan.gait.x - before.x, m.titan.gait.z - before.z),
-        label: document.querySelector('.label.mountain')?.textContent ?? '',
+        label: [...document.querySelectorAll('.label.mountain')].find((e) => e.style.display !== 'none')?.textContent ?? '',
       }
     })
     console.log(`dormant: ${r.mountains} mountain(s), hill rose ${r.rise.toFixed(1)} m, new Titan woke ${r.newTitanAway.toFixed(0)} m away; label "${r.label}"`)

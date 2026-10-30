@@ -35,7 +35,7 @@ export interface RemotePlayer {
 
 interface WorldStateView {
   players: { forEach(cb: (p: RemotePlayer, id: string) => void): void; get(id: string): RemotePlayer | undefined }
-  titan: TitanSnapshot & { driver: string }
+  titan: TitanSnapshot & { driver: string; wild: boolean }
   mountains: { forEach(cb: (m: { name: string; since: number; pose: string }, id: string) => void): void }
 }
 

@@ -105,8 +105,17 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       it sat, ground +17.2 m, new Titan 1,083 m away with 0 steps, A's name on it; survives SIGKILL)
 
 ## P10 — A living world
-- [ ] AI Titan when no human Titan is online
-- [ ] Wildlife herds (steering + FSM)
+- [x] The wild Titan: when nobody walks it (8 s; `TITANS_AI_DELAY_MS`, `TITANS_AI=0` off), a
+      traditional-AI mind (`shared/src/brain.ts`: wander/pause state machine, seeded) walks it to
+      far points on the low plains, avoiding the mountain belt and dormant Titans; mostly ploughs,
+      sometimes strides, now and then stomps or calls out. A player takes it over with T at any time.
+      Offline play without a server runs the same mind. Label over the Titan in the reel's style:
+      driver name or "A wild Titan" · TITAN · N STEPS
+- [x] Gate `tools/wild.mjs`: alone, it walks itself (3 steps, events arrive, labelled); taken over,
+      it stands still for the player; stepped out, it goes wild again
+- [x] Fixed on the way: DOM labels for things BEHIND the camera mirrored into view under the
+      reversed depth buffer (`client/src/screen.ts` now tests view-space depth)
+- [ ] Wildlife herds (steering + FSM), drawn to the lakes Titans make
 
 ## P11 — Settlement
 - [ ] Place a small building kit, persistent, with ownership

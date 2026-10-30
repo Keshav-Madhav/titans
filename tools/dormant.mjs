@@ -25,7 +25,7 @@ const fail = (m) => {
 function startServer() {
   const proc = spawn('npx', ['tsx', 'src/index.ts'], {
     cwd: 'server',
-    env: { ...process.env, PORT: String(PORT), TITANS_DB: DB, TITANS_DORMANT_MS: '3000', NODE_NO_WARNINGS: '1' },
+    env: { ...process.env, TITANS_AI: '0', PORT: String(PORT), TITANS_DB: DB, TITANS_DORMANT_MS: '3000', NODE_NO_WARNINGS: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   })
@@ -85,6 +85,14 @@ try {
 
   await B.waitForFunction(() => window.__g.mountains.count >= 1, null, { timeout: 20000 }).catch(() => fail('no mountain appeared'))
   await B.waitForTimeout(800)
+  // Face the mountain first: labels only show for what is in front of you.
+  await B.evaluate((t) => {
+    const g = window.__g
+    const p = g.player()
+    g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.12, 12)
+  }, sat)
+  await B.waitForFunction(() => window.__g.terrainView.settled(), null, { timeout: 30000 })
+  await B.waitForTimeout(500)
   const seen = await B.evaluate((t) => {
     const g = window.__g
     const m = g.mountains.targets()[0]
@@ -94,7 +102,7 @@ try {
       rise: g.heightAt(t.x, t.z),
       newTitanAway: Math.hypot(now.x - t.x, now.z - t.z),
       newSteps: now.steps,
-      label: [...document.querySelectorAll('.label.mountain')].map((e) => e.textContent).join(' | '),
+      label: [...document.querySelectorAll('.label.mountain')].filter((e) => e.style.display !== 'none').map((e) => e.textContent).join(' | '),
     }
   }, sat)
   console.log(`B sees: mountain ${seen.at.toFixed(1)} m from where it sat; ground rose ${(seen.rise - groundBefore).toFixed(1)} m; new Titan ${seen.newTitanAway.toFixed(0)} m away (${seen.newSteps} steps); label "${seen.label}"`)

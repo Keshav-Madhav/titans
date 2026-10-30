@@ -8,6 +8,7 @@ import { Wanderer } from './wanderer'
 import type { RemotePlayer } from './net'
 import type { Titan } from './titan'
 import { holdToWorld, type Hold } from './climb'
+import { toScreen } from './screen'
 
 const DELAY_MS = 100
 
@@ -35,6 +36,7 @@ export class Remotes {
   private readonly layer = document.getElementById('labels')!
   private readonly v = new THREE.Vector3()
   private readonly n = new THREE.Vector3()
+  private readonly px = { x: 0, y: 0 }
 
   /** Record the latest server state for every remote player. */
   ingest(players: { forEach(cb: (p: RemotePlayer, id: string) => void): void }, selfId: string): void {
@@ -121,13 +123,10 @@ export class Remotes {
     this.v.copy(r.body.obj.position)
     this.v.y += 2.3
     const dist = this.v.distanceTo(camera.position)
-    this.v.project(camera)
-    const show = r.body.obj.visible && this.v.z < 1 && (climbing || dist < 400)
+    const show = r.body.obj.visible && (climbing || dist < 400) && toScreen(this.v, camera, this.px)
     r.label.style.display = show ? 'block' : 'none'
     r.label.classList.toggle('climbing', climbing)
-    if (show) {
-      r.label.style.transform = `translate(-50%, -100%) translate(${((this.v.x + 1) / 2) * innerWidth}px, ${((1 - this.v.y) / 2) * innerHeight}px)`
-    }
+    if (show) r.label.style.transform = `translate(-50%, -100%) translate(${this.px.x}px, ${this.px.y}px)`
   }
 
   /** Remote players currently on the Titan. */

@@ -26,7 +26,7 @@ const fail = (m) => {
 function startServer() {
   const proc = spawn('npx', ['tsx', 'src/index.ts'], {
     cwd: 'server',
-    env: { ...process.env, PORT: String(PORT), TITANS_DB: DB, NODE_NO_WARNINGS: '1' },
+    env: { ...process.env, TITANS_AI: '0', PORT: String(PORT), TITANS_DB: DB, NODE_NO_WARNINGS: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true, // its own process group, so a crash takes the forked tsx child with it
   })

@@ -44,6 +44,8 @@ export const TitanState = schema(
     plough: t.boolean(),
     swingStomp: t.boolean(),
     resting: t.boolean(),
+    /** Nobody walks it: it wanders on its own. */
+    wild: t.boolean(),
   },
   'TitanState',
 )
