@@ -181,4 +181,7 @@ export class Terrain {
   heightAt(x: number, z: number): number {
     return this.base.height(x, z) + this.delta.sample(x, z)
   }
+
+  /** Height at integer coordinates (no interpolation) — the lake grid. */
+  readonly cellHeight = (ix: number, iz: number): number => this.base.height(ix, iz) + this.delta.at(ix, iz)
 }

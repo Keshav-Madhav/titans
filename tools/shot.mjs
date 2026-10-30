@@ -149,6 +149,50 @@ const scenes = {
     await shot('p4-trail')
     if (deep < 16) throw new Error('trail gate: footprints missing')
   },
+  // P5 gate: the reel's "every step leaves a lake" — a chain of filled footprints.
+  async lakes() {
+    await page.evaluate(async () => {
+      const g = window.__g
+      const t0 = g.titanState()
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0.12
+      g.clock.scale = 8
+      while (g.titanState().steps < t0.steps + 14) await new Promise((r) => setTimeout(r, 50))
+      g.autopilot.forward = 0
+      // Wait for the facts, not a timer: the Titan finishes its stride and
+      // stands still, then the rain fills every print (or 20 s passes).
+      const until = Date.now() + 20000
+      while (Date.now() < until) {
+        const t = g.titanState()
+        const all = g.lakeStats()
+        if (t.speed === 0 && !g.titan.gait.isSwinging && all.every((l) => l.full)) break
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      g.clock.scale = 1
+    })
+    const lakes = await page.evaluate(() => window.__g.lakeStats())
+    const full = lakes.filter((l) => l.full).length
+    console.log(`${lakes.length} lakes, ${full} full; sizes ${lakes.map((l) => l.cells).join(' ')}`)
+    console.log('sample', JSON.stringify(lakes.slice(0, 3)))
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titanState()
+      const bx = -Math.sin(t.heading), bz = -Math.cos(t.heading)
+      // Behind the Titan and above the trail, looking along it toward the giant.
+      g.teleport(t.x + bx * 260, t.z + bz * 260)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 230, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.atan2(bx, bz), 0.42)
+    })
+    await shot('p5-lakes')
+    await page.evaluate(() => {
+      const g = window.__g
+      const p = g.player()
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 7, focusHeight: 1.5, follow: 10 })
+      g.setCam(g.rig.yaw + 0.3, 0.12)
+    })
+    await shot('p5-lakes-ground')
+    if (lakes.length < 10 || full < lakes.length) throw new Error(`lakes gate: ${lakes.length} lakes, ${full} full`)
+  },
 }
 
 try {

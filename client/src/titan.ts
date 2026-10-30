@@ -67,9 +67,9 @@ const SHAPES: Record<string, { len: number; lumps: Lump[] }> = {
   foot: { len: 0.04, lumps: [{ at: 0.6, r: [0.06, 0.035, 0.095], off: [0, 0.025] }, { at: 0.75, r: [0.045, 0.03, 0.05], off: [0, 0.075] }] },
 }
 
-const STONE = new THREE.Color(0x8b857a)
-const STONE_DARK = new THREE.Color(0x605a52)
-const MOSS = new THREE.Color(0x5e6b3a)
+const STONE = new THREE.Color(0xa69e8d)
+const STONE_DARK = new THREE.Color(0x7a7266)
+const MOSS = new THREE.Color(0x6b7a40)
 
 function boulder(rx: number, ry: number, rz: number, seed: number, detail: number): THREE.BufferGeometry {
   const n1 = makeSimplex2(seed)
@@ -164,7 +164,7 @@ export class Titan {
   readonly chest = new THREE.Vector3()
   readonly head = new THREE.Vector3()
   private readonly meshes: Record<string, THREE.Mesh> = {}
-  private readonly material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0 })
+  private readonly material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 1.6 })
   private readonly j = {
     hip: [new THREE.Vector3(), new THREE.Vector3()],
     knee: [new THREE.Vector3(), new THREE.Vector3()],

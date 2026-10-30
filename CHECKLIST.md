@@ -35,10 +35,13 @@ P2 sprint walk 20.8 m, grounded; P3 Titan walked 5 steps toward the Wanderer (sc
 P4 20 steps → 39/40 planted-foot samples in a crater deeper than 2 m (min −4.08 m).
 
 ## P5 — Lakes
-- [ ] Priority-flood basin + spill height in shared code
-- [ ] Rain fill toward spill; overlapping basins merge
-- [ ] Lake meshes with sky reflection
-- [ ] Gate: the chained-lakes shot
+- [x] Priority-flood basin + spill height in shared code
+- [x] Rain fill toward spill; overlapping basins merge
+- [x] Lake meshes with sky reflection
+- [x] Gate: the chained-lakes shot
+
+Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 filled to their spill height
+(`node tools/shot.mjs lakes`, shot `shots/p5-lakes.png`). Overflow is discarded for now — rivers come later.
 
 ## P6 — Together
 - [ ] Colyseus `WorldRoom`, guest identity, join/leave

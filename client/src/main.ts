@@ -1,10 +1,11 @@
 import * as THREE from 'three'
-import { applyFootprint, footprintFor, Terrain, TITAN_HEIGHT, WORLD_SEED, type Footfall } from '@titans/shared'
+import { applyFootprint, footprintFor, LakeSystem, Terrain, TITAN_HEIGHT, WORLD_SEED, type Footfall } from '@titans/shared'
 import { TerrainView } from './terrain-view'
 import { SkySystem } from './sky'
 import { Input } from './input'
 import { Wanderer } from './wanderer'
 import { Titan } from './titan'
+import { WaterView } from './water-view'
 import { CameraRig, WANDERER_CAM, type CameraProfile } from './camera-rig'
 import { Hud } from './hud'
 
@@ -35,6 +36,10 @@ const terrainView = new TerrainView(terrain, WORLD_SEED)
 scene.add(terrainView.group)
 
 const sky = new SkySystem(scene, renderer)
+
+const lakes = new LakeSystem()
+const water = new WaterView()
+scene.add(water.group)
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
@@ -87,6 +92,7 @@ function onFootfall(f: Footfall): void {
   const e = footprintFor(TITAN_HEIGHT, f.x, f.z, Math.sin(f.heading), Math.cos(f.heading))
   const box = applyFootprint(terrain.delta, e)
   terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
+  lakes.onDeform(terrain.cellHeight, box, e.x, e.z)
   // The ground shakes for anyone near the footfall.
   const d = Math.hypot(camera.position.x - f.x, camera.position.z - f.z)
   rig.shake(Math.max(0, 1 - d / (6 * TITAN_HEIGHT)) * (role === 'titan' ? 0.006 : 0.012) * TITAN_HEIGHT)
@@ -120,6 +126,7 @@ function simulate(dt: number): void {
   }
   const fall = titan.step(dt, gaitInput)
   if (fall) onFootfall(fall)
+  lakes.step(dt)
 }
 
 function frame(now: number): void {
@@ -137,6 +144,7 @@ function frame(now: number): void {
   }
   wanderer.sync()
   titan.pose(terrain)
+  water.sync(lakes.lakes)
 
   const look = input.consumeLook()
   const subject = role === 'titan' ? titan.pelvis : wanderer.pos
@@ -177,6 +185,7 @@ const g = {
   rig,
   wanderer,
   titan,
+  lakes,
   sky,
   autopilot,
   clock,
@@ -200,6 +209,16 @@ const g = {
   },
   heightAt: (x: number, z: number) => terrain.heightAt(x, z),
   deltaAt: (x: number, z: number) => terrain.delta.sample(x, z),
-  stats: () => ({ ...hud.last, ...terrainView.stats }),
+  lakeStats() {
+    return lakes.lakes.map((l) => ({
+      id: l.id,
+      cells: l.basin.sorted.length,
+      bottom: +l.basin.bottom.toFixed(2),
+      spill: +l.basin.spill.toFixed(2),
+      level: +l.level.toFixed(2),
+      full: l.level >= l.basin.spill - 0.01,
+    }))
+  },
+  stats: () => ({ ...hud.last, ...terrainView.stats, lakes: lakes.lakes.length }),
 }
 ;(window as unknown as { __g: typeof g }).__g = g
