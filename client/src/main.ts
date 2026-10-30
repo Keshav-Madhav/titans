@@ -40,6 +40,7 @@ import { Chat } from './chat'
 import { loadIdentity } from './identity'
 import { Climber } from './climb'
 import { Mountains } from './mountains'
+import { Wildlife, type Threat } from './wildlife'
 import { toScreen } from './screen'
 import { Quality } from './quality'
 import { Menu } from './menu'
@@ -78,6 +79,8 @@ const water = new WaterView()
 scene.add(water.group)
 const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
+const wildlife = new Wildlife(terrain, lakes)
+scene.add(wildlife.group)
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
@@ -213,6 +216,8 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
+  // Herds within earshot bolt.
+  wildlife.alarm(ev.x, ev.z, ev.stomp ? 650 : 280)
   // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
   if (climber.active) climber.stamina = Math.max(0, climber.stamina - (ev.stomp ? 0.35 : 0.03))
   const gy = terrain.heightAt(ev.x, ev.z)
@@ -521,7 +526,17 @@ function simulate(dt: number): void {
     }
   }
   lakes.step(dt)
+  // Big things to keep clear of: every awake Titan (more so when it walks),
+  // and a Wanderer running right at them.
+  threats.length = 0
+  for (const a of titans.values()) {
+    const g = a.titan.gait
+    threats.push({ x: g.x, z: g.z, r: g.speed > 0.5 ? 0.9 * TITAN_HEIGHT : 0.45 * TITAN_HEIGHT })
+  }
+  if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
+  wildlife.step(dt, threats)
 }
+const threats: Threat[] = []
 
 const chest = new THREE.Vector3()
 
@@ -656,6 +671,7 @@ function frame(now: number): void {
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
   effects.update(dt)
+  wildlife.render()
   remotes.update(dt, camera, titanOf)
   placeTitanLabels()
   hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, mine().gait.steps, remotes.climbers, {
@@ -723,6 +739,7 @@ const g = {
     return driving
   },
   mountains,
+  wildlife,
   climber,
   goDormant,
   setWild(on: boolean) {

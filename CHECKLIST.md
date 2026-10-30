@@ -115,7 +115,13 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       it stands still for the player; stepped out, it goes wild again
 - [x] Fixed on the way: DOM labels for things BEHIND the camera mirrored into view under the
       reversed depth buffer (`client/src/screen.ts` now tests view-space depth)
-- [ ] Wildlife herds (steering + FSM), drawn to the lakes Titans make
+- [x] Wildlife (`client/src/wildlife.ts`): 4 herds of plains striders (34 animals), traditional AI —
+      herd FSM graze → travel → drink (thirst rises; a thirsty herd walks to the nearest lake a Titan
+      made and drinks at the shore) and flee (footfalls, stomps, walking Titans, a Wanderer running at
+      them); per-animal flocking (separation, cohesion, alignment), never into deep water; drawn as
+      four instanced meshes with every leg animated. Client-side for now (single player first).
+- [x] Gate `shot.mjs wildlife`: herds on the ground; thirsty herd 174 m away → travel → drink, 16.6 m
+      from the water; startled 45 m away → flees to 65 m in 2.5 s
 
 ## Polish round (user: "fix up all the rough edges", 2026-10-30)
 - [x] Back-lit Titan read as a navy silhouette → sky/ground fill + shadowless skylight opposite the sun

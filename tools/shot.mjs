@@ -341,6 +341,74 @@ const scenes = {
       await shot(name)
     }
   },
+  // P10b gate: herds on the ground; thirsty, they walk to a Titan's lake and drink; startled, they bolt.
+  async wildlife() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const W = g.wildlife
+      const s0 = W.stats()
+      const grounded = W.herds.every((h) => h.animals.every((a) => Math.abs(a.y - g.heightAt(a.x, a.z)) < 0.05))
+      // A Titan walks a trail of lakes.
+      const t0 = g.titanState().steps
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0.1
+      g.clock.scale = 10
+      while (g.titanState().steps < t0 + 12) await new Promise((r) => setTimeout(r, 40))
+      g.autopilot.forward = 0
+      const until = Date.now() + 20000
+      while (Date.now() < until && !(g.titanState().speed === 0 && g.lakeStats().length && g.lakeStats().every((l) => l.full))) await new Promise((r) => setTimeout(r, 100))
+      // The herd nearest the trail gets thirsty.
+      const lakes = g.lakes.lakes
+      const near = (h) => Math.min(...lakes.map((l) => Math.hypot(l.basin.bx - W.stats()[W.herds.indexOf(h)].x, l.basin.bz - W.stats()[W.herds.indexOf(h)].z)))
+      const herd = [...W.herds].sort((a, b) => near(a) - near(b))[0]
+      const hi = W.herds.indexOf(herd)
+      herd.thirst = 1
+      herd.state = 'graze'
+      herd.timer = 0
+      const startDist = near(herd)
+      const states = new Set()
+      const until2 = Date.now() + 60000
+      while (Date.now() < until2) {
+        states.add(herd.state)
+        if (herd.state === 'drink') break
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      g.clock.scale = 1
+      const at = W.stats()[hi]
+      const shore = Math.min(...lakes.flatMap((l) => {
+        // distance from the herd's middle to the nearest wet cell of this lake
+        const b = l.basin
+        let best = Infinity
+        for (let j = 0; j < b.h; j += 2) for (let i = 0; i < b.w; i += 2) if (b.mask[j * b.w + i]) best = Math.min(best, Math.hypot(b.x0 + i - at.x, b.z0 + j - at.z))
+        return [best]
+      }))
+      return { herds: s0.length, animals: s0.reduce((a, h) => a + h.n, 0), grounded, hi, startDist, states: [...states], drinking: herd.state === 'drink', shore, at }
+    })
+    console.log(`${r.herds} herds, ${r.animals} animals, on the ground: ${r.grounded}`)
+    console.log(`thirsty herd ${r.hi}: ${r.startDist.toFixed(0)} m from the nearest lake → states ${r.states.join(' → ')}; drinking: ${r.drinking}, ${r.shore.toFixed(1)} m from the water`)
+    await page.evaluate((at) => {
+      const g = window.__g
+      g.teleport(at.x + 22, at.z + 22)
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 16, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.PI / 4, 0.32)
+    }, r.at)
+    await shot('p10-herd-drinking')
+    const flee = await page.evaluate(async (hi) => {
+      const g = window.__g
+      const W = g.wildlife
+      const a = W.stats()[hi]
+      const ax = a.x + 45
+      const az = a.z
+      W.alarm(ax, az, 300)
+      await new Promise((r) => setTimeout(r, 2500))
+      const b = W.stats()[hi]
+      return { state: b.state, from: Math.hypot(a.x - ax, a.z - az), to: Math.hypot(b.x - ax, b.z - az) }
+    }, r.hi)
+    console.log(`startled 45 m away: ${flee.state}, now ${flee.to.toFixed(0)} m from the fright (was ${flee.from.toFixed(0)})`)
+    if (r.herds !== 4 || !r.grounded) throw new Error('wildlife gate: herds missing or floating')
+    if (!r.drinking || r.shore > 30) throw new Error('wildlife gate: the thirsty herd did not drink at a lake')
+    if (flee.state !== 'flee' || flee.to < flee.from + 8) throw new Error('wildlife gate: the herd did not bolt')
+  },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {
     const falls = await page.evaluate(async () => {
