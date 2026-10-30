@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Titans</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --ink: #f4efe6;
+        --ink-dim: rgba(244, 239, 230, 0.62);
+        --panel: rgba(18, 20, 26, 0.42);
+        --accent: #f2c14e;
+        --cloak: #b8352a;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #9fb4c8; }
+      body { font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); }
+      canvas#game { display: block; width: 100vw; height: 100vh; outline: none; }
+
+      #perf {
+        position: fixed; top: 10px; left: 10px; padding: 6px 9px; border-radius: 6px;
+        background: var(--panel); font: 11px/1.45 ui-monospace, 'SF Mono', Menlo, monospace;
+        color: var(--ink-dim); white-space: pre; pointer-events: none;
+      }
+      #role {
+        position: fixed; top: 12px; right: 14px; padding: 5px 11px; border-radius: 999px;
+        background: var(--panel); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+        font-size: 11px; pointer-events: none;
+      }
+      #role b { color: var(--accent); font-weight: 700; }
+      #hint {
+        position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+        padding: 7px 14px; border-radius: 8px; background: var(--panel); color: var(--ink-dim);
+        pointer-events: none; transition: opacity 0.6s; white-space: nowrap;
+      }
+      #hint kbd {
+        font: 600 11px ui-monospace, Menlo, monospace; color: var(--ink);
+        padding: 1px 5px; border: 1px solid rgba(244, 239, 230, 0.35); border-radius: 4px;
+      }
+
+      #loading {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
+      }
+      #loading.done { opacity: 0; pointer-events: none; }
+      #loading h1 {
+        margin: 0; font: 700 clamp(40px, 9vw, 96px)/1 ui-serif, Georgia, serif; letter-spacing: 0.18em;
+        color: #fffaf0; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.25); text-align: center;
+      }
+      #loading p { margin: 14px 0 0; text-align: center; color: rgba(255, 250, 240, 0.8); letter-spacing: 0.06em; }
+    </style>
+  </head>
+  <body>
+    <canvas id="game" tabindex="0"></canvas>
+    <div id="perf"></div>
+    <div id="role"></div>
+    <div id="hint"></div>
+    <div id="loading">
+      <div>
+        <h1>TITANS</h1>
+        <p id="loading-text">the land is waking</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
