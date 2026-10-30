@@ -9,7 +9,7 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createHash } from 'node:crypto'
-import type { TerrainEvent, TitanSnapshot } from '@titans/shared'
+import type { MountainInfo, TerrainEvent, TitanSnapshot } from '@titans/shared'
 
 export interface SavedPlayer {
   x: number
@@ -53,6 +53,12 @@ export class WorldStore {
         id         INTEGER PRIMARY KEY,
         state      TEXT    NOT NULL,
         updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS mountains (
+        id    TEXT    PRIMARY KEY,
+        name  TEXT    NOT NULL,
+        state TEXT    NOT NULL,
+        since INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS players (
         token_hash TEXT PRIMARY KEY,
@@ -100,6 +106,15 @@ export class WorldStore {
 
   saveTitan(id: number, s: TitanSnapshot): void {
     this.upsertTitan.run(id, JSON.stringify(s), Date.now())
+  }
+
+  loadMountains(): Array<{ id: string; info: MountainInfo }> {
+    const rows = this.db.prepare('SELECT id, state FROM mountains ORDER BY since').all() as Array<{ id: string; state: string }>
+    return rows.map((r) => ({ id: r.id, info: JSON.parse(r.state) as MountainInfo }))
+  }
+
+  saveMountain(id: string, info: MountainInfo): void {
+    this.db.prepare('INSERT OR REPLACE INTO mountains (id, name, state, since) VALUES (?, ?, ?, ?)').run(id, info.name, JSON.stringify(info), info.since)
   }
 
   loadPlayer(tokenHash: string): SavedPlayer | null {

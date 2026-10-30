@@ -99,7 +99,7 @@ export interface TitanPart {
   lumps: LumpSurface[]
 }
 
-function boulder(rx: number, ry: number, rz: number, seed: number, detail: number): THREE.BufferGeometry {
+function boulder(rx: number, ry: number, rz: number, seed: number, detail: number, mossiness = 0): THREE.BufferGeometry {
   const { bulge, noise3 } = boulderNoise(seed)
   let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, detail)
   g.deleteAttribute('normal')
@@ -121,8 +121,9 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
     const s = 0.5 + 0.5 * noise3(v.x * 0.15 + 4, v.y * 0.15, v.z * 0.15)
     c.copy(STONE).lerp(STONE_DARK, s * 0.7)
     const up = nrm.getY(i)
-    const moss = THREE.MathUtils.smoothstep(up + 0.25 * noise3(v.x * 0.2, v.y * 0.2, v.z * 0.2), 0.45, 0.8)
-    c.lerp(MOSS, moss * 0.85)
+    // A sleeping Titan grows moss far down its flanks.
+    const moss = THREE.MathUtils.smoothstep(up + 0.25 * noise3(v.x * 0.2, v.y * 0.2, v.z * 0.2), 0.45 - 0.75 * mossiness, 0.8 - 0.5 * mossiness)
+    c.lerp(MOSS, moss * (0.85 + 0.1 * mossiness))
     colors[i * 3] = c.r
     colors[i * 3 + 1] = c.g
     colors[i * 3 + 2] = c.b
@@ -131,14 +132,14 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
   return g
 }
 
-function segment(name: string, H: number, seed: number): { geometry: THREE.BufferGeometry; lumps: LumpSurface[] } {
+function segment(name: string, H: number, seed: number, mossiness: number): { geometry: THREE.BufferGeometry; lumps: LumpSurface[] } {
   const shape = SHAPES[name]
   const lumps: LumpSurface[] = []
   const parts = shape.lumps.map((l, i) => {
     const c = new THREE.Vector3((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H)
     const r = new THREE.Vector3(l.r[0] * H, l.r[1] * H, l.r[2] * H)
     lumps.push({ c, r, bulge: boulderNoise(seed + i * 31).bulge })
-    const g = boulder(r.x, r.y, r.z, seed + i * 31, 4)
+    const g = boulder(r.x, r.y, r.z, seed + i * 31, 4, mossiness)
     g.translate(c.x, c.y, c.z)
     return g
   })
@@ -148,6 +149,9 @@ function segment(name: string, H: number, seed: number): { geometry: THREE.Buffe
 }
 
 const _x = new THREE.Vector3()
+const _sitHand = new THREE.Vector3()
+const _sitBend = new THREE.Vector3()
+const _sitElbow = new THREE.Vector3()
 const _y = new THREE.Vector3()
 const _z = new THREE.Vector3()
 const _m = new THREE.Matrix4()
@@ -185,7 +189,10 @@ function solveTwoBone(root: V3, target: V3, l1: number, l2: number, bend: V3, ou
 export class Titan {
   readonly group = new THREE.Group()
   readonly body: TitanBody
-  readonly gait: TitanGait
+  /** Replaced when a new Titan awakens (the old one became a mountain). */
+  gait: TitanGait
+  /** 0 standing … 1 sitting. Eases toward the gait's `resting`. */
+  restBlend = 0
   readonly H: number
   readonly pelvis = new THREE.Vector3()
   readonly chest = new THREE.Vector3()
@@ -212,12 +219,12 @@ export class Titan {
   private readonly tmp2 = new THREE.Vector3()
   private breath = 0
 
-  constructor(height: number, x: number, z: number, heading: number, seed = 7) {
+  constructor(height: number, x: number, z: number, heading: number, seed = 7, mossiness = 0) {
     this.H = height
     this.body = titanBody(height)
     this.gait = new TitanGait(this.body, x, z, heading)
     const add = (key: string, shape: string, s: number) => {
-      const { geometry, lumps } = segment(shape, height, seed + s)
+      const { geometry, lumps } = segment(shape, height, seed + s, mossiness)
       const m = new THREE.Mesh(geometry, this.material)
       m.castShadow = true
       m.receiveShadow = true
@@ -261,7 +268,16 @@ export class Titan {
   }
 
   /** Solve the pose for the current gait state. */
-  pose(terrain: Terrain): void {
+  /** A new Titan wakes at (x, z): fresh gait, standing up. */
+  awaken(x: number, z: number, heading: number): void {
+    this.gait = new TitanGait(this.body, x, z, heading)
+  }
+
+  pose(terrain: Terrain, dt = 1 / 60): void {
+    // Sitting down (or getting up) takes a few seconds.
+    const want = this.gait.resting ? 1 : 0
+    this.restBlend += Math.sign(want - this.restBlend) * Math.min(Math.abs(want - this.restBlend), dt / 3)
+    const rb = this.restBlend * this.restBlend * (3 - 2 * this.restBlend)
     const g = this.gait
     const b = this.body
     const H = this.H
@@ -276,7 +292,10 @@ export class Titan {
       g.footPos(f, this.foot)
       const gy = terrain.heightAt(this.foot.x, this.foot.z)
       groundSum += gy
-      J.ankle[f].set(this.foot.x, gy + ankleUp + this.foot.lift, this.foot.z)
+      // Sitting, the feet come forward and flat.
+      const fx = this.foot.x + this.fwd.x * 0.2 * H * rb
+      const fz = this.foot.z + this.fwd.z * 0.2 * H * rb
+      J.ankle[f].set(fx, terrain.heightAt(fx, fz) + ankleUp + this.foot.lift * (1 - rb), fz)
     }
 
     // Pelvis: over the body point, swaying toward the stance foot, bobbing
@@ -285,7 +304,10 @@ export class Titan {
     const swayAmt = stance < 0 ? 0 : (stance === 0 ? 1 : -1) * 0.022 * H * Math.sin(Math.PI * g.phase)
     const bob = g.isSwinging ? 0.012 * H * Math.sin(Math.PI * g.phase) : 0
     const groundBody = Math.max(groundSum / 2, terrain.heightAt(g.x, g.z) - 0.05 * H)
-    this.pelvis.set(g.x, groundBody + b.hipHeight * 0.985 + bob, g.z).addScaledVector(this.left, swayAmt)
+    this.pelvis
+      .set(g.x, groundBody + (b.hipHeight * 0.985 + bob) * (1 - rb) + 0.13 * H * rb, g.z)
+      .addScaledVector(this.left, swayAmt * (1 - rb))
+      .addScaledVector(this.fwd, -0.04 * H * rb)
     const reach = (b.thigh + b.shin) * 0.985
     for (const f of [0, 1] as const) {
       J.hip[f].copy(this.pelvis).addScaledVector(this.left, f === 0 ? b.hipHalf : -b.hipHalf)
@@ -299,7 +321,8 @@ export class Titan {
 
     // Legs.
     for (const f of [0, 1] as const) {
-      this.tmp.copy(this.fwd).multiplyScalar(1).addScaledVector(this.left, 0) // knees bend forward
+      // Knees bend forward walking, and up when sitting.
+      this.tmp.copy(this.fwd).multiplyScalar(1 - rb).add(_x.set(0, rb, 0)).normalize()
       solveTwoBone(J.hip[f], J.ankle[f], b.thigh, b.shin, this.tmp, J.knee[f])
     }
 
@@ -311,9 +334,10 @@ export class Titan {
       .copy(this.pelvis)
       .addScaledVector(this.fwd, 0.075 * H)
       .addScaledVector(this.left, -swayAmt * 0.6 + heave)
-    this.chest.y += SHAPES.torso.len * H * 0.97 + breathe + Math.abs(heave) * 0.5
-    this.head.copy(this.chest).addScaledVector(this.fwd, 0.065 * H)
-    this.head.y += 0.035 * H
+    this.chest.y += SHAPES.torso.len * H * 0.97 * (1 - 0.18 * rb) + breathe + Math.abs(heave) * 0.5
+    this.chest.addScaledVector(this.fwd, 0.1 * H * rb) // hunched over the knees
+    this.head.copy(this.chest).addScaledVector(this.fwd, (0.065 + 0.03 * rb) * H)
+    this.head.y += (0.035 - 0.045 * rb) * H // head bowed
 
     // Arms swing opposite to the legs, by each foot's lead.
     for (const f of [0, 1] as const) {
@@ -329,6 +353,15 @@ export class Titan {
       const fore = swing + 0.38
       this.tmp2.set(0, -Math.cos(fore), 0).addScaledVector(this.fwd, Math.sin(fore)).addScaledVector(this.left, side * 0.08).normalize()
       J.hand[f].copy(J.elbow[f]).addScaledVector(this.tmp2, SHAPES.forearm.len * H)
+      if (rb > 0) {
+        // Sitting: hands rest on the knees, elbows out and back.
+        _sitHand.copy(J.knee[f]).addScaledVector(this.fwd, 0.02 * H)
+        _sitHand.y += 0.04 * H
+        _sitBend.copy(this.fwd).negate().addScaledVector(this.left, side * 0.6).normalize()
+        solveTwoBone(J.shoulder[f], _sitHand, SHAPES.upperArm.len * H, SHAPES.forearm.len * H, _sitBend, _sitElbow)
+        J.elbow[f].lerp(_sitElbow, rb)
+        J.hand[f].lerp(_sitHand, rb)
+      }
     }
 
     // Place meshes.

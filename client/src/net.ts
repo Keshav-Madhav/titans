@@ -36,6 +36,7 @@ export interface RemotePlayer {
 interface WorldStateView {
   players: { forEach(cb: (p: RemotePlayer, id: string) => void): void; get(id: string): RemotePlayer | undefined }
   titan: TitanSnapshot & { driver: string }
+  mountains: { forEach(cb: (m: { name: string; since: number; pose: string }, id: string) => void): void }
 }
 
 export class Net {
@@ -116,6 +117,10 @@ export class Net {
 
   sendTitan(m: TitanInputMsg): void {
     this.room?.send(MSG.titanInput, m)
+  }
+
+  sendRest(): void {
+    this.room?.send(MSG.rest, {})
   }
 
   sendCall(): void {

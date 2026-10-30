@@ -193,3 +193,36 @@ export function footprintFor(height: number, x: number, z: number, hx: number, h
     depth: 0.034 * height * (stomp ? 1.8 : 1),
   }
 }
+
+/** The hill that rises under a Titan that has gone dormant: it is becoming a mountain. */
+export interface MountainEvent {
+  kind: 'mountain'
+  x: number
+  z: number
+  radius: number
+  height: number
+}
+
+/** A smooth polynomial mound, (1 − q)² in squared distance — no sqrt, no trig. */
+export function applyMountain(delta: DeltaField, e: MountainEvent): Box {
+  const R2 = e.radius * e.radius
+  const x0 = Math.floor(e.x - e.radius)
+  const x1 = Math.ceil(e.x + e.radius)
+  const z0 = Math.floor(e.z - e.radius)
+  const z1 = Math.ceil(e.z + e.radius)
+  for (let iz = z0; iz <= z1; iz++) {
+    for (let ix = x0; ix <= x1; ix++) {
+      const dx = ix - e.x
+      const dz = iz - e.z
+      const q = (dx * dx + dz * dz) / R2
+      if (q >= 1) continue
+      const u = 1 - q
+      delta.add(ix, iz, e.height * u * u)
+    }
+  }
+  return { x0, z0, x1, z1 }
+}
+
+export function mountainFor(height: number, x: number, z: number): MountainEvent {
+  return { kind: 'mountain', x, z, radius: 0.6 * height, height: 0.1 * height }
+}

@@ -156,7 +156,7 @@ water that Wanderers use or settle beside, climbers it carries, ruins it uncover
 | Scoop and heap | Hands dig earth and pile it: dams, hills, ramps, rerouted water | later |
 | Call the rain | Spend energy to rain on a region: lakes fill, land greens | later |
 | Carry | Hold Wanderers in a hand or on the shoulders: the Titan as transport | later |
-| Rest | Sit; a long rest or logging off becomes a mountain landmark | P9 |
+| Rest (X) | Sit; a long rest or logging off becomes a mountain landmark | built (P9) |
 
 **The bond:** a Titan cannot see its own back. Cracks, blight and the First Ones' carvings on its
 body can only be tended or read by climbers. **Growth:** scale grows with the life a Titan enables.

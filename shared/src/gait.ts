@@ -80,6 +80,8 @@ export class TitanGait {
   stompArmed = false
   /** The current swing is a stomp: the foot rises high and slams down. */
   swingStomp = false
+  /** Sitting down to rest. A resting Titan does not walk; a long rest without a driver ends in dormancy. */
+  resting = false
   private readonly dragFrom: Vec2 = { x: 0, z: 0 }
   private readonly cur = { x: 0, z: 0, lift: 0 }
 
@@ -109,14 +111,14 @@ export class TitanGait {
   /** Advance by dt, pushing any drag segments and footfalls into `out`. */
   step(dt: number, input: GaitInput, out: GaitEvent[]): void {
     const b = this.body
-    const target = Math.max(0, Math.min(1, input.forward)) * this.maxSpeed
+    const target = this.resting ? 0 : Math.max(0, Math.min(1, input.forward)) * this.maxSpeed
     const accel = this.maxSpeed / (b.stepTime * 1.5)
     if (this.speed < target) this.speed = Math.min(target, this.speed + accel * dt)
     else this.speed = Math.max(target, this.speed - accel * 1.6 * dt)
 
     // Turning needs momentum: a standing Titan pivots slowly.
     const turnScale = 0.35 + 0.65 * (this.speed / this.maxSpeed)
-    this.heading += input.turn * b.turnRate * turnScale * dt
+    if (!this.resting) this.heading += input.turn * b.turnRate * turnScale * dt
 
     const fx = Math.sin(this.heading)
     const fz = Math.cos(this.heading)
@@ -222,6 +224,7 @@ export class TitanGait {
     out.toZ = this.swingTo.z
     out.plough = this.plough
     out.swingStomp = this.swingStomp
+    out.resting = this.resting
     return out
   }
 
@@ -245,6 +248,7 @@ export class TitanGait {
     this.swingTo.z = s.toZ
     this.plough = s.plough
     this.swingStomp = s.swingStomp
+    this.resting = s.resting
     // The next drag segment starts from the swing's start: re-cutting that
     // stretch is harmless (trenches cut with lowerTo), a cut from (0, 0) is not.
     this.dragFrom.x = s.fromX

@@ -3,7 +3,9 @@ import {
   applyDrag,
   applyFootprint,
   applyImpact,
+  applyMountain,
   dragFor,
+  mountainFor,
   footprintFor,
   impactFor,
   LakeSystem,
@@ -15,7 +17,9 @@ import {
   type Box,
   type GaitEvent,
   type GaitInput,
+  type MountainRise,
   type Role,
+  type TitanSnapshot,
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
@@ -32,6 +36,7 @@ import { Remotes } from './remotes'
 import { Chat } from './chat'
 import { loadIdentity } from './identity'
 import { Climber } from './climb'
+import { Mountains } from './mountains'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
@@ -84,7 +89,11 @@ scene.add(wanderer.obj)
 // (the server's TITAN_SPAWN matches this).
 const titan = new Titan(TITAN_HEIGHT, 230, -400, Math.PI * 0.62)
 scene.add(titan.group)
-const climber = new Climber(titan)
+const mountains = new Mountains()
+scene.add(mountains.group)
+/** Any Titan by climb id: '' is the awake one, anything else a mountain. */
+const titanOf = (id: string) => (id === '' ? titan : mountains.get(id))
+const climber = new Climber(() => [{ id: '', titan }, ...mountains.targets()])
 
 const TITAN_CAM: CameraProfile = {
   minDist: 0.9 * TITAN_HEIGHT,
@@ -137,8 +146,16 @@ function grow(b: Box): void {
 const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
 /** Apply one terrain event. `replay` = catching up on join: no dust, no shake. */
-function onGait(ev: GaitEvent, replay = false): void {
+function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   const H = TITAN_HEIGHT
+  if (ev.type === 'mountain') {
+    // A Titan fell asleep: the hill rising under it.
+    const box = applyMountain(terrain.delta, mountainFor(H, ev.x, ev.z))
+    terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
+    lakes.onDeform(box)
+    if (!replay) rig.shake(Math.max(0, 1 - Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) / (8 * H)) * 0.01 * H)
+    return
+  }
   if (ev.type === 'drag') {
     grow(applyDrag(terrain.delta, dragFor(H, ev.ax, ev.az, ev.bx, ev.bz)))
     if (!replay) effects.drag(ev.bx, terrain.heightAt(ev.bx, ev.bz), ev.bz, H)
@@ -191,6 +208,7 @@ net.onPatch = () => {
   const s = net.state
   if (!s) return
   titan.gait.restore(s.titan)
+  for (const id of mountains.sync(s.mountains)) holdOnAsItSleeps(id)
   remotes.ingest(s.players, net.sessionId)
   const me = net.me()
   if (me && me.role !== role) setRole(me.role as Role)
@@ -254,12 +272,24 @@ function simulate(dt: number): void {
       if (input.pressed('KeyR')) ploughMode = !ploughMode
       if (input.pressed('KeyF')) stomp()
       if (input.pressed('KeyC')) callOut()
+      if (input.pressed('KeyX')) {
+        if (mode === 'online') net.sendRest()
+        else titan.gait.resting = !titan.gait.resting
+      }
     }
     if (mode !== 'online') titan.gait.plough = ploughMode
   } else if (climber.active) {
     if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
     else if (!chat.typing && input.pressed('Space')) letGo(4.5)
-    else if (!climber.step(dt, input.axes(), rig.yaw, titan.gait.speed / titan.gait.maxSpeed, titan.shrugging)) {
+    else if (
+      !climber.step(
+        dt,
+        input.axes(),
+        rig.yaw,
+        climber.target?.id === '' ? titan.gait.speed / titan.gait.maxSpeed : 0,
+        climber.target?.id === '' && titan.shrugging,
+      )
+    ) {
       chat.system('You lost your grip.')
       letGo(1.2)
     } else {
@@ -322,6 +352,29 @@ function callOut(): void {
   chat.system(`${identity.name}, the Titan, calls out.`)
 }
 
+/**
+ * The awake Titan just became the mountain `id`. Anyone holding on stays on
+ * the same rock — now a mountain — instead of being carried off by the new
+ * Titan that wakes elsewhere.
+ */
+function holdOnAsItSleeps(id: string): void {
+  const m = mountains.get(id)
+  if (!m || !climber.active || climber.target?.id !== '') return
+  if (Math.hypot(m.gait.x - climber.world.x, m.gait.z - climber.world.z) < TITAN_HEIGHT) climber.retarget({ id, titan: m })
+}
+
+/** Offline stand-in for the server's dormancy: the Titan sleeps here, a new one wakes. */
+function goDormant(): void {
+  const id = `local-${mountains.count + 1}`
+  mountains.add(id, { name: identity.name, since: Date.now(), pose: { ...titan.gait.snapshot({} as TitanSnapshot), resting: true } })
+  holdOnAsItSleeps(id)
+  onGait({ type: 'mountain', x: titan.gait.x, z: titan.gait.z })
+  const a = mountains.count * 2.4 + 0.7
+  titan.awaken(Math.cos(a) * 650, Math.sin(a) * 650, a + Math.PI)
+  titan.restBlend = 0
+  if (role === 'titan') setRole('wanderer')
+}
+
 function shrug(): void {
   if (mode === 'online') net.sendShrug() // comes back to everyone, us included
   else titan.shrug()
@@ -355,8 +408,9 @@ function frame(now: number): void {
 
   // Render between the last two simulation states: on a 120 Hz display the
   // 60 Hz simulation would otherwise move the Wanderer every other frame.
-  titan.pose(terrain)
+  titan.pose(terrain, dt)
   titan.group.updateMatrixWorld(true)
+  mountains.update(terrain, camera, Date.now())
   if (climber.active) {
     // Glued to the hold through the Titan's pose of THIS frame.
     climber.sync(dt)
@@ -366,7 +420,7 @@ function frame(now: number): void {
   }
   water.sync(lakes.lakes)
   effects.update(dt)
-  remotes.update(dt, camera, titan)
+  remotes.update(dt, camera, titanOf)
   hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers, {
     plough: titan.gait.plough,
     stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
@@ -417,7 +471,9 @@ const g = {
   rig,
   wanderer,
   titan,
+  mountains,
   climber,
+  goDormant,
   lakes,
   sky,
   net,

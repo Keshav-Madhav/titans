@@ -55,8 +55,12 @@ export class Remotes {
         this.group.add(body.obj)
       }
       r.role = p.role
-      r.hold = p.climb ? { part: p.climb, lump: p.lump, x: p.lx, y: p.ly, z: p.lz } : null
-      if (!r.hold || r.shown?.part !== r.hold.part || r.shown.lump !== r.hold.lump) r.shown = r.hold && { ...r.hold }
+      // The server sends "part" for the awake Titan, "mountainId/part" for a dormant one.
+      const slash = p.climb ? p.climb.indexOf('/') : -1
+      r.hold = p.climb
+        ? { titan: slash < 0 ? '' : p.climb.slice(0, slash), part: p.climb.slice(slash + 1), lump: p.lump, x: p.lx, y: p.ly, z: p.lz }
+        : null
+      if (!r.hold || r.shown?.titan !== r.hold.titan || r.shown?.part !== r.hold.part || r.shown.lump !== r.hold.lump) r.shown = r.hold && { ...r.hold }
       const last = r.samples[r.samples.length - 1]
       if (!last || last.x !== p.x || last.z !== p.z || last.y !== p.y || now - last.t > 200) {
         r.samples.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw })
@@ -71,7 +75,7 @@ export class Remotes {
     }
   }
 
-  update(dt: number, camera: THREE.Camera, titan: Titan): void {
+  update(dt: number, camera: THREE.Camera, titanOf: (id: string) => Titan | undefined): void {
     const t = performance.now() - DELAY_MS
     for (const r of this.list.values()) {
       // A remote who is driving the Titan has no body on the ground.
@@ -82,7 +86,7 @@ export class Remotes {
         r.shown.x += (r.hold.x - r.shown.x) * k
         r.shown.y += (r.hold.y - r.shown.y) * k
         r.shown.z += (r.hold.z - r.shown.z) * k
-        if (holdToWorld(titan, r.shown, this.v, this.n)) {
+        if (holdToWorld(titanOf, r.shown, this.v, this.n)) {
           r.body.climbPose(dt, this.v, this.n, this.n.y > 0.62, r.samples[r.samples.length - 1]?.yaw ?? 0, 0)
         }
         this.placeLabel(r, camera, true)

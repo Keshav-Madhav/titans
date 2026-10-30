@@ -7,7 +7,10 @@ import {
   applyDrag,
   applyFootprint,
   applyImpact,
+  applyMountain,
+  DORMANT_AFTER_MS,
   dragFor,
+  mountainFor,
   FALL_GRACE_MS,
   TITAN_PARTS,
   footprintFor,
@@ -26,13 +29,14 @@ import {
   type ChatMsg,
   type GaitEvent,
   type JoinOptions,
+  type MountainInfo,
   type MoveMsg,
   type RoleMsg,
   type TerrainEvent,
   type TitanInputMsg,
   type TitanSnapshot,
 } from '@titans/shared'
-import { Player, TitanState, WorldState } from './schema'
+import { Mountain, Player, TitanState, WorldState } from './schema'
 import { hashToken, WorldStore } from './store'
 
 /** Where the first Titan stands. Must match the client's offline spawn. */
@@ -51,7 +55,14 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   autoDispose = false
 
   private readonly terrain = new Terrain(WORLD_SEED)
-  private readonly gait = new TitanGait(titanBody(TITAN_HEIGHT), TITAN_SPAWN.x, TITAN_SPAWN.z, TITAN_SPAWN.heading)
+  private gait = new TitanGait(titanBody(TITAN_HEIGHT), TITAN_SPAWN.x, TITAN_SPAWN.z, TITAN_SPAWN.heading)
+  /** Whoever last walked the Titan: the name its mountain will carry. */
+  private lastDriver = ''
+  /** When the Titan sat down with nobody driving (0 = not resting alone). */
+  private restSince = 0
+  private readonly dormantAfter = Number(process.env.TITANS_DORMANT_MS ?? DORMANT_AFTER_MS)
+  /** Mountains by id, for climb checks without parsing schema JSON. */
+  private readonly mountains = new Map<string, MountainInfo>()
   private readonly log: TerrainEvent[] = []
   private readonly events: GaitEvent[] = []
   private readonly snap = {} as TitanSnapshot
@@ -80,6 +91,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.state.seq = events.length ? events[events.length - 1].seq : 0
     const saved = this.store.loadTitan(1)
     if (saved) this.gait.restore(saved)
+    for (const m of this.store.loadMountains()) this.addMountain(m.id, m.info)
     console.log(`world loaded: ${events.length} terrain events, Titan at ${this.gait.x.toFixed(0)}, ${this.gait.z.toFixed(0)} after ${this.gait.steps} steps`)
     this.copyTitan()
     this.setPatchRate(PATCH_MS)
@@ -105,6 +117,10 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       this.broadcast(MSG.call, { name: p?.name ?? 'The Titan', x: this.gait.x, z: this.gait.z })
     })
     this.onMessage(MSG.role, (client: Client, m: RoleMsg) => this.onRole(client, m))
+    // Sit down to rest, or stand back up.
+    this.onMessage(MSG.rest, (client: Client) => {
+      if (client.sessionId === this.state.titan.driver) this.gait.resting = !this.gait.resting
+    })
     // The Titan heaves its shoulders; every client shakes its own climbers.
     this.onMessage(MSG.shrug, (client: Client) => {
       if (client.sessionId === this.state.titan.driver) this.broadcast(MSG.shrug, {})
@@ -142,8 +158,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.savePlayer(client.sessionId)
     this.tokens.delete(client.sessionId)
     if (this.state.titan.driver === client.sessionId) {
+      // Log off and your Titan sits down where it stands. If nobody takes it
+      // up again, it sleeps, and becomes a mountain.
       this.state.titan.driver = ''
       this.titanInput = { forward: 0, turn: 0 }
+      this.gait.resting = true
     }
     this.state.players.delete(client.sessionId)
     this.seen.delete(client.sessionId)
@@ -156,6 +175,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     if (m?.role === 'titan' && (t.driver === '' || t.driver === client.sessionId)) {
       t.driver = client.sessionId
       p.role = 'titan'
+      this.lastDriver = p.name
     } else if (m?.role === 'wanderer' && t.driver === client.sessionId) {
       t.driver = ''
       this.titanInput = { forward: 0, turn: 0 }
@@ -179,13 +199,17 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     const c = m.climb
     if (c) {
       // On a Titan the Titan carries you: no speed limit, but you must be on it.
+      const mtn = c.titan ? this.mountains.get(c.titan) : null
+      const cx = mtn ? mtn.pose.x : this.gait.x
+      const cz = mtn ? mtn.pose.z : this.gait.z
       const ok =
+        (c.titan === '' || !!mtn) &&
         TITAN_PARTS.includes(c.part) &&
         [c.x, c.y, c.z].every((v) => Number.isFinite(v) && Math.abs(v) < TITAN_HEIGHT) &&
-        Math.hypot(x - this.gait.x, z - this.gait.z) < TITAN_HEIGHT * 0.8 &&
+        Math.hypot(x - cx, z - cz) < TITAN_HEIGHT * 0.8 &&
         y < ground + TITAN_HEIGHT * 1.2
       if (!ok) return
-      p.climb = c.part
+      p.climb = c.titan ? `${c.titan}/${c.part}` : c.part
       p.lump = c.lump | 0
       p.lx = c.x
       p.ly = c.y
@@ -232,13 +256,16 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   private tick(dt: number): void {
     this.events.length = 0
     this.gait.step(dt, this.state.titan.driver ? this.titanInput : { forward: 0, turn: 0 }, this.events)
-    for (const ev of this.events) {
-      const e = { ...ev, seq: ++this.state.seq } as TerrainEvent
-      this.apply(e)
-      this.log.push(e)
-      this.pending.push(e)
-      this.broadcast(MSG.terrain, e)
+    for (const ev of this.events) this.emit(ev)
+
+    // A Titan left resting with nobody driving it falls asleep.
+    if (this.gait.resting && !this.state.titan.driver) {
+      if (!this.restSince) this.restSince = Date.now()
+      else if (Date.now() - this.restSince > this.dormantAfter) this.goDormant()
+    } else {
+      this.restSince = 0
     }
+
     // Durable before anyone could act on it: a crash loses no ground.
     this.store.appendEvents(this.pending)
     this.pending.length = 0
@@ -250,10 +277,55 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.copyTitan()
   }
 
-  /** The server keeps its own copy of the land, to validate against (and to persist, next phase). */
+  /** Number, apply, log and broadcast one terrain event. */
+  private emit(ev: TerrainEvent | Omit<TerrainEvent, 'seq'>): void {
+    const e = { ...ev, seq: ++this.state.seq } as TerrainEvent
+    this.apply(e)
+    this.log.push(e)
+    this.pending.push(e)
+    this.broadcast(MSG.terrain, e)
+  }
+
+  /**
+   * The resting Titan sleeps: its pose freezes into a mountain that keeps the
+   * name of whoever walked it, a hill rises under it, and a new Titan
+   * awakens elsewhere for the next player.
+   */
+  private goDormant(): void {
+    const now = Date.now()
+    const pose = { ...this.gait.snapshot(this.snap), resting: true }
+    const id = `m${now.toString(36)}`
+    const info: MountainInfo = { name: this.lastDriver || 'A nameless Titan', since: now, pose }
+    this.addMountain(id, info)
+    this.store.saveMountain(id, info)
+    this.emit({ type: 'mountain', x: pose.x, z: pose.z })
+
+    // Somewhere on the plain, a new one wakes.
+    const n = this.mountains.size
+    const a = n * 2.4 + 0.7
+    const r = 650
+    this.gait = new TitanGait(titanBody(TITAN_HEIGHT), Math.cos(a) * r, Math.sin(a) * r, a + Math.PI)
+    this.lastDriver = ''
+    this.restSince = 0
+    this.store.saveTitan(1, this.gait.snapshot(this.snap))
+    console.log(`${info.name}'s Titan became a mountain at ${pose.x.toFixed(0)}, ${pose.z.toFixed(0)}; a new Titan wakes at ${this.gait.x.toFixed(0)}, ${this.gait.z.toFixed(0)}`)
+  }
+
+  private addMountain(id: string, info: MountainInfo): void {
+    this.mountains.set(id, info)
+    const m = new Mountain()
+    m.name = info.name
+    m.since = info.since
+    m.pose = JSON.stringify(info.pose)
+    this.state.mountains.set(id, m)
+  }
+
+  /** The server keeps its own copy of the land, to validate against and to persist. */
   private apply(e: TerrainEvent): void {
     const H = TITAN_HEIGHT
-    if (e.type === 'drag') {
+    if (e.type === 'mountain') {
+      applyMountain(this.terrain.delta, mountainFor(H, e.x, e.z))
+    } else if (e.type === 'drag') {
       applyDrag(this.terrain.delta, dragFor(H, e.ax, e.az, e.bx, e.bz))
     } else {
       applyImpact(this.terrain.delta, impactFor(H, e.x, e.z, e.stomp))
@@ -282,6 +354,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     t.toZ = s.toZ
     t.plough = s.plough
     t.swingStomp = s.swingStomp
+    t.resting = s.resting
   }
 }
 

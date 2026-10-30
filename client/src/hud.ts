@@ -8,7 +8,7 @@ const HINTS = {
     'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
   titan:
-    '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call out · <kbd>T</kbd> step out',
+    '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call · <kbd>X</kbd> rest · <kbd>T</kbd> step out',
 }
 
 export class Hud {

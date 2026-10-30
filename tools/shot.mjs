@@ -264,6 +264,58 @@ const scenes = {
     if (r.stunned <= 0) throw new Error('verbs gate: the Wanderer was not knocked down')
     if (r.beacon !== 'flex') throw new Error('verbs gate: no call marker')
   },
+  // P9 gate: rest → sit; sleep → a mountain with a hill and a name; a new Titan wakes; climb the mountain.
+  async rest() {
+    await page.evaluate(async () => {
+      const g = window.__g
+      g.titan.gait.resting = true
+      g.clock.scale = 3
+      while (g.titan.restBlend < 1) await new Promise((r) => setTimeout(r, 50))
+      g.clock.scale = 1
+      const t = g.titanState()
+      g.teleport(t.x + Math.sin(t.heading) * 330 + Math.cos(t.heading) * 140, t.z + Math.cos(t.heading) * 330 - Math.sin(t.heading) * 140)
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.06, 7)
+    })
+    await shot('p9-resting')
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const before = g.titanState()
+      const groundBefore = g.heightAt(before.x, before.z)
+      g.goDormant()
+      await new Promise((r) => setTimeout(r, 300))
+      const after = g.titanState()
+      const m = g.mountains.targets()[0]
+      return {
+        mountains: g.mountains.count,
+        rise: g.heightAt(before.x, before.z) - groundBefore,
+        newTitanAway: Math.hypot(after.x - before.x, after.z - before.z),
+        mountainAt: m && Math.hypot(m.titan.gait.x - before.x, m.titan.gait.z - before.z),
+        label: document.querySelector('.label.mountain')?.textContent ?? '',
+      }
+    })
+    console.log(`dormant: ${r.mountains} mountain(s), hill rose ${r.rise.toFixed(1)} m, new Titan woke ${r.newTitanAway.toFixed(0)} m away; label "${r.label}"`)
+    await shot('p9-mountain')
+    const climbed = await page.evaluate(async () => {
+      const g = window.__g
+      const m = g.mountains.targets()[0].titan
+      const foot = m.part('footL')
+      const c = foot.lumps[0].c.clone().applyMatrix4(foot.mesh.matrixWorld)
+      const out = new g.THREE.Vector3(c.x - m.gait.x, 0, c.z - m.gait.z).normalize()
+      for (let d = 40; d > 0; d -= 0.5) {
+        g.teleport(c.x + out.x * d, c.z + out.z * d)
+        g.input.press('KeyE')
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        g.input.release('KeyE')
+        if (g.climbState().active) break
+      }
+      const s = g.climbState()
+      return { active: s.active, on: g.climber.target?.id ?? null }
+    })
+    console.log(`climbing the mountain: ${climbed.active} (holding ${climbed.on})`)
+    if (r.mountains !== 1 || r.rise < 5 || r.newTitanAway < 300 || !r.label.includes('DORMANT')) throw new Error('rest gate: no proper mountain')
+    if (!climbed.active || !climbed.on?.startsWith('local-')) throw new Error('rest gate: could not climb the mountain')
+  },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {
     const falls = await page.evaluate(async () => {

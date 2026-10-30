@@ -4,6 +4,13 @@
 
 import type { GaitEvent } from './gait'
 
+/** A dormant Titan's hill rising, as a terrain event. */
+export interface MountainRise {
+  type: 'mountain'
+  x: number
+  z: number
+}
+
 export const ROOM_NAME = 'world'
 export const SERVER_PORT = 2567
 
@@ -19,7 +26,10 @@ export const MAX_WANDERER_SPEED = 9 // sprint is 8.5 m/s
 export const MAX_ABOVE_GROUND = 6 // a jump peaks under 1 m; slack for slopes and lag
 
 /** A terrain-changing event, numbered by the server in the order it happened. */
-export type TerrainEvent = GaitEvent & { seq: number }
+export type TerrainEvent = (GaitEvent | MountainRise) & { seq: number }
+
+/** A Titan resting this long with nobody driving it goes dormant and becomes a mountain. */
+export const DORMANT_AFTER_MS = 60000
 
 export interface JoinOptions {
   name: string
@@ -36,8 +46,8 @@ export interface MoveMsg {
   y: number
   z: number
   yaw: number
-  /** Present while climbing a Titan: the hold, in the body part's local frame. */
-  climb?: { part: string; lump: number; x: number; y: number; z: number }
+  /** Present while climbing a Titan: which Titan ('' = the awake one, else a mountain id), and the hold in the body part's local frame. */
+  climb?: { titan: string; part: string; lump: number; x: number; y: number; z: number }
 }
 export interface TitanInputMsg {
   forward: number
@@ -77,6 +87,7 @@ export const MSG = {
   terrain: 'terrain',
   shrug: 'shrug',
   call: 'call',
+  rest: 'rest',
 } as const
 
 /** Body parts a climber can hold (must match the client's Titan). */
@@ -109,4 +120,12 @@ export interface TitanSnapshot {
   toZ: number
   plough: boolean
   swingStomp: boolean
+  resting: boolean
+}
+
+/** A Titan that slept and became a mountain: who it was, when, and the pose it froze in. */
+export interface MountainInfo {
+  name: string
+  since: number
+  pose: TitanSnapshot
 }

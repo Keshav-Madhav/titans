@@ -43,15 +43,28 @@ export const TitanState = schema(
     toZ: t.float64(),
     plough: t.boolean(),
     swingStomp: t.boolean(),
+    resting: t.boolean(),
   },
   'TitanState',
 )
 export type TitanState = SchemaType<typeof TitanState>
 
+/** A Titan that went dormant: its name, when, and its frozen pose (TitanSnapshot as JSON). */
+export const Mountain = schema(
+  {
+    name: t.string(),
+    since: t.float64(),
+    pose: t.string(),
+  },
+  'Mountain',
+)
+export type Mountain = SchemaType<typeof Mountain>
+
 export const WorldState = schema(
   {
     players: t.map(Player),
     titan: TitanState,
+    mountains: t.map(Mountain),
     seq: t.uint32(),
   },
   'WorldState',

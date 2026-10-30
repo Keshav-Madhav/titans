@@ -93,7 +93,16 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       knocked down, marker shown); MP: stomp print identical on A/B/C (−15.875 m), call reaches C
 
 ## P9 — Rest
-- [ ] Rest → dormant mountain, persisted, labelled
+- [x] Rest (X): the Titan sits — feet forward, knees up, hands on knees, head bowed — over ~3 s
+- [x] Log off while driving and your Titan sits where it stands; resting with nobody driving for
+      `DORMANT_AFTER_MS` (60 s; `TITANS_DORMANT_MS` overrides) it falls asleep: a mossy mountain in
+      its frozen pose, a hill (`mountain` terrain event) rising under it, labelled with its last
+      driver's name and how long it has slept; a new Titan wakes ~650 m from the origin
+- [x] Mountains persist (`mountains` table), replicate (room state), and can be climbed (holds
+      carry a Titan id); a climber on a Titan that falls asleep stays on the same rock
+- [x] Gates: `shot.mjs rest` (offline: 1 mountain, hill +18 m, new Titan 978 m away, label, climbable);
+      `tools/dormant.mjs` (online: A walks, sits, logs off → B sees the mountain 0.0 m from where
+      it sat, ground +17.2 m, new Titan 1,083 m away with 0 steps, A's name on it; survives SIGKILL)
 
 ## P10 — A living world
 - [ ] AI Titan when no human Titan is online
