@@ -41,6 +41,8 @@ import { loadIdentity } from './identity'
 import { Climber } from './climb'
 import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
+import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
+import { Townsfolk } from './townsfolk'
 import { toScreen } from './screen'
 import { Quality } from './quality'
 import { Menu } from './menu'
@@ -81,6 +83,14 @@ const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
 const wildlife = new Wildlife(terrain, lakes)
 scene.add(wildlife.group)
+const settlement = new Settlement(terrain, lakes)
+scene.add(settlement.group)
+const townsfolk = new Townsfolk(terrain, settlement)
+scene.add(townsfolk.group)
+/** Build mode: the chosen piece (null = not building) and its turn. */
+let building: BuildingKind | null = null
+let buildRot = 0
+const buildAt = { x: 0, z: 0, ok: false }
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
@@ -190,6 +200,17 @@ function grow(b: Box): void {
   terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
 
+/** Buildings a Titan just crushed: rubble, and word of it. */
+function crushed(gone: ReturnType<Settlement['crush']>, replay: boolean): void {
+  if (gone.length === 0) return
+  townsfolk.sync()
+  saveDirty = true
+  if (replay) return
+  for (const b of gone) effects.impact(b.x, terrain.heightAt(b.x, b.z), b.z, 24)
+  const names = gone.map((b) => KIND_NAME[b.kind].toLowerCase())
+  chat.system(`A Titan crushed ${names.length === 1 ? `the ${names[0]}` : `${names.length} buildings`} in ${settlement.name}.`)
+}
+
 /** Every footfall so far (tools read it to measure prints and canals). */
 const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
@@ -201,14 +222,17 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
     const box = applyMountain(terrain.delta, mountainFor(H, ev.x, ev.z))
     terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
     lakes.onDeform(box)
+    settlement.reseat()
     if (!replay) rig.shake(Math.max(0, 1 - Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) / (8 * H)) * 0.01 * H)
     return
   }
   if (ev.type === 'drag') {
     grow(applyDrag(terrain.delta, dragFor(H, ev.ax, ev.az, ev.bx, ev.bz)))
+    crushed(settlement.crushAlong(ev.ax, ev.az, ev.bx, ev.bz, 0.045 * H), replay)
     if (!replay) effects.drag(ev.bx, terrain.heightAt(ev.bx, ev.bz), ev.bz, H)
     return
   }
+  crushed(settlement.crush(ev.x, ev.z, (ev.stomp ? 0.2 : 0.11) * H), replay)
   falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
   grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
@@ -350,6 +374,7 @@ function saveLocal(): void {
     ),
     mountains: mountains.infos(),
     player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
+    settlement: settlement.save(),
   }
   if (!saveWorld(data)) chat.system('Could not save the world (browser storage is full or blocked).')
   saveDirty = false
@@ -374,6 +399,10 @@ function loadLocal(): void {
   wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
   // Time has passed: the rain has fallen.
   lakes.fillAll()
+  if (d.settlement) {
+    settlement.load(d.settlement)
+    townsfolk.sync()
+  }
   // You left while walking a Titan: it sat down where it stood, alone from
   // the moment you left. A Titan resting alone long enough slept, and is a
   // mountain now.
@@ -452,6 +481,29 @@ function simulate(dt: number): void {
       }
     }
     if (mode !== 'online') mine().gait.plough = ploughMode
+  } else if (building) {
+    // Build mode: look where it goes, click to build, Q/E to turn, 1–4 to choose.
+    if (!chat.typing) {
+      if (input.pressed('KeyB')) setBuilding(null)
+      for (let i = 0; i < KINDS.length; i++) if (input.pressed(`Digit${i + 1}`)) setBuilding(KINDS[i])
+      if (input.held('KeyQ')) buildRot += dt * 1.6
+      if (input.held('KeyE')) buildRot -= dt * 1.6
+      if (building && input.clicked()) {
+        if (!buildAt.ok) chat.system(settlement.preview(building, buildAt.x, buildAt.z, buildRot) ?? 'Look at the ground where it should go.')
+        else {
+          const founded = !settlement.name
+          const b = settlement.place(building, buildAt.x, buildAt.z, buildRot)
+          if (typeof b === 'string') chat.system(b)
+          else {
+            townsfolk.sync()
+            saveDirty = true
+            if (founded) chat.system(`You founded ${settlement.name}.`)
+          }
+        }
+      }
+    }
+    wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
+    climber.pushOut(wanderer.pos)
   } else if (climber.active) {
     if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
     else if (!chat.typing && input.pressed('Space')) letGo(4.5)
@@ -475,6 +527,7 @@ function simulate(dt: number): void {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
     }
+    if (!chat.typing && input.pressed('KeyB')) setBuilding(KINDS[0])
     if (!climber.active) {
       wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
       climber.pushOut(wanderer.pos)
@@ -499,6 +552,7 @@ function simulate(dt: number): void {
       const o = a.brain.think(dt, t.gait, {
         heightAt: (x, z) => terrain.heightAt(x, z),
         avoid: [
+          ...(settlement.name ? [{ x: settlement.cx, z: settlement.cz, r: TOWN_RADIUS + TITAN_HEIGHT }] : []),
           ...mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
           ...[...titans.values()].filter((b) => b !== a).map((b) => ({ x: b.titan.gait.x, z: b.titan.gait.z, r: TITAN_HEIGHT * 2.5 })),
         ],
@@ -535,10 +589,37 @@ function simulate(dt: number): void {
   }
   if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
+  townsfolk.step(dt, threats)
 }
 const threats: Threat[] = []
 
 const chest = new THREE.Vector3()
+
+/** Enter build mode with a piece chosen, or leave it (null). */
+function setBuilding(kind: BuildingKind | null): void {
+  if (kind && (role !== 'wanderer' || climber.active)) return
+  building = kind
+  if (!kind) settlement.preview(null)
+}
+
+const _ray = new THREE.Vector3()
+/** Where the centre of the view meets the ground (within 60 m of the camera), for placing. */
+function aimAtGround(): void {
+  camera.getWorldDirection(_ray)
+  buildAt.ok = false
+  const o = camera.position
+  for (let t = 2; t < 60; t += 0.5) {
+    const x = o.x + _ray.x * t
+    const y = o.y + _ray.y * t
+    const z = o.z + _ray.z * t
+    if (y <= terrain.heightAt(x, z)) {
+      buildAt.x = x
+      buildAt.z = z
+      buildAt.ok = true
+      return
+    }
+  }
+}
 
 const labelPos = new THREE.Vector3()
 const labelPx = { x: 0, y: 0 }
@@ -672,9 +753,17 @@ function frame(now: number): void {
   water.update(dt)
   effects.update(dt)
   wildlife.render()
+  townsfolk.render(dt)
+  if (building) {
+    aimAtGround()
+    // Green where it fits, red where it does not; the click says why.
+    if (buildAt.ok) settlement.preview(building, buildAt.x, buildAt.z, buildRot)
+    else settlement.preview(null)
+  }
+  hud.setBuild(building ? KINDS.map((k) => ({ name: KIND_NAME[k], on: k === building })) : null)
   remotes.update(dt, camera, titanOf)
   placeTitanLabels()
-  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, mine().gait.steps, remotes.climbers, {
+  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role === 'wanderer' && building ? 'building' : role, mine().gait.steps, remotes.climbers, {
     plough: mine().gait.plough,
     stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
   })
@@ -740,6 +829,32 @@ const g = {
   },
   mountains,
   wildlife,
+  settlement,
+  townsfolk,
+  setBuilding,
+  /** A Titan's foot coming down at (x, z), through the real event path (tools). */
+  footfallAt(x: number, z: number, stomp = false) {
+    onGait({ type: 'footfall', foot: 0, x, z, heading: 0, hx: 0, hz: 1, step: 0, ...(stomp ? { stomp } : {}) })
+  },
+  /** Somewhere `kind` can go within `r` metres of (x, z), searching outward; null if nowhere. */
+  findSpot(kind: BuildingKind, x: number, z: number, r = 120) {
+    for (let d = 0; d <= r; d += 3) {
+      for (let a = 0; a < 16; a++) {
+        const px = x + Math.cos((a / 16) * Math.PI * 2) * d
+        const pz = z + Math.sin((a / 16) * Math.PI * 2) * d
+        if (!settlement.whyNot(kind, px, pz)) return { x: px, z: pz }
+      }
+    }
+    return null
+  },
+  /** Place a building directly (tools). Returns a reason string if it cannot go there. */
+  build(kind: BuildingKind, x: number, z: number, rot = 0) {
+    const b = settlement.place(kind, x, z, rot)
+    if (typeof b === 'string') return b
+    townsfolk.sync()
+    saveDirty = true
+    return null
+  },
   climber,
   goDormant,
   setWild(on: boolean) {

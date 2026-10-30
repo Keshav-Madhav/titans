@@ -6,6 +6,7 @@
 // Settings (single player vs multiplayer, server address) live here too.
 
 import type { MountainInfo, TitanSnapshot } from '@titans/shared'
+import type { SettlementSave } from './settlement'
 
 const SAVE_KEY = 'titans.world.v1'
 const SETTINGS_KEY = 'titans.settings'
@@ -33,6 +34,7 @@ export interface SaveData {
   titans: Record<string, SavedTitan>
   mountains: Record<string, MountainInfo>
   player: { x: number; y: number; z: number }
+  settlement?: SettlementSave | null
 }
 
 export interface Settings {

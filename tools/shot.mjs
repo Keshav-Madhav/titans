@@ -409,6 +409,87 @@ const scenes = {
     if (!r.drinking || r.shore > 30) throw new Error('wildlife gate: the thirsty herd did not drink at a lake')
     if (flee.state !== 'flee' || flee.to < flee.from + 8) throw new Error('wildlife gate: the herd did not bolt')
   },
+  // P11 gate: a settlement beside a Titan's lake — founded, refused where it should be, peopled, crushable.
+  async settlement() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const out = {}
+      out.dryRefusal = g.build('house', 5, 5)
+      // A Titan walks a trail of lakes.
+      const t0 = g.titanState().steps
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0.1
+      g.clock.scale = 10
+      while (g.titanState().steps < t0 + 12) await new Promise((r) => setTimeout(r, 40))
+      g.autopilot.forward = 0
+      const until = Date.now() + 20000
+      while (Date.now() < until && !(g.titanState().speed === 0 && g.lakeStats().length && g.lakeStats().every((l) => l.full))) await new Promise((r) => setTimeout(r, 100))
+      g.clock.scale = 1
+      // Found a town beside the biggest lake.
+      const lake = [...g.lakes.lakes].sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
+      const plan = ['house', 'house', 'hut', 'hut', 'well', 'tower']
+      const placed = []
+      for (const kind of plan) {
+        const near = placed.length ? placed[0] : { x: lake.basin.bx, z: lake.basin.bz }
+        const spot = g.findSpot(kind, near.x, near.z, placed.length ? 60 : 140)
+        if (!spot) continue
+        const why = g.build(kind, spot.x, spot.z, Math.random() * 6)
+        if (!why) placed.push({ kind, ...spot })
+      }
+      out.name = g.settlement.name
+      out.placed = placed.map((p) => p.kind)
+      out.wetRefusal = g.build('hut', lake.basin.bx, lake.basin.bz)
+      out.farRefusal = g.build('hut', placed[0].x + 400, placed[0].z)
+      out.folk = g.townsfolk.folk.length
+      const before = g.townsfolk.folk.map((p) => ({ x: p.x, z: p.z }))
+      g.clock.scale = 3
+      await new Promise((r) => setTimeout(r, 6000))
+      g.clock.scale = 1
+      out.moved = g.townsfolk.folk.filter((p, i) => Math.hypot(p.x - before[i].x, p.z - before[i].z) > 1).length
+      out.centre = { x: g.settlement.cx, z: g.settlement.cz }
+      return out
+    })
+    console.log(`refused on dry ground far from water: "${r.dryRefusal}"`)
+    console.log(`founded ${r.name}: ${r.placed.join(', ')}`)
+    console.log(`refused in the lake: "${r.wetRefusal}"; refused far away: "${r.farRefusal}"`)
+    console.log(`${r.folk} townsfolk; ${r.moved} went about their day`)
+    await page.evaluate((c) => {
+      const g = window.__g
+      g.teleport(c.x - 55, c.z - 55)
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 70, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.PI + Math.PI / 4, 0.38)
+    }, r.centre)
+    await shot('p11-settlement')
+    const crush = await page.evaluate(() => {
+      const g = window.__g
+      const b = g.settlement.buildings[0]
+      // One more home well clear of the foot (a 180 m Titan's print is 36 m long).
+      const far = g.findSpot('hut', b.x + 75, b.z, 50)
+      if (far) g.build('hut', far.x, far.z)
+      const dist = (q) => Math.hypot(q.x - b.x, q.z - b.z)
+      const under = g.settlement.buildings.filter((q) => dist(q) < 22).length
+      const clear = g.settlement.buildings.filter((q) => dist(q) > 45).length
+      const n = g.settlement.buildings.length
+      g.footfallAt(b.x, b.z)
+      const left = g.settlement.buildings
+      return {
+        before: n,
+        after: left.length,
+        under,
+        clear,
+        underLeft: left.filter((q) => dist(q) < 22).length,
+        clearLeft: left.filter((q) => dist(q) > 45).length,
+        folk: g.townsfolk.folk.length,
+        said: document.getElementById('chat-log').textContent.includes('crushed'),
+      }
+    })
+    console.log(`a footfall on the ${r.placed[0]}: ${crush.before} → ${crush.after} buildings (${crush.under} under the foot → ${crush.underLeft}; ${crush.clear} well clear → ${crush.clearLeft}); ${crush.folk} townsfolk left; told: ${crush.said}`)
+    if (!r.dryRefusal || !r.wetRefusal || !r.farRefusal) throw new Error('settlement gate: a bad spot was accepted')
+    if (!r.name || r.placed.length < 5) throw new Error('settlement gate: could not found a town')
+    if (r.folk < 4 || r.moved < 2) throw new Error('settlement gate: no townsfolk going about')
+    if (crush.underLeft !== 0 || !crush.said) throw new Error('settlement gate: the footfall did not crush what it landed on')
+    if (crush.clear < 1 || crush.clearLeft !== crush.clear) throw new Error('settlement gate: the footfall crushed buildings well clear of it')
+  },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {
     const falls = await page.evaluate(async () => {

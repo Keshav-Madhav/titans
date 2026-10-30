@@ -5,8 +5,9 @@ import type { TerrainView } from './terrain-view'
 
 const HINTS = {
   wanderer:
-    'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
+    'Click to look · <kbd>W A S D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become a Titan · <kbd>B</kbd> build · <kbd>M</kbd> world',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
+  building: 'Look where it goes · click to build · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>1</kbd>–<kbd>4</kbd> choose · <kbd>B</kbd> done',
   titan:
     '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call · <kbd>X</kbd> rest · <kbd>T</kbd> step out',
 }
@@ -19,13 +20,15 @@ export class Hud {
   private since = performance.now()
   last = { fps: 0, calls: 0, tris: 0 }
 
-  setRole(role: 'wanderer' | 'titan' | 'climbing', steps: number, climbers = 0, titan?: { plough: boolean; stompReady: boolean }): void {
+  setRole(role: 'wanderer' | 'titan' | 'climbing' | 'building', steps: number, climbers = 0, titan?: { plough: boolean; stompReady: boolean }): void {
     const html =
       role === 'titan'
         ? `<b>Titan</b> · ${steps.toLocaleString()} steps · ${titan?.plough ? 'ploughing' : 'striding'}${titan?.stompReady ? '' : ' · stomp recharging'}${climbers ? ` · ${climbers} climbing you` : ''}`
         : role === 'climbing'
           ? '<b>Climbing</b>'
-          : '<b>Wanderer</b>'
+          : role === 'building'
+            ? '<b>Building</b>'
+            : '<b>Wanderer</b>'
     if (html !== this.roleHtml) this.role.innerHTML = this.roleHtml = html
     if (role !== this.hintRole) {
       this.hint.innerHTML = HINTS[role]
@@ -62,6 +65,19 @@ export class Hud {
     this.beaconEl.style.display = 'flex'
     ;(this.beaconEl.firstElementChild as HTMLElement).style.transform = `rotate(${-rel}rad)`
     this.beaconEl.lastElementChild!.textContent = `${b.name} calls · ${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}`
+  }
+
+  private readonly buildEl = document.getElementById('build')!
+  private readonly crosshair = document.getElementById('crosshair')!
+  private buildHtml = ''
+
+  /** The build palette (null hides it), with the chosen piece lit. */
+  setBuild(kinds: Array<{ name: string; on: boolean }> | null): void {
+    this.buildEl.style.display = kinds ? 'flex' : 'none'
+    this.crosshair.style.display = kinds ? 'block' : 'none'
+    if (!kinds) return
+    const html = kinds.map((k, i) => `<div class="${k.on ? 'on' : ''}"><kbd>${i + 1}</kbd>${k.name}</div>`).join('')
+    if (html !== this.buildHtml) this.buildEl.innerHTML = this.buildHtml = html
   }
 
   /** Grip stamina bar, shown only while climbing. */

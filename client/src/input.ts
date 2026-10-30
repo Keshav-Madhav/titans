@@ -8,6 +8,7 @@ export class Input {
   lookY = 0
   wheel = 0
   private dragging = false
+  private clicks = 0
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     addEventListener('keydown', (e) => {
@@ -26,6 +27,8 @@ export class Input {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 2) this.dragging = true
+      // A left click while looking around (pointer locked) is an action, not a lock request.
+      if (e.button === 0 && document.pointerLockElement === canvas) this.clicks++
     })
     addEventListener('mouseup', (e) => {
       if (e.button === 2) this.dragging = false
@@ -70,6 +73,18 @@ export class Input {
     this.lookY = 0
     this.wheel = 0
     return r
+  }
+
+  /** True once per left click made while looking around. */
+  clicked(): boolean {
+    if (this.clicks === 0) return false
+    this.clicks--
+    return true
+  }
+
+  /** For tools: a click. */
+  click(): void {
+    this.clicks++
   }
 
   /** Drop every held key (focus moved to chat, etc.). */

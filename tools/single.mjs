@@ -66,6 +66,54 @@ try {
   if (!same) fail('the world changed across a reload')
   if (Math.hypot(after.x - before.x, after.z - before.z) > 0.5 || !after.resting) fail('the Titan is not where (or how) we left it')
 
+  // Build by hand: found a town beside the lake (B, pick, aim, click), reload, it is still there.
+  const town = await ev(async () => {
+    const g = window.__g
+    const lake = [...g.lakes.lakes].sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
+    const spot = g.findSpot('house', lake.basin.bx, lake.basin.bz, 140)
+    // Stand 12 m from the spot, looking at it: the centre of the view lands on it.
+    const back = 12
+    g.teleport(spot.x, spot.z - back)
+    g.input.press('KeyB')
+    await new Promise((r) => setTimeout(r, 100))
+    g.input.release('KeyB')
+    g.input.press('Digit2')
+    await new Promise((r) => setTimeout(r, 100))
+    g.input.release('Digit2')
+    // Aim: camera behind, looking along +z and down at the spot.
+    g.rig.yaw = Math.PI
+    for (let pitch = 0.05; pitch < 1.2; pitch += 0.02) {
+      g.rig.pitch = pitch
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      if (document.getElementById('build').style.display !== 'flex') continue
+      const ghost = g.settlement.group.children.find((c) => c.children.length && c.children[0].material?.transparent)
+      if (ghost && Math.hypot(ghost.position.x - spot.x, ghost.position.z - spot.z) < 1.5) break
+    }
+    const before = g.settlement.buildings.length
+    const ghost = g.settlement.group.children.find((c) => c.children.length && c.children[0].material?.transparent)
+    const aimedAt = ghost ? { x: ghost.position.x, z: ghost.position.z, red: ghost.children[0].material.color.getHex() !== 0x7fe08a } : null
+    g.input.click()
+    await new Promise((r) => setTimeout(r, 200))
+    const byHand = g.settlement.buildings.length - before
+    g.input.press('KeyB')
+    await new Promise((r) => setTimeout(r, 100))
+    g.input.release('KeyB')
+    // Two more by the API, so the town is worth reloading.
+    for (const kind of ['hut', 'well']) {
+      const s = g.findSpot(kind, spot.x, spot.z, 60)
+      if (s) g.build(kind, s.x, s.z)
+    }
+    g.saveLocal()
+    return { name: g.settlement.name, byHand: byHand === 1, aimedAt, spot, n: g.settlement.buildings.length, folk: g.townsfolk.folk.length, said: document.getElementById('chat-log').textContent.slice(-160) }
+  })
+  console.log(`built by hand (B, 2, aim, click): ${town.byHand}; ${town.name} has ${town.n} buildings, ${town.folk} townsfolk`)
+  if (!town.byHand || !town.name) fail(`could not build by hand: aimed ${JSON.stringify(town.aimedAt)} at ${JSON.stringify(town.spot)}; game said: ${town.said}`)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await ready()
+  const back = await ev(() => ({ name: window.__g.settlement.name, n: window.__g.settlement.buildings.length, folk: window.__g.townsfolk.folk.length }))
+  console.log(`reloaded: ${back.name} with ${back.n} buildings and ${back.folk} townsfolk`)
+  if (back.name !== town.name || back.n !== town.n) fail('the town did not survive a reload')
+
   // Away for hours: close the tab (it saves on the way out), let every clock
   // in the save run six hours, open the game again.
   await page.close()

@@ -149,7 +149,18 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       Titan 0.00 m from where it stood, sitting; six hours away → our named mountain; panel → online and back
 
 ## P11 — Settlement
-- [ ] Place a small building kit, persistent, with ownership
+- [x] Build mode (B): hut, house, well, watchtower (1–4), aim at the ground, green/red preview, Q/E
+      turn, click to place. Procedural buildings in the reel's style (white walls, slate roofs, stone,
+      thatch). The first building founds a named town and must stand near a lake a Titan made; later
+      ones within 140 m, on dry, fairly level ground, clear of each other.
+- [x] Townsfolk (traditional AI): one per hut, two per house; idle → walk to the well, the shore or a
+      door → idle; flee a nearby Titan and come home. Wild Titans give the town a wide berth.
+- [x] A Titan's footfall, stomp or drag crushes what it hits (rubble, word in the chat); saved.
+- [x] Persisted in the single-player save. (Ownership is implicit in single player: the town is
+      yours; per-player ownership arrives with multiplayer.)
+- [x] Gates: `shot.mjs settlement` (refused far from water / in the lake / out of bounds; Mossbrook
+      founded with 6 buildings; 6 townsfolk, 5 walking; a footfall crushes all 6 under it and spares
+      one 75 m away); `single.mjs` builds a house by hand (B, 2, aim, click) and the town survives reload
 
 ## P12 — Beta polish → Beta 1
 - [ ] Clouds, water shading, audio, onboarding, perf pass, free hosting
