@@ -43,6 +43,7 @@ import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
 import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
 import { Townsfolk } from './townsfolk'
+import { Caravan } from './caravan'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
@@ -115,6 +116,8 @@ settlement.onGrow = (t, b) => {
 }
 const clouds = new Clouds()
 scene.add(clouds.mesh)
+/** A caravan that follows the giants (made with the old villages; single player). */
+let caravan: Caravan | null = null
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => settlement.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
@@ -479,9 +482,15 @@ function loadLocal(): void {
  * Multiplayer worlds do not have them yet (the server would have to own them).
  */
 function ensureVillages(): void {
-  if (settlement.towns.length > 0 || params.has('novillages')) return
-  settlement.generate(WORLD_SEED, 3, [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 }))], (x, z) => biome.forest(x, z))
-  townsfolk.sync()
+  if (settlement.towns.length === 0 && !params.has('novillages')) {
+    settlement.generate(WORLD_SEED, 3, [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 }))], (x, z) => biome.forest(x, z))
+    townsfolk.sync()
+  }
+  // A caravan camps on the plain between spawn and the first giant, ready to follow it.
+  if (!caravan && !params.has('novillages')) {
+    caravan = new Caravan(terrain, TITAN_SPAWNS[0].x * 0.45 - 60, TITAN_SPAWNS[0].z * 0.45 + 40)
+    scene.add(caravan.group)
+  }
 }
 
 addEventListener('pagehide', () => saveLocal())
@@ -666,6 +675,7 @@ function simulate(dt: number): void {
   if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
   townsfolk.step(dt, threats, camera.position)
+  caravan?.step(dt, [...titans.values()].map((a) => a.titan), (x, z) => settlement.wet(x, z))
   if (!toolMode || params.has('grow')) settlement.grow(dt)
   if (role === 'wanderer' && !climber.active) tipState.moved += wanderer.speed * dt
   if (role === 'titan' || climber.active) tipState.titanOrClimb = true
@@ -837,6 +847,7 @@ function frame(now: number): void {
   vegetation.update(dt, camera.position)
   wildlife.render()
   townsfolk.render(dt)
+  caravan?.render()
   settlement.update(dt)
   if (building) {
     aimAtGround()
@@ -935,6 +946,9 @@ const g = {
   },
   mountains,
   wildlife,
+  get caravan() {
+    return caravan
+  },
   vegetation,
   paint,
   biome,

@@ -202,6 +202,13 @@ measures sky colour against the reel's (about rgb 62, 84, 109 high up).
 - [x] Water: deep, sky-mirroring blue; labels with the reel's leader line; debug readout hidden (`)
 - [x] Scaled for 300 m: climbing 3 m/s and a slower grip drain (shoulders reachable on one grip),
       lake caps (9 ha), growth cap 110; all gates re-run green
+- [x] Second pass: footprint pools with steep walls and a flat floor (1 − q⁴), pale sandy rims and
+      walls (the reel's craters); window panes instead of black holes; finer cobbles
+- [x] Caravans (`caravan.ts`, the reel's "your city can follow the giant"): six covered wagons with
+      oxen follow the nearest walking giant ~1.25 H behind, in file, round water; when it stops they
+      circle up round a fire. Traditional AI; single player for now
+- [x] Returning worlds settle up to 1,500 merge rounds (capped at 2.5 s, under the loading screen):
+      300 m giants make many more merges
 
 ## P12 — Beta polish → Beta 1
 - [x] Clouds: cumulus clusters of billboard puffs (lit crowns, shaded bases) at a Titan's waist,

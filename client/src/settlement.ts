@@ -84,6 +84,7 @@ const C = {
   red: 0x5d7a4c, // awnings: the reel's market greens
   ochre: 0xd9cfae,
   cathedral: 0xb9b2a4,
+  glass: 0x48525c, // window panes: dark slate, not holes
   cream: 0xe8dcc0,
   wheat: 0xc8a957,
   crop: 0x6e8a36,
@@ -191,15 +192,15 @@ function model(kind: BuildingKind, seed = 0): THREE.Group {
         const y = 0.9 + k * 3.2 + 1.75
         for (const x of [-2.5, 0, 2.5]) {
           if (k === 0 && x === 0) continue
-          for (const z of [d / 2 + 0.03, -d / 2 - 0.03]) add('dark', new THREE.BoxGeometry(1, 1.55, 0.12).translate(x, y, z))
+          for (const z of [d / 2 + 0.03, -d / 2 - 0.03]) add('glass', new THREE.BoxGeometry(1, 1.55, 0.12).translate(x, y, z))
         }
-        for (const zz of [-2.6, 2.6]) for (const x of [w / 2 + 0.03, -w / 2 - 0.03]) add('dark', new THREE.BoxGeometry(0.12, 1.55, 1).translate(x, y, zz))
+        for (const zz of [-2.6, 2.6]) for (const x of [w / 2 + 0.03, -w / 2 - 0.03]) add('glass', new THREE.BoxGeometry(0.12, 1.55, 1).translate(x, y, zz))
       }
       add('dark', new THREE.BoxGeometry(1.3, 2.3, 0.15).translate(0, 2.05, d / 2 + 0.04))
       for (const x of [-2.2, 2.2]) {
         add('wall', new THREE.BoxGeometry(1.4, 1.6, 1.4).translate(x, 0.9 + hgt + 1.5, d / 2 - 1.1))
         add('slate', gable(1.7, 1.7, 0.9).translate(x, 0.9 + hgt + 2.3, d / 2 - 1.1))
-        add('dark', new THREE.BoxGeometry(0.7, 0.9, 0.1).translate(x, 0.9 + hgt + 1.5, d / 2 - 0.38))
+        add('glass', new THREE.BoxGeometry(0.7, 0.9, 0.1).translate(x, 0.9 + hgt + 1.5, d / 2 - 0.38))
       }
       break
     }

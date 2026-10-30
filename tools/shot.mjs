@@ -462,6 +462,35 @@ const scenes = {
       tg.heading = Math.atan2(-dx, -dz)
     }, H)
     await shot('reel-3-square')
+    // 3b — "Your city can follow the giant": the caravan trailing a walking giant.
+    const cv = await page.evaluate(async (H) => {
+      const g = window.__g
+      const c = g.caravan
+      if (!c) return null
+      // Put the caravan behind the giant and let it walk on; the wagons follow.
+      const t = g.titan.gait
+      c.wagons.forEach((w, i) => {
+        w.x = t.x - Math.sin(t.heading) * (1.3 * H + i * 13)
+        w.z = t.z - Math.cos(t.heading) * (1.3 * H + i * 13)
+        w.heading = t.heading
+      })
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0
+      g.clock.scale = 4
+      await new Promise((r) => setTimeout(r, 6000))
+      g.clock.scale = 1
+      // Off to one side of the train, behind it: wagons in a line, the giant ahead.
+      const last = c.wagons[c.wagons.length - 1]
+      const sx = Math.cos(t.heading), sz = -Math.sin(t.heading)
+      g.teleport(last.x - Math.sin(t.heading) * 25 + sx * 22, last.z - Math.cos(t.heading) * 25 + sz * 22)
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 10, focusHeight: 3, follow: 50 })
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.02)
+      return { state: c.state, following: !!c.following, gap: Math.hypot(c.wagons[0].x - t.x, c.wagons[0].z - t.z) }
+    }, H)
+    console.log('caravan', JSON.stringify(cv))
+    await shot('reel-3b-caravan')
+    await page.evaluate(() => (window.__g.autopilot.forward = 0))
     // 4 — "Climb the giants": a climber high on the giant's back, the plain far below.
     await page.evaluate(async (H) => {
       const g = window.__g

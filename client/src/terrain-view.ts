@@ -43,7 +43,10 @@ function lin(hex: number): [number, number, number] {
 const GRASS_DRY = lin(0xa89066)
 const GRASS_GREEN = lin(0x8a8150)
 const SOIL = lin(0xae9670)
-const WET_SOIL = lin(0x5c4f3e)
+// Ground a Titan turned over: pale sand on the walls and rims (the reel's
+// craters), only a little darker where it lies deep and wet.
+const SAND = lin(0xc6b38e)
+const WET_SOIL = lin(0x9a8666)
 const ROCK = lin(0x8e877d)
 const ROCK_DARK = lin(0x5d5852)
 const SNOW = lin(0xeef1f5)
@@ -87,13 +90,13 @@ function addGroundDetail(mat: THREE.MeshStandardMaterial, tex: THREE.Texture): v
         diffuseColor.rgb *= mix(1.0, 0.72 + 0.56 * gd1, gFade * (1.0 - vPave)) * (0.8 + 0.4 * gd2) * (0.86 + 0.28 * gd3);
         // Cobbles: offset rows of rounded stones with dark joints, up close.
         if (vPave > 0.02) {
-          vec2 cp = vGroundPos.xz / vec2(0.62, 0.5);
+          vec2 cp = vGroundPos.xz / vec2(0.34, 0.27);
           cp.x += mod(floor(cp.y), 2.0) * 0.5;
           vec2 cell = floor(cp);
           vec2 f = fract(cp) - 0.5;
           float stone = 1.0 - smoothstep(0.32, 0.5, max(abs(f.x), abs(f.y)) + 0.12 * dot(f, f));
           float hv = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
-          float cobbleFade = (1.0 - smoothstep(25.0, 90.0, distance(vGroundPos, cameraPosition))) * smoothstep(0.02, 0.6, vPave);
+          float cobbleFade = (1.0 - smoothstep(15.0, 55.0, distance(vGroundPos, cameraPosition))) * smoothstep(0.02, 0.6, vPave);
           diffuseColor.rgb *= mix(1.0, mix(0.55, 0.92 + 0.22 * hv, stone), cobbleFade);
         }`,
       )
@@ -463,9 +466,9 @@ export class TerrainView {
     if (delta !== 0) {
       t = smoothstep(0.15, 1.8, Math.abs(delta))
       const wet = delta < 0 ? smoothstep(0.5, 3, -delta) : 0
-      const sr = SOIL[0] + (WET_SOIL[0] - SOIL[0]) * wet
-      const sg = SOIL[1] + (WET_SOIL[1] - SOIL[1]) * wet
-      const sb = SOIL[2] + (WET_SOIL[2] - SOIL[2]) * wet
+      const sr = SAND[0] + (WET_SOIL[0] - SAND[0]) * wet
+      const sg = SAND[1] + (WET_SOIL[1] - SAND[1]) * wet
+      const sb = SAND[2] + (WET_SOIL[2] - SAND[2]) * wet
       r += (sr - r) * t
       g += (sg - g) * t
       b += (sb - b) * t

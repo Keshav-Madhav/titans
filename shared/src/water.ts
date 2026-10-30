@@ -692,8 +692,12 @@ export class LakeSystem {
   fillAll(): void {
     // Rain for real (a step with no rain never overflows, so the merges that
     // only happen when water spills never fired), until a step changes nothing.
+    // Big giants mean many merges (one per step): give it room, but never
+    // more than a couple of seconds (the loading screen covers it).
     let calm = 0
-    for (let round = 0; round < 300 && calm < 2; round++) {
+    let round = 0
+    const until = Date.now() + 2500
+    for (; round < 1500 && calm < 2 && Date.now() < until; round++) {
       for (const l of this.lakes) {
         l.volume = volumeAt(l.basin, l.basin.spill)
         l.level = l.basin.spill
@@ -705,6 +709,7 @@ export class LakeSystem {
       const same = this.lakes.length === count && this.lakes.map((l) => l.basin.sorted.length).join(',') === shapes
       calm = same ? calm + 1 : 0
     }
+    this.lastFillRounds = round
     // Whatever the last merge left half-filled: brim-full, as rain would have it.
     for (const l of this.lakes) {
       l.volume = volumeAt(l.basin, l.basin.spill)
@@ -905,6 +910,8 @@ export class LakeSystem {
   }
 
   private readonly failed = new Set<string>()
+  /** Rounds the last fillAll() needed (diagnostics). */
+  lastFillRounds = 0
   private readonly resolved = new Set<string>()
   /** Pairs (by shape) whose shared overflow runs off into lowland. */
   private readonly lowland = new Set<string>()

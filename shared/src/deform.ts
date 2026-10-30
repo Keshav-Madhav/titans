@@ -56,8 +56,9 @@ export function applyFootprint(delta: DeltaField, e: FootprintEvent): Box {
       const q = (du / a) * (du / a) + (dv / b) * (dv / b)
       let h: number
       if (q < 1) {
-        const t = 1 - q
-        h = -e.depth * t * (2 - t)
+        // Steep walls, a broad flat floor: the reel's footprint pools.
+        const q2 = q * q
+        h = -e.depth * (1 - q2 * q2)
       } else if (q < RIM_OUT) {
         const s = (q - 1) / (RIM_OUT - 1)
         const r = 1 - s
