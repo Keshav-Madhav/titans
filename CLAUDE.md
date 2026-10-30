@@ -22,7 +22,8 @@ human-scale Wanderers who follow, climb and build around them.
   (noise, base terrain, deformation kernels, basin fill, gait planner, protocol, constants).
   Consumed as TS source with no build step. **No DOM or three.js imports here.**
 - `client/src` — the game: flat modules, entry `main.ts`. DOM HUD in `client/index.html`.
-- `server/` — Colyseus + SQLite (from P6).
+- `server/src` — Colyseus 0.18 `WorldRoom` (schema v5 `schema()` builders, `setFixedTimestep`), run
+  with tsx. Persistence (SQLite) arrives in P7.
 - `tools/` — playwright-core `.mjs` harness scripts; screenshots go to `shots/` (gitignored).
 
 ## Rules that bite
@@ -35,5 +36,8 @@ human-scale Wanderers who follow, climb and build around them.
   in the frame loop allocates per frame.
 - Test hooks live on `window.__g` (`ready`, `teleport`, `setCam`, `player`, `stats`, …). Tools wait on
   `window.__g.ready`, never on `networkidle` or fixed sleeps.
-- Verify before claiming done: `npm run build`, then the phase's gate (`node tools/shot.mjs …`) against
-  `npm run preview`.
+- Verify before claiming done: `npm run build`, then the phase's gate against `npm run preview`
+  (port 4317): single-player gates are `node tools/shot.mjs <scene>` (they open `?offline`); the
+  multiplayer gate is `node tools/mp.mjs` with a fresh `npm run server` (port 2567).
+- Online, the server owns the Titan and the terrain-event order; the client never applies its own
+  Titan events online (it extrapolates the gait and discards them). Offline, it simulates both.

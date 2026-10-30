@@ -8,7 +8,7 @@ import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
 
 const scene = process.argv[2] ?? 'ground'
-const url = process.argv[3] ?? 'http://localhost:4317'
+const url = process.argv[3] ?? 'http://localhost:4317/?offline'
 mkdirSync('shots', { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })

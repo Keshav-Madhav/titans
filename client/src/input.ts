@@ -11,7 +11,8 @@ export class Input {
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     addEventListener('keydown', (e) => {
-      if (e.repeat) return
+      // Typing in chat is not walking.
+      if (e.repeat || (e.target as HTMLElement | null)?.tagName === 'INPUT') return
       this.down.add(e.code)
       this.pressedOnce.add(e.code)
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault()
@@ -69,6 +70,12 @@ export class Input {
     this.lookY = 0
     this.wheel = 0
     return r
+  }
+
+  /** Drop every held key (focus moved to chat, etc.). */
+  releaseAll(): void {
+    this.down.clear()
+    this.pressedOnce.clear()
   }
 
   /** For tools: hold or release a key code. */

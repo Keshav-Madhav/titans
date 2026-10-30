@@ -53,11 +53,14 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
 - [x] Gates: trail 40/40 prints in craters (min −10.6 m); lakes gate fills canals; scale shot
 
 ## P6 — Together
-- [ ] Colyseus `WorldRoom`, guest identity, join/leave
-- [ ] Wanderer prediction + server validation; interpolation of remotes
-- [ ] Server-simulated Titan; terrain events ordered + synced
-- [ ] Text chat
-- [ ] Gate: three headless clients see the same Titan, the same craters, each other
+- [x] Colyseus 0.18 `WorldRoom`, guest identity (name + cloak colour in localStorage), join/leave
+- [x] Wanderer prediction + server validation (speed, height); remotes interpolated 100 ms behind
+- [x] Server-simulated Titan (60 Hz fixed step, one driver at a time); terrain events numbered,
+      logged, broadcast; joiners replay the log; clients extrapolate the Titan between patches
+- [x] Text chat (Enter)
+- [x] Gate (`node tools/mp.mjs`): 3 players see each other; A drives, B is refused; 4 footfalls with
+      identical crater depth on A/B/C; Titan gap 0.1 m; C sees B walk; chat delivered. `shots/p6-together.png`
+- Offline fallback: no server (or `?offline`) → the client simulates the Titan itself, as before
 
 ## P7 — Memory
 - [ ] SQLite: players, titans, terrain_events, region_snaps, lakes

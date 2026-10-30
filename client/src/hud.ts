@@ -5,7 +5,7 @@ import type { TerrainView } from './terrain-view'
 
 const HINTS = {
   wanderer:
-    'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>T</kbd> become the Titan · wheel zoom',
+    'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
   titan: '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>T</kbd> step out as a Wanderer · wheel zoom',
 }
 
@@ -20,6 +20,14 @@ export class Hud {
   setRole(role: 'wanderer' | 'titan', steps: number): void {
     this.role.innerHTML = role === 'titan' ? `<b>Titan</b> · ${steps.toLocaleString()} steps` : '<b>Wanderer</b>'
     this.hint.innerHTML = HINTS[role]
+  }
+
+  private readonly netEl = document.getElementById('net')!
+  private netText = ''
+
+  net(mode: 'connecting' | 'online' | 'offline', players: number): void {
+    const t = mode === 'online' ? `<b>●</b> online · ${players} here` : mode === 'connecting' ? 'connecting…' : 'offline'
+    if (t !== this.netText) this.netEl.innerHTML = this.netText = t
   }
 
   loaded(): void {

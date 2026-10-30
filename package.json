@@ -2,11 +2,16 @@
   "name": "titans",
   "private": true,
   "type": "module",
-  "workspaces": ["shared", "client"],
+  "workspaces": [
+    "shared",
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "npm -w client run dev",
-    "build": "npm -w shared run typecheck && npm -w client run build",
-    "preview": "npm -w client run preview"
+    "build": "npm -w shared run typecheck && npm -w server run typecheck && npm -w client run build",
+    "preview": "npm -w client run preview",
+    "server": "npm -w server run dev"
   },
   "devDependencies": {
     "playwright-core": "^1.64.1"

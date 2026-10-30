@@ -53,9 +53,9 @@ export class Wanderer {
   private readonly legR: THREE.Mesh
   private readonly cloak: THREE.Mesh
 
-  constructor() {
+  constructor(cloak: THREE.ColorRepresentation = 0xa8291f) {
     // Double-sided: the hem is open, and from a low camera the inside must not vanish.
-    const cloakMat = new THREE.MeshStandardMaterial({ color: 0xa8291f, roughness: 0.85, side: THREE.DoubleSide })
+    const cloakMat = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.85, side: THREE.DoubleSide })
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.9 })
 
     // Cloak: a lathe from the neck flaring to the hem.
@@ -161,6 +161,21 @@ export class Wanderer {
     let d = this.yaw - this.prevYaw
     d = Math.atan2(Math.sin(d), Math.cos(d))
     this.obj.rotation.y = this.prevYaw + d * alpha
+  }
+
+  /**
+   * Pose a body we do not simulate (another player): place it, and animate
+   * the stride from how far it moved since last frame.
+   */
+  drive(dt: number, x: number, y: number, z: number, yaw: number): void {
+    const hs = dt > 0 ? Math.hypot(x - this.obj.position.x, z - this.obj.position.z) / dt : 0
+    this.obj.position.set(x, y, z)
+    this.obj.rotation.y = yaw
+    this.stride += Math.min(hs, 12) * dt * 2.6
+    const swing = Math.sin(this.stride) * Math.min(1, hs / WALK) * 0.55
+    this.legL.rotation.x = swing
+    this.legR.rotation.x = -swing
+    this.cloak.rotation.x = -Math.min(0.18, hs * 0.02)
   }
 
   get speed(): number {

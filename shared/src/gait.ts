@@ -12,6 +12,8 @@
 // runs the planner and events travel as explicit coordinates, so nobody
 // else has to reproduce these numbers bit-for-bit.
 
+import type { TitanSnapshot } from './protocol'
+
 export interface Vec2 {
   x: number
   z: number
@@ -178,5 +180,46 @@ export class TitanGait {
 
   get isSwinging(): boolean {
     return this.swinging
+  }
+
+  /** Everything needed to pose this Titan elsewhere (the server sends it in room state). */
+  snapshot(out: TitanSnapshot): TitanSnapshot {
+    out.x = this.x
+    out.z = this.z
+    out.heading = this.heading
+    out.speed = this.speed
+    out.phase = this.phase
+    out.swingFoot = this.swingFoot
+    out.swinging = this.swinging
+    out.steps = this.steps
+    out.p0x = this.plant[0].x
+    out.p0z = this.plant[0].z
+    out.p1x = this.plant[1].x
+    out.p1z = this.plant[1].z
+    out.fromX = this.swingFrom.x
+    out.fromZ = this.swingFrom.z
+    out.toX = this.swingTo.x
+    out.toZ = this.swingTo.z
+    return out
+  }
+
+  /** Adopt a snapshot (a client mirroring the server's Titan). */
+  restore(s: TitanSnapshot): void {
+    this.x = s.x
+    this.z = s.z
+    this.heading = s.heading
+    this.speed = s.speed
+    this.phase = s.phase
+    this.swingFoot = s.swingFoot
+    this.swinging = s.swinging
+    this.steps = s.steps
+    this.plant[0].x = s.p0x
+    this.plant[0].z = s.p0z
+    this.plant[1].x = s.p1x
+    this.plant[1].z = s.p1z
+    this.swingFrom.x = s.fromX
+    this.swingFrom.z = s.fromZ
+    this.swingTo.x = s.toX
+    this.swingTo.z = s.toZ
   }
 }

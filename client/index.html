@@ -39,6 +39,28 @@
         padding: 1px 5px; border: 1px solid rgba(244, 239, 230, 0.35); border-radius: 4px;
       }
 
+      #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+      .label {
+        position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+        background: rgba(18, 20, 26, 0.5); color: var(--ink); font-size: 11px; font-weight: 600; display: none;
+      }
+      #chat { position: fixed; left: 14px; bottom: 64px; width: min(380px, calc(100vw - 28px)); }
+      #chat-log { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+      #chat-log .line {
+        align-self: flex-start; max-width: 100%; padding: 3px 8px; border-radius: 6px;
+        background: var(--panel); color: var(--ink); transition: opacity 1.2s; overflow-wrap: anywhere;
+      }
+      #chat-log .line.old { opacity: 0; }
+      #chat-log.open .line.old { opacity: 0.85; }
+      #chat-input {
+        display: none; width: 100%; margin-top: 6px; padding: 7px 10px; border-radius: 7px; outline: none;
+        border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(18, 20, 26, 0.72); color: var(--ink); font: inherit;
+      }
+      #net {
+        position: fixed; top: 44px; right: 14px; padding: 3px 9px; border-radius: 999px;
+        background: var(--panel); color: var(--ink-dim); font-size: 11px; pointer-events: none;
+      }
+      #net b { color: #8fd18f; font-weight: 700; }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
         background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
@@ -56,6 +78,9 @@
     <div id="perf"></div>
     <div id="role"></div>
     <div id="hint"></div>
+    <div id="labels"></div>
+    <div id="net"></div>
+    <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>
     <div id="loading">
       <div>
         <h1>TITANS</h1>
