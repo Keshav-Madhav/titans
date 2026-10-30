@@ -39,6 +39,7 @@ import { loadIdentity } from './identity'
 import { Climber } from './climb'
 import { Mountains } from './mountains'
 import { toScreen } from './screen'
+import { Quality } from './quality'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
@@ -52,7 +53,6 @@ const renderer = new THREE.WebGLRenderer({
   // precision at both ends. Falls back to the standard buffer without EXT_clip_control.
   reversedDepthBuffer: params.get('rdb') !== '0',
 })
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.setSize(innerWidth, innerHeight, false)
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 0.82
@@ -67,6 +67,7 @@ const terrainView = new TerrainView(terrain, WORLD_SEED)
 scene.add(terrainView.group)
 
 const sky = new SkySystem(scene, renderer)
+const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 
 const lakes = new LakeSystem(terrain.cellHeight)
 const water = new WaterView()
@@ -171,7 +172,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   }
   falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
-  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, Math.sin(ev.heading), Math.cos(ev.heading), ev.stomp)))
+  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
   lakes.onDeform(strideBox, ev.x, ev.z)
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
@@ -454,6 +455,7 @@ function frame(now: number): void {
   // 60 Hz simulation would otherwise move the Wanderer every other frame.
   titan.pose(terrain, dt)
   titan.group.updateMatrixWorld(true)
+  titan.setLodFor(camera.position)
   mountains.update(terrain, camera, Date.now())
   if (climber.active) {
     // Glued to the hold through the Titan's pose of THIS frame.
@@ -463,6 +465,8 @@ function frame(now: number): void {
     wanderer.sync(acc / STEP)
   }
   water.sync(lakes.lakes)
+  water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
+  water.update(dt)
   effects.update(dt)
   remotes.update(dt, camera, titanOf)
   placeTitanLabel()
@@ -483,7 +487,8 @@ function frame(now: number): void {
     ready = true
     hud.loaded()
   }
-  hud.frame(now, renderer, terrainView, focusBase, camera)
+  hud.frame(now, renderer, terrainView, focusBase, camera, quality.level)
+  if (ready) quality.frame(now)
   hud.net(mode, remotes.count + (mode === 'online' ? 1 : 0))
   hud.updateBeacon(now, focusBase, rig.yaw)
 }
@@ -525,6 +530,7 @@ const g = {
   },
   lakes,
   sky,
+  quality,
   net,
   remotes,
   chat,

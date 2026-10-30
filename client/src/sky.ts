@@ -9,6 +9,8 @@ export class SkySystem {
   readonly sun = new THREE.DirectionalLight(0xffe6c2, 3.1)
   readonly sunDir = new THREE.Vector3()
   readonly fog: THREE.FogExp2
+  readonly fill: THREE.HemisphereLight
+  readonly counter: THREE.DirectionalLight
   private shadowRadius = 140
   private envRT: THREE.WebGLRenderTarget | null = null
 
@@ -39,6 +41,16 @@ export class SkySystem {
     s.shadow.camera.far = 6000
     scene.add(s)
     scene.add(s.target)
+
+    // Fill: sky from above, warm ground bounce from below. Without it, a
+    // Titan seen against the sun read as a navy silhouette.
+    this.fill = new THREE.HemisphereLight(0xc4d6ea, 0x8a7a5c, 0.6)
+    scene.add(this.fill)
+    // Skylight from the side away from the sun: only faces turned from the
+    // sun receive it, so back-lit stone lifts without washing out the lit side.
+    this.counter = new THREE.DirectionalLight(0xd2e0f0, 0.7)
+    scene.add(this.counter)
+    scene.add(this.counter.target)
 
     this.setSun(24, 215)
   }
@@ -80,6 +92,10 @@ export class SkySystem {
     this.sun.position.set(fx, focus.y, fz).addScaledVector(this.sunDir, 2500)
     this.sun.target.updateMatrixWorld()
     this.sun.updateMatrixWorld()
+    this.counter.target.position.set(fx, focus.y, fz)
+    this.counter.position.set(fx - this.sunDir.x * 1000, focus.y + 400, fz - this.sunDir.z * 1000)
+    this.counter.target.updateMatrixWorld()
+    this.counter.updateMatrixWorld()
   }
 
   private bakeEnvironment(): void {
@@ -102,7 +118,7 @@ export class SkySystem {
     this.envRT?.dispose()
     this.envRT = pmrem.fromScene(envScene, 0, 1, 2000)
     this.scene.environment = this.envRT.texture
-    this.scene.environmentIntensity = 0.42
+    this.scene.environmentIntensity = 0.5
     pmrem.dispose()
     ground.geometry.dispose()
     ;(ground.material as THREE.Material).dispose()

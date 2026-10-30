@@ -51,7 +51,18 @@ export function titanBody(height: number): TitanBody {
 }
 
 export type GaitEvent =
-  | { type: 'footfall'; foot: 0 | 1; x: number; z: number; heading: number; step: number; stomp?: boolean }
+  | {
+      type: 'footfall'
+      foot: 0 | 1
+      x: number
+      z: number
+      heading: number
+      /** Unit heading, computed once by the authority: clients never re-derive it with their own Math.sin. */
+      hx: number
+      hz: number
+      step: number
+      stomp?: boolean
+    }
   | { type: 'drag'; foot: 0 | 1; ax: number; az: number; bx: number; bz: number }
 
 export interface GaitInput {
@@ -176,7 +187,17 @@ export class TitanGait {
     this.phase = 0
     this.swingFoot = foot === 0 ? 1 : 0
     this.steps++
-    out.push({ type: 'footfall', foot, x: t.x, z: t.z, heading: this.heading, step: this.steps, ...(stomp ? { stomp } : {}) })
+    out.push({
+      type: 'footfall',
+      foot,
+      x: t.x,
+      z: t.z,
+      heading: this.heading,
+      hx: Math.sin(this.heading),
+      hz: Math.cos(this.heading),
+      step: this.steps,
+      ...(stomp ? { stomp } : {}),
+    })
   }
 
   /** Current foot positions: planted, or mid-drag with its (small) lift. */

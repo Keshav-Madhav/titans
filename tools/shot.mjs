@@ -278,6 +278,15 @@ const scenes = {
       g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.06, 7)
     })
     await shot('p9-resting')
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titanState()
+      // Side on, to read the sitting silhouette.
+      g.teleport(t.x + Math.cos(t.heading) * 330, t.z - Math.sin(t.heading) * 330)
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.08, 7)
+    })
+    await shot('p9-resting-side')
     const r = await page.evaluate(async () => {
       const g = window.__g
       const before = g.titanState()
@@ -315,6 +324,22 @@ const scenes = {
     console.log(`climbing the mountain: ${climbed.active} (holding ${climbed.on})`)
     if (r.mountains !== 1 || r.rise < 5 || r.newTitanAway < 300 || !r.label.includes('DORMANT')) throw new Error('rest gate: no proper mountain')
     if (!climbed.active || !climbed.on?.startsWith('local-')) throw new Error('rest gate: could not climb the mountain')
+  },
+  // Look check: the Titan front-lit and back-lit, up close and far.
+  async titanlook() {
+    for (const [name, toward, dist] of [['look-front', 1, 380], ['look-back', -1, 380], ['look-close', -1, 60]]) {
+      await page.evaluate(([toward, dist]) => {
+        const g = window.__g
+        const t = g.titanState()
+        const s = g.sky.sunDir
+        // toward=1: the sun behind the camera; -1: the sun behind the Titan.
+        const hx = s.x / Math.hypot(s.x, s.z), hz = s.z / Math.hypot(s.x, s.z)
+        g.teleport(t.x + hx * dist * toward, t.z + hz * dist * toward)
+        const p = g.player()
+        g.setCam(Math.atan2(p.x - t.x, p.z - t.z), dist < 100 ? -0.35 : 0.0, 6)
+      }, [toward, dist])
+      await shot(name)
+    }
   },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {
@@ -373,9 +398,13 @@ const scenes = {
       }
       g.clock.scale = 1
     })
+    // Let merges settle (one per simulation step), then count what is left unmerged.
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 1500)))
     const lakes = await page.evaluate(() => window.__g.lakeStats())
+    const mutual = await page.evaluate(() => window.__g.lakes.mutualPairs())
     const full = lakes.filter((l) => l.full).length
-    console.log(`${lakes.length} lakes, ${full} full; sizes ${lakes.map((l) => l.cells).join(' ')}`)
+    console.log(`${lakes.length} lakes, ${full} full, ${mutual} unmerged mutual pairs; sizes ${lakes.map((l) => l.cells).join(' ')}`)
+    if (mutual > 0) throw new Error(`lakes gate: ${mutual} pairs of lakes spill into each other`)
     console.log('sample', JSON.stringify(lakes.slice(0, 3)))
     await page.evaluate(() => {
       const g = window.__g
@@ -406,6 +435,19 @@ const scenes = {
       g.setCam(g.rig.yaw + 0.3, 0.12)
     })
     await shot('p5-lakes-ground')
+    // Close over the longest overflow stream.
+    const st = await page.evaluate(() => {
+      const g = window.__g
+      const s = g.lakes.streams().sort((a, b) => b.cells.length - a.cells.length)[0]
+      if (!s) return null
+      const [x, z] = s.cells[Math.floor(s.cells.length / 2)]
+      g.teleport(x + 25, z + 25)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 55, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.PI / 4, 0.75)
+      return { cells: s.cells.length, toLake: !s.sig.endsWith(':0') }
+    })
+    console.log('longest stream', JSON.stringify(st))
+    if (st) await shot('p5-streams')
     if (lakes.length < 10 || full < lakes.length) throw new Error(`lakes gate: ${lakes.length} lakes, ${full} full`)
   },
 }

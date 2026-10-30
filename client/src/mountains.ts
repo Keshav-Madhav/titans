@@ -71,6 +71,7 @@ export class Mountains {
     for (const e of this.list.values()) {
       e.titan.pose(terrain, 0)
       e.titan.group.updateMatrixWorld(true)
+      e.titan.setLodFor(camera.position)
       this.v.copy(e.titan.head)
       this.v.y += 0.12 * TITAN_HEIGHT
       const dist = this.v.distanceTo(camera.position)

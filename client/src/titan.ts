@@ -10,6 +10,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { makeDetailTexture } from './detail-texture'
 import { makeSimplex2, titanBody, TitanGait, type GaitEvent, type GaitInput, type Terrain, type TitanBody } from '@titans/shared'
 
 type V3 = THREE.Vector3
@@ -67,9 +68,69 @@ const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
   foot: { len: 0.04, lumps: [{ at: 0.6, r: [0.06, 0.035, 0.095], off: [0, 0.025] }, { at: 0.75, r: [0.045, 0.03, 0.05], off: [0, 0.075] }] },
 }
 
-const STONE = new THREE.Color(0xa69e8d)
-const STONE_DARK = new THREE.Color(0x7a7266)
+const STONE = new THREE.Color(0x9c9483)
+const STONE_DARK = new THREE.Color(0x766e62)
 const MOSS = new THREE.Color(0x6b7a40)
+
+let stoneTex: THREE.DataTexture | null = null
+
+/**
+ * Stone up close: the detail texture projected along three axes in the
+ * part's own space (so it stays glued to a moving body), three scales of
+ * colour variation, thin dark cracks, and a bump from the same texture's
+ * screen-space slope (perturbed normal, as three's bumpMap does it).
+ */
+function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
+  stoneTex ??= makeDetailTexture(4242)
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.stoneMap = { value: stoneTex }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vStonePos;\nvarying vec3 vStoneNrm;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStonePos = position;\nvStoneNrm = normal;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform sampler2D stoneMap;
+        varying vec3 vStonePos;
+        varying vec3 vStoneNrm;
+        float stoneTri(vec3 p, vec3 w, float s) {
+          return texture2D(stoneMap, p.yz * s).r * w.x + texture2D(stoneMap, p.xz * s).r * w.y + texture2D(stoneMap, p.xy * s).r * w.z;
+        }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec3 sw = pow(abs(normalize(vStoneNrm)), vec3(4.0));
+        sw /= (sw.x + sw.y + sw.z);
+        float sd1 = stoneTri(vStonePos, sw, 0.11);
+        float sd2 = stoneTri(vStonePos, sw, 0.37);
+        float sd3 = stoneTri(vStonePos, sw, 0.027);
+        // Close-up detail only: cracks and bump fade out with distance, and
+        // the crack line is as wide as a pixel needs it to be (no sparkle).
+        float stoneNear = 1.0 - smoothstep(30.0, 220.0, length(vViewPosition));
+        float cw = fwidth(sd2);
+        float crackLine = 1.0 - smoothstep(cw, cw * 2.0 + 0.025, abs(sd2 - 0.5));
+        float crack = 1.0 - crackLine * 0.38 * stoneNear;
+        diffuseColor.rgb *= (0.78 + 0.44 * sd1) * (0.88 + 0.24 * sd3) * crack;
+        float stoneH = sd1 * stoneNear;`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        {
+          vec2 dH = vec2(dFdx(stoneH), dFdy(stoneH)) * 0.9;
+          vec3 sx = dFdx(-vViewPosition);
+          vec3 sy = dFdy(-vViewPosition);
+          vec3 r1 = cross(sy, normal);
+          vec3 r2 = cross(normal, sx);
+          float det = dot(sx, r1) * faceDirection;
+          vec3 grad = sign(det) * (dH.x * r1 + dH.y * r2);
+          normal = normalize(abs(det) * normal - grad);
+        }`,
+      )
+  }
+}
 
 /** How far a boulder's surface reaches along a unit direction (×radius). */
 export type Bulge = (dx: number, dy: number, dz: number) => number
@@ -97,6 +158,8 @@ export interface TitanPart {
   key: string
   mesh: THREE.Mesh
   lumps: LumpSurface[]
+  /** Geometry per level of detail (the mesh shows one). Climbing never uses it. */
+  lods: THREE.BufferGeometry[]
 }
 
 function boulder(rx: number, ry: number, rz: number, seed: number, detail: number, mossiness = 0): THREE.BufferGeometry {
@@ -132,20 +195,25 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
   return g
 }
 
-function segment(name: string, H: number, seed: number, mossiness: number): { geometry: THREE.BufferGeometry; lumps: LumpSurface[] } {
+/** Icosahedron subdivision per level of detail: near, middle, far. */
+const LOD_DETAIL = [4, 3, 2]
+/** Camera distance (×height) beyond which each coarser level is used. */
+const LOD_FAR = [2.2, 5]
+
+function segment(name: string, H: number, seed: number, mossiness: number): { lods: THREE.BufferGeometry[]; lumps: LumpSurface[] } {
   const shape = SHAPES[name]
-  const lumps: LumpSurface[] = []
-  const parts = shape.lumps.map((l, i) => {
-    const c = new THREE.Vector3((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H)
-    const r = new THREE.Vector3(l.r[0] * H, l.r[1] * H, l.r[2] * H)
-    lumps.push({ c, r, bulge: boulderNoise(seed + i * 31).bulge })
-    const g = boulder(r.x, r.y, r.z, seed + i * 31, 4, mossiness)
-    g.translate(c.x, c.y, c.z)
-    return g
+  const lumps: LumpSurface[] = shape.lumps.map((l, i) => ({
+    c: new THREE.Vector3((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H),
+    r: new THREE.Vector3(l.r[0] * H, l.r[1] * H, l.r[2] * H),
+    bulge: boulderNoise(seed + i * 31).bulge,
+  }))
+  const lods = LOD_DETAIL.map((detail) => {
+    const parts = lumps.map((L, i) => boulder(L.r.x, L.r.y, L.r.z, seed + i * 31, detail, mossiness).translate(L.c.x, L.c.y, L.c.z))
+    const geometry = mergeGeometries(parts)!
+    for (const p of parts) p.dispose()
+    return geometry
   })
-  const geometry = mergeGeometries(parts)!
-  for (const p of parts) p.dispose()
-  return { geometry, lumps }
+  return { lods, lumps }
 }
 
 const _x = new THREE.Vector3()
@@ -203,7 +271,7 @@ export class Titan {
   private readonly partIndex = new Map<string, TitanPart>()
   /** Seconds of shrug left: the upper body heaves to throw climbers off. */
   private shrugT = 0
-  private readonly material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 1.6 })
+  private readonly material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 1.25 })
   private readonly j = {
     hip: [new THREE.Vector3(), new THREE.Vector3()],
     knee: [new THREE.Vector3(), new THREE.Vector3()],
@@ -223,14 +291,15 @@ export class Titan {
     this.H = height
     this.body = titanBody(height)
     this.gait = new TitanGait(this.body, x, z, heading)
+    addStoneDetail(this.material)
     const add = (key: string, shape: string, s: number) => {
-      const { geometry, lumps } = segment(shape, height, seed + s, mossiness)
-      const m = new THREE.Mesh(geometry, this.material)
+      const { lods, lumps } = segment(shape, height, seed + s, mossiness)
+      const m = new THREE.Mesh(lods[0], this.material)
       m.castShadow = true
       m.receiveShadow = true
       this.meshes[key] = m
       this.group.add(m)
-      const part = { key, mesh: m, lumps }
+      const part = { key, mesh: m, lumps, lods }
       this.parts.push(part)
       this.partIndex.set(key, part)
     }
@@ -252,6 +321,17 @@ export class Titan {
     this.breath += dt
     this.shrugT = Math.max(0, this.shrugT - dt)
     this.gait.step(dt, input, out)
+  }
+
+  private lod = 0
+
+  /** Pick boulder detail by distance from the camera (2.2 H and 5 H thresholds). */
+  setLodFor(camera: THREE.Vector3): void {
+    const d = Math.hypot(camera.x - this.gait.x, camera.y - this.pelvis.y, camera.z - this.gait.z) / this.H
+    const lod = d > LOD_FAR[1] ? 2 : d > LOD_FAR[0] ? 1 : 0
+    if (lod === this.lod) return
+    this.lod = lod
+    for (const p of this.parts) p.mesh.geometry = p.lods[lod]
   }
 
   part(key: string): TitanPart | undefined {
@@ -293,8 +373,8 @@ export class Titan {
       const gy = terrain.heightAt(this.foot.x, this.foot.z)
       groundSum += gy
       // Sitting, the feet come forward and flat.
-      const fx = this.foot.x + this.fwd.x * 0.2 * H * rb
-      const fz = this.foot.z + this.fwd.z * 0.2 * H * rb
+      const fx = this.foot.x + this.fwd.x * 0.3 * H * rb
+      const fz = this.foot.z + this.fwd.z * 0.3 * H * rb
       J.ankle[f].set(fx, terrain.heightAt(fx, fz) + ankleUp + this.foot.lift * (1 - rb), fz)
     }
 
@@ -305,7 +385,7 @@ export class Titan {
     const bob = g.isSwinging ? 0.012 * H * Math.sin(Math.PI * g.phase) : 0
     const groundBody = Math.max(groundSum / 2, terrain.heightAt(g.x, g.z) - 0.05 * H)
     this.pelvis
-      .set(g.x, groundBody + (b.hipHeight * 0.985 + bob) * (1 - rb) + 0.13 * H * rb, g.z)
+      .set(g.x, groundBody + (b.hipHeight * 0.985 + bob) * (1 - rb) + 0.075 * H * rb, g.z)
       .addScaledVector(this.left, swayAmt * (1 - rb))
       .addScaledVector(this.fwd, -0.04 * H * rb)
     const reach = (b.thigh + b.shin) * 0.985
@@ -334,10 +414,12 @@ export class Titan {
       .copy(this.pelvis)
       .addScaledVector(this.fwd, 0.075 * H)
       .addScaledVector(this.left, -swayAmt * 0.6 + heave)
-    this.chest.y += SHAPES.torso.len * H * 0.97 * (1 - 0.18 * rb) + breathe + Math.abs(heave) * 0.5
-    this.chest.addScaledVector(this.fwd, 0.1 * H * rb) // hunched over the knees
-    this.head.copy(this.chest).addScaledVector(this.fwd, (0.065 + 0.03 * rb) * H)
-    this.head.y += (0.035 - 0.045 * rb) * H // head bowed
+    // Sitting: sat on the ground, back fairly straight (it was hunched over
+    // its knees, and read as a crouch), head a little bowed.
+    this.chest.y += SHAPES.torso.len * H * 0.97 + breathe + Math.abs(heave) * 0.5
+    this.chest.addScaledVector(this.fwd, -0.02 * H * rb)
+    this.head.copy(this.chest).addScaledVector(this.fwd, (0.065 + 0.01 * rb) * H)
+    this.head.y += (0.035 - 0.02 * rb) * H
 
     // Arms swing opposite to the legs, by each foot's lead.
     for (const f of [0, 1] as const) {

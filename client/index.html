@@ -68,6 +68,8 @@
         background: var(--panel); color: var(--ink); transition: opacity 1.2s; overflow-wrap: anywhere;
       }
       #chat-log .line.old { opacity: 0; }
+      /* Names keep their cloak colour, lifted so dark cloaks stay readable on the dark panel. */
+      #chat-log .line b { filter: brightness(1.55) saturate(1.15); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
       #chat-log.open .line.old { opacity: 0.85; }
       #chat-input {
         display: none; width: 100%; margin-top: 6px; padding: 7px 10px; border-radius: 7px; outline: none;

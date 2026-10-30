@@ -360,7 +360,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       applyDrag(this.terrain.delta, dragFor(H, e.ax, e.az, e.bx, e.bz))
     } else {
       applyImpact(this.terrain.delta, impactFor(H, e.x, e.z, e.stomp))
-      applyFootprint(this.terrain.delta, footprintFor(H, e.x, e.z, Math.sin(e.heading), Math.cos(e.heading), e.stomp))
+      applyFootprint(this.terrain.delta, footprintFor(H, e.x, e.z, e.hx ?? Math.sin(e.heading), e.hz ?? Math.cos(e.heading), e.stomp))
     }
   }
 

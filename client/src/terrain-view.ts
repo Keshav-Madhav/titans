@@ -1,5 +1,5 @@
-// Quadtree LOD terrain (CDLOD-style). Every chunk is 64 × 64 quads plus
-// skirts, from 64 m leaves (1 m per quad, matching the delta resolution) up to
+// Quadtree LOD terrain (CDLOD-style). Every chunk is N × N quads (64, or 32
+// at the lowest quality) plus skirts, from 64 m leaves (1 m per quad, matching the delta resolution) up to
 // a 32 km root centred on the origin. Splitting uses 3D camera distance, so a
 // Titan's high camera automatically gets coarser, wider terrain.
 //
@@ -9,17 +9,29 @@
 
 import * as THREE from 'three'
 import { makeSimplex2, smoothstep, type Noise2, type Terrain } from '@titans/shared'
+import { makeDetailTexture } from './detail-texture'
 
-const N = 64
 const ROOT = 32768
 const LEAF = 64
 const MAX_LEVEL = Math.round(Math.log2(ROOT / LEAF))
-const SPLIT_K = 1.6
-const ROW = N + 1
-const GRID_VERTS = ROW * ROW
-const SKIRT_VERTS = 4 * ROW
-const VERTS = GRID_VERTS + SKIRT_VERTS
-const H_ROW = N + 3 // heights with a one-sample border, for normals
+
+/** Everything that depends on the chunk resolution N (quads per side). */
+interface Grid {
+  N: number
+  ROW: number
+  GRID_VERTS: number
+  VERTS: number
+  H_ROW: number // heights with a one-sample border, for normals
+  index: THREE.BufferAttribute
+  edges: Int32Array
+}
+
+function makeGrid(N: number): Grid {
+  const ROW = N + 1
+  const GRID_VERTS = ROW * ROW
+  const edges = edgeOrder(N)
+  return { N, ROW, GRID_VERTS, VERTS: GRID_VERTS + 4 * ROW, H_ROW: N + 3, index: buildIndex(N, edges), edges }
+}
 
 // sRGB palette, converted to linear once.
 function lin(hex: number): [number, number, number] {
@@ -43,58 +55,6 @@ interface Chunk {
   mesh: THREE.Mesh | null
   dirty: boolean
   lastSeen: number
-}
-
-/** Tileable multi-octave value noise, one channel, 256². */
-function makeDetailTexture(seed: number): THREE.DataTexture {
-  const S = 256
-  const data = new Uint8Array(S * S * 4)
-  let s = seed | 0
-  const rand = () => {
-    s = (s + 0x6d2b79f5) | 0
-    let t = Math.imul(s ^ (s >>> 15), 1 | s)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-  const acc = new Float32Array(S * S)
-  let amp = 1
-  let total = 0
-  for (const cells of [4, 8, 16, 32, 64]) {
-    const grid = new Float32Array(cells * cells).map(rand)
-    const cs = S / cells
-    for (let y = 0; y < S; y++) {
-      const gy = y / cs
-      const y0 = Math.floor(gy)
-      const ty = gy - y0
-      const sy = ty * ty * (3 - 2 * ty)
-      for (let x = 0; x < S; x++) {
-        const gx = x / cs
-        const x0 = Math.floor(gx)
-        const tx = gx - x0
-        const sx = tx * tx * (3 - 2 * tx)
-        const a = grid[(y0 % cells) * cells + (x0 % cells)]
-        const b = grid[(y0 % cells) * cells + ((x0 + 1) % cells)]
-        const c = grid[((y0 + 1) % cells) * cells + (x0 % cells)]
-        const d = grid[((y0 + 1) % cells) * cells + ((x0 + 1) % cells)]
-        acc[y * S + x] += amp * ((a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy)
-      }
-    }
-    total += amp
-    amp *= 0.6
-  }
-  for (let i = 0; i < S * S; i++) {
-    const v = Math.round((acc[i] / total) * 255)
-    data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v
-    data[i * 4 + 3] = 255
-  }
-  const tex = new THREE.DataTexture(data, S, S)
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.magFilter = THREE.LinearFilter
-  tex.minFilter = THREE.LinearMipmapLinearFilter
-  tex.generateMipmaps = true
-  tex.anisotropy = 8
-  tex.needsUpdate = true
-  return tex
 }
 
 /**
@@ -126,7 +86,9 @@ function nodeKey(level: number, ix: number, iz: number): number {
   return (level * 1048576 + ix) * 1048576 + iz
 }
 
-function buildIndex(): THREE.BufferAttribute {
+function buildIndex(N: number, edges: Int32Array): THREE.BufferAttribute {
+  const ROW = N + 1
+  const GRID_VERTS = ROW * ROW
   const idx: number[] = []
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
@@ -138,7 +100,6 @@ function buildIndex(): THREE.BufferAttribute {
     }
   }
   // Skirts: each edge strip, both windings (cheaper than a double-sided material).
-  const edges = edgeOrder()
   for (let e = 0; e < 4; e++) {
     for (let k = 0; k < N; k++) {
       const v0 = edges[e * ROW + k]
@@ -152,7 +113,8 @@ function buildIndex(): THREE.BufferAttribute {
 }
 
 /** Grid-vertex indices along the four edges, ROW per edge. */
-function edgeOrder(): Int32Array {
+function edgeOrder(N: number): Int32Array {
+  const ROW = N + 1
   const out = new Int32Array(4 * ROW)
   for (let k = 0; k < ROW; k++) {
     out[k] = k // z = z0
@@ -167,16 +129,20 @@ export class TerrainView {
   readonly group = new THREE.Group()
   readonly material: THREE.MeshStandardMaterial
   private readonly chunks = new Map<number, Chunk>()
-  private readonly index = buildIndex()
-  private readonly edges = edgeOrder()
-  private readonly heights = new Float32Array(H_ROW * H_ROW)
-  private readonly deltas = new Float32Array(H_ROW * H_ROW)
+  private grid = makeGrid(64)
+  private heights = new Float32Array(67 * 67)
+  private deltas = new Float32Array(67 * 67)
   private readonly detail: Noise2
   private readonly centreH = new Map<number, number>()
   private shown = new Set<number>()
   private frame = 0
   private desired: number[] = []
   stats = { shown: 0, built: 0, queued: 0, buildMs: 0 }
+  /**
+   * Split when the camera is nearer than splitK × chunk size. Higher is
+   * finer distant terrain and more triangles; the quality governor sets it.
+   */
+  splitK = 1.5
 
   constructor(private readonly terrain: Terrain, seed: number) {
     this.detail = makeSimplex2(seed + 999)
@@ -185,10 +151,26 @@ export class TerrainView {
     this.group.name = 'terrain'
   }
 
+  /**
+   * Quads per chunk side. Changing it rebuilds every chunk in place: each
+   * keeps showing its old mesh until its new one is built, so nothing opens.
+   */
+  setResolution(n: number): void {
+    if (n === this.grid.N) return
+    this.grid = makeGrid(n)
+    this.heights = new Float32Array(this.grid.H_ROW * this.grid.H_ROW)
+    this.deltas = new Float32Array(this.grid.H_ROW * this.grid.H_ROW)
+    for (const c of this.chunks.values()) c.dirty = true
+  }
+
+  get resolution(): number {
+    return this.grid.N
+  }
+
   /** Mark every chunk overlapping the box (world metres) for rebuild. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
     for (const c of this.chunks.values()) {
-      const m = c.size / N
+      const m = c.size / this.grid.N
       if (c.x0 - m <= x1 && c.x0 + c.size + m >= x0 && c.z0 - m <= z1 && c.z0 + c.size + m >= z0) c.dirty = true
     }
   }
@@ -253,7 +235,7 @@ export class TerrainView {
       const dx = Math.max(0, Math.abs(x0 + size / 2 - cam.x) - size / 2)
       const dz = Math.max(0, Math.abs(z0 + size / 2 - cam.z) - size / 2)
       const dy = cam.y - hc
-      if (dx * dx + dy * dy + dz * dz < size * SPLIT_K * (size * SPLIT_K)) {
+      if (dx * dx + dy * dy + dz * dz < size * this.splitK * (size * this.splitK)) {
         const l = level + 1
         this.collect(l, ix * 2, iz * 2, cam, out)
         this.collect(l, ix * 2 + 1, iz * 2, cam, out)
@@ -327,6 +309,7 @@ export class TerrainView {
 
   private build(c: Chunk): void {
     const t = this.terrain
+    const { N, ROW, GRID_VERTS, VERTS, H_ROW } = this.grid
     const step = c.size / N
     const H = this.heights
     const D = this.deltas
@@ -342,14 +325,17 @@ export class TerrainView {
     }
 
     let geo: THREE.BufferGeometry
-    if (c.mesh) {
+    if (c.mesh && c.mesh.geometry.getAttribute('position').count === VERTS) {
       geo = c.mesh.geometry
     } else {
+      // New chunk, or the resolution changed: fresh buffers.
+      c.mesh?.geometry.dispose()
       geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
       geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
-      geo.setIndex(this.index)
+      geo.setIndex(this.grid.index)
+      if (c.mesh) c.mesh.geometry = geo
     }
     const P = geo.getAttribute('position').array as Float32Array
     const Nn = geo.getAttribute('normal').array as Float32Array
@@ -382,7 +368,7 @@ export class TerrainView {
     // Skirts hang below each edge to hide cracks between LOD levels.
     const drop = step * 1.5 + 1
     for (let e = 0; e < 4 * ROW; e++) {
-      const src = this.edges[e]
+      const src = this.grid.edges[e]
       const dst = GRID_VERTS + e
       P[dst * 3] = P[src * 3]
       P[dst * 3 + 1] = P[src * 3 + 1] - drop

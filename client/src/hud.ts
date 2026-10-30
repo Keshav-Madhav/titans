@@ -84,7 +84,7 @@ export class Hud {
     document.getElementById('loading')!.classList.add('done')
   }
 
-  frame(now: number, renderer: THREE.WebGLRenderer, terrain: TerrainView, focus: THREE.Vector3, cam: THREE.Camera): void {
+  frame(now: number, renderer: THREE.WebGLRenderer, terrain: TerrainView, focus: THREE.Vector3, cam: THREE.Camera, quality = 0): void {
     this.frames++
     if (now - this.since < 250) return
     const fps = (this.frames * 1000) / (now - this.since)
@@ -95,7 +95,7 @@ export class Hud {
     const s = terrain.stats
     this.perf.textContent =
       `${this.last.fps} fps   ${info.calls} calls   ${(info.triangles / 1000).toFixed(0)}k tris\n` +
-      `chunks ${s.shown} shown  ${s.queued} queued  ${s.buildMs.toFixed(1)} ms\n` +
+      `chunks ${s.shown} shown  ${s.queued} queued  ${s.buildMs.toFixed(1)} ms  q${quality}\n` +
       `pos ${focus.x.toFixed(0)}, ${focus.y.toFixed(1)}, ${focus.z.toFixed(0)}   cam y ${cam.position.y.toFixed(0)}`
   }
 }

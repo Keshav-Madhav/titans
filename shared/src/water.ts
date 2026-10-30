@@ -272,6 +272,131 @@ export function floodBasin(H: CellHeight, E: CellHeight, sx: number, sz: number,
   return { x0, z0, w, h, mask, bottom, spill, bx, bz, ex, ez, sorted, prefix, capped }
 }
 
+/**
+ * Every hollow in a window filled to the brim — priority flood inward from
+ * the window's edge (Barnes et al. 2014, depression filling). Each cell's
+ * filled level is the lowest "highest point" on any path out of the window;
+ * cells below it are under water. Returns the full lakes (one Basin each)
+ * that contain the given seed cells. Side-by-side hollows sharing a low
+ * saddle come out as ONE lake; a terrace spilling downhill stays two.
+ */
+export function filledBasins(H: CellHeight, x0: number, z0: number, x1: number, z1: number, seeds: Array<[number, number]>): Basin[] {
+  const w = x1 - x0 + 1
+  const h = z1 - z0 + 1
+  const n = w * h
+  const Hc = new Float64Array(n)
+  const F = new Float64Array(n)
+  const closed = new Uint8Array(n)
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) Hc[j * w + i] = H(x0 + i, z0 + j)
+  const heap = new Heap()
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      if (i !== 0 && j !== 0 && i !== w - 1 && j !== h - 1) continue
+      const k = j * w + i
+      F[k] = Hc[k]
+      closed[k] = 1
+      heap.push(F[k], i, j)
+    }
+  }
+  const top = [0, 0, 0]
+  while (heap.size > 0) {
+    heap.pop(top)
+    const ci = top[1]
+    const cj = top[2]
+    const fc = top[0]
+    for (let q = 0; q < 4; q++) {
+      const i = ci + (q === 0 ? 1 : q === 1 ? -1 : 0)
+      const j = cj + (q === 2 ? 1 : q === 3 ? -1 : 0)
+      if (i < 0 || j < 0 || i >= w || j >= h) continue
+      const k = j * w + i
+      if (closed[k]) continue
+      closed[k] = 1
+      F[k] = Hc[k] > fc ? Hc[k] : fc
+      heap.push(F[k], i, j)
+    }
+  }
+
+  const out: Basin[] = []
+  const taken = new Uint8Array(n)
+  for (const [sx, sz] of seeds) {
+    const si = sx - x0
+    const sj = sz - z0
+    if (si < 0 || sj < 0 || si >= w || sj >= h) continue
+    const k0 = sj * w + si
+    if (taken[k0] || F[k0] <= Hc[k0] + 1e-6) continue
+    // The lake is every cell under the same filled level, connected.
+    const level = F[k0]
+    const cells: number[] = [k0]
+    taken[k0] = 1
+    for (let c = 0; c < cells.length; c++) {
+      const ci = cells[c] % w
+      const cj = (cells[c] - ci) / w
+      for (let q = 0; q < 4; q++) {
+        const i = ci + (q === 0 ? 1 : q === 1 ? -1 : 0)
+        const j = cj + (q === 2 ? 1 : q === 3 ? -1 : 0)
+        if (i < 0 || j < 0 || i >= w || j >= h) continue
+        const k = j * w + i
+        if (taken[k] || Hc[k] >= level - 1e-6 || Math.abs(F[k] - level) > 1e-6) continue
+        taken[k] = 1
+        cells.push(k)
+      }
+    }
+    let bx0 = Infinity
+    let bz0 = Infinity
+    let bx1 = -Infinity
+    let bz1 = -Infinity
+    let bottom = Infinity
+    let bx = 0
+    let bz = 0
+    for (const k of cells) {
+      const i = k % w
+      const j = (k - i) / w
+      bx0 = Math.min(bx0, i)
+      bx1 = Math.max(bx1, i)
+      bz0 = Math.min(bz0, j)
+      bz1 = Math.max(bz1, j)
+      if (Hc[k] < bottom) {
+        bottom = Hc[k]
+        bx = x0 + i
+        bz = z0 + j
+      }
+    }
+    const mw = bx1 - bx0 + 1
+    const mh = bz1 - bz0 + 1
+    const mask = new Uint8Array(mw * mh)
+    // The way out: the lowest cell bordering the lake (its saddle).
+    let ex = NaN
+    let ez = NaN
+    let eh = Infinity
+    for (const k of cells) {
+      const i = k % w
+      const j = (k - i) / w
+      mask[(j - bz0) * mw + (i - bx0)] = 1
+      for (let q = 0; q < 4; q++) {
+        const ni = i + (q === 0 ? 1 : q === 1 ? -1 : 0)
+        const nj = j + (q === 2 ? 1 : q === 3 ? -1 : 0)
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue
+        const nk = nj * w + ni
+        if (taken[nk] && Hc[nk] < level) continue
+        if (Hc[nk] < eh) {
+          eh = Hc[nk]
+          ex = x0 + ni
+          ez = z0 + nj
+        }
+      }
+    }
+    const sorted = Float64Array.from(cells.map((k) => Hc[k])).sort()
+    const prefix = new Float64Array(sorted.length + 1)
+    for (let i = 0; i < sorted.length; i++) prefix[i + 1] = prefix[i] + sorted[i]
+    // Lowland, not a lake: too big, or pressed against the window's edge
+    // (the water would keep going past it).
+    const edge = bx0 <= 1 || bz0 <= 1 || bx1 >= w - 2 || bz1 >= h - 2
+    const capped = cells.length > MAX_CELLS || edge
+    out.push({ x0: x0 + bx0, z0: z0 + bz0, w: mw, h: mh, mask, bottom, spill: level, bx, bz, ex, ez, sorted, prefix, capped })
+  }
+  return out
+}
+
 /** Number of bed cells strictly below `level`. */
 function countBelow(b: Basin, level: number): number {
   let lo = 0
@@ -303,6 +428,11 @@ export function levelFor(b: Basin, volume: number): number {
     else hi = m
   }
   return (volume + b.prefix[lo]) / lo
+}
+
+/** Identifies a pair of lakes by their shapes (ids alone survive re-floods that change them). */
+function shapeKey(l: Lake, d: Lake): string {
+  return `${l.id}:${l.basin.sorted.length}:${d.id}:${d.basin.sorted.length}`
 }
 
 export function inBasin(b: Basin, x: number, z: number): boolean {
@@ -344,12 +474,12 @@ export class LakeSystem {
    * lake's stored bed with where its water actually reaches now (terrain
    * dug beside a lake floods the moment it is dug).
    */
-  surface(wet?: Map<Lake, Region>): CellHeight {
+  surface(wet?: Map<Lake, Region>, exclude?: ReadonlySet<Lake>): CellHeight {
     const H = this.H
     const index = new Map<number, Lake[]>()
     const regionOf = (l: Lake): Region => wet?.get(l) ?? l.basin
     for (const l of this.lakes) {
-      if (l.level <= l.basin.bottom) continue
+      if (l.level <= l.basin.bottom || exclude?.has(l)) continue
       const b = regionOf(l)
       for (let tz = Math.floor(b.z0 / 64); tz <= Math.floor((b.z0 + b.h) / 64); tz++) {
         for (let tx = Math.floor(b.x0 / 64); tx <= Math.floor((b.x0 + b.w) / 64); tx++) {
@@ -436,8 +566,9 @@ export class LakeSystem {
     wet?: Map<Lake, Region>,
     lift?: (x: number, z: number, h: number) => number,
     refuseCapped = false,
+    exclude?: ReadonlySet<Lake>,
   ): boolean {
-    const S = this.surface(wet)
+    const S = this.surface(wet, exclude)
     const E: CellHeight = lift ? (x, z) => lift(x, z, S(x, z)) : S
     const fresh: Basin[] = []
     for (const [x, z] of seeds) {
@@ -513,7 +644,7 @@ export class LakeSystem {
         const [dx, dz] = descend(H, ex, ez, path)
         const d = this.lakes.find((o) => inBasin(o.basin, dx, dz))
         if (d) {
-          if (d !== l) {
+          if (d !== l && !this.lowland.has(shapeKey(l, d))) {
             l.down = d.id
             l.path = path
           }
@@ -601,10 +732,19 @@ export class LakeSystem {
     for (const l of order) {
       if (!this.lakes.includes(l) || !this.isFull(l)) continue
       const d = this.downstream(l)
-      if (!d || d.level < l.basin.spill) continue
+      if (!d) continue
       // Keyed on shape, not version: a failed attempt itself bumps versions.
-      const pair = `${l.id}:${l.basin.sorted.length}:${d.id}:${d.basin.sorted.length}`
-      if (this.failed.has(pair)) continue
+      const pair = shapeKey(l, d)
+      // Two full lakes each spilling into the other cannot both be right:
+      // settle them first (each distinct shape is tried once).
+      if (this.isFull(d) && this.downstream(d) === l && !this.resolved.has(pair)) {
+        this.resolved.add(pair)
+        if (this.resolveMutual(l, d)) {
+          changed = true
+          break
+        }
+      }
+      if (d.level < l.basin.spill || this.failed.has(pair)) continue
       const before = this.lakes.length
       // Flood from this lake across where each lake's water really reaches
       // today, each at ITS OWN level, out to the true combined outlet.
@@ -618,16 +758,134 @@ export class LakeSystem {
       }
       const lb = l.basin
       const ok = this.reflood([[lb.bx, lb.bz]], wet, undefined, true)
-      if (!ok) {
-        this.failed.add(pair)
-        continue
+      if (ok && this.lakes.length < before) {
+        changed = true
+        break
       }
-      if (this.lakes.length >= before) this.failed.add(pair) // surfaces did not actually connect
-      changed = true
-      break
+      this.failed.add(pair)
     }
     return changed
   }
 
+  /**
+   * A full pair, each spilling into the other. Levels within a hand's
+   * breadth: they are one body of water — flood across everything below that
+   * level from l's lowest point and out to the true outlet. Levels apart: the
+   * higher lake's outline is stale (its water would run over the saddle the
+   * lower one spills across), so re-derive both from the real ground,
+   * ignoring each other's water; their water is kept, the excess spills on,
+   * and next time round they meet at the same level and merge.
+   */
+  private resolveMutual(l: Lake, d: Lake): boolean {
+    // Fill every hollow in a window around both (plus a margin for their
+    // rims) and take the lakes that contain their lowest points.
+    const pad = 6
+    const x0 = Math.min(l.basin.x0, d.basin.x0) - pad
+    const z0 = Math.min(l.basin.z0, d.basin.z0) - pad
+    const x1 = Math.max(l.basin.x0 + l.basin.w, d.basin.x0 + d.basin.w) + pad
+    const z1 = Math.max(l.basin.z0 + l.basin.h, d.basin.z0 + d.basin.h) + pad
+    if ((x1 - x0) * (z1 - z0) > MAX_CELLS * 4) return false
+    const basins = filledBasins(
+      this.H,
+      x0,
+      z0,
+      x1,
+      z1,
+      [l, d].map((k) => [k.basin.bx, k.basin.bz] as [number, number]),
+    )
+    if (basins.length === 0) return false
+    if (basins.some((b) => b.capped)) {
+      // Full, this pair's water spreads onto natural lowland: it runs off
+      // there (the river phase routes it) instead of circling between them.
+      // Remembered by shape, so a recomputed downstream does not revive the loop.
+      this.lowland.add(shapeKey(l, d))
+      l.down = 0
+      return true
+    }
+    const water = l.volume + d.volume + l.carry + d.carry
+    const old = new Map([
+      [l, 0],
+      [d, 0],
+    ])
+    this.lakes.splice(this.lakes.indexOf(l), 1)
+    this.lakes.splice(this.lakes.indexOf(d), 1)
+    let left = water
+    for (const b of basins) {
+      // Whichever predecessor's lowest point it holds lends it its id.
+      const from = inBasin(b, l.basin.bx, l.basin.bz) ? l : d
+      old.set(from, 1)
+      const cap = volumeAt(b, b.spill)
+      const v = Math.min(cap, left)
+      left -= v
+      this.lakes.push({ id: from.id, basin: b, volume: v, level: levelFor(b, v), carry: 0, version: Math.max(l.version, d.version) + 1 })
+    }
+    // Water that no longer fits spills on from the last lake.
+    if (left > 0) this.lakes[this.lakes.length - 1].carry += left
+    for (const k of this.lakes) k.down = undefined
+    return true
+  }
+
+  /**
+   * Where overflowing water runs: for every full lake, the cells from its
+   * spill point to the lake it feeds, or — if it feeds none — downhill over
+   * the plain until it soaks into the first hollow (at most `maxRun` cells).
+   * Each entry carries a signature so renderers can rebuild only on change.
+   */
+  streams(maxRun = 320): Array<{ id: number; sig: string; cells: Array<[number, number]> }> {
+    const out: Array<{ id: number; sig: string; cells: Array<[number, number]> }> = []
+    for (const l of this.lakes) {
+      if (!this.isFull(l) || Number.isNaN(l.basin.ex)) continue
+      const d = this.downstream(l)
+      const sig = `${l.id}:${l.version}:${d ? d.id : 0}`
+      let cells: Array<[number, number]>
+      if (d && l.path?.length) {
+        cells = l.path.map((k) => [Math.floor(k / 65536) - 32768, (k % 65536) - 32768])
+      } else {
+        // Runoff onto the plain: straight downhill (never back into the lake).
+        cells = []
+        const b = l.basin
+        const H: CellHeight = (x, z) => (inBasin(b, x, z) ? Infinity : this.H(x, z))
+        let x = b.ex
+        let z = b.ez
+        let h = H(x, z)
+        for (let i = 0; i < maxRun; i++) {
+          cells.push([x, z])
+          let nx = x
+          let nz = z
+          let nh = h
+          for (let q = 0; q < 4; q++) {
+            const tx = x + (q === 0 ? 1 : q === 1 ? -1 : 0)
+            const tz = z + (q === 2 ? 1 : q === 3 ? -1 : 0)
+            const th = H(tx, tz)
+            if (th < nh) {
+              nh = th
+              nx = tx
+              nz = tz
+            }
+          }
+          if (nx === x && nz === z) break // soaked into a hollow
+          x = nx
+          z = nz
+          h = nh
+        }
+      }
+      if (cells.length >= 3) out.push({ id: l.id, sig, cells })
+    }
+    return out
+  }
+
+  /** Full lakes that each spill into the other (should be none once things settle). */
+  mutualPairs(): number {
+    let n = 0
+    for (const l of this.lakes) {
+      const d = this.isFull(l) ? this.downstream(l) : null
+      if (d && d.id > l.id && this.isFull(d) && this.downstream(d) === l) n++
+    }
+    return n
+  }
+
   private readonly failed = new Set<string>()
+  private readonly resolved = new Set<string>()
+  /** Pairs (by shape) whose shared overflow runs off into lowland. */
+  private readonly lowland = new Set<string>()
 }
