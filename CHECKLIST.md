@@ -75,9 +75,19 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       server-authoritative lake levels (clients derive lakes from the same events today)
 
 ## P8 — Climbing
-- [ ] Rapier kinematic colliders on Titan parts; climb state with part-local attach
-- [ ] Replicated climbers
-- [ ] Gate: climb from foot to shoulder while the Titan walks
+- [x] Analytic climbing on the Titan's real boulder surfaces (no Rapier needed); part-local holds;
+      grip stamina (steep drain, walking/shrug/footfall penalties, regen on top); E grab/let go,
+      Space leap; walkers pushed out of the Titan's feet and legs
+- [x] Replicated climbers (hold sent as part + boulder + local point; drawn on each client's pose);
+      climbers marked at any range for the Titan; the Titan's shrug (Q) reaches every client
+- [x] Gate (`node tools/shot.mjs climb`): foot → shin → thigh → torso → shoulder, standing at
+      133 m of 180 m with full grip; then rode three strides (carried 136 m as the Titan moved
+      134 m). MP gate: C draws B's climber 0.01 m from where B is; shrug seen by C.
+
+## P8b — Titan verbs (PLAN.md §6b)
+- [ ] Plough / stride toggle
+- [ ] Stomp: deep print + shockwave that knocks Wanderers down
+- [ ] Call out: a beacon every Wanderer sees
 
 ## P9 — Rest
 - [ ] Rest → dormant mountain, persisted, labelled

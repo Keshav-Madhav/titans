@@ -1,0 +1,249 @@
+// Climbing a Titan. A climber holds a point on one boulder ("lump") of one
+// body part, stored in that part's LOCAL frame, so the Titan carries them as
+// it walks: every frame the hold is re-read through the part's current
+// matrix. Moving is done on the analytic boulder surface (the same bulge
+// function the mesh was built from): step along the tangent plane, project
+// back onto the boulder, and if that lands inside another boulder (of any
+// part) move onto its surface instead — which is how a climber crosses from
+// shin to thigh to hip to shoulder.
+//
+// Grip stamina drains on steep rock (faster while the Titan walks, much
+// faster while it shrugs) and recovers standing on top of a shoulder or the
+// head. Run out and you fall.
+
+import * as THREE from 'three'
+import type { LumpSurface, Titan, TitanPart } from './titan'
+
+const GRAB_REACH = 1.8 // metres from the climber's chest to rock
+const CLIMB_SPEED = 1.9
+const TOP_SPEED = 3.2
+const TOP_NORMAL = 0.62 // surface normal.y above this: standing on top
+const DRAIN_STEEP = 0.011 // per second on steep rock, Titan still
+const DRAIN_MOVING = 0.025 // extra per second at the Titan's full stride
+const DRAIN_SHRUG = 0.6 // extra per second while it shrugs (upper body holds)
+const REGEN_TOP = 0.22
+
+/** What other clients need to draw a climber: which part, which boulder, where on it. */
+export interface Hold {
+  part: string
+  lump: number
+  x: number
+  y: number
+  z: number
+}
+
+const UPPER = /^(torso|head|upperArm|forearm|hand)/
+
+/** Project part-local point q radially onto lump L. Returns |q|/surface (< 1 means q was inside). */
+function onLump(L: LumpSurface, q: THREE.Vector3, out: THREE.Vector3): number {
+  const ux = (q.x - L.c.x) / L.r.x
+  const uy = (q.y - L.c.y) / L.r.y
+  const uz = (q.z - L.c.z) / L.r.z
+  const len = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1e-6
+  const dx = ux / len
+  const dy = uy / len
+  const dz = uz / len
+  const k = L.bulge(dx, dy, dz)
+  out.set(L.c.x + dx * L.r.x * k, L.c.y + dy * L.r.y * k, L.c.z + dz * L.r.z * k)
+  return len / k
+}
+
+/** Outward normal (part-local) of lump L at surface point p — the ellipsoid's, ignoring bulge. */
+export function lumpNormal(L: LumpSurface, p: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+  return out
+    .set((p.x - L.c.x) / (L.r.x * L.r.x), (p.y - L.c.y) / (L.r.y * L.r.y), (p.z - L.c.z) / (L.r.z * L.r.z))
+    .normalize()
+}
+
+const _q = new THREE.Vector3()
+const _s = new THREE.Vector3()
+const _w = new THREE.Vector3()
+const _m = new THREE.Vector3()
+const _inv = new THREE.Matrix4()
+
+export class Climber {
+  active = false
+  part: TitanPart | null = null
+  lump = 0
+  /** The hold, on the surface, in the part's local frame. */
+  readonly local = new THREE.Vector3()
+  stamina = 1
+  standing = false
+  /** World position and outward normal of the hold (refreshed by sync()). */
+  readonly world = new THREE.Vector3()
+  readonly normal = new THREE.Vector3()
+  /** How fast the hold itself is moving — the Titan carrying us. */
+  readonly vel = new THREE.Vector3()
+  moving = 0
+  private readonly prevWorld = new THREE.Vector3()
+  private readonly invs = new Map<TitanPart, THREE.Matrix4>()
+
+  constructor(private readonly titan: Titan) {}
+
+  /** Grab the nearest rock within reach of `chest` (world). */
+  tryGrab(chest: THREE.Vector3): boolean {
+    let best = GRAB_REACH
+    for (const part of this.titan.parts) {
+      const inv = _inv.copy(part.mesh.matrixWorld).invert()
+      _q.copy(chest).applyMatrix4(inv)
+      part.lumps.forEach((L, j) => {
+        onLump(L, _q, _s)
+        _w.copy(_s).applyMatrix4(part.mesh.matrixWorld)
+        const d = _w.distanceTo(chest)
+        if (d < best) {
+          best = d
+          this.attach(part, j, _s)
+        }
+      })
+    }
+    if (this.active) this.refresh(true)
+    return this.active
+  }
+
+  attach(part: TitanPart, lump: number, local: THREE.Vector3): void {
+    this.active = true
+    this.part = part
+    this.lump = lump
+    this.local.copy(local)
+  }
+
+  /** Let go. Returns the velocity to fall with: the Titan's motion plus a push off the rock. */
+  release(push: number): THREE.Vector3 {
+    this.active = false
+    this.part = null
+    return new THREE.Vector3().copy(this.vel).addScaledVector(this.normal, push).add(new THREE.Vector3(0, push * 0.6, 0))
+  }
+
+  /**
+   * One fixed step of climbing. `move` is WASD (y = up the rock, or forward
+   * when standing on top). Returns false if the grip gave out.
+   */
+  step(dt: number, move: { x: number; y: number }, camYaw: number, titanStride: number, shrugging: boolean): boolean {
+    if (!this.active || !this.part) return false
+    this.refresh(false)
+    const part = this.part
+    const M = part.mesh.matrixWorld
+    const n = this.normal
+
+    // Intent in the world, flattened onto the rock's tangent plane.
+    const fx = -Math.sin(camYaw)
+    const fz = -Math.cos(camYaw)
+    const rx = Math.cos(camYaw)
+    const rz = -Math.sin(camYaw)
+    if (this.standing) _m.set(fx * move.y + rx * move.x, 0, fz * move.y + rz * move.x)
+    else _m.set(rx * move.x, move.y, rz * move.x)
+    _m.addScaledVector(n, -n.dot(_m))
+    this.moving = 0
+    if (_m.lengthSq() > 1e-6) {
+      const speed = this.standing ? TOP_SPEED : CLIMB_SPEED
+      _m.setLength(speed * dt)
+      this.moving = speed
+      _w.copy(this.world).add(_m)
+      _q.copy(_w).applyMatrix4(_inv.copy(M).invert())
+      onLump(part.lumps[this.lump], _q, this.local)
+      this.crossOver()
+    }
+
+    // Grip.
+    let drain = this.standing ? -REGEN_TOP : DRAIN_STEEP + DRAIN_MOVING * titanStride
+    if (shrugging && UPPER.test(part.key)) drain += DRAIN_SHRUG
+    this.stamina = Math.min(1, Math.max(0, this.stamina - drain * dt))
+    return this.stamina > 0
+  }
+
+  /**
+   * If the hold now sits inside another boulder (this part's or another's),
+   * the real surface there is that boulder's: move onto it. Never straight
+   * back onto one left in the same step: where two boulders meet, each
+   * surface lies inside the other, and bouncing between them wedged
+   * climbers in the crease. On the new face, the next step climbs out of it.
+   */
+  private crossOver(): void {
+    if (!this.part) return
+    this.invs.clear()
+    const left = new Set<string>([`${this.part.key}:${this.lump}`])
+    for (let iter = 0; iter < 3; iter++) {
+      _w.copy(this.local).applyMatrix4(this.part.mesh.matrixWorld)
+      let moved = false
+      for (const p of this.titan.parts) {
+        let inv = this.invs.get(p)
+        if (!inv) {
+          inv = new THREE.Matrix4().copy(p.mesh.matrixWorld).invert()
+          this.invs.set(p, inv)
+        }
+        _q.copy(_w).applyMatrix4(inv)
+        for (let j = 0; j < p.lumps.length; j++) {
+          if (left.has(`${p.key}:${j}`)) continue
+          if (onLump(p.lumps[j], _q, _s) < 0.999) {
+            this.part = p
+            this.lump = j
+            left.add(`${p.key}:${j}`)
+            this.local.copy(_s)
+            moved = true
+            break
+          }
+        }
+        if (moved) break
+      }
+      if (!moved) return
+    }
+  }
+
+  /** Re-read the hold through the part's current matrix (call after the Titan is posed). */
+  sync(dt: number): void {
+    if (!this.active) return
+    this.refresh(false)
+    if (dt > 0) this.vel.subVectors(this.world, this.prevWorld).divideScalar(dt)
+    this.prevWorld.copy(this.world)
+  }
+
+  private refresh(reset: boolean): void {
+    if (!this.part) return
+    const M = this.part.mesh.matrixWorld
+    this.world.copy(this.local).applyMatrix4(M)
+    lumpNormal(this.part.lumps[this.lump], this.local, this.normal).transformDirection(M)
+    this.standing = this.normal.y > TOP_NORMAL
+    if (reset) {
+      this.prevWorld.copy(this.world)
+      this.vel.set(0, 0, 0)
+    }
+  }
+
+  hold(): Hold | null {
+    if (!this.active || !this.part) return null
+    return { part: this.part.key, lump: this.lump, x: this.local.x, y: this.local.y, z: this.local.z }
+  }
+
+  /**
+   * Keep a walking Wanderer out of the Titan's feet and legs: if their chest
+   * is inside any boulder, push them (sideways) out to its surface.
+   */
+  pushOut(pos: THREE.Vector3): void {
+    _w.set(pos.x, pos.y + 0.9, pos.z)
+    for (const p of this.titan.parts) {
+      const inv = _inv.copy(p.mesh.matrixWorld).invert()
+      _q.copy(_w).applyMatrix4(inv)
+      for (const L of p.lumps) {
+        if (onLump(L, _q, _s) >= 1) continue
+        _s.applyMatrix4(p.mesh.matrixWorld)
+        const dx = _s.x - _w.x
+        const dz = _s.z - _w.z
+        const len = Math.hypot(dx, dz) || 1
+        pos.x += dx + (dx / len) * 0.3
+        pos.z += dz + (dz / len) * 0.3
+        return
+      }
+    }
+  }
+}
+
+/** World position + normal of a hold someone else reported (for drawing remote climbers). */
+export function holdToWorld(titan: Titan, h: Hold, pos: THREE.Vector3, normal: THREE.Vector3): boolean {
+  const part = titan.part(h.part)
+  const L = part?.lumps[h.lump]
+  if (!part || !L) return false
+  _q.set(h.x, h.y, h.z)
+  pos.copy(_q).applyMatrix4(part.mesh.matrixWorld)
+  lumpNormal(L, _q, normal).transformDirection(part.mesh.matrixWorld)
+  return true
+}

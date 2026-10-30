@@ -25,6 +25,11 @@ export interface RemotePlayer {
   y: number
   z: number
   yaw: number
+  climb: string
+  lump: number
+  lx: number
+  ly: number
+  lz: number
 }
 
 interface WorldStateView {
@@ -42,6 +47,8 @@ export class Net {
   onSynced: (events: number) => void = () => {}
   /** Fired after each state patch from the server. */
   onPatch: () => void = () => {}
+  /** The Titan's driver heaved its shoulders. */
+  onShrug: () => void = () => {}
 
   get online(): boolean {
     return this.room !== null
@@ -73,6 +80,7 @@ export class Net {
       })
       room.onMessage(MSG.terrain, (e: TerrainEvent) => this.accept(e, false))
       room.onMessage(MSG.chat, (m: ChatOut) => this.onChat(m))
+      room.onMessage(MSG.shrug, () => this.onShrug())
       room.onStateChange(() => this.onPatch())
       room.onLeave(() => {
         this.room = null
@@ -104,6 +112,10 @@ export class Net {
 
   sendTitan(m: TitanInputMsg): void {
     this.room?.send(MSG.titanInput, m)
+  }
+
+  sendShrug(): void {
+    this.room?.send(MSG.shrug, {})
   }
 
   requestRole(role: Role): void {

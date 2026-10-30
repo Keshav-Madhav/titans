@@ -10,6 +10,12 @@ export const Player = schema(
     y: t.float32(),
     z: t.float32(),
     yaw: t.float32(),
+    // Climbing: which Titan part, which boulder, where on it (part-local). '' when not climbing.
+    climb: t.string(),
+    lump: t.uint8(),
+    lx: t.float32(),
+    ly: t.float32(),
+    lz: t.float32(),
   },
   'Player',
 )

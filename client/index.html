@@ -44,6 +44,14 @@
         position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
         background: rgba(18, 20, 26, 0.5); color: var(--ink); font-size: 11px; font-weight: 600; display: none;
       }
+      .label.climbing { background: rgba(242, 193, 78, 0.85); color: #1b1b1b; }
+      .label.climbing::before { content: '▲ '; }
+      #grip {
+        position: fixed; left: 50%; bottom: 62px; width: 160px; height: 6px; margin-left: -80px; border-radius: 3px;
+        background: rgba(18, 20, 26, 0.45); display: none; overflow: hidden;
+      }
+      #grip i { display: block; height: 100%; width: 100%; background: #f2c14e; transition: background 0.3s; }
+      #grip.low i { background: #e0573f; }
       #chat { position: fixed; left: 14px; bottom: 64px; width: min(380px, calc(100vw - 28px)); }
       #chat-log { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
       #chat-log .line {
@@ -79,6 +87,7 @@
     <div id="role"></div>
     <div id="hint"></div>
     <div id="labels"></div>
+    <div id="grip"><i></i></div>
     <div id="net"></div>
     <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>
     <div id="loading">

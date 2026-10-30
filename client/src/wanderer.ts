@@ -11,6 +11,12 @@ const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
 
+const _up = new THREE.Vector3(0, 1, 0)
+const _cx = new THREE.Vector3()
+const _cy = new THREE.Vector3()
+const _cz = new THREE.Vector3()
+const _cm = new THREE.Matrix4()
+
 /** A sphere open at the neck, with a round face opening cut toward +Z. */
 function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   const g = new THREE.SphereGeometry(radius, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.82).toNonIndexed()
@@ -160,7 +166,40 @@ export class Wanderer {
     this.obj.position.lerpVectors(this.prev, this.pos, alpha)
     let d = this.yaw - this.prevYaw
     d = Math.atan2(Math.sin(d), Math.cos(d))
-    this.obj.rotation.y = this.prevYaw + d * alpha
+    this.obj.quaternion.setFromAxisAngle(_up, this.prevYaw + d * alpha)
+  }
+
+  /**
+   * Pose on a Titan's body. On steep rock: chest to the stone, head up the
+   * slope, held a little off the surface. Standing on top (a shoulder, the
+   * head): upright, facing `yaw`. `moving` (m/s) drives the limbs.
+   */
+  climbPose(dt: number, point: THREE.Vector3, normal: THREE.Vector3, standing: boolean, yaw: number, moving: number): void {
+    const o = this.obj
+    if (standing) {
+      o.position.copy(point)
+      o.quaternion.setFromAxisAngle(_up, yaw)
+    } else {
+      // Up the slope = world up flattened onto the rock.
+      _cy.set(0, 1, 0).addScaledVector(normal, -normal.y)
+      if (_cy.lengthSq() < 1e-4) _cy.set(0, 0, 1)
+      _cy.normalize()
+      _cz.copy(normal).negate()
+      _cx.crossVectors(_cy, _cz)
+      _cm.makeBasis(_cx, _cy, _cz)
+      o.quaternion.setFromRotationMatrix(_cm)
+      o.position.copy(point).addScaledVector(normal, 0.32).addScaledVector(_cy, -0.85)
+    }
+    this.stride += moving * dt * 3.2
+    const swing = moving > 0 ? Math.sin(this.stride) * 0.5 : standing ? 0 : 0.25
+    this.legL.rotation.x = swing
+    this.legR.rotation.x = standing ? -swing : -swing * 0.6 - 0.2
+    this.cloak.rotation.x = standing ? 0 : 0.12
+  }
+
+  /** Back to upright after a climb (sync() only sets yaw). */
+  upright(): void {
+    this.obj.quaternion.setFromAxisAngle(_up, this.yaw)
   }
 
   /**
@@ -170,7 +209,7 @@ export class Wanderer {
   drive(dt: number, x: number, y: number, z: number, yaw: number): void {
     const hs = dt > 0 ? Math.hypot(x - this.obj.position.x, z - this.obj.position.z) / dt : 0
     this.obj.position.set(x, y, z)
-    this.obj.rotation.y = yaw
+    this.obj.quaternion.setFromAxisAngle(_up, yaw)
     this.stride += Math.min(hs, 12) * dt * 2.6
     const swing = Math.sin(this.stride) * Math.min(1, hs / WALK) * 0.55
     this.legL.rotation.x = swing

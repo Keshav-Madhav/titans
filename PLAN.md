@@ -128,13 +128,39 @@ world is dry until Titans bring water), and the river phase will route it.
   reduced boulders; far is an impostor silhouette; a dormant Titan becomes terrain plus a static mesh.
 - **The Wanderer is procedural too:** a red-cloaked figure (cloak, hood, legs), so animation can stay
   simple at first. It is replaceable later by a CC0 rigged character.
-- **Climbing:** each Titan body part carries a kinematic Rapier collider tagged climbable. A
-  climbing Wanderer stores its position **relative to a body part** `(titanId, part, localPos)`, so
-  the Titan carries it. It replicates the same way, so other clients see climbers stuck to the
-  body even while the Titan's interpolation differs.
+- **Climbing (built in P8, without Rapier):** the Titan's boulders are analytic (centre, radii and
+  the same bulge function the mesh is built from), so a climber moves over the real surface
+  directly: step along the tangent plane, project back onto the boulder, and step onto any boulder
+  the point ends up inside (never straight back onto the one just left, or climbers wedge in the
+  crease where two boulders meet). The hold is stored **relative to a body part**
+  `(part, boulder, localPos)`, so the Titan carries the climber, and it replicates the same way:
+  every client re-reads the hold through its own pose of the Titan. Grip stamina drains on steep
+  rock (more while the Titan walks, a lot while it shrugs, a jolt per footfall) and recovers
+  standing on top. Rapier is still the plan for buildings and loose physics.
 - **Rest → mountain:** a resting Titan settles. After a timeout (or on logout) it becomes
   **dormant**: its pose freezes, and its body becomes static terrain-like geometry with a delta
   mound under it, named in the world ("afk_mountain · AFK · 4 YEARS").
+
+## 6b. What a Titan does (design, 2026-10-30)
+
+The Titan's purpose is to make the dry world liveable. A Titan's progress is the life it enables:
+water that Wanderers use or settle beside, climbers it carries, ruins it uncovers for others.
+
+| Verb | What it does | Status |
+| --- | --- | --- |
+| Walk / drag | Trenches between prints become canals; prints become lakes | built (P5b) |
+| Hold still / shrug (Q) | Climbers show as markers; hold still to help them, shrug to throw them off | built (P8) |
+| Plough or stride | Toggle: drag the feet (draw rivers on purpose) or lift them (lakes only) | P8b |
+| Stomp | A deliberate heavy footfall: a deep lake, and a shockwave that knocks Wanderers down | P8b |
+| Call out | A deep call that shows every Wanderer where this Titan is | P8b |
+| Scoop and heap | Hands dig earth and pile it: dams, hills, ramps, rerouted water | later |
+| Call the rain | Spend energy to rain on a region: lakes fill, land greens | later |
+| Carry | Hold Wanderers in a hand or on the shoulders: the Titan as transport | later |
+| Rest | Sit; a long rest or logging off becomes a mountain landmark | P9 |
+
+**The bond:** a Titan cannot see its own back. Cracks, blight and the First Ones' carvings on its
+body can only be tended or read by climbers. **Growth:** scale grows with the life a Titan enables.
+New verbs unlock from ruins: the Titan digs them out, Wanderers explore inside.
 
 ## 7. Multiplayer and persistence blueprint
 

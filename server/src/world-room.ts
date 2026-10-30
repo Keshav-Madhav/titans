@@ -8,6 +8,8 @@ import {
   applyFootprint,
   applyImpact,
   dragFor,
+  FALL_GRACE_MS,
+  TITAN_PARTS,
   footprintFor,
   impactFor,
   MAX_ABOVE_GROUND,
@@ -39,6 +41,8 @@ interface Seen {
   x: number
   z: number
   at: number
+  /** Until when a fall (after letting go of a Titan) is allowed. */
+  fallUntil: number
 }
 
 export class WorldRoom extends Room<{ state: WorldState }> {
@@ -84,6 +88,10 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       this.titanInput = { forward: clamp(+m.forward || 0, 0, 1), turn: clamp(+m.turn || 0, -1, 1) }
     })
     this.onMessage(MSG.role, (client: Client, m: RoleMsg) => this.onRole(client, m))
+    // The Titan heaves its shoulders; every client shakes its own climbers.
+    this.onMessage(MSG.shrug, (client: Client) => {
+      if (client.sessionId === this.state.titan.driver) this.broadcast(MSG.shrug, {})
+    })
     this.onMessage(MSG.chat, (client: Client, m: ChatMsg) => {
       const p = this.state.players.get(client.sessionId)
       const text = String(m?.text ?? '').slice(0, 240).trim()
@@ -107,7 +115,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     p.z = sz
     p.y = this.terrain.heightAt(sx, sz)
     this.state.players.set(client.sessionId, p)
-    this.seen.set(client.sessionId, { x: sx, z: sz, at: Date.now() })
+    p.climb = ''
+    this.seen.set(client.sessionId, { x: sx, z: sz, at: Date.now(), fallUntil: 0 })
     // Everything the land has been through, in order: the client replays it.
     client.send(MSG.sync, { events: this.log })
   }
@@ -150,9 +159,28 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     const dt = Math.max(0.05, (now - s.at) / 1000)
     const d = Math.hypot(x - s.x, z - s.z)
     const ground = this.terrain.heightAt(x, z)
-    if (d > MAX_WANDERER_SPEED * dt * 1.5 + 2 || y > ground + MAX_ABOVE_GROUND) {
-      // Too fast or flying: hold them where they were (the client snaps back).
-      return
+    const c = m.climb
+    if (c) {
+      // On a Titan the Titan carries you: no speed limit, but you must be on it.
+      const ok =
+        TITAN_PARTS.includes(c.part) &&
+        [c.x, c.y, c.z].every((v) => Number.isFinite(v) && Math.abs(v) < TITAN_HEIGHT) &&
+        Math.hypot(x - this.gait.x, z - this.gait.z) < TITAN_HEIGHT * 0.8 &&
+        y < ground + TITAN_HEIGHT * 1.2
+      if (!ok) return
+      p.climb = c.part
+      p.lump = c.lump | 0
+      p.lx = c.x
+      p.ly = c.y
+      p.lz = c.z
+      s.fallUntil = now + FALL_GRACE_MS
+    } else {
+      // Fresh off a Titan you may be falling fast from high up; otherwise
+      // too fast or too high means cheating (the client snaps back).
+      const falling = now < s.fallUntil
+      const maxD = MAX_WANDERER_SPEED * dt * (falling ? 4 : 1.5) + 2
+      if (d > maxD || (!falling && y > ground + MAX_ABOVE_GROUND)) return
+      p.climb = ''
     }
     p.x = x
     p.y = Math.max(y, ground - 1)

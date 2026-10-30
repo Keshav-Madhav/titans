@@ -74,6 +74,25 @@ try {
   await A.waitForFunction(() => document.getElementById('chat-log').textContent.includes('the giant walks east'), null, { timeout: 5000 }).catch(() => fail('chat did not reach A'))
   console.log('chat delivered')
 
+  // B climbs the Titan; C must see B on its body, where B really is.
+  const grabbed = await ev(B, () => window.__g.grabTitan())
+  if (!grabbed) fail('B could not grab the Titan')
+  await ev(B, () => window.__g.input.press('KeyW'))
+  await B.waitForTimeout(4000)
+  await ev(B, () => window.__g.input.release('KeyW'))
+  await C.waitForFunction(() => window.__g.remotes.climbers >= 1, null, { timeout: 5000 }).catch(() => fail('C does not see a climber'))
+  await C.waitForTimeout(400)
+  const bAt = await ev(B, () => window.__g.climbState())
+  const cSees = await ev(C, () => window.__g.remotes.positions())
+  const gap = Math.min(...cSees.map((p) => Math.hypot(p.x - bAt.x, p.z - bAt.z)))
+  console.log(`B climbing ${bAt.part} at ${bAt.height.toFixed(1)} m; C draws B ${gap.toFixed(2)} m from where B is`)
+  if (!bAt.active || gap > 3) fail('C does not draw B on the Titan')
+
+  // A shrugs; everyone's Titan heaves.
+  await ev(A, () => window.__g.input.press('KeyQ'))
+  await C.waitForFunction(() => window.__g.titan.shrugging, null, { timeout: 3000 }).catch(() => fail('the shrug did not reach C'))
+  console.log('shrug seen by C')
+
   // A picture from C: the other Wanderer and the Titan.
   await ev(C, () => {
     const g = window.__g

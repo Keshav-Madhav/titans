@@ -6,6 +6,8 @@
 import * as THREE from 'three'
 import { Wanderer } from './wanderer'
 import type { RemotePlayer } from './net'
+import type { Titan } from './titan'
+import { holdToWorld, type Hold } from './climb'
 
 const DELAY_MS = 100
 
@@ -22,6 +24,9 @@ interface Remote {
   label: HTMLDivElement
   samples: Sample[]
   role: string
+  /** Where on the Titan they hold, if climbing (part-local, smoothed toward the latest report). */
+  hold: Hold | null
+  shown: Hold | null
 }
 
 export class Remotes {
@@ -29,6 +34,7 @@ export class Remotes {
   private readonly list = new Map<string, Remote>()
   private readonly layer = document.getElementById('labels')!
   private readonly v = new THREE.Vector3()
+  private readonly n = new THREE.Vector3()
 
   /** Record the latest server state for every remote player. */
   ingest(players: { forEach(cb: (p: RemotePlayer, id: string) => void): void }, selfId: string): void {
@@ -44,11 +50,13 @@ export class Remotes {
         label.className = 'label'
         label.textContent = p.name
         this.layer.appendChild(label)
-        r = { body, label, samples: [], role: p.role }
+        r = { body, label, samples: [], role: p.role, hold: null, shown: null }
         this.list.set(id, r)
         this.group.add(body.obj)
       }
       r.role = p.role
+      r.hold = p.climb ? { part: p.climb, lump: p.lump, x: p.lx, y: p.ly, z: p.lz } : null
+      if (!r.hold || r.shown?.part !== r.hold.part || r.shown.lump !== r.hold.lump) r.shown = r.hold && { ...r.hold }
       const last = r.samples[r.samples.length - 1]
       if (!last || last.x !== p.x || last.z !== p.z || last.y !== p.y || now - last.t > 200) {
         r.samples.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw })
@@ -63,11 +71,23 @@ export class Remotes {
     }
   }
 
-  update(dt: number, camera: THREE.Camera): void {
+  update(dt: number, camera: THREE.Camera, titan: Titan): void {
     const t = performance.now() - DELAY_MS
     for (const r of this.list.values()) {
       // A remote who is driving the Titan has no body on the ground.
       r.body.obj.visible = r.role === 'wanderer'
+      if (r.hold && r.shown) {
+        // Climbing: glue them to the part they hold, on OUR pose of the Titan.
+        const k = 1 - Math.exp(-10 * dt)
+        r.shown.x += (r.hold.x - r.shown.x) * k
+        r.shown.y += (r.hold.y - r.shown.y) * k
+        r.shown.z += (r.hold.z - r.shown.z) * k
+        if (holdToWorld(titan, r.shown, this.v, this.n)) {
+          r.body.climbPose(dt, this.v, this.n, this.n.y > 0.62, r.samples[r.samples.length - 1]?.yaw ?? 0, 0)
+        }
+        this.placeLabel(r, camera, true)
+        continue
+      }
       const s = r.samples
       if (s.length === 0) continue
       let a = s[0]
@@ -85,17 +105,32 @@ export class Remotes {
       dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw))
       r.body.drive(dt, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k, a.yaw + dyaw * k)
 
-      // Label above the hood, hidden behind the camera or far away.
-      this.v.copy(r.body.obj.position)
-      this.v.y += 2.3
-      const dist = this.v.distanceTo(camera.position)
-      this.v.project(camera)
-      const show = r.body.obj.visible && this.v.z < 1 && dist < 400
-      r.label.style.display = show ? 'block' : 'none'
-      if (show) {
-        r.label.style.transform = `translate(-50%, -100%) translate(${((this.v.x + 1) / 2) * innerWidth}px, ${((1 - this.v.y) / 2) * innerHeight}px)`
-      }
+      this.placeLabel(r, camera, false)
     }
+  }
+
+  /**
+   * Label above the hood, hidden behind the camera or far away — except
+   * climbers, who are marked at any range (the Titan wants to see them).
+   */
+  private placeLabel(r: Remote, camera: THREE.Camera, climbing: boolean): void {
+    this.v.copy(r.body.obj.position)
+    this.v.y += 2.3
+    const dist = this.v.distanceTo(camera.position)
+    this.v.project(camera)
+    const show = r.body.obj.visible && this.v.z < 1 && (climbing || dist < 400)
+    r.label.style.display = show ? 'block' : 'none'
+    r.label.classList.toggle('climbing', climbing)
+    if (show) {
+      r.label.style.transform = `translate(-50%, -100%) translate(${((this.v.x + 1) / 2) * innerWidth}px, ${((1 - this.v.y) / 2) * innerHeight}px)`
+    }
+  }
+
+  /** Remote players currently on the Titan. */
+  get climbers(): number {
+    let n = 0
+    for (const r of this.list.values()) if (r.hold) n++
+    return n
   }
 
   get count(): number {

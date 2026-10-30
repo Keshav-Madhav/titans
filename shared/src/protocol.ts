@@ -36,6 +36,8 @@ export interface MoveMsg {
   y: number
   z: number
   yaw: number
+  /** Present while climbing a Titan: the hold, in the body part's local frame. */
+  climb?: { part: string; lump: number; x: number; y: number; z: number }
 }
 export interface TitanInputMsg {
   forward: number
@@ -65,7 +67,18 @@ export const MSG = {
   chat: 'chat',
   sync: 'sync',
   terrain: 'terrain',
+  shrug: 'shrug',
 } as const
+
+/** Body parts a climber can hold (must match the client's Titan). */
+export const TITAN_PARTS = [
+  'torso',
+  'head',
+  ...['L', 'R'].flatMap((s) => ['upperArm', 'forearm', 'hand', 'thigh', 'shin', 'foot'].map((p) => p + s)),
+]
+
+/** After letting go of a Titan, how long a fall the server accepts without calling it flying. */
+export const FALL_GRACE_MS = 15000
 
 /** Everything a client needs to pose the Titan exactly as the server has it. */
 export interface TitanSnapshot {

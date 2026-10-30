@@ -14,7 +14,7 @@ import { makeSimplex2, titanBody, TitanGait, type GaitEvent, type GaitInput, typ
 
 type V3 = THREE.Vector3
 
-interface Lump {
+interface LumpSpec {
   at: number // 0..1 along the segment
   r: [number, number, number] // radii as fractions of height
   off?: [number, number] // x, z offset as fractions of height
@@ -22,7 +22,7 @@ interface Lump {
 
 // Segment shapes, all as fractions of Titan height. Hunched, heavy, long-armed:
 // the reel's silhouette.
-const SHAPES: Record<string, { len: number; lumps: Lump[] }> = {
+const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
   torso: {
     len: 0.3,
     lumps: [
@@ -71,10 +71,36 @@ const STONE = new THREE.Color(0xa69e8d)
 const STONE_DARK = new THREE.Color(0x7a7266)
 const MOSS = new THREE.Color(0x6b7a40)
 
-function boulder(rx: number, ry: number, rz: number, seed: number, detail: number): THREE.BufferGeometry {
+/** How far a boulder's surface reaches along a unit direction (×radius). */
+export type Bulge = (dx: number, dy: number, dz: number) => number
+
+function boulderNoise(seed: number): { bulge: Bulge; noise3: (x: number, y: number, z: number) => number } {
   const n1 = makeSimplex2(seed)
   const n2 = makeSimplex2(seed + 7)
   const noise3 = (x: number, y: number, z: number) => (n1(x, y) + n1(y + 3.1, z) + n2(z - 1.7, x)) / 3
+  const bulge: Bulge = (x, y, z) => 1 + 0.2 * noise3(x * 1.3, y * 1.3, z * 1.3) + 0.07 * noise3(x * 3.7 + 9, y * 3.7, z * 3.7)
+  return { bulge, noise3 }
+}
+
+/**
+ * One boulder of a body part, in the part's local frame: centre, radii and
+ * bulge. The mesh is built from exactly this, so climbers can move over the
+ * real surface analytically (no physics engine needed).
+ */
+export interface LumpSurface {
+  c: THREE.Vector3
+  r: THREE.Vector3
+  bulge: Bulge
+}
+
+export interface TitanPart {
+  key: string
+  mesh: THREE.Mesh
+  lumps: LumpSurface[]
+}
+
+function boulder(rx: number, ry: number, rz: number, seed: number, detail: number): THREE.BufferGeometry {
+  const { bulge, noise3 } = boulderNoise(seed)
   let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, detail)
   g.deleteAttribute('normal')
   g.deleteAttribute('uv')
@@ -83,10 +109,7 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
   const v = new THREE.Vector3()
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i)
-    const big = noise3(v.x * 1.3, v.y * 1.3, v.z * 1.3)
-    const small = noise3(v.x * 3.7 + 9, v.y * 3.7, v.z * 3.7)
-    // Flattened facets: quantise the big noise a little for a chiselled look.
-    const k = 1 + 0.2 * big + 0.07 * small
+    const k = bulge(v.x, v.y, v.z)
     p.setXYZ(i, v.x * rx * k, v.y * ry * k, v.z * rz * k)
   }
   g.computeVertexNormals()
@@ -108,16 +131,20 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
   return g
 }
 
-function segmentGeometry(name: string, H: number, seed: number): THREE.BufferGeometry {
+function segment(name: string, H: number, seed: number): { geometry: THREE.BufferGeometry; lumps: LumpSurface[] } {
   const shape = SHAPES[name]
+  const lumps: LumpSurface[] = []
   const parts = shape.lumps.map((l, i) => {
-    const g = boulder(l.r[0] * H, l.r[1] * H, l.r[2] * H, seed + i * 31, 4)
-    g.translate((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H)
+    const c = new THREE.Vector3((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H)
+    const r = new THREE.Vector3(l.r[0] * H, l.r[1] * H, l.r[2] * H)
+    lumps.push({ c, r, bulge: boulderNoise(seed + i * 31).bulge })
+    const g = boulder(r.x, r.y, r.z, seed + i * 31, 4)
+    g.translate(c.x, c.y, c.z)
     return g
   })
-  const merged = mergeGeometries(parts)!
+  const geometry = mergeGeometries(parts)!
   for (const p of parts) p.dispose()
-  return merged
+  return { geometry, lumps }
 }
 
 const _x = new THREE.Vector3()
@@ -164,6 +191,11 @@ export class Titan {
   readonly chest = new THREE.Vector3()
   readonly head = new THREE.Vector3()
   private readonly meshes: Record<string, THREE.Mesh> = {}
+  /** Every body part, with its boulder surfaces, for climbing. */
+  readonly parts: TitanPart[] = []
+  private readonly partIndex = new Map<string, TitanPart>()
+  /** Seconds of shrug left: the upper body heaves to throw climbers off. */
+  private shrugT = 0
   private readonly material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 1.6 })
   private readonly j = {
     hip: [new THREE.Vector3(), new THREE.Vector3()],
@@ -185,11 +217,15 @@ export class Titan {
     this.body = titanBody(height)
     this.gait = new TitanGait(this.body, x, z, heading)
     const add = (key: string, shape: string, s: number) => {
-      const m = new THREE.Mesh(segmentGeometry(shape, height, seed + s), this.material)
+      const { geometry, lumps } = segment(shape, height, seed + s)
+      const m = new THREE.Mesh(geometry, this.material)
       m.castShadow = true
       m.receiveShadow = true
       this.meshes[key] = m
       this.group.add(m)
+      const part = { key, mesh: m, lumps }
+      this.parts.push(part)
+      this.partIndex.set(key, part)
     }
     add('torso', 'torso', 1)
     add('head', 'head', 2)
@@ -207,7 +243,21 @@ export class Titan {
 
   step(dt: number, input: GaitInput, out: GaitEvent[]): void {
     this.breath += dt
+    this.shrugT = Math.max(0, this.shrugT - dt)
     this.gait.step(dt, input, out)
+  }
+
+  part(key: string): TitanPart | undefined {
+    return this.partIndex.get(key)
+  }
+
+  /** Heave the shoulders to throw off climbers. */
+  shrug(seconds = 1.4): void {
+    this.shrugT = seconds
+  }
+
+  get shrugging(): boolean {
+    return this.shrugT > 0
   }
 
   /** Solve the pose for the current gait state. */
@@ -254,12 +304,14 @@ export class Titan {
     }
 
     // Upper body: hunched forward, counter-rotating gently with the stride.
+    // A shrug heaves it side to side, hard, for a moment.
     const breathe = Math.sin(this.breath * 0.9) * 0.004 * H
+    const heave = this.shrugT > 0 ? Math.sin(this.breath * 9) * 0.03 * H * Math.min(1, this.shrugT * 2) : 0
     this.chest
       .copy(this.pelvis)
       .addScaledVector(this.fwd, 0.075 * H)
-      .addScaledVector(this.left, -swayAmt * 0.6)
-    this.chest.y += SHAPES.torso.len * H * 0.97 + breathe
+      .addScaledVector(this.left, -swayAmt * 0.6 + heave)
+    this.chest.y += SHAPES.torso.len * H * 0.97 + breathe + Math.abs(heave) * 0.5
     this.head.copy(this.chest).addScaledVector(this.fwd, 0.065 * H)
     this.head.y += 0.035 * H
 

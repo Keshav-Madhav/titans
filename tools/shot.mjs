@@ -17,6 +17,7 @@ const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 page.on('console', (m) => {
   if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`)
+  else if (m.text().startsWith('[climb]')) console.log(m.text())
 })
 
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 })
@@ -134,6 +135,61 @@ const scenes = {
       g.setCam(g.titanState().heading + 0.35, 0.42, 2.6 * g.titan.H)
     })
     await shot('p3-titan-view')
+  },
+  // P8 gate: grab the foot, climb to the shoulders, hold on while it walks.
+  async climb() {
+    const grabbed = await page.evaluate(() => window.__g.grabTitan())
+    if (!grabbed) throw new Error('climb gate: could not grab the foot')
+    const route = await page.evaluate(async () => {
+      const g = window.__g
+      const H = g.titan.H
+      const parts = []
+      g.clock.scale = 5
+      g.input.press('KeyW')
+      const until = Date.now() + 45000
+      let best = 0
+      while (Date.now() < until) {
+        const c = g.climbState()
+        if (!c.active) break
+        if (parts[parts.length - 1] !== c.part) parts.push(c.part)
+        best = Math.max(best, c.height)
+        if (c.height > 0.74 * H && c.standing) break
+        // Steer like a player: face the next part up the body, so "forward"
+        // on a ledge walks into it (W climbs on steep rock regardless).
+        const next = { footL: ['shinL', 1], shinL: ['thighL', 2], thighL: ['torso', 0], torso: ['upperArmL', 0], upperArmL: ['upperArmL', 0] }[c.part] ?? ['torso', 0]
+        const p = g.titan.part(next[0])
+        let t = p.lumps[next[1]].c.clone().applyMatrix4(p.mesh.matrixWorld)
+        // Right underneath it, its bearing is noise: head for the body's middle instead.
+        if (Math.hypot(c.x - t.x, c.z - t.z) < 4) t = g.titan.pelvis
+        g.setCam(Math.atan2(c.x - t.x, c.z - t.z), 0.15)
+        await new Promise((r) => setTimeout(r, 60))
+      }
+      g.input.release('KeyW')
+      g.clock.scale = 1
+      const c = g.climbState()
+      return { parts, best: +best.toFixed(1), end: c, H }
+    })
+    console.log(`climbed through ${route.parts.join(' → ')}; peak ${route.best} m of ${route.H} m; standing=${route.end.standing}; grip ${route.end.stamina.toFixed(2)}`)
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.35, 9))
+    await shot('p8-climb')
+    // Hold on while it walks three strides.
+    const ride = await page.evaluate(async () => {
+      const g = window.__g
+      const a = g.climbState()
+      const t0 = g.titanState()
+      g.autopilot.forward = 1
+      g.clock.scale = 4
+      while (g.titanState().steps < t0.steps + 3 && g.climbState().active) await new Promise((r) => setTimeout(r, 50))
+      g.autopilot.forward = 0
+      g.clock.scale = 1
+      const b = g.climbState()
+      const t1 = g.titanState()
+      return { held: b.active, carried: Math.hypot(b.x - a.x, b.z - a.z), titanMoved: Math.hypot(t1.x - t0.x, t1.z - t0.z), grip: b.stamina }
+    })
+    console.log(`rode ${ride.carried.toFixed(1)} m while the Titan walked ${ride.titanMoved.toFixed(1)} m; still holding: ${ride.held}; grip ${ride.grip.toFixed(2)}`)
+    await shot('p8-ride')
+    if (route.best < 0.7 * route.H) throw new Error('climb gate: never reached the shoulders')
+    if (!ride.held || ride.carried < ride.titanMoved * 0.6) throw new Error('climb gate: not carried by the Titan')
   },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {

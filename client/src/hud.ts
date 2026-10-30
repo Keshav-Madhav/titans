@@ -5,8 +5,9 @@ import type { TerrainView } from './terrain-view'
 
 const HINTS = {
   wanderer:
-    'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
-  titan: '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>T</kbd> step out as a Wanderer · wheel zoom',
+    'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
+  climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
+  titan: '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>Q</kbd> shrug off climbers · <kbd>T</kbd> step out as a Wanderer',
 }
 
 export class Hud {
@@ -17,9 +18,31 @@ export class Hud {
   private since = performance.now()
   last = { fps: 0, calls: 0, tris: 0 }
 
-  setRole(role: 'wanderer' | 'titan', steps: number): void {
-    this.role.innerHTML = role === 'titan' ? `<b>Titan</b> · ${steps.toLocaleString()} steps` : '<b>Wanderer</b>'
-    this.hint.innerHTML = HINTS[role]
+  setRole(role: 'wanderer' | 'titan' | 'climbing', steps: number, climbers = 0): void {
+    const html =
+      role === 'titan'
+        ? `<b>Titan</b> · ${steps.toLocaleString()} steps${climbers ? ` · ${climbers} climbing you` : ''}`
+        : role === 'climbing'
+          ? '<b>Climbing</b>'
+          : '<b>Wanderer</b>'
+    if (html !== this.roleHtml) this.role.innerHTML = this.roleHtml = html
+    if (role !== this.hintRole) {
+      this.hint.innerHTML = HINTS[role]
+      this.hintRole = role
+    }
+  }
+
+  private roleHtml = ''
+  private hintRole = ''
+  private readonly grip = document.getElementById('grip')!
+  private readonly gripBar = this.grip.firstElementChild as HTMLElement
+
+  /** Grip stamina bar, shown only while climbing. */
+  setGrip(stamina: number | null): void {
+    this.grip.style.display = stamina === null ? 'none' : 'block'
+    if (stamina === null) return
+    this.gripBar.style.width = `${Math.round(stamina * 100)}%`
+    this.grip.classList.toggle('low', stamina < 0.25)
   }
 
   private readonly netEl = document.getElementById('net')!

@@ -30,6 +30,7 @@ import { Net } from './net'
 import { Remotes } from './remotes'
 import { Chat } from './chat'
 import { loadIdentity } from './identity'
+import { Climber } from './climb'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
@@ -82,6 +83,7 @@ scene.add(wanderer.obj)
 // (the server's TITAN_SPAWN matches this).
 const titan = new Titan(TITAN_HEIGHT, 230, -400, Math.PI * 0.62)
 scene.add(titan.group)
+const climber = new Climber(titan)
 
 const TITAN_CAM: CameraProfile = {
   minDist: 0.9 * TITAN_HEIGHT,
@@ -98,6 +100,7 @@ const autopilot = { forward: 0, turn: 0 }
 function setRole(next: Role): void {
   role = next
   if (role === 'titan') {
+    if (climber.active) climber.release(0)
     wanderer.obj.visible = false
     rig.setProfile(TITAN_CAM)
     rig.yaw = titan.gait.heading + Math.PI
@@ -147,11 +150,12 @@ function onGait(ev: GaitEvent, replay = false): void {
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
+  // Every footfall jolts whoever is hanging on.
+  if (climber.active) climber.stamina = Math.max(0, climber.stamina - 0.03)
   effects.impact(ev.x, terrain.heightAt(ev.x, ev.z), ev.z, H)
   // The ground shakes for anyone near the footfall.
   const d = Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z)
   rig.shake(Math.max(0, 1 - d / (6 * H)) * (role === 'titan' ? 0.006 : 0.012) * H)
-  hud.setRole(role, ev.step)
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +164,7 @@ function onGait(ev: GaitEvent, replay = false): void {
 
 net.onTerrain = (e, replay) => onGait(e, replay)
 net.onChat = (m) => chat.add(m)
+net.onShrug = () => titan.shrug()
 // A world you come back to has had its rain: its lakes are already full.
 net.onSynced = (n) => {
   if (n > 0) lakes.fillAll()
@@ -226,8 +231,26 @@ function simulate(dt: number): void {
   if (role === 'titan') {
     const ax = input.axes()
     gaitInput = { forward: Math.max(0, ax.y), turn: -ax.x }
+    if (!chat.typing && input.pressed('KeyQ')) shrug()
+  } else if (climber.active) {
+    if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
+    else if (!chat.typing && input.pressed('Space')) letGo(4.5)
+    else if (!climber.step(dt, input.axes(), rig.yaw, titan.gait.speed / titan.gait.maxSpeed, titan.shrugging)) {
+      chat.system('You lost your grip.')
+      letGo(1.2)
+    } else {
+      // The physics body rides along, for the camera, the server, and the moment we let go.
+      wanderer.place(climber.world.x, climber.world.y, climber.world.z)
+    }
   } else {
-    wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
+    if (!chat.typing && input.pressed('KeyE')) {
+      chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
+      climber.tryGrab(chest)
+    }
+    if (!climber.active) {
+      wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
+      climber.pushOut(wanderer.pos)
+    }
   }
 
   if (mode === 'online') {
@@ -243,6 +266,22 @@ function simulate(dt: number): void {
     for (const ev of gaitEvents) onGait(ev)
   }
   lakes.step(dt)
+}
+
+const chest = new THREE.Vector3()
+
+/** Let go of the Titan: fall with its motion plus a push off the rock. */
+function letGo(push: number): void {
+  const v = climber.release(push)
+  const w = climber.world
+  wanderer.place(w.x + climber.normal.x * 0.6, w.y + climber.normal.y * 0.6, w.z + climber.normal.z * 0.6)
+  wanderer.vel.copy(v)
+  wanderer.grounded = false
+}
+
+function shrug(): void {
+  if (mode === 'online') net.sendShrug() // comes back to everyone, us included
+  else titan.shrug()
 }
 
 function frame(now: number): void {
@@ -265,17 +304,27 @@ function frame(now: number): void {
       const ax = input.axes()
       net.sendTitan({ forward: Math.max(0, ax.y), turn: -ax.x })
     } else {
-      net.sendMove({ x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z, yaw: wanderer.yaw })
+      const hold = climber.hold()
+      net.sendMove({ x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z, yaw: wanderer.yaw, ...(hold ? { climb: hold } : {}) })
     }
   }
 
   // Render between the last two simulation states: on a 120 Hz display the
   // 60 Hz simulation would otherwise move the Wanderer every other frame.
-  wanderer.sync(acc / STEP)
   titan.pose(terrain)
+  titan.group.updateMatrixWorld(true)
+  if (climber.active) {
+    // Glued to the hold through the Titan's pose of THIS frame.
+    climber.sync(dt)
+    wanderer.climbPose(dt, climber.world, climber.normal, climber.standing, rig.yaw + Math.PI, climber.moving)
+  } else {
+    wanderer.sync(acc / STEP)
+  }
   water.sync(lakes.lakes)
   effects.update(dt)
-  remotes.update(dt, camera)
+  remotes.update(dt, camera, titan)
+  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers)
+  hud.setGrip(climber.active ? climber.stamina : null)
 
   const look = input.consumeLook()
   const focusBase = role === 'titan' ? tmpFocus.set(titan.gait.x, titan.pelvis.y - titan.body.hipHeight, titan.gait.z) : wanderer.obj.position
@@ -320,6 +369,7 @@ const g = {
   rig,
   wanderer,
   titan,
+  climber,
   lakes,
   sky,
   net,
@@ -333,6 +383,36 @@ const g = {
   toggleRole,
   teleport(x: number, z: number) {
     wanderer.place(x, terrain.heightAt(x, z), z)
+  },
+  /** Walk up to the Titan's left foot from outside and grab it. */
+  grabTitan(): boolean {
+    titan.group.updateMatrixWorld(true)
+    const foot = titan.part('footL')!
+    const c = foot.lumps[0].c.clone().applyMatrix4(foot.mesh.matrixWorld)
+    const out = new THREE.Vector3(c.x - titan.gait.x, 0, c.z - titan.gait.z).normalize()
+    for (let d = 40; d > 0; d -= 0.5) {
+      const x = c.x + out.x * d
+      const z = c.z + out.z * d
+      wanderer.place(x, terrain.heightAt(x, z), z)
+      chest.set(x, wanderer.pos.y + 0.9, z)
+      if (climber.tryGrab(chest)) {
+        climber.stamina = 1
+        return true
+      }
+    }
+    return false
+  },
+  climbState() {
+    return {
+      active: climber.active,
+      part: climber.part?.key ?? null,
+      standing: climber.standing,
+      stamina: climber.stamina,
+      x: climber.world.x,
+      y: climber.world.y,
+      z: climber.world.z,
+      height: climber.world.y - terrain.heightAt(titan.gait.x, titan.gait.z),
+    }
   },
   setCam(yaw: number, pitch: number, dist?: number) {
     rig.yaw = yaw
