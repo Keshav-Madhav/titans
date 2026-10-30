@@ -325,6 +325,17 @@ const scenes = {
     if (r.mountains !== 1 || r.rise < 5 || r.newTitanAway < 300 || !r.label.includes('DORMANT')) throw new Error('rest gate: no proper mountain')
     if (!climbed.active || !climbed.on?.startsWith('local-')) throw new Error('rest gate: could not climb the mountain')
   },
+  // The reel's sky: a Wanderer looking up at a Titan with clouds about its waist.
+  async sky() {
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titanState()
+      g.teleport(t.x - 260, t.z + 140)
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), -0.3, 6)
+    })
+    await shot('p12-sky')
+  },
   // Look check: the Titan front-lit and back-lit, up close and far.
   async titanlook() {
     for (const [name, toward, dist] of [['look-front', 1, 380], ['look-back', -1, 380], ['look-close', -1, 60]]) {

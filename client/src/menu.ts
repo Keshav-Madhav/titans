@@ -10,7 +10,10 @@ export class Menu {
   private readonly mp = document.getElementById('menu-mp') as HTMLInputElement
   private readonly server = document.getElementById('menu-server') as HTMLInputElement
   private readonly serverRow = document.getElementById('menu-server-row')!
+  private readonly sound = document.getElementById('menu-sound') as HTMLInputElement
   onApply: (s: Settings) => void = () => {}
+  /** Sound switches at once (no reload). */
+  onSound: (on: boolean) => void = () => {}
   onNewWorld: () => void = () => {}
   onOpen: () => void = () => {}
 
@@ -18,6 +21,8 @@ export class Menu {
     this.sp.checked = !current.multiplayer
     this.mp.checked = current.multiplayer
     this.server.value = current.server
+    this.sound.checked = current.sound
+    this.sound.addEventListener('change', () => this.onSound(this.sound.checked))
     const sync = () => (this.serverRow.style.display = this.mp.checked ? 'flex' : 'none')
     this.sp.addEventListener('change', sync)
     this.mp.addEventListener('change', sync)
@@ -25,7 +30,7 @@ export class Menu {
     document.getElementById('net')!.addEventListener('click', () => this.toggle())
     document.getElementById('menu-close')!.addEventListener('click', () => this.close())
     document.getElementById('menu-apply')!.addEventListener('click', () =>
-      this.onApply({ multiplayer: this.mp.checked, server: this.server.value.trim() || current.server }),
+      this.onApply({ multiplayer: this.mp.checked, server: this.server.value.trim() || current.server, sound: this.sound.checked }),
     )
     document.getElementById('menu-new')!.addEventListener('click', () => {
       if (confirm('Start a new world? Your single-player world will be forgotten.')) this.onNewWorld()

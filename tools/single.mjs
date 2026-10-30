@@ -27,6 +27,26 @@ try {
   const chip = await ev(() => document.getElementById('net').textContent)
   console.log(`fresh visit: mode ${await ev(() => window.__g.mode)}, chip "${chip}", saving ${await ev(() => window.__g.localSave)}`)
   if (!chip.includes('single player')) fail('not single player by default')
+  const tip0 = await ev(() => ({ shown: getComputedStyle(document.getElementById('tips')).display, step: window.__g.tips.current }))
+  // A real click: the first gesture starts the sound (browsers insist).
+  await page.mouse.click(550, 400)
+  await page.waitForTimeout(300)
+  const audio = await ev(() => ({ running: window.__g.sound.running, on: window.__g.sound.enabled }))
+  console.log(`first hint shown: ${tip0.shown === 'flex'} (step ${tip0.step}); sound started on the first click: ${audio.running}, on: ${audio.on}`)
+  if (tip0.shown !== 'flex' || tip0.step !== 0) fail('no first hint')
+  if (!audio.running) fail('sound did not start on the first click')
+  // Walk a little: the first hint is done.
+  await ev(() => {
+    window.__g.input.press('KeyW')
+    window.__g.input.press('ShiftLeft')
+  })
+  await page.waitForTimeout(4000)
+  await ev(() => {
+    window.__g.input.release('KeyW')
+    window.__g.input.release('ShiftLeft')
+  })
+  await page.waitForTimeout(700)
+  console.log(`after a walk, hint step ${await ev(() => window.__g.tips.current)}`)
 
   // Left alone, the Titans wander (the wild mind runs offline too).
   await ev(() => (window.__g.clock.scale = 10))
@@ -113,6 +133,10 @@ try {
   const back = await ev(() => ({ name: window.__g.settlement.name, n: window.__g.settlement.buildings.length, folk: window.__g.townsfolk.folk.length }))
   console.log(`reloaded: ${back.name} with ${back.n} buildings and ${back.folk} townsfolk`)
   if (back.name !== town.name || back.n !== town.n) fail('the town did not survive a reload')
+  await page.waitForTimeout(700)
+  const tipEnd = await ev(() => ({ step: window.__g.tips.current, shown: getComputedStyle(document.getElementById('tips')).display }))
+  console.log(`hints after walking, a Titan, lakes and a town: step ${tipEnd.step}, card ${tipEnd.shown}`)
+  if (tipEnd.step !== 4 || tipEnd.shown !== 'none') fail('the hints did not run their course')
 
   // Away for hours: close the tab (it saves on the way out), let every clock
   // in the save run six hours, open the game again.
@@ -141,6 +165,12 @@ try {
   // The world panel switches to multiplayer and back.
   await page.waitForTimeout(900) // the loading veil fades for 0.8 s
   await ev(() => document.getElementById('net').click())
+  // Sound off from the panel, at once.
+  await ev(() => document.getElementById('menu-sound').click())
+  const soundOff = await ev(() => window.__g.sound.enabled)
+  await ev(() => document.getElementById('menu-sound').click())
+  console.log(`panel sound toggle: off → ${soundOff === false}, back on → ${await ev(() => window.__g.sound.enabled)}`)
+  if (soundOff !== false) fail('the sound switch did nothing')
   const open = await ev(() => getComputedStyle(document.getElementById('menu')).display)
   await page.screenshot({ path: 'shots/single-menu.png' })
   await ev(() => {

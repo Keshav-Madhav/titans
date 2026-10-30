@@ -72,6 +72,16 @@
         position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
         background: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25); display: none; pointer-events: none;
       }
+      #tips {
+        position: fixed; top: 92px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
+        max-width: min(560px, calc(100vw - 32px)); padding: 9px 12px 9px 14px; border-radius: 10px;
+        background: rgba(18, 20, 26, 0.6); color: var(--ink); line-height: 1.45;
+      }
+      #tips kbd {
+        font: 600 11px ui-monospace, Menlo, monospace; padding: 1px 5px; border-radius: 4px;
+        border: 1px solid rgba(244, 239, 230, 0.35);
+      }
+      #tips button { flex: none; border: 0; background: none; color: var(--ink-dim); cursor: pointer; font-size: 14px; }
       #chat { position: fixed; left: 14px; bottom: 64px; width: min(380px, calc(100vw - 28px)); }
       #chat-log { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
       #chat-log .line {
@@ -133,6 +143,7 @@
     <div id="grip"><i></i></div>
     <div id="beacon"><i>▲</i><span></span></div>
     <div id="build"></div>
+    <div id="tips"><span></span><button aria-label="Dismiss hints">✕</button></div>
     <div id="crosshair"></div>
     <div id="net" title="World settings (M)"></div>
     <div id="menu">
@@ -143,6 +154,7 @@
       <label><input type="radio" name="mode" id="menu-mp" /> Multiplayer</label>
       <small>Join a shared world on a server.</small>
       <div id="menu-server-row"><span style="font-size:11px;color:var(--ink-dim)">Server</span><input type="text" id="menu-server" spellcheck="false" /></div>
+      <label style="margin-top:10px"><input type="checkbox" id="menu-sound" /> Sound</label>
       <div class="row"><button class="primary" id="menu-apply">Apply</button><button class="danger" id="menu-new">New world</button></div>
     </div>
     <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>

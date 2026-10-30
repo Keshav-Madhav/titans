@@ -163,5 +163,14 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       one 75 m away); `single.mjs` builds a house by hand (B, 2, aim, click) and the town survives reload
 
 ## P12 — Beta polish → Beta 1
-- [ ] Clouds, water shading, audio, onboarding, perf pass, free hosting
-- [ ] Beta 1 acceptance (PLAN.md §9)
+- [x] Clouds: cumulus clusters of billboard puffs (lit crowns, shaded bases) at a Titan's waist,
+      drifting, wrapping round the camera, fading into the haze
+- [x] Water shading (polish round)
+- [x] Sound, synthesised (no assets): wind, footfall booms arriving at the speed of sound, stomps, the
+      Titan's call, rubble; starts on the first gesture; on/off in the world panel
+- [x] Onboarding: four hints that advance as you do things (walk, a Titan, lakes, a town), once per
+      browser; the First Ones' story on the loading screen
+- [x] Perf pass: quality governor (polish round)
+- [ ] Free hosting — on hold by the user (single player first)
+- [ ] Beta 1 acceptance (PLAN.md §9) — its multiplayer half waits for hosting; every part of it is
+      already proven locally (mp, persist, dormant, climb and settlement gates)

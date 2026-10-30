@@ -40,6 +40,7 @@ export interface SaveData {
 export interface Settings {
   multiplayer: boolean
   server: string
+  sound: boolean
 }
 
 const mm = (v: number) => Math.round(v * 1000) / 1000
@@ -91,9 +92,9 @@ export function clearWorld(): void {
 export function loadSettings(defaultServer: string): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>
-    return { multiplayer: s.multiplayer === true, server: s.server || defaultServer }
+    return { multiplayer: s.multiplayer === true, server: s.server || defaultServer, sound: s.sound !== false }
   } catch {
-    return { multiplayer: false, server: defaultServer }
+    return { multiplayer: false, server: defaultServer, sound: true }
   }
 }
 

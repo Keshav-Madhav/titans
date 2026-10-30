@@ -43,6 +43,9 @@ import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
 import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
 import { Townsfolk } from './townsfolk'
+import { Clouds } from './clouds'
+import { Sound } from './audio'
+import { Tips } from './tips'
 import { toScreen } from './screen'
 import { Quality } from './quality'
 import { Menu } from './menu'
@@ -87,6 +90,8 @@ const settlement = new Settlement(terrain, lakes)
 scene.add(settlement.group)
 const townsfolk = new Townsfolk(terrain, settlement)
 scene.add(townsfolk.group)
+const clouds = new Clouds()
+scene.add(clouds.mesh)
 /** Build mode: the chosen piece (null = not building) and its turn. */
 let building: BuildingKind | null = null
 let buildRot = 0
@@ -207,6 +212,7 @@ function crushed(gone: ReturnType<Settlement['crush']>, replay: boolean): void {
   saveDirty = true
   if (replay) return
   for (const b of gone) effects.impact(b.x, terrain.heightAt(b.x, b.z), b.z, 24)
+  sound.rubble(Math.hypot(camera.position.x - gone[0].x, camera.position.z - gone[0].z))
   const names = gone.map((b) => KIND_NAME[b.kind].toLowerCase())
   chat.system(`A Titan crushed ${names.length === 1 ? `the ${names[0]}` : `${names.length} buildings`} in ${settlement.name}.`)
 }
@@ -240,6 +246,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
+  sound.footfall(Math.hypot(camera.position.x - ev.x, camera.position.y - terrain.heightAt(ev.x, ev.z), camera.position.z - ev.z), !!ev.stomp)
   // Herds within earshot bolt.
   wildlife.alarm(ev.x, ev.z, ev.stomp ? 650 : 280)
   // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
@@ -272,6 +279,7 @@ net.onChat = (m) => chat.add(m)
 net.onShrug = (id) => titans.get(id)?.titan.shrug()
 net.onCall = (c) => {
   hud.showCall(c.name, c.x, c.z)
+  sound.call(Math.hypot(camera.position.x - c.x, camera.position.z - c.z))
   chat.system(`${c.name}, the Titan, calls out.`)
 }
 // A world you come back to has had its rain: its lakes are already full.
@@ -327,7 +335,15 @@ if (mode === 'connecting') {
   })
 }
 
+const sound = new Sound(settings.sound)
+const tips = new Tips(!toolMode)
+const tipState = { moved: 0, nearTitan: false, titanOrClimb: false, lakes: 0, town: false }
+let lastTip = 0
 const menu = new Menu(settings)
+menu.onSound = (on) => {
+  sound.enabled = on
+  saveSettings({ ...settings, sound: on })
+}
 menu.onOpen = () => input.releaseAll()
 menu.onApply = (next) => {
   saveSettings(next)
@@ -563,6 +579,7 @@ function simulate(dt: number): void {
       if (o.call) {
         hud.showCall('A wild Titan', t.gait.x, t.gait.z)
         chat.system('A wild Titan calls out.')
+        sound.call(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z))
       }
     }
     gaitEvents.length = 0
@@ -590,6 +607,8 @@ function simulate(dt: number): void {
   if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
   townsfolk.step(dt, threats)
+  if (role === 'wanderer' && !climber.active) tipState.moved += wanderer.speed * dt
+  if (role === 'titan' || climber.active) tipState.titanOrClimb = true
 }
 const threats: Threat[] = []
 
@@ -670,6 +689,7 @@ function callOut(): void {
   if (mode === 'online') return net.sendCall()
   hud.showCall(identity.name, mine().gait.x, mine().gait.z)
   chat.system(`${identity.name}, the Titan, calls out.`)
+  sound.call(0)
 }
 
 /**
@@ -752,6 +772,7 @@ function frame(now: number): void {
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
   effects.update(dt)
+  clouds.update(dt, camera.position)
   wildlife.render()
   townsfolk.render(dt)
   if (building) {
@@ -789,8 +810,29 @@ function frame(now: number): void {
     saveLocal()
   }
   hud.updateBeacon(now, focusBase, rig.yaw)
+  if (now - lastTip > 500) {
+    lastTip = now
+    tipState.lakes = lakes.lakes.filter((l) => l.level > l.basin.bottom + 0.3).length
+    tipState.town = settlement.name !== null
+    tips.update(tipState)
+  }
 }
 const tmpFocus = new THREE.Vector3()
+// While the land wakes: the story, a line at a time (from the design's "The First World").
+const LORE = [
+  'Before recorded history, the world was flat and silent.',
+  'Then came the First Ones.',
+  'Where they walked, valleys formed. Where they slept, mountains rose.',
+  'Now the mountains are moving.',
+]
+let loreAt = 0
+const loreEl = document.getElementById('loading-text')!
+loreEl.textContent = LORE[0]
+const lore = setInterval(() => {
+  if (ready) return clearInterval(lore)
+  loreAt = (loreAt + 1) % LORE.length
+  loreEl.textContent = LORE[loreAt]
+}, 2400)
 setRole('wanderer')
 rig.yaw = Math.PI * 0.85
 if (localSave) loadLocal()
@@ -829,6 +871,9 @@ const g = {
   },
   mountains,
   wildlife,
+  clouds,
+  sound,
+  tips,
   settlement,
   townsfolk,
   setBuilding,
