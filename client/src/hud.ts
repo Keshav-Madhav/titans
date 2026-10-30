@@ -75,8 +75,10 @@ export class Hud {
   private readonly netEl = document.getElementById('net')!
   private netText = ''
 
-  net(mode: 'connecting' | 'online' | 'offline', players: number): void {
-    const t = mode === 'online' ? `<b>●</b> online · ${players} here` : mode === 'connecting' ? 'connecting…' : 'offline'
+  /** The mode chip (click it, or press M, for the world panel). */
+  net(mode: 'connecting' | 'online' | 'offline', players: number, single: boolean): void {
+    const t =
+      mode === 'online' ? `<b>●</b> online · ${players} here` : mode === 'connecting' ? 'connecting…' : single ? 'single player ⚙' : 'offline'
     if (t !== this.netText) this.netEl.innerHTML = this.netText = t
   }
 

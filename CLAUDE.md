@@ -36,8 +36,12 @@ human-scale Wanderers who follow, climb and build around them.
   in the frame loop allocates per frame.
 - Test hooks live on `window.__g` (`ready`, `teleport`, `setCam`, `player`, `stats`, …). Tools wait on
   `window.__g.ready`, never on `networkidle` or fixed sleeps.
+- **Single player is the default** (user, 2026-10-30). Multiplayer only when switched on: the world
+  panel (mode chip / M, saved in localStorage), `?mp`, or `?server=…`. `?offline` is tool mode: a
+  fresh, unsaved world whose Titans stand still unless `?wild`.
 - Verify before claiming done: `npm run build`, then the phase's gate against `npm run preview`
-  (port 4317): single-player gates are `node tools/shot.mjs <scene>` (they open `?offline`); the
-  multiplayer gate is `node tools/mp.mjs` with a fresh `npm run server` (port 2567).
+  (port 4317): `node tools/shot.mjs <scene>` (tool mode), `node tools/single.mjs` (the real default),
+  and for multiplayer `node tools/mp.mjs` (opens `?mp`) with a fresh `npm run server` (port 2567);
+  `persist`/`dormant`/`wild.mjs` start their own servers.
 - Online, the server owns the Titan and the terrain-event order; the client never applies its own
   Titan events online (it extrapolates the gait and discards them). Offline, it simulates both.

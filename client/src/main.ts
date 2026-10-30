@@ -8,6 +8,7 @@ import {
   mountainFor,
   footprintFor,
   impactFor,
+  DORMANT_AFTER_MS,
   LakeSystem,
   MOVE_SEND_MS,
   STOMP_COOLDOWN_S,
@@ -41,6 +42,8 @@ import { Climber } from './climb'
 import { Mountains } from './mountains'
 import { toScreen } from './screen'
 import { Quality } from './quality'
+import { Menu } from './menu'
+import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
@@ -97,6 +100,10 @@ scene.add(wanderer.obj)
 interface AwakeTitan {
   titan: Titan
   label: HTMLDivElement
+  /** Since when it has rested with nobody walking it (0 = not). Offline dormancy. */
+  aloneSince: number
+  /** Whoever last walked it: its mountain will carry the name. */
+  lastDriver: string
   /** Who walks it: a player's name, 'A wild Titan' or 'A waiting Titan'. */
   name: string
   /** Offline, with no server to run it, its wild mind runs here. */
@@ -110,7 +117,7 @@ function addTitan(id: string, x: number, z: number, heading: number): AwakeTitan
   const label = document.createElement('div')
   label.className = 'label titan-name'
   document.getElementById('labels')!.appendChild(label)
-  const a = { titan, label, name: 'A waiting Titan', brain: new TitanBrain(20261030 + slot * 7919) }
+  const a = { titan, label, name: 'A waiting Titan', brain: new TitanBrain(20261030 + slot * 7919), aloneSince: 0, lastDriver: '' }
   titans.set(id, a)
   return a
 }
@@ -150,6 +157,8 @@ function setRole(next: Role, titanId = driving): void {
   }
   role = next
   driving = next === 'titan' ? titanId : ''
+  const taken = titans.get(driving)
+  if (taken) taken.lastDriver = identity.name
   if (role === 'titan') {
     if (climber.active) climber.release(0)
     wanderer.obj.visible = false
@@ -267,16 +276,119 @@ chat.onSend = (text) => {
   else chat.add({ from: identity.name, color: identity.color, text })
 }
 
-let mode: 'connecting' | 'online' | 'offline' = params.has('offline') ? 'offline' : 'connecting'
-// Tools open ?offline and need a Titan that stands still; real offline play gets the wild one.
-let wildOffline = params.has('wild')
+// Single player is the default. Multiplayer only when switched on (the world
+// panel, ?mp, or ?server=…). Tools open ?offline: a fresh, unsaved world
+// whose Titans stand still unless ?wild.
+const settings = loadSettings(Net.defaultUrl())
+const toolMode = params.has('offline')
+const wantsMp = !toolMode && (params.has('mp') || params.has('server') || settings.multiplayer)
+let mode: 'connecting' | 'online' | 'offline' = wantsMp ? 'connecting' : 'offline'
+let wildOffline = !toolMode || params.has('wild')
+/** Single player keeps its world in this browser. */
+let localSave = !toolMode && !wantsMp
 if (mode === 'connecting') {
-  net.connect(Net.defaultUrl(), identity).then((ok) => {
+  net.connect(params.get('server') ?? settings.server, identity).then((ok) => {
     mode = ok ? 'online' : 'offline'
-    if (!ok) wildOffline = true
-    chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the nearest Titan.` : 'No server found: playing offline.')
+    if (!ok) {
+      wildOffline = true
+      localSave = true
+      loadLocal()
+    }
+    chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the nearest Titan.` : 'Multiplayer server not reachable: playing single player.')
   })
 }
+
+const menu = new Menu(settings)
+menu.onOpen = () => input.releaseAll()
+menu.onApply = (next) => {
+  saveSettings(next)
+  saveLocal()
+  // Drop any ?mp/?server/?offline so the stored choice decides.
+  location.replace(location.pathname)
+}
+menu.onNewWorld = () => {
+  clearWorld()
+  localSave = false // do not write the old world back on the way out
+  location.replace(location.pathname)
+}
+
+// ---------------------------------------------------------------------------
+// Single-player memory. Every terrain event is recorded; the world, the
+// Titans, the mountains and where you stood are saved every few seconds and
+// when the page goes away; loading replays it all.
+
+const localEvents: SavedEvent[] = []
+let lastSave = 0
+let saveDirty = false
+
+function record(ev: GaitEvent | MountainRise): void {
+  if (!localSave) return
+  const p = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
+  if (p) {
+    localEvents.push(p)
+    saveDirty = true
+  }
+}
+
+function saveLocal(): void {
+  if (!localSave || mode !== 'offline') return
+  const data: SaveData = {
+    v: 1,
+    savedAt: Date.now(),
+    name: identity.name,
+    events: localEvents,
+    titans: Object.fromEntries(
+      [...titans].map(([id, a]) => {
+        const yours = role === 'titan' && id === driving
+        return [id, { pose: { ...a.titan.gait.snapshot({} as Snap) }, yours, aloneSince: a.aloneSince, lastDriver: a.lastDriver }]
+      }),
+    ),
+    mountains: mountains.infos(),
+    player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
+  }
+  if (!saveWorld(data)) chat.system('Could not save the world (browser storage is full or blocked).')
+  saveDirty = false
+}
+
+function loadLocal(): void {
+  const d = loadWorld()
+  if (!d) return
+  for (const e of d.events) {
+    const ev = unpackEvent(e)
+    localEvents.push(e)
+    onGait(ev, true)
+  }
+  for (const [id, m] of Object.entries(d.mountains)) mountains.add(id, m)
+  for (const [id, t] of Object.entries(d.titans)) {
+    const a = titans.get(id) ?? addTitan(id, t.pose.x, t.pose.z, t.pose.heading)
+    a.titan.gait.restore(t.pose)
+    a.titan.restBlend = t.pose.resting ? 1 : 0
+    a.aloneSince = t.aloneSince ?? 0
+    a.lastDriver = t.lastDriver ?? ''
+  }
+  wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
+  // Time has passed: the rain has fallen.
+  lakes.fillAll()
+  // You left while walking a Titan: it sat down where it stood, alone from
+  // the moment you left. A Titan resting alone long enough slept, and is a
+  // mountain now.
+  for (const [id, t] of Object.entries(d.titans)) {
+    const a = titans.get(id)!
+    if (t.yours) {
+      a.titan.gait.resting = true
+      a.titan.restBlend = 1
+      a.aloneSince = d.savedAt
+      a.lastDriver = d.name
+    }
+    if (a.titan.gait.resting && a.aloneSince && Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
+  }
+  chat.system(`Welcome back, ${d.name}. Your world remembers ${d.events.length.toLocaleString()} footsteps and drags.`)
+}
+
+addEventListener('pagehide', () => saveLocal())
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveLocal()
+})
 
 /** Take the nearest free Titan (or the one named), or step out of yours. */
 function toggleRole(want?: string): void {
@@ -396,7 +508,17 @@ function simulate(dt: number): void {
     }
     gaitEvents.length = 0
     t.step(dt, inp, gaitEvents)
-    for (const ev of gaitEvents) onGait(ev)
+    for (const ev of gaitEvents) {
+      onGait(ev)
+      record(ev)
+    }
+    // The server's rule, offline: resting with nobody walking it, it falls asleep.
+    if (t.gait.resting && !ours && !toolMode) {
+      if (!a.aloneSince) a.aloneSince = Date.now()
+      else if (Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
+    } else {
+      a.aloneSince = 0
+    }
   }
   lakes.step(dt)
 }
@@ -470,9 +592,14 @@ function goDormant(id = driving || 't1'): void {
   const t = titans.get(id)?.titan
   if (!t) return
   const mid = `local-${mountains.count + 1}`
-  mountains.add(mid, { name: identity.name, since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
+  const owner = titans.get(id)!
+  mountains.add(mid, { name: owner.lastDriver || 'A nameless Titan', since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
+  owner.aloneSince = 0
+  owner.lastDriver = ''
   holdOnAsItSleeps(mid)
-  onGait({ type: 'mountain', x: t.gait.x, z: t.gait.z })
+  const rise = { type: 'mountain' as const, x: t.gait.x, z: t.gait.z }
+  onGait(rise)
+  record(rise)
   const a = mountains.count * 2.4 + 0.7
   t.awaken(Math.cos(a) * 650, Math.sin(a) * 650, a + Math.PI)
   t.restBlend = 0
@@ -551,12 +678,17 @@ function frame(now: number): void {
   }
   hud.frame(now, renderer, terrainView, focusBase, camera, quality.level)
   if (ready) quality.frame(now)
-  hud.net(mode, remotes.count + (mode === 'online' ? 1 : 0))
+  hud.net(mode, remotes.count + (mode === 'online' ? 1 : 0), !toolMode)
+  if (saveDirty && now - lastSave > 5000) {
+    lastSave = now
+    saveLocal()
+  }
   hud.updateBeacon(now, focusBase, rig.yaw)
 }
 const tmpFocus = new THREE.Vector3()
 setRole('wanderer')
 rig.yaw = Math.PI * 0.85
+if (localSave) loadLocal()
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
@@ -608,6 +740,11 @@ const g = {
   falls,
   setRole,
   toggleRole,
+  get localSave() {
+    return localSave
+  },
+  saveLocal,
+  savedEvents: () => localEvents.length,
   stomp,
   callOut,
   setPlough(on: boolean) {

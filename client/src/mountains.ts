@@ -83,6 +83,11 @@ export class Mountains {
     }
   }
 
+  /** Everything needed to bring them back (single-player save). */
+  infos(): Record<string, MountainInfo> {
+    return Object.fromEntries([...this.list].map(([id, e]) => [id, e.info]))
+  }
+
   get(id: string): Titan | undefined {
     return this.list.get(id)?.titan
   }

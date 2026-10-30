@@ -6,7 +6,7 @@
 import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
 
-const url = process.argv[2] ?? 'http://localhost:4317/'
+const url = process.argv[2] ?? 'http://localhost:4317/?mp'
 mkdirSync('shots', { recursive: true })
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
 const fail = (m) => {

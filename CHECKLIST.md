@@ -133,6 +133,15 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
 - [x] Footfalls carry their heading vector (no per-engine Math.sin); chat names readable
 - [ ] Not code: free hosting (needs a provider choice); server-authoritative lake levels (design note)
 
+## Single player first (user, 2026-10-30: "hold for multiplayer, single player is default unless I apply multiplayer")
+- [x] Default mode is single player: no network unless multiplayer is switched on (world panel —
+      the mode chip or M — persisted; or `?mp` / `?server=`). Multiplayer stays built and gated.
+- [x] Single-player save (localStorage): compact terrain-event log, every Titan's gait, mountains,
+      where you stood; reload replays it; New world wipes it. Offline dormancy follows the server's
+      rule (resting alone for a minute → mountain), and leaving while walking a Titan sits it down.
+- [x] Gate `tools/single.mjs`: default is single player and Titans wander; reload → identical craters,
+      Titan 0.00 m from where it stood, sitting; six hours away → our named mountain; panel → online and back
+
 ## P11 — Settlement
 - [ ] Place a small building kit, persistent, with ownership
 

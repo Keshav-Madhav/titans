@@ -77,8 +77,29 @@
       }
       #net {
         position: fixed; top: 44px; right: 14px; padding: 3px 9px; border-radius: 999px;
-        background: var(--panel); color: var(--ink-dim); font-size: 11px; pointer-events: none;
+        background: var(--panel); color: var(--ink-dim); font-size: 11px; cursor: pointer;
       }
+      #net:hover { color: var(--ink); }
+      #menu {
+        position: fixed; top: 74px; right: 14px; width: 290px; padding: 14px 16px; border-radius: 10px; display: none;
+        background: rgba(18, 20, 26, 0.86); color: var(--ink); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+      }
+      #menu h2 { margin: 0 0 10px; font: 700 13px/1 ui-sans-serif, system-ui; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+      #menu label { display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer; }
+      #menu small { display: block; margin: -2px 0 8px 24px; color: var(--ink-dim); }
+      #menu-server-row { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px 24px; }
+      #menu input[type=text] {
+        padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(244, 239, 230, 0.25);
+        background: rgba(0, 0, 0, 0.3); color: var(--ink); font: 12px ui-monospace, Menlo, monospace;
+      }
+      #menu .row { display: flex; gap: 8px; margin-top: 12px; }
+      #menu button {
+        flex: 1; padding: 7px 10px; border-radius: 7px; border: 0; cursor: pointer; font: 600 12px ui-sans-serif, system-ui;
+        background: rgba(244, 239, 230, 0.12); color: var(--ink);
+      }
+      #menu button.primary { background: var(--accent); color: #1b1b1b; }
+      #menu button.danger { color: #f0a090; }
+      #menu-close { position: absolute; top: 8px; right: 10px; flex: none !important; width: auto; padding: 2px 8px !important; background: none !important; }
       #net b { color: #8fd18f; font-weight: 700; }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
@@ -100,7 +121,17 @@
     <div id="labels"></div>
     <div id="grip"><i></i></div>
     <div id="beacon"><i>▲</i><span></span></div>
-    <div id="net"></div>
+    <div id="net" title="World settings (M)"></div>
+    <div id="menu">
+      <button id="menu-close" aria-label="Close">✕</button>
+      <h2>World</h2>
+      <label><input type="radio" name="mode" id="menu-sp" /> Single player</label>
+      <small>Your world, saved in this browser. The default.</small>
+      <label><input type="radio" name="mode" id="menu-mp" /> Multiplayer</label>
+      <small>Join a shared world on a server.</small>
+      <div id="menu-server-row"><span style="font-size:11px;color:var(--ink-dim)">Server</span><input type="text" id="menu-server" spellcheck="false" /></div>
+      <div class="row"><button class="primary" id="menu-apply">Apply</button><button class="danger" id="menu-new">New world</button></div>
+    </div>
     <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>
     <div id="loading">
       <div>
