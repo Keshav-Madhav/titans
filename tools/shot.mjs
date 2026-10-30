@@ -191,6 +191,79 @@ const scenes = {
     if (route.best < 0.7 * route.H) throw new Error('climb gate: never reached the shoulders')
     if (!ride.held || ride.carried < ride.titanMoved * 0.6) throw new Error('climb gate: not carried by the Titan')
   },
+  // P8b gate: stride leaves no trench; a stomp digs deep and knocks a Wanderer down; the call shows.
+  async verbs() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const H = g.titan.H
+      const walk = async (n) => {
+        const t0 = g.titanState().steps
+        g.autopilot.forward = 1
+        while (g.titanState().steps < t0 + n) await new Promise((r) => setTimeout(r, 40))
+      }
+      const midDepth = (F) => {
+        const out = []
+        for (let i = 2; i < F.length; i++) {
+          if (F[i].foot !== F[i - 2].foot) continue
+          out.push(g.deltaAt((F[i].x + F[i - 2].x) / 2, (F[i].z + F[i - 2].z) / 2))
+        }
+        return out
+      }
+      g.clock.scale = 8
+      // Stride: feet lifted clean.
+      g.setPlough(false)
+      await walk(5)
+      const strideMid = midDepth(g.falls.slice())
+      // Plough again, for comparison.
+      g.setPlough(true)
+      const n0 = g.falls.length
+      await walk(5)
+      const ploughMid = midDepth(g.falls.slice(n0 - 1))
+      // Stomp, with a Wanderer standing 60 m from where the Titan is heading.
+      const t = g.titanState()
+      const fx = Math.sin(t.heading), fz = Math.cos(t.heading)
+      g.teleport(t.x + fx * 1.2 * g.titan.body.stepLen + fz * 60, t.z + fz * 1.2 * g.titan.body.stepLen - fx * 60)
+      g.clock.scale = 2
+      g.stomp()
+      // The stomp is the NEXT step to start: wait for the footfall that carries it.
+      const until = Date.now() + 30000
+      while (!(g.falls.length && g.falls[g.falls.length - 1].stomp) && Date.now() < until) await new Promise((r) => setTimeout(r, 20))
+      // Sample the knockdown just after the slam.
+      await new Promise((r) => setTimeout(r, 120))
+      const stunned = g.wanderer.stunned
+      const s = g.falls[g.falls.length - 1]
+      const normal = g.falls[g.falls.length - 3]
+      g.autopilot.forward = 0
+      g.clock.scale = 1
+      g.callOut()
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      return {
+        strideMid: Math.min(...strideMid),
+        ploughMid: Math.max(...ploughMid),
+        stomp: s.stomp,
+        stompDepth: g.deltaAt(s.x, s.z),
+        normalDepth: g.deltaAt(normal.x, normal.z),
+        stunned,
+        dist: Math.hypot(g.player().x - s.x, g.player().z - s.z),
+        beacon: getComputedStyle(document.getElementById('beacon')).display,
+        H,
+      }
+    })
+    console.log(`stride: deepest mid-stride delta ${r.strideMid.toFixed(2)} m; plough: shallowest ${r.ploughMid.toFixed(2)} m`)
+    console.log(`stomp: flagged=${r.stomp}, print ${r.stompDepth.toFixed(1)} m vs normal ${r.normalDepth.toFixed(1)} m; Wanderer ${r.dist.toFixed(0)} m away stunned ${r.stunned.toFixed(2)} s; call marker ${r.beacon}`)
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titanState()
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.1, 8)
+    })
+    await shot('p8b-stomp')
+    if (r.strideMid < -0.6) throw new Error('verbs gate: striding still dug a trench')
+    if (r.ploughMid > -2) throw new Error('verbs gate: ploughing did not dig a trench')
+    if (!r.stomp || r.stompDepth > r.normalDepth - 4) throw new Error('verbs gate: the stomp was not deeper')
+    if (r.stunned <= 0) throw new Error('verbs gate: the Wanderer was not knocked down')
+    if (r.beacon !== 'flex') throw new Error('verbs gate: no call marker')
+  },
   // P4 gate: twenty steps leave twenty measured craters.
   async trail() {
     const falls = await page.evaluate(async () => {

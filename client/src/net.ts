@@ -7,6 +7,7 @@ import {
   MSG,
   ROOM_NAME,
   SERVER_PORT,
+  type CallOut,
   type ChatOut,
   type JoinOptions,
   type MoveMsg,
@@ -49,6 +50,8 @@ export class Net {
   onPatch: () => void = () => {}
   /** The Titan's driver heaved its shoulders. */
   onShrug: () => void = () => {}
+  /** A Titan called out. */
+  onCall: (c: CallOut) => void = () => {}
 
   get online(): boolean {
     return this.room !== null
@@ -81,6 +84,7 @@ export class Net {
       room.onMessage(MSG.terrain, (e: TerrainEvent) => this.accept(e, false))
       room.onMessage(MSG.chat, (m: ChatOut) => this.onChat(m))
       room.onMessage(MSG.shrug, () => this.onShrug())
+      room.onMessage(MSG.call, (c: CallOut) => this.onCall(c))
       room.onStateChange(() => this.onPatch())
       room.onLeave(() => {
         this.room = null
@@ -112,6 +116,10 @@ export class Net {
 
   sendTitan(m: TitanInputMsg): void {
     this.room?.send(MSG.titanInput, m)
+  }
+
+  sendCall(): void {
+    this.room?.send(MSG.call, {})
   }
 
   sendShrug(): void {

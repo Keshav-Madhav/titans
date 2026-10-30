@@ -52,6 +52,12 @@
       }
       #grip i { display: block; height: 100%; width: 100%; background: #f2c14e; transition: background 0.3s; }
       #grip.low i { background: #e0573f; }
+      #beacon {
+        position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 8px;
+        padding: 5px 12px; border-radius: 999px; background: rgba(242, 193, 78, 0.9); color: #1b1b1b; font-weight: 700;
+        font-size: 12px; pointer-events: none;
+      }
+      #beacon i { display: inline-block; font-style: normal; transition: transform 0.15s linear; }
       #chat { position: fixed; left: 14px; bottom: 64px; width: min(380px, calc(100vw - 28px)); }
       #chat-log { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
       #chat-log .line {
@@ -88,6 +94,7 @@
     <div id="hint"></div>
     <div id="labels"></div>
     <div id="grip"><i></i></div>
+    <div id="beacon"><i>▲</i><span></span></div>
     <div id="net"></div>
     <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>
     <div id="loading">

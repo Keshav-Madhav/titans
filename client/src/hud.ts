@@ -7,7 +7,8 @@ const HINTS = {
   wanderer:
     'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become the Titan · <kbd>Enter</kbd> chat',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
-  titan: '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>Q</kbd> shrug off climbers · <kbd>T</kbd> step out as a Wanderer',
+  titan:
+    '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call out · <kbd>T</kbd> step out',
 }
 
 export class Hud {
@@ -18,10 +19,10 @@ export class Hud {
   private since = performance.now()
   last = { fps: 0, calls: 0, tris: 0 }
 
-  setRole(role: 'wanderer' | 'titan' | 'climbing', steps: number, climbers = 0): void {
+  setRole(role: 'wanderer' | 'titan' | 'climbing', steps: number, climbers = 0, titan?: { plough: boolean; stompReady: boolean }): void {
     const html =
       role === 'titan'
-        ? `<b>Titan</b> · ${steps.toLocaleString()} steps${climbers ? ` · ${climbers} climbing you` : ''}`
+        ? `<b>Titan</b> · ${steps.toLocaleString()} steps · ${titan?.plough ? 'ploughing' : 'striding'}${titan?.stompReady ? '' : ' · stomp recharging'}${climbers ? ` · ${climbers} climbing you` : ''}`
         : role === 'climbing'
           ? '<b>Climbing</b>'
           : '<b>Wanderer</b>'
@@ -36,6 +37,32 @@ export class Hud {
   private hintRole = ''
   private readonly grip = document.getElementById('grip')!
   private readonly gripBar = this.grip.firstElementChild as HTMLElement
+
+  private readonly beaconEl = document.getElementById('beacon')!
+  private beacon: { name: string; x: number; z: number; until: number } | null = null
+
+  /** A Titan called out: point everyone at it for a while. */
+  showCall(name: string, x: number, z: number): void {
+    this.beacon = { name, x, z, until: performance.now() + 25000 }
+  }
+
+  /** Keep the call marker pointing at the Titan from where we stand. */
+  updateBeacon(now: number, from: THREE.Vector3, camYaw: number): void {
+    const b = this.beacon
+    if (!b || now > b.until) {
+      this.beaconEl.style.display = 'none'
+      this.beacon = null
+      return
+    }
+    const dx = b.x - from.x
+    const dz = b.z - from.z
+    // Bearing relative to where the camera looks (yaw 0 looks along -Z).
+    const rel = Math.atan2(dx, dz) - (camYaw + Math.PI)
+    const km = Math.hypot(dx, dz) / 1000
+    this.beaconEl.style.display = 'flex'
+    ;(this.beaconEl.firstElementChild as HTMLElement).style.transform = `rotate(${-rel}rad)`
+    this.beaconEl.lastElementChild!.textContent = `${b.name} calls · ${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}`
+  }
 
   /** Grip stamina bar, shown only while climbing. */
   setGrip(stamina: number | null): void {

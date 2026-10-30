@@ -8,6 +8,7 @@ import {
   impactFor,
   LakeSystem,
   MOVE_SEND_MS,
+  STOMP_COOLDOWN_S,
   Terrain,
   TITAN_HEIGHT,
   WORLD_SEED,
@@ -133,7 +134,7 @@ function grow(b: Box): void {
 }
 
 /** Every footfall so far (tools read it to measure prints and canals). */
-const falls: Array<{ foot: 0 | 1; x: number; z: number }> = []
+const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
 /** Apply one terrain event. `replay` = catching up on join: no dust, no shake. */
 function onGait(ev: GaitEvent, replay = false): void {
@@ -143,19 +144,32 @@ function onGait(ev: GaitEvent, replay = false): void {
     if (!replay) effects.drag(ev.bx, terrain.heightAt(ev.bx, ev.bz), ev.bz, H)
     return
   }
-  falls.push({ foot: ev.foot, x: ev.x, z: ev.z })
-  grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z)))
-  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, Math.sin(ev.heading), Math.cos(ev.heading))))
+  falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
+  grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
+  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, Math.sin(ev.heading), Math.cos(ev.heading), ev.stomp)))
   lakes.onDeform(strideBox, ev.x, ev.z)
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
-  // Every footfall jolts whoever is hanging on.
-  if (climber.active) climber.stamina = Math.max(0, climber.stamina - 0.03)
-  effects.impact(ev.x, terrain.heightAt(ev.x, ev.z), ev.z, H)
+  // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
+  if (climber.active) climber.stamina = Math.max(0, climber.stamina - (ev.stomp ? 0.35 : 0.03))
+  const gy = terrain.heightAt(ev.x, ev.z)
+  if (ev.stomp) {
+    effects.shockwave(ev.x, gy, ev.z, H)
+    // The shockwave throws Wanderers on the ground off their feet.
+    const dx = wanderer.pos.x - ev.x
+    const dz = wanderer.pos.z - ev.z
+    const dw = Math.hypot(dx, dz)
+    if (role === 'wanderer' && !climber.active && dw < 0.6 * H) {
+      const k = 1 - dw / (0.6 * H)
+      wanderer.knock(new THREE.Vector3((dx / (dw || 1)) * 14 * k, 5 + 5 * k, (dz / (dw || 1)) * 14 * k), 0.8 + 1.2 * k)
+    }
+  } else {
+    effects.impact(ev.x, gy, ev.z, H)
+  }
   // The ground shakes for anyone near the footfall.
   const d = Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z)
-  rig.shake(Math.max(0, 1 - d / (6 * H)) * (role === 'titan' ? 0.006 : 0.012) * H)
+  rig.shake(Math.max(0, 1 - d / (6 * H)) * (role === 'titan' ? 0.006 : 0.012) * H * (ev.stomp ? 2.5 : 1))
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +179,10 @@ function onGait(ev: GaitEvent, replay = false): void {
 net.onTerrain = (e, replay) => onGait(e, replay)
 net.onChat = (m) => chat.add(m)
 net.onShrug = () => titan.shrug()
+net.onCall = (c) => {
+  hud.showCall(c.name, c.x, c.z)
+  chat.system(`${c.name}, the Titan, calls out.`)
+}
 // A world you come back to has had its rain: its lakes are already full.
 net.onSynced = (n) => {
   if (n > 0) lakes.fillAll()
@@ -231,7 +249,13 @@ function simulate(dt: number): void {
   if (role === 'titan') {
     const ax = input.axes()
     gaitInput = { forward: Math.max(0, ax.y), turn: -ax.x }
-    if (!chat.typing && input.pressed('KeyQ')) shrug()
+    if (!chat.typing) {
+      if (input.pressed('KeyQ')) shrug()
+      if (input.pressed('KeyR')) ploughMode = !ploughMode
+      if (input.pressed('KeyF')) stomp()
+      if (input.pressed('KeyC')) callOut()
+    }
+    if (mode !== 'online') titan.gait.plough = ploughMode
   } else if (climber.active) {
     if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
     else if (!chat.typing && input.pressed('Space')) letGo(4.5)
@@ -279,6 +303,25 @@ function letGo(push: number): void {
   wanderer.grounded = false
 }
 
+/** Drag the feet (canals) or stride clean (lakes only). */
+let ploughMode = true
+let stompRequest = false
+let lastStomp = -Infinity
+
+function stomp(): void {
+  const now = performance.now()
+  if (now - lastStomp < STOMP_COOLDOWN_S * 1000) return
+  lastStomp = now
+  if (mode === 'online') stompRequest = true // goes out with the next Titan input
+  else titan.gait.stompArmed = true
+}
+
+function callOut(): void {
+  if (mode === 'online') return net.sendCall()
+  hud.showCall(identity.name, titan.gait.x, titan.gait.z)
+  chat.system(`${identity.name}, the Titan, calls out.`)
+}
+
 function shrug(): void {
   if (mode === 'online') net.sendShrug() // comes back to everyone, us included
   else titan.shrug()
@@ -302,7 +345,8 @@ function frame(now: number): void {
     lastMoveSent = now
     if (role === 'titan') {
       const ax = input.axes()
-      net.sendTitan({ forward: Math.max(0, ax.y), turn: -ax.x })
+      net.sendTitan({ forward: Math.max(0, ax.y), turn: -ax.x, plough: ploughMode, stomp: stompRequest })
+      stompRequest = false
     } else {
       const hold = climber.hold()
       net.sendMove({ x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z, yaw: wanderer.yaw, ...(hold ? { climb: hold } : {}) })
@@ -323,7 +367,10 @@ function frame(now: number): void {
   water.sync(lakes.lakes)
   effects.update(dt)
   remotes.update(dt, camera, titan)
-  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers)
+  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers, {
+    plough: titan.gait.plough,
+    stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
+  })
   hud.setGrip(climber.active ? climber.stamina : null)
 
   const look = input.consumeLook()
@@ -339,6 +386,7 @@ function frame(now: number): void {
   }
   hud.frame(now, renderer, terrainView, focusBase, camera)
   hud.net(mode, remotes.count + (mode === 'online' ? 1 : 0))
+  hud.updateBeacon(now, focusBase, rig.yaw)
 }
 const tmpFocus = new THREE.Vector3()
 setRole('wanderer')
@@ -381,6 +429,12 @@ const g = {
   falls,
   setRole,
   toggleRole,
+  stomp,
+  callOut,
+  setPlough(on: boolean) {
+    ploughMode = on
+    if (mode !== 'online') titan.gait.plough = on
+  },
   teleport(x: number, z: number) {
     wanderer.place(x, terrain.heightAt(x, z), z)
   },

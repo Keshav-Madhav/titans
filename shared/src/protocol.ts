@@ -42,6 +42,9 @@ export interface MoveMsg {
 export interface TitanInputMsg {
   forward: number
   turn: number
+  plough: boolean
+  /** One-shot: arm a stomp for the next step (the server enforces the cooldown). */
+  stomp?: boolean
 }
 export interface RoleMsg {
   role: Role
@@ -59,6 +62,11 @@ export interface ChatOut {
   color: string
   text: string
 }
+export interface CallOut {
+  name: string
+  x: number
+  z: number
+}
 
 export const MSG = {
   move: 'move',
@@ -68,6 +76,7 @@ export const MSG = {
   sync: 'sync',
   terrain: 'terrain',
   shrug: 'shrug',
+  call: 'call',
 } as const
 
 /** Body parts a climber can hold (must match the client's Titan). */
@@ -98,4 +107,6 @@ export interface TitanSnapshot {
   fromZ: number
   toX: number
   toZ: number
+  plough: boolean
+  swingStomp: boolean
 }

@@ -93,6 +93,15 @@ try {
   await C.waitForFunction(() => window.__g.titan.shrugging, null, { timeout: 3000 }).catch(() => fail('the shrug did not reach C'))
   console.log('shrug seen by C')
 
+  // A stomps and calls out; the others see the stomp land and the call marker.
+  await ev(A, () => { window.__g.input.press('KeyF'); window.__g.input.press('KeyW') })
+  await B.waitForFunction(() => window.__g.falls.some((f) => f.stomp), null, { timeout: 60000 }).catch(() => fail('B never saw a stomp'))
+  await ev(A, () => { window.__g.input.release('KeyF'); window.__g.input.release('KeyW'); window.__g.input.press('KeyC') })
+  await C.waitForFunction(() => getComputedStyle(document.getElementById('beacon')).display === 'flex', null, { timeout: 5000 }).catch(() => fail('C never saw the call'))
+  const stomps = await Promise.all([A, B, C].map((p) => ev(p, () => { const f = window.__g.falls.find((q) => q.stomp); return f ? +window.__g.deltaAt(f.x, f.z).toFixed(3) : null })))
+  console.log(`stomp print depth A/B/C: ${stomps.join(' / ')}; call marker on C`)
+  if (new Set(stomps).size !== 1 || stomps[0] === null) fail('players disagree about the stomp')
+
   // A picture from C: the other Wanderer and the Titan.
   await ev(C, () => {
     const g = window.__g

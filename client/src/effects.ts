@@ -151,6 +151,18 @@ export class Effects {
     }
   }
 
+  /** A stomp: a fast, wide ring of dust racing outward, and twice the rock. */
+  shockwave(x: number, y: number, z: number, scale: number): void {
+    const r = this.rand
+    for (let i = 0; i < 80; i++) {
+      const a = (i / 80) * Math.PI * 2 + r() * 0.08
+      const sp = scale * (0.3 + r() * 0.12)
+      this.puff(x + Math.cos(a) * scale * 0.08, y + scale * 0.005, z + Math.sin(a) * scale * 0.08, Math.cos(a) * sp, scale * 0.01, Math.sin(a) * sp, scale * 0.04, scale * 0.05, 2.5 + r() * 1.5, 0.6)
+    }
+    this.impact(x, y, z, scale)
+    this.impact(x, y, z, scale * 1.2)
+  }
+
   /** Dust kicked up along a dragging foot. */
   drag(x: number, y: number, z: number, scale: number): void {
     const r = this.rand

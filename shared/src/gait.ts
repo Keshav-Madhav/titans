@@ -51,13 +51,16 @@ export function titanBody(height: number): TitanBody {
 }
 
 export type GaitEvent =
-  | { type: 'footfall'; foot: 0 | 1; x: number; z: number; heading: number; step: number }
+  | { type: 'footfall'; foot: 0 | 1; x: number; z: number; heading: number; step: number; stomp?: boolean }
   | { type: 'drag'; foot: 0 | 1; ax: number; az: number; bx: number; bz: number }
 
 export interface GaitInput {
   forward: number // 0..1 (Titans do not walk backwards)
   turn: number // -1..1, positive turns left
 }
+
+/** Stomp cooldown, so a Titan cannot machine-gun the land. */
+export const STOMP_COOLDOWN_S = 6
 
 export class TitanGait {
   x: number
@@ -71,6 +74,12 @@ export class TitanGait {
   readonly swingFrom: Vec2 = { x: 0, z: 0 }
   readonly swingTo: Vec2 = { x: 0, z: 0 }
   private swinging = false
+  /** Drag the feet (canals) or lift them clean (lakes only). */
+  plough = true
+  /** The next step is a stomp (armed by the player; consumed when a swing starts). */
+  stompArmed = false
+  /** The current swing is a stomp: the foot rises high and slams down. */
+  swingStomp = false
   private readonly dragFrom: Vec2 = { x: 0, z: 0 }
   private readonly cur = { x: 0, z: 0, lift: 0 }
 
@@ -123,6 +132,8 @@ export class TitanGait {
       if (!moving && off < b.stepLen * 0.25) return
       this.swinging = true
       this.phase = 0
+      this.swingStomp = this.stompArmed
+      this.stompArmed = false
       this.swingFrom.x = this.dragFrom.x = p.x
       this.swingFrom.z = this.dragFrom.z = p.z
     }
@@ -141,6 +152,7 @@ export class TitanGait {
 
     const foot = this.swingFoot
     if (this.phase < 1) {
+      if (!this.plough || this.swingStomp) return
       // The dragging foot cuts its trench in segments behind it.
       this.footPos(foot, this.cur)
       const dx = this.cur.x - this.dragFrom.x
@@ -153,14 +165,16 @@ export class TitanGait {
       return
     }
 
-    out.push({ type: 'drag', foot, ax: this.dragFrom.x, az: this.dragFrom.z, bx: t.x, bz: t.z })
+    if (this.plough && !this.swingStomp) out.push({ type: 'drag', foot, ax: this.dragFrom.x, az: this.dragFrom.z, bx: t.x, bz: t.z })
+    const stomp = this.swingStomp
+    this.swingStomp = false
     this.plant[foot].x = t.x
     this.plant[foot].z = t.z
     this.swinging = false
     this.phase = 0
     this.swingFoot = foot === 0 ? 1 : 0
     this.steps++
-    out.push({ type: 'footfall', foot, x: t.x, z: t.z, heading: this.heading, step: this.steps })
+    out.push({ type: 'footfall', foot, x: t.x, z: t.z, heading: this.heading, step: this.steps, ...(stomp ? { stomp } : {}) })
   }
 
   /** Current foot positions: planted, or mid-drag with its (small) lift. */
@@ -170,7 +184,13 @@ export class TitanGait {
       const e = p * p * (3 - 2 * p)
       out.x = this.swingFrom.x + (this.swingTo.x - this.swingFrom.x) * e
       out.z = this.swingFrom.z + (this.swingTo.z - this.swingFrom.z) * e
-      out.lift = 4 * p * (1 - p) * this.body.lift
+      if (this.swingStomp) {
+        // Rise high and hang there, then slam down in the last fifth.
+        const up = p < 0.8 ? Math.min(1, p / 0.45) : 1 - ((p - 0.8) / 0.2) * ((p - 0.8) / 0.2)
+        out.lift = up * 0.16 * this.body.height
+      } else {
+        out.lift = 4 * p * (1 - p) * (this.plough ? this.body.lift : 0.08 * this.body.height)
+      }
     } else {
       out.x = this.plant[foot].x
       out.z = this.plant[foot].z
@@ -200,6 +220,8 @@ export class TitanGait {
     out.fromZ = this.swingFrom.z
     out.toX = this.swingTo.x
     out.toZ = this.swingTo.z
+    out.plough = this.plough
+    out.swingStomp = this.swingStomp
     return out
   }
 
@@ -221,6 +243,8 @@ export class TitanGait {
     this.swingFrom.z = s.fromZ
     this.swingTo.x = s.toX
     this.swingTo.z = s.toZ
+    this.plough = s.plough
+    this.swingStomp = s.swingStomp
     // The next drag segment starts from the swing's start: re-cutting that
     // stretch is harmless (trenches cut with lowerTo), a cut from (0, 0) is not.
     this.dragFrom.x = s.fromX

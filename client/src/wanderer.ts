@@ -12,6 +12,8 @@ const JUMP = 5.6
 const GRAVITY = 18
 
 const _up = new THREE.Vector3(0, 1, 0)
+const _side = new THREE.Vector3(1, 0, 0)
+const _tq = new THREE.Quaternion()
 const _cx = new THREE.Vector3()
 const _cy = new THREE.Vector3()
 const _cz = new THREE.Vector3()
@@ -54,6 +56,9 @@ export class Wanderer {
   private readonly prev = new THREE.Vector3()
   private prevYaw = 0
   grounded = true
+  /** Seconds left knocked off your feet (a Titan stomped nearby). */
+  stunned = 0
+  private tilt = 0
   private stride = 0
   private readonly legL: THREE.Mesh
   private readonly legR: THREE.Mesh
@@ -107,6 +112,13 @@ export class Wanderer {
   step(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number, terrain: Terrain): void {
     this.prev.copy(this.pos)
     this.prevYaw = this.yaw
+    if (this.stunned > 0) {
+      // Knocked down: no control until you are back on your feet.
+      this.stunned = Math.max(0, this.stunned - dt)
+      move = { x: 0, y: 0 }
+      jump = false
+    }
+    this.tilt += ((this.stunned > 0 ? 1.25 : 0) - this.tilt) * Math.min(1, dt * (this.stunned > 0 ? 10 : 3))
     // Camera looks along -Z at yaw 0, so forward is (-sin, -cos).
     const fx = -Math.sin(camYaw)
     const fz = -Math.cos(camYaw)
@@ -154,6 +166,13 @@ export class Wanderer {
     this.cloak.rotation.x = -Math.min(0.18, hs * 0.02)
   }
 
+  /** A shockwave: thrown by `impulse` and knocked down for `seconds`. */
+  knock(impulse: THREE.Vector3, seconds: number): void {
+    this.vel.add(impulse)
+    this.grounded = false
+    this.stunned = Math.max(this.stunned, seconds)
+  }
+
   /** Teleport: no interpolation across the jump. */
   place(x: number, y: number, z: number): void {
     this.pos.set(x, y, z)
@@ -167,6 +186,7 @@ export class Wanderer {
     let d = this.yaw - this.prevYaw
     d = Math.atan2(Math.sin(d), Math.cos(d))
     this.obj.quaternion.setFromAxisAngle(_up, this.prevYaw + d * alpha)
+    if (this.tilt > 0.01) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, -this.tilt))
   }
 
   /**

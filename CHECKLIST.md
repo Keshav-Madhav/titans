@@ -85,9 +85,12 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       134 m). MP gate: C draws B's climber 0.01 m from where B is; shrug seen by C.
 
 ## P8b — Titan verbs (PLAN.md §6b)
-- [ ] Plough / stride toggle
-- [ ] Stomp: deep print + shockwave that knocks Wanderers down
-- [ ] Call out: a beacon every Wanderer sees
+- [x] Plough / stride toggle (R): stride lifts the feet clean — no trench, lakes only
+- [x] Stomp (F, 6 s cooldown): the foot rises high and slams; print −15.9 m vs −10.6 m; a dust
+      shockwave knocks Wanderers within ~0.6 H off their feet and shakes climbers' grip
+- [x] Call out (C): every Wanderer gets a marker pointing at the Titan, with the distance
+- [x] Gates: `shot.mjs verbs` (stride trench-free, plough −2.88 m, stomp deeper, Wanderer 101 m away
+      knocked down, marker shown); MP: stomp print identical on A/B/C (−15.875 m), call reaches C
 
 ## P9 — Rest
 - [ ] Rest → dormant mountain, persisted, labelled

@@ -150,9 +150,9 @@ water that Wanderers use or settle beside, climbers it carries, ruins it uncover
 | --- | --- | --- |
 | Walk / drag | Trenches between prints become canals; prints become lakes | built (P5b) |
 | Hold still / shrug (Q) | Climbers show as markers; hold still to help them, shrug to throw them off | built (P8) |
-| Plough or stride | Toggle: drag the feet (draw rivers on purpose) or lift them (lakes only) | P8b |
-| Stomp | A deliberate heavy footfall: a deep lake, and a shockwave that knocks Wanderers down | P8b |
-| Call out | A deep call that shows every Wanderer where this Titan is | P8b |
+| Plough or stride (R) | Toggle: drag the feet (draw rivers on purpose) or lift them (lakes only) | built (P8b) |
+| Stomp (F) | A deliberate heavy footfall: a deep lake, and a shockwave that knocks Wanderers down | built (P8b) |
+| Call out (C) | A deep call that shows every Wanderer where this Titan is | built (P8b) |
 | Scoop and heap | Hands dig earth and pile it: dams, hills, ramps, rerouted water | later |
 | Call the rain | Spend energy to rain on a region: lakes fill, land greens | later |
 | Carry | Hold Wanderers in a hand or on the shoulders: the Titan as transport | later |

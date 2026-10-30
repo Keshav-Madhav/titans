@@ -41,6 +41,8 @@ export const TitanState = schema(
     fromZ: t.float64(),
     toX: t.float64(),
     toZ: t.float64(),
+    plough: t.boolean(),
+    swingStomp: t.boolean(),
   },
   'TitanState',
 )

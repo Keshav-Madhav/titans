@@ -169,9 +169,10 @@ export function applyDrag(delta: DeltaField, e: DragEvent): Box {
   return { x0, z0, x1, z1 }
 }
 
-/** Impact crater for a Titan of a given height. */
-export function impactFor(height: number, x: number, z: number): ImpactEvent {
-  return { kind: 'impact', x, z, radius: 0.13 * height, depth: 0.009 * height }
+/** Impact crater for a Titan of a given height. A stomp hits far harder. */
+export function impactFor(height: number, x: number, z: number, stomp = false): ImpactEvent {
+  const k = stomp ? 1.6 : 1
+  return { kind: 'impact', x, z, radius: 0.13 * height * k, depth: 0.009 * height * (stomp ? 3 : 1) }
 }
 
 /** Drag trench for a Titan of a given height. */
@@ -180,7 +181,7 @@ export function dragFor(height: number, ax: number, az: number, bx: number, bz: 
 }
 
 /** Footprint parameters for a Titan of a given height. */
-export function footprintFor(height: number, x: number, z: number, hx: number, hz: number): FootprintEvent {
+export function footprintFor(height: number, x: number, z: number, hx: number, hz: number, stomp = false): FootprintEvent {
   return {
     kind: 'footprint',
     x,
@@ -189,6 +190,6 @@ export function footprintFor(height: number, x: number, z: number, hx: number, h
     hz,
     len: 0.2 * height,
     width: 0.105 * height,
-    depth: 0.034 * height,
+    depth: 0.034 * height * (stomp ? 1.8 : 1),
   }
 }

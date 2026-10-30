@@ -17,6 +17,7 @@ import {
   MSG,
   PATCH_MS,
   SERVER_TICK_HZ,
+  STOMP_COOLDOWN_S,
   Terrain,
   TITAN_HEIGHT,
   TitanGait,
@@ -54,7 +55,9 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   private readonly log: TerrainEvent[] = []
   private readonly events: GaitEvent[] = []
   private readonly snap = {} as TitanSnapshot
-  private titanInput: TitanInputMsg = { forward: 0, turn: 0 }
+  private titanInput = { forward: 0, turn: 0 }
+  private lastStomp = 0
+  private lastCall = 0
   private readonly seen = new Map<string, Seen>()
   private readonly tokens = new Map<string, string>() // sessionId → token hash
   private readonly pending: TerrainEvent[] = []
@@ -86,6 +89,20 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.onMessage(MSG.titanInput, (client: Client, m: TitanInputMsg) => {
       if (client.sessionId !== this.state.titan.driver) return
       this.titanInput = { forward: clamp(+m.forward || 0, 0, 1), turn: clamp(+m.turn || 0, -1, 1) }
+      this.gait.plough = m.plough !== false
+      const now = Date.now()
+      if (m.stomp && now - this.lastStomp > STOMP_COOLDOWN_S * 1000) {
+        this.lastStomp = now
+        this.gait.stompArmed = true
+      }
+    })
+    // The Titan's call: every Wanderer is shown where it is.
+    this.onMessage(MSG.call, (client: Client) => {
+      const now = Date.now()
+      if (client.sessionId !== this.state.titan.driver || now - this.lastCall < 8000) return
+      this.lastCall = now
+      const p = this.state.players.get(client.sessionId)
+      this.broadcast(MSG.call, { name: p?.name ?? 'The Titan', x: this.gait.x, z: this.gait.z })
     })
     this.onMessage(MSG.role, (client: Client, m: RoleMsg) => this.onRole(client, m))
     // The Titan heaves its shoulders; every client shakes its own climbers.
@@ -239,8 +256,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     if (e.type === 'drag') {
       applyDrag(this.terrain.delta, dragFor(H, e.ax, e.az, e.bx, e.bz))
     } else {
-      applyImpact(this.terrain.delta, impactFor(H, e.x, e.z))
-      applyFootprint(this.terrain.delta, footprintFor(H, e.x, e.z, Math.sin(e.heading), Math.cos(e.heading)))
+      applyImpact(this.terrain.delta, impactFor(H, e.x, e.z, e.stomp))
+      applyFootprint(this.terrain.delta, footprintFor(H, e.x, e.z, Math.sin(e.heading), Math.cos(e.heading), e.stomp))
     }
   }
 
@@ -263,6 +280,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     t.fromZ = s.fromZ
     t.toX = s.toX
     t.toZ = s.toZ
+    t.plough = s.plough
+    t.swingStomp = s.swingStomp
   }
 }
 
