@@ -28,6 +28,17 @@ export const MAX_ABOVE_GROUND = 6 // a jump peaks under 1 m; slack for slopes an
 /** A terrain-changing event, numbered by the server in the order it happened. */
 export type TerrainEvent = (GaitEvent | MountainRise) & { seq: number }
 
+/**
+ * Where each Titan slot first wakes. Slot 1 is the one near spawn (tools and
+ * the offline client rely on it); the world keeps TITANS_COUNT slots awake.
+ */
+export const TITAN_SPAWNS = [
+  { x: 230, z: -400, heading: Math.PI * 0.62 },
+  { x: -460, z: 420, heading: -Math.PI * 0.3 },
+  { x: 700, z: 520, heading: Math.PI * 1.2 },
+  { x: -620, z: -560, heading: Math.PI * 0.2 },
+]
+
 /** A Titan resting this long with nobody driving it goes dormant and becomes a mountain. */
 export const DORMANT_AFTER_MS = 60000
 
@@ -46,7 +57,7 @@ export interface MoveMsg {
   y: number
   z: number
   yaw: number
-  /** Present while climbing a Titan: which Titan ('' = the awake one, else a mountain id), and the hold in the body part's local frame. */
+  /** Present while climbing a Titan: which Titan (an awake slot like 't1', or a mountain id), and the hold in the body part's local frame. */
   climb?: { titan: string; part: string; lump: number; x: number; y: number; z: number }
 }
 export interface TitanInputMsg {
@@ -58,6 +69,8 @@ export interface TitanInputMsg {
 }
 export interface RoleMsg {
   role: Role
+  /** Which Titan to take (an awake slot id like 't2'); omitted = the nearest free one. */
+  titan?: string
 }
 export interface ChatMsg {
   text: string

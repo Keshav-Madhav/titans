@@ -57,11 +57,9 @@ export class Remotes {
         this.group.add(body.obj)
       }
       r.role = p.role
-      // The server sends "part" for the awake Titan, "mountainId/part" for a dormant one.
+      // The server sends "titanId/part": an awake slot ('t1') or a mountain id.
       const slash = p.climb ? p.climb.indexOf('/') : -1
-      r.hold = p.climb
-        ? { titan: slash < 0 ? '' : p.climb.slice(0, slash), part: p.climb.slice(slash + 1), lump: p.lump, x: p.lx, y: p.ly, z: p.lz }
-        : null
+      r.hold = p.climb && slash > 0 ? { titan: p.climb.slice(0, slash), part: p.climb.slice(slash + 1), lump: p.lump, x: p.lx, y: p.ly, z: p.lz } : null
       if (!r.hold || r.shown?.titan !== r.hold.titan || r.shown?.part !== r.hold.part || r.shown.lump !== r.hold.lump) r.shown = r.hold && { ...r.hold }
       const last = r.samples[r.samples.length - 1]
       if (!last || last.x !== p.x || last.z !== p.z || last.y !== p.y || now - last.t > 200) {

@@ -33,18 +33,33 @@ try {
   }
   console.log('names:', await Promise.all([A, B, C].map((p) => ev(p, () => window.__g.identity.name))))
 
-  // A takes the Titan and walks it.
-  await ev(A, () => window.__g.toggleRole())
-  await A.waitForFunction(() => window.__g.role === 'titan', null, { timeout: 10000 }).catch(() => fail('A never became the Titan'))
-  // B cannot take it while A has it.
+  // Some players are giants: A takes Titan 1, B takes another one (not A's).
+  await ev(A, () => window.__g.toggleRole('t1'))
+  await A.waitForFunction(() => window.__g.role === 'titan', null, { timeout: 10000 }).catch(() => fail('A never became a Titan'))
   await ev(B, () => window.__g.toggleRole())
-  await B.waitForTimeout(600)
-  if ((await ev(B, () => window.__g.role)) !== 'wanderer') fail('B took a Titan that A was driving')
+  await B.waitForFunction(() => window.__g.role === 'titan', null, { timeout: 10000 }).catch(() => fail('B could not take a second Titan'))
+  const drivers = [await ev(A, () => window.__g.driving), await ev(B, () => window.__g.driving)]
+  console.log(`A walks ${drivers[0]}, B walks ${drivers[1]}`)
+  if (drivers[0] === drivers[1]) fail('two players got the same Titan')
 
-  const start = await ev(B, () => window.__g.titanState().steps)
+  // Both walk; C watches both giants move, each labelled with its walker.
+  const startC = await ev(C, () => Object.fromEntries([...window.__g.titans].map(([id, a]) => [id, a.titan.gait.steps])))
   await ev(A, () => window.__g.input.press('KeyW'))
-  await B.waitForFunction((s) => window.__g.titanState().steps >= s + 4, start, { timeout: 90000 }).catch(() => fail('B never saw the Titan take 4 steps'))
+  await ev(B, () => window.__g.input.press('KeyW'))
+  await C.waitForFunction(
+    ([d, s]) => d.every((id) => window.__g.titans.get(id).titan.gait.steps >= s[id] + 4),
+    [drivers, startC],
+    { timeout: 90000 },
+  ).catch(() => fail('C did not see both Titans walk'))
   await ev(A, () => window.__g.input.release('KeyW'))
+  await ev(B, () => window.__g.input.release('KeyW'))
+  const named = await ev(C, () => [...window.__g.titans].map(([id, a]) => `${id}: ${a.name}`))
+  console.log(`C sees: ${named.join(' · ')}`)
+  const [nA, nB] = [await ev(A, () => window.__g.identity.name), await ev(B, () => window.__g.identity.name)]
+  if (!named.some((n) => n.includes(nA)) || !named.some((n) => n.includes(nB))) fail('the Titans do not carry their walkers\' names')
+  // B steps back out to be a Wanderer for the rest of the gate.
+  await ev(B, () => window.__g.toggleRole())
+  await B.waitForFunction(() => window.__g.role === 'wanderer', null, { timeout: 10000 })
   await B.waitForTimeout(1500)
 
   // Same land everywhere: compare the terrain at every footfall B has seen.
@@ -56,7 +71,7 @@ try {
   if (!falls.length || !same) fail('players disagree about the land')
   const tA = await ev(A, () => window.__g.titanState())
   const tC = await ev(C, () => window.__g.titanState())
-  console.log(`Titan steps A=${tA.steps} C=${tC.steps}, position gap ${Math.hypot(tA.x - tC.x, tA.z - tC.z).toFixed(1)} m`)
+  console.log(`Titan 1 steps A=${tA.steps} C=${tC.steps}, position gap ${Math.hypot(tA.x - tC.x, tA.z - tC.z).toFixed(1)} m`)
 
   // B walks; C sees B move.
   const seenBefore = await ev(C, () => window.__g.remotes.positions())

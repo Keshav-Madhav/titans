@@ -44,7 +44,7 @@ try {
   const ev = (f, a) => page.evaluate(f, a)
 
   // 1. Left alone, it walks itself.
-  await page.waitForFunction(() => window.__g.titanState().steps >= 3 && window.__g.net.state.titan.wild, null, { timeout: 60000 }).catch(() => fail('the Titan did not walk by itself'))
+  await page.waitForFunction(() => window.__g.titanState().steps >= 3 && window.__g.net.state.titans.get('t1').wild, null, { timeout: 60000 }).catch(() => fail('the Titan did not walk by itself'))
   // Online the server refuses teleports (that is the anti-cheat working), so
   // look at the Titan from wherever we stand, then read its label.
   await ev(() => {
@@ -66,15 +66,15 @@ try {
   console.log('shots/p10-wild.png')
 
   // 2. Take it: the wild mind lets go and it stops for us.
-  await ev(() => window.__g.toggleRole())
-  await page.waitForFunction(() => window.__g.role === 'titan' && !window.__g.net.state.titan.wild, null, { timeout: 10000 }).catch(() => fail('could not take the Titan from the wild'))
+  await ev(() => window.__g.toggleRole('t1'))
+  await page.waitForFunction(() => window.__g.role === 'titan' && !window.__g.net.state.titans.get('t1').wild, null, { timeout: 10000 }).catch(() => fail('could not take the Titan from the wild'))
   await page.waitForFunction(() => window.__g.titanState().speed === 0, null, { timeout: 20000 }).catch(() => fail('the Titan kept walking under our control'))
   const held = await ev(() => window.__g.titanState().steps)
   console.log(`taken over at ${held} steps; it stood still for us`)
 
   // 3. Step out: it goes wild again.
   await ev(() => window.__g.toggleRole())
-  await page.waitForFunction((n) => window.__g.net.state.titan.wild && window.__g.titanState().steps >= n + 2, held, { timeout: 60000 }).catch(() => fail('it did not go wild again'))
+  await page.waitForFunction((n) => window.__g.net.state.titans.get('t1').wild && window.__g.titanState().steps >= n + 2, held, { timeout: 60000 }).catch(() => fail('it did not go wild again'))
   console.log(`stepped out: wild again, now ${await ev(() => window.__g.titanState().steps)} steps`)
   if (!failed) console.log('WILD GATE PASSED')
 } finally {

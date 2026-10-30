@@ -164,8 +164,9 @@ New verbs unlock from ruins: the Titan digs them out, Wanderers explore inside.
 
 ## 7. Multiplayer and persistence blueprint
 
-**Server:** one Colyseus `WorldRoom` per world (20–40 players to start, per the spec), ticking at
-20 Hz. Interest management uses region cells (512 m): clients receive entities in nearby cells, and
+**Server:** one Colyseus `WorldRoom` per world (20–40 players to start, per the spec), simulating
+at 60 Hz and patching state at 20 Hz. It keeps `TITANS_COUNT` Titan slots awake (default 2): some
+players are giants at once; each unwalked slot runs its own wild mind. Interest management uses region cells (512 m): clients receive entities in nearby cells, and
 Titans everywhere (they are landmarks), at reduced rate when far.
 
 **Authority:**

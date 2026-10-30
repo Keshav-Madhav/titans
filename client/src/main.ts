@@ -19,8 +19,9 @@ import {
   type GaitInput,
   type MountainRise,
   type Role,
-  type TitanSnapshot,
   TitanBrain,
+  TITAN_SPAWNS,
+  type TitanSnapshot as Snap,
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
@@ -88,21 +89,43 @@ const wanderer = new Wanderer(identity.color)
 wanderer.place(0, terrain.heightAt(0, 0), 0)
 scene.add(wanderer.obj)
 
-// One Titan stands in the world from the start, a short walk from spawn
-// (the server's TITAN_SPAWN matches this).
-const titan = new Titan(TITAN_HEIGHT, 230, -400, Math.PI * 0.62)
-scene.add(titan.group)
+/**
+ * The awake Titans, by slot id ('t1', 't2', …). Some players are giants: the
+ * world keeps a few awake at once. Slot 1 stands a short walk from spawn
+ * (tools rely on it); the server's TITAN_SPAWNS place them all.
+ */
+interface AwakeTitan {
+  titan: Titan
+  label: HTMLDivElement
+  /** Who walks it: a player's name, 'A wild Titan' or 'A waiting Titan'. */
+  name: string
+  /** Offline, with no server to run it, its wild mind runs here. */
+  brain: TitanBrain
+}
+const titans = new Map<string, AwakeTitan>()
+function addTitan(id: string, x: number, z: number, heading: number): AwakeTitan {
+  const slot = Number(id.slice(1)) || 1
+  const titan = new Titan(TITAN_HEIGHT, x, z, heading, 7 + (slot - 1) * 13)
+  scene.add(titan.group)
+  const label = document.createElement('div')
+  label.className = 'label titan-name'
+  document.getElementById('labels')!.appendChild(label)
+  const a = { titan, label, name: 'A waiting Titan', brain: new TitanBrain(20261030 + slot * 7919) }
+  titans.set(id, a)
+  return a
+}
+for (let i = 0; i < 2; i++) addTitan(`t${i + 1}`, TITAN_SPAWNS[i].x, TITAN_SPAWNS[i].z, TITAN_SPAWNS[i].heading)
+/** Slot 1: the Titan near spawn. Tools address it as `g.titan`. */
+const first = () => titans.get('t1')!.titan
+/** Which Titan this player walks ('' = none). */
+let driving = ''
+/** The Titan we walk, or the first one (for HUD and tools when we walk none). */
+const mine = () => titans.get(driving)?.titan ?? first()
 const mountains = new Mountains()
 scene.add(mountains.group)
-/** Any Titan by climb id: '' is the awake one, anything else a mountain. */
-const titanOf = (id: string) => (id === '' ? titan : mountains.get(id))
-const climber = new Climber(() => [{ id: '', titan }, ...mountains.targets()])
-/** Offline, with no server to run it, the wild Titan's mind runs here. */
-const brain = new TitanBrain(20261030)
-const titanLabel = document.createElement('div')
-titanLabel.className = 'label titan-name'
-document.getElementById('labels')!.appendChild(titanLabel)
-let titanName = ''
+/** Any Titan by id: an awake slot or a mountain. */
+const titanOf = (id: string) => titans.get(id)?.titan ?? mountains.get(id)
+const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
 
 const TITAN_CAM: CameraProfile = {
   minDist: 0.9 * TITAN_HEIGHT,
@@ -116,26 +139,30 @@ let role: Role = 'wanderer'
 /** Tools can walk the Titan while the player stays a Wanderer (offline only). */
 const autopilot = { forward: 0, turn: 0 }
 
-function setRole(next: Role): void {
+function setRole(next: Role, titanId = driving): void {
+  if (next === 'wanderer' && role === 'titan') {
+    // Step out beside the left foot of the Titan we were walking.
+    const t = mine()
+    const a = t.ankle(0)
+    const ox = a.x + Math.cos(t.gait.heading) * 0.12 * TITAN_HEIGHT
+    const oz = a.z - Math.sin(t.gait.heading) * 0.12 * TITAN_HEIGHT
+    wanderer.place(ox, terrain.heightAt(ox, oz), oz)
+  }
   role = next
+  driving = next === 'titan' ? titanId : ''
   if (role === 'titan') {
     if (climber.active) climber.release(0)
     wanderer.obj.visible = false
     rig.setProfile(TITAN_CAM)
-    rig.yaw = titan.gait.heading + Math.PI
+    rig.yaw = mine().gait.heading + Math.PI
     rig.pitch = 0.32
     sky.setShadowRadius(4.3 * TITAN_HEIGHT)
   } else {
-    // Step out beside the left foot.
-    const a = titan.ankle(0)
-    const ox = a.x + Math.cos(titan.gait.heading) * 0.12 * TITAN_HEIGHT
-    const oz = a.z - Math.sin(titan.gait.heading) * 0.12 * TITAN_HEIGHT
-    wanderer.place(ox, terrain.heightAt(ox, oz), oz)
     wanderer.obj.visible = true
     rig.setProfile(WANDERER_CAM)
     sky.setShadowRadius(260)
   }
-  hud.setRole(role, titan.gait.steps)
+  hud.setRole(role, mine().gait.steps)
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +231,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
 
 net.onTerrain = (e, replay) => onGait(e, replay)
 net.onChat = (m) => chat.add(m)
-net.onShrug = () => titan.shrug()
+net.onShrug = (id) => titans.get(id)?.titan.shrug()
 net.onCall = (c) => {
   hud.showCall(c.name, c.x, c.z)
   chat.system(`${c.name}, the Titan, calls out.`)
@@ -216,14 +243,19 @@ net.onSynced = (n) => {
 net.onPatch = () => {
   const s = net.state
   if (!s) return
-  titan.gait.restore(s.titan)
-  // Who walks it: a player's name, or nobody (it walks itself).
-  const driver = s.titan.driver ? s.players.get(s.titan.driver) : undefined
-  titanName = driver ? driver.name : s.titan.wild ? 'A wild Titan' : 'A waiting Titan'
+  let mineNow = ''
+  s.titans.forEach((st, id) => {
+    const a = titans.get(id) ?? addTitan(id, st.x, st.z, st.heading)
+    a.titan.gait.restore(st)
+    // Who walks it: a player's name, or nobody (it walks itself).
+    const driver = st.driver ? s.players.get(st.driver) : undefined
+    a.name = driver ? driver.name : st.wild ? 'A wild Titan' : 'A waiting Titan'
+    if (st.driver === net.sessionId) mineNow = id
+  })
   for (const id of mountains.sync(s.mountains)) holdOnAsItSleeps(id)
   remotes.ingest(s.players, net.sessionId)
   const me = net.me()
-  if (me && me.role !== role) setRole(me.role as Role)
+  if (me && (me.role !== role || (role === 'titan' && mineNow !== driving))) setRole(me.role as Role, mineNow)
   // The server refused a move (too fast, or flying): go back to where it has us.
   if (me && role === 'wanderer' && Math.hypot(me.x - wanderer.pos.x, me.z - wanderer.pos.z) > 12) {
     wanderer.place(me.x, me.y, me.z)
@@ -242,19 +274,29 @@ if (mode === 'connecting') {
   net.connect(Net.defaultUrl(), identity).then((ok) => {
     mode = ok ? 'online' : 'offline'
     if (!ok) wildOffline = true
-    chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the Titan.` : 'No server found: playing offline.')
+    chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the nearest Titan.` : 'No server found: playing offline.')
   })
 }
 
-function toggleRole(): void {
+/** Take the nearest free Titan (or the one named), or step out of yours. */
+function toggleRole(want?: string): void {
   const next: Role = role === 'titan' ? 'wanderer' : 'titan'
-  if (mode !== 'online') return setRole(next)
-  const driver = net.state?.titan.driver ?? ''
-  if (next === 'titan' && driver && driver !== net.sessionId) {
-    chat.system('Someone else is walking the Titan.')
+  if (next === 'wanderer') {
+    if (mode === 'online') net.requestRole('wanderer')
+    else setRole('wanderer')
     return
   }
-  net.requestRole(next) // the role changes when the server's patch says so
+  const taken = (id: string) => mode === 'online' && (net.state?.titans.get(id)?.driver ?? '') !== ''
+  const free = [...titans].filter(([id, a]) => !taken(id) && !a.titan.gait.resting)
+  const pick = want
+    ? free.find(([id]) => id === want)
+    : free.sort(([, a], [, b]) => Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z) - Math.hypot(b.titan.gait.x - wanderer.pos.x, b.titan.gait.z - wanderer.pos.z))[0]
+  if (!pick) {
+    chat.system('Every Titan has someone walking it.')
+    return
+  }
+  if (mode === 'online') net.requestRole('titan', pick[0]) // the role changes when the server's patch says so
+  else setRole('titan', pick[0])
 }
 
 addEventListener('resize', () => {
@@ -289,10 +331,10 @@ function simulate(dt: number): void {
       if (input.pressed('KeyC')) callOut()
       if (input.pressed('KeyX')) {
         if (mode === 'online') net.sendRest()
-        else titan.gait.resting = !titan.gait.resting
+        else mine().gait.resting = !mine().gait.resting
       }
     }
-    if (mode !== 'online') titan.gait.plough = ploughMode
+    if (mode !== 'online') mine().gait.plough = ploughMode
   } else if (climber.active) {
     if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
     else if (!chat.typing && input.pressed('Space')) letGo(4.5)
@@ -301,8 +343,8 @@ function simulate(dt: number): void {
         dt,
         input.axes(),
         rig.yaw,
-        climber.target?.id === '' ? titan.gait.speed / titan.gait.maxSpeed : 0,
-        climber.target?.id === '' && titan.shrugging,
+        heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0,
+        !!heldAwake()?.shrugging,
       )
     ) {
       chat.system('You lost your grip.')
@@ -322,31 +364,38 @@ function simulate(dt: number): void {
     }
   }
 
-  // Offline (no server found, or ?wild), an unattended Titan wanders by itself.
-  if (mode === 'offline' && wildOffline && role !== 'titan' && autopilot.forward === 0 && !titan.gait.resting) {
-    const o = brain.think(dt, titan.gait, {
-      heightAt: (x, z) => terrain.heightAt(x, z),
-      avoid: mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
-    })
-    gaitInput = o
-    titan.gait.plough = o.plough
-    if (o.stomp) titan.gait.stompArmed = true
-    if (o.call) {
-      hud.showCall('A wild Titan', titan.gait.x, titan.gait.z)
-      chat.system('A wild Titan calls out.')
+  for (const [id, a] of titans) {
+    const t = a.titan
+    const ours = role === 'titan' && id === driving
+    if (mode === 'online') {
+      // Extrapolate the server's Titans between patches. Their events are
+      // the server's to make; ours are thrown away.
+      const predict = ours ? gaitInput : { forward: t.gait.speed > 0.05 ? 1 : 0, turn: 0 }
+      discard.length = 0
+      t.step(dt, predict, discard)
+      continue
     }
-  }
-
-  if (mode === 'online') {
-    // Extrapolate the server's Titan between patches. Its events are the
-    // server's to make; ours are thrown away.
-    const t = titan.gait
-    const predict = role === 'titan' ? gaitInput : { forward: t.speed > 0.05 ? 1 : 0, turn: 0 }
-    discard.length = 0
-    titan.step(dt, predict, discard)
-  } else {
+    // Offline: we walk ours; tools drive slot 1 by autopilot; with no server
+    // found (or ?wild) the rest wander by themselves.
+    let inp: GaitInput = ours ? gaitInput : id === 't1' ? autopilot : { forward: 0, turn: 0 }
+    if (!ours && wildOffline && !(id === 't1' && autopilot.forward !== 0) && !t.gait.resting) {
+      const o = a.brain.think(dt, t.gait, {
+        heightAt: (x, z) => terrain.heightAt(x, z),
+        avoid: [
+          ...mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
+          ...[...titans.values()].filter((b) => b !== a).map((b) => ({ x: b.titan.gait.x, z: b.titan.gait.z, r: TITAN_HEIGHT * 2.5 })),
+        ],
+      })
+      inp = o
+      t.gait.plough = o.plough
+      if (o.stomp) t.gait.stompArmed = true
+      if (o.call) {
+        hud.showCall('A wild Titan', t.gait.x, t.gait.z)
+        chat.system('A wild Titan calls out.')
+      }
+    }
     gaitEvents.length = 0
-    titan.step(dt, gaitInput, gaitEvents)
+    t.step(dt, inp, gaitEvents)
     for (const ev of gaitEvents) onGait(ev)
   }
   lakes.step(dt)
@@ -356,17 +405,25 @@ const chest = new THREE.Vector3()
 
 const labelPos = new THREE.Vector3()
 const labelPx = { x: 0, y: 0 }
-/** "Morag_77 · TITAN · 1,412 STEPS", over the awake Titan's head (the reel's label). */
-function placeTitanLabel(): void {
-  const name = mode === 'online' ? titanName : role === 'titan' ? identity.name : wildOffline ? 'A wild Titan' : 'A waiting Titan'
-  labelPos.copy(titan.head)
-  labelPos.y += 0.12 * TITAN_HEIGHT
-  const dist = labelPos.distanceTo(camera.position)
-  const show = role !== 'titan' && dist < 5000 && !titan.gait.resting && toScreen(labelPos, camera, labelPx)
-  titanLabel.style.display = show ? 'block' : 'none'
-  if (!show) return
-  titanLabel.innerHTML = `<b>${name.replace(/[&<>]/g, '')}</b><small>TITAN · ${titan.gait.steps.toLocaleString()} STEPS</small>`
-  titanLabel.style.transform = `translate(-50%, -100%) translate(${labelPx.x}px, ${labelPx.y}px)`
+/** "Morag_77 · TITAN · 1,412 STEPS", over each awake Titan's head (the reel's label). */
+function placeTitanLabels(): void {
+  for (const [id, a] of titans) {
+    const t = a.titan
+    const name = mode === 'online' ? a.name : role === 'titan' && id === driving ? identity.name : wildOffline ? 'A wild Titan' : 'A waiting Titan'
+    labelPos.copy(t.head)
+    labelPos.y += 0.12 * TITAN_HEIGHT
+    const dist = labelPos.distanceTo(camera.position)
+    const show = !(role === 'titan' && id === driving) && dist < 5000 && !t.gait.resting && toScreen(labelPos, camera, labelPx)
+    a.label.style.display = show ? 'block' : 'none'
+    if (!show) continue
+    a.label.innerHTML = `<b>${name.replace(/[&<>]/g, '')}</b><small>TITAN · ${t.gait.steps.toLocaleString()} STEPS</small>`
+    a.label.style.transform = `translate(-50%, -100%) translate(${labelPx.x}px, ${labelPx.y}px)`
+  }
+}
+
+/** The awake Titan the climber holds, if any (mountains do not walk or shrug). */
+function heldAwake(): Titan | undefined {
+  return climber.target ? titans.get(climber.target.id)?.titan : undefined
 }
 
 /** Let go of the Titan: fall with its motion plus a push off the rock. */
@@ -388,12 +445,12 @@ function stomp(): void {
   if (now - lastStomp < STOMP_COOLDOWN_S * 1000) return
   lastStomp = now
   if (mode === 'online') stompRequest = true // goes out with the next Titan input
-  else titan.gait.stompArmed = true
+  else mine().gait.stompArmed = true
 }
 
 function callOut(): void {
   if (mode === 'online') return net.sendCall()
-  hud.showCall(identity.name, titan.gait.x, titan.gait.z)
+  hud.showCall(identity.name, mine().gait.x, mine().gait.z)
   chat.system(`${identity.name}, the Titan, calls out.`)
 }
 
@@ -404,25 +461,27 @@ function callOut(): void {
  */
 function holdOnAsItSleeps(id: string): void {
   const m = mountains.get(id)
-  if (!m || !climber.active || climber.target?.id !== '') return
+  if (!m || !climber.active || !heldAwake()) return
   if (Math.hypot(m.gait.x - climber.world.x, m.gait.z - climber.world.z) < TITAN_HEIGHT) climber.retarget({ id, titan: m })
 }
 
-/** Offline stand-in for the server's dormancy: the Titan sleeps here, a new one wakes. */
-function goDormant(): void {
-  const id = `local-${mountains.count + 1}`
-  mountains.add(id, { name: identity.name, since: Date.now(), pose: { ...titan.gait.snapshot({} as TitanSnapshot), resting: true } })
-  holdOnAsItSleeps(id)
-  onGait({ type: 'mountain', x: titan.gait.x, z: titan.gait.z })
+/** Offline stand-in for the server's dormancy: the Titan sleeps here, a new one wakes in its slot. */
+function goDormant(id = driving || 't1'): void {
+  const t = titans.get(id)?.titan
+  if (!t) return
+  const mid = `local-${mountains.count + 1}`
+  mountains.add(mid, { name: identity.name, since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
+  holdOnAsItSleeps(mid)
+  onGait({ type: 'mountain', x: t.gait.x, z: t.gait.z })
   const a = mountains.count * 2.4 + 0.7
-  titan.awaken(Math.cos(a) * 650, Math.sin(a) * 650, a + Math.PI)
-  titan.restBlend = 0
-  if (role === 'titan') setRole('wanderer')
+  t.awaken(Math.cos(a) * 650, Math.sin(a) * 650, a + Math.PI)
+  t.restBlend = 0
+  if (role === 'titan' && id === driving) setRole('wanderer')
 }
 
 function shrug(): void {
   if (mode === 'online') net.sendShrug() // comes back to everyone, us included
-  else titan.shrug()
+  else mine().shrug()
 }
 
 function frame(now: number): void {
@@ -453,9 +512,11 @@ function frame(now: number): void {
 
   // Render between the last two simulation states: on a 120 Hz display the
   // 60 Hz simulation would otherwise move the Wanderer every other frame.
-  titan.pose(terrain, dt)
-  titan.group.updateMatrixWorld(true)
-  titan.setLodFor(camera.position)
+  for (const a of titans.values()) {
+    a.titan.pose(terrain, dt)
+    a.titan.group.updateMatrixWorld(true)
+    a.titan.setLodFor(camera.position)
+  }
   mountains.update(terrain, camera, Date.now())
   if (climber.active) {
     // Glued to the hold through the Titan's pose of THIS frame.
@@ -469,15 +530,16 @@ function frame(now: number): void {
   water.update(dt)
   effects.update(dt)
   remotes.update(dt, camera, titanOf)
-  placeTitanLabel()
-  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, titan.gait.steps, remotes.climbers, {
-    plough: titan.gait.plough,
+  placeTitanLabels()
+  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role, mine().gait.steps, remotes.climbers, {
+    plough: mine().gait.plough,
     stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
   })
   hud.setGrip(climber.active ? climber.stamina : null)
 
   const look = input.consumeLook()
-  const focusBase = role === 'titan' ? tmpFocus.set(titan.gait.x, titan.pelvis.y - titan.body.hipHeight, titan.gait.z) : wanderer.obj.position
+  const t0 = mine()
+  const focusBase = role === 'titan' ? tmpFocus.set(t0.gait.x, t0.pelvis.y - t0.body.hipHeight, t0.gait.z) : wanderer.obj.position
   rig.update(dt, look.dx, look.dy, look.wheel, focusBase, terrain)
   terrainView.update(camera.position, ready ? 5 : 40)
   sky.follow(focusBase, camera)
@@ -520,11 +582,17 @@ const g = {
   input,
   rig,
   wanderer,
-  titan,
+  /** Slot 1, the Titan near spawn. */
+  get titan() {
+    return first()
+  },
+  titans,
+  get driving() {
+    return driving
+  },
   mountains,
   climber,
   goDormant,
-  brain,
   setWild(on: boolean) {
     wildOffline = on
   },
@@ -544,13 +612,14 @@ const g = {
   callOut,
   setPlough(on: boolean) {
     ploughMode = on
-    if (mode !== 'online') titan.gait.plough = on
+    if (mode !== 'online') for (const a of titans.values()) a.titan.gait.plough = on
   },
   teleport(x: number, z: number) {
     wanderer.place(x, terrain.heightAt(x, z), z)
   },
   /** Walk up to the Titan's left foot from outside and grab it. */
   grabTitan(): boolean {
+    const titan = first()
     titan.group.updateMatrixWorld(true)
     const foot = titan.part('footL')!
     const c = foot.lumps[0].c.clone().applyMatrix4(foot.mesh.matrixWorld)
@@ -576,7 +645,7 @@ const g = {
       x: climber.world.x,
       y: climber.world.y,
       z: climber.world.z,
-      height: climber.world.y - terrain.heightAt(titan.gait.x, titan.gait.z),
+      height: climber.world.y - terrain.heightAt(first().gait.x, first().gait.z),
     }
   },
   setCam(yaw: number, pitch: number, dist?: number) {
@@ -589,7 +658,7 @@ const g = {
     return { x: p.x, y: p.y, z: p.z, grounded: wanderer.grounded, speed: wanderer.speed }
   },
   titanState() {
-    const t = titan.gait
+    const t = first().gait
     return { x: t.x, z: t.z, heading: t.heading, speed: t.speed, steps: t.steps, plant: t.plant.map((p) => ({ ...p })) }
   },
   heightAt: (x: number, z: number) => terrain.heightAt(x, z),

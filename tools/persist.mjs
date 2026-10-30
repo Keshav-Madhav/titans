@@ -70,7 +70,7 @@ try {
   const A = await open(ctxA)
   const B = await open(ctxB)
 
-  await A.evaluate(() => window.__g.toggleRole())
+  await A.evaluate(() => window.__g.toggleRole('t1'))
   await A.waitForFunction(() => window.__g.role === 'titan', null, { timeout: 10000 })
   await A.evaluate(() => window.__g.input.press('KeyW'))
   await B.waitForFunction(() => window.__g.titanState().steps >= 4, null, { timeout: 90000 })

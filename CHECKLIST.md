@@ -117,6 +117,22 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
       reversed depth buffer (`client/src/screen.ts` now tests view-space depth)
 - [ ] Wildlife herds (steering + FSM), drawn to the lakes Titans make
 
+## Polish round (user: "fix up all the rough edges", 2026-10-30)
+- [x] Back-lit Titan read as a navy silhouette → sky/ground fill + shadowless skylight opposite the sun
+- [x] Boulders smooth and flat up close → tri-planar stone detail in part space, antialiased cracks,
+      derivative bump, faded with distance; three boulder LODs by camera distance
+- [x] Sitting read as a crouch → sat on the ground, legs forward, back straight
+- [x] Lakes dark at low angles → ripple normal map (procedural), lighter body, in-water glow
+- [x] ~1M triangles → quality governor (fps-driven; terrain split distance, chunk resolution 64/32,
+      pixel ratio, shadow size; `?quality=0|1|2`): 1.03M / 838k / 242k triangles
+- [x] Neighbouring lakes stuck as two → mutual full pairs settled by window depression-filling;
+      lakes gate now requires 0 mutual pairs
+- [x] Overflow vanished → streams drawn to the lake it feeds or out over the plain
+- [x] One awake Titan → N slots (`TITANS_COUNT`, default 2): nearest free on T, per-slot wild minds,
+      persistence, dormancy; MP gate: A and B walk two Titans at once, C sees both named
+- [x] Footfalls carry their heading vector (no per-engine Math.sin); chat names readable
+- [ ] Not code: free hosting (needs a provider choice); server-authoritative lake levels (design note)
+
 ## P11 — Settlement
 - [ ] Place a small building kit, persistent, with ownership
 

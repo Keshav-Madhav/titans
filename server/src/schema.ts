@@ -65,7 +65,8 @@ export type Mountain = SchemaType<typeof Mountain>
 export const WorldState = schema(
   {
     players: t.map(Player),
-    titan: TitanState,
+    /** Awake Titans by slot id ('t1', 't2', …). */
+    titans: t.map(TitanState),
     mountains: t.map(Mountain),
     seq: t.uint32(),
   },

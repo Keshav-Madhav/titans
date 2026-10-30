@@ -35,7 +35,10 @@ export interface RemotePlayer {
 
 interface WorldStateView {
   players: { forEach(cb: (p: RemotePlayer, id: string) => void): void; get(id: string): RemotePlayer | undefined }
-  titan: TitanSnapshot & { driver: string; wild: boolean }
+  titans: {
+    forEach(cb: (t: TitanSnapshot & { driver: string; wild: boolean }, id: string) => void): void
+    get(id: string): (TitanSnapshot & { driver: string; wild: boolean }) | undefined
+  }
   mountains: { forEach(cb: (m: { name: string; since: number; pose: string }, id: string) => void): void }
 }
 
@@ -49,8 +52,8 @@ export class Net {
   onSynced: (events: number) => void = () => {}
   /** Fired after each state patch from the server. */
   onPatch: () => void = () => {}
-  /** The Titan's driver heaved its shoulders. */
-  onShrug: () => void = () => {}
+  /** A Titan's driver heaved its shoulders (the Titan's slot id). */
+  onShrug: (titan: string) => void = () => {}
   /** A Titan called out. */
   onCall: (c: CallOut) => void = () => {}
 
@@ -84,7 +87,7 @@ export class Net {
       })
       room.onMessage(MSG.terrain, (e: TerrainEvent) => this.accept(e, false))
       room.onMessage(MSG.chat, (m: ChatOut) => this.onChat(m))
-      room.onMessage(MSG.shrug, () => this.onShrug())
+      room.onMessage(MSG.shrug, (m: { titan: string }) => this.onShrug(m?.titan ?? 't1'))
       room.onMessage(MSG.call, (c: CallOut) => this.onCall(c))
       room.onStateChange(() => this.onPatch())
       room.onLeave(() => {
@@ -131,8 +134,8 @@ export class Net {
     this.room?.send(MSG.shrug, {})
   }
 
-  requestRole(role: Role): void {
-    this.room?.send(MSG.role, { role })
+  requestRole(role: Role, titan?: string): void {
+    this.room?.send(MSG.role, { role, ...(titan ? { titan } : {}) })
   }
 
   sendChat(text: string): void {
