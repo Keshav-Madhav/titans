@@ -16,11 +16,29 @@ export class SkySystem {
 
   constructor(private readonly scene: THREE.Scene, private readonly renderer: THREE.WebGLRenderer) {
     this.sky.scale.setScalar(45000)
+    // The reel's sky is a muted, greyish blue (about rgb 62, 84, 109 high
+    // up), not the physical model's saturated cobalt: pull what we see of it
+    // toward grey. (The environment bake keeps the full colour for lighting.)
+    this.sky.material.fragmentShader = this.sky.material.fragmentShader.replace(
+      'gl_FragColor = vec4( texColor, 1.0 );',
+      `float skyL = dot( texColor, vec3( 0.2126, 0.7152, 0.0722 ) );
+      vec3 skyC = mix( vec3( skyL ), texColor, 0.55 );
+      // Pale only in a band at the horizon; deep, muted blue above it.
+      skyC *= mix( 1.0, 0.42, smoothstep( 0.02, 0.38, max( direction.y, 0.0 ) ) );
+      gl_FragColor = vec4( skyC, 1.0 );`,
+    )
     const u = this.sky.material.uniforms
-    u.turbidity.value = 2.6
+    // The reel's sky: deep blue overhead, a pale hazy band at the horizon.
+    u.turbidity.value = 3
     u.rayleigh.value = 1.1
-    u.mieCoefficient.value = 0.0028
-    u.mieDirectionalG.value = 0.82
+    u.mieCoefficient.value = 0.0025
+    u.mieDirectionalG.value = 0.72
+    // Its own cloud layer: scattered fair-weather cumulus far overhead and to
+    // the horizon (the billboard clouds in clouds.ts are the near, low ones).
+    u.cloudCoverage.value = 0.32
+    u.cloudDensity.value = 0.55
+    u.cloudScale.value = 0.00028
+    u.cloudSpeed.value = 0.00004
     this.sky.frustumCulled = false
     // Sky.js pins its depth to the far plane (z = w). Under a reversed depth
     // buffer that is the NEAR plane, so the sky must draw before everything
@@ -28,7 +46,8 @@ export class SkySystem {
     this.sky.renderOrder = -1
     scene.add(this.sky)
 
-    this.fog = new THREE.FogExp2(0xa9bccf, 0.00011)
+    // Density for the height haze in atmosphere.ts (linear, per metre at ground level).
+    this.fog = new THREE.FogExp2(0xa9bccf, 0.00016)
     scene.fog = this.fog
 
     const s = this.sun
@@ -44,11 +63,11 @@ export class SkySystem {
 
     // Fill: sky from above, warm ground bounce from below. Without it, a
     // Titan seen against the sun read as a navy silhouette.
-    this.fill = new THREE.HemisphereLight(0xc4d6ea, 0x8a7a5c, 0.6)
+    this.fill = new THREE.HemisphereLight(0xc9c4b6, 0x8a7656, 0.34)
     scene.add(this.fill)
     // Skylight from the side away from the sun: only faces turned from the
     // sun receive it, so back-lit stone lifts without washing out the lit side.
-    this.counter = new THREE.DirectionalLight(0xd2e0f0, 0.7)
+    this.counter = new THREE.DirectionalLight(0xdcd8d0, 0.26)
     scene.add(this.counter)
     scene.add(this.counter.target)
 
@@ -64,8 +83,8 @@ export class SkySystem {
 
     // Horizon haze picks up a warmer tint as the sun drops.
     const low = THREE.MathUtils.smoothstep(elevationDeg, 2, 30)
-    this.fog.color.setRGB(0.78 - 0.1 * low, 0.73 + 0.02 * low, 0.66 + 0.15 * low).convertSRGBToLinear()
-    this.sun.intensity = 0.6 + 2.9 * low
+    this.fog.color.setRGB(0.8 - 0.06 * low, 0.79 - 0.01 * low, 0.76 + 0.03 * low).convertSRGBToLinear()
+    this.sun.intensity = 0.8 + 3.5 * low
 
     this.bakeEnvironment()
   }
@@ -79,6 +98,11 @@ export class SkySystem {
     c.top = r
     c.bottom = -r
     c.updateProjectionMatrix()
+  }
+
+  /** Let the sky's clouds drift. */
+  tick(dt: number): void {
+    this.sky.material.uniforms.time.value += dt
   }
 
   /** Keep the shadow map centred on what the player is looking at. */
@@ -103,6 +127,12 @@ export class SkySystem {
     const envScene = new THREE.Scene()
     const sky = new Sky()
     sky.scale.setScalar(1000)
+    // Light from a less saturated sky: shadows in the reel are neutral grey,
+    // and a cobalt fill turned tan ground olive-green wherever the sun was blocked.
+    sky.material.fragmentShader = sky.material.fragmentShader.replace(
+      'gl_FragColor = vec4( texColor, 1.0 );',
+      'float envL = dot( texColor, vec3( 0.2126, 0.7152, 0.0722 ) ); gl_FragColor = vec4( mix( vec3( envL ), texColor, 0.35 ) * vec3( 1.04, 1.0, 0.94 ), 1.0 );',
+    )
     const src = this.sky.material.uniforms
     const dst = sky.material.uniforms
     for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG']) dst[k].value = src[k].value
@@ -118,7 +148,7 @@ export class SkySystem {
     this.envRT?.dispose()
     this.envRT = pmrem.fromScene(envScene, 0, 1, 2000)
     this.scene.environment = this.envRT.texture
-    this.scene.environmentIntensity = 0.5
+    this.scene.environmentIntensity = 0.32
     pmrem.dispose()
     ground.geometry.dispose()
     ;(ground.material as THREE.Material).dispose()

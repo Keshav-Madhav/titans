@@ -184,6 +184,25 @@ Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 fill
 - [x] Gates: `shot.mjs village` (3 villages with church/well/≥15 homes; your town 3 → 33 and the
       village to its cap in 20 simulated minutes; 36 calls); all other gates re-run green
 
+## Toward the reel (user, 2026-10-31: "see the reel again and keep striving to get closer to its visuals")
+`node tools/shot.mjs reel` recreates five reel shots (the giant on the plain, the trail of lakes,
+the square with a giant behind the cathedral, a climber, the mountain); `tools/sky-measure.mjs`
+measures sky colour against the reel's (about rgb 62, 84, 109 high up).
+- [x] Air: height haze with a warm glow toward the sun, patched into every material
+      (`atmosphere.ts`); ACES + a warm, slightly desaturated grade in CustomToneMapping; vignette
+- [x] Sky: muted reel blue graded by elevation (measured 57, 76, 111 away from the sun), the Sky
+      shader's own drifting cumulus; low billboard clouds about the giants' waists
+- [x] Light: stronger sun, weaker neutral fill — shadows read as shadows (were olive film)
+- [x] Land: arid tan-olive savanna; open plains about spawn, woods beyond
+- [x] Giants: 300 m (from 180), hulking gorilla build (shoulder hump, sunken head, arms to the
+      knees, pillar legs), sandstone with olive moss; mountains stand, red sandstone under snow
+- [x] Towns: 3–4 storey townhouses in terraces (≈52 per village), a twin-spired cathedral with a
+      rose window, cobbled streets and square (`pave` layer + cobble shader), green awnings,
+      brown-cloaked townsfolk; the single-player adventurer wears the reel's red
+- [x] Water: deep, sky-mirroring blue; labels with the reel's leader line; debug readout hidden (`)
+- [x] Scaled for 300 m: climbing 3 m/s and a slower grip drain (shoulders reachable on one grip),
+      lake caps (9 ha), growth cap 110; all gates re-run green
+
 ## P12 — Beta polish → Beta 1
 - [x] Clouds: cumulus clusters of billboard puffs (lit crowns, shaded bases) at a Titan's waist,
       drifting, wrapping round the camera, fading into the haze

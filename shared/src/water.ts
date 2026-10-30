@@ -39,14 +39,14 @@ export interface Basin {
 }
 
 /**
- * The largest basin a flood will grow (≈ 4 ha). Past it, water is spreading
+ * The largest basin a flood will grow (≈ 9 ha). Past it, water is spreading
  * into natural lowland: the flood stops there with no exit, so that water
  * counts as running off (the river phase will route it). This world is dry
  * until Titans bring water; its natural hollows are not lakes.
  */
-const MAX_CELLS = 40000
-/** Largest natural hollow that spill may turn into a new pool (≈ 0.8 ha). */
-const POOL_MAX = 8000
+const MAX_CELLS = 90000
+/** Largest natural hollow that spill may turn into a new pool (≈ 1.6 ha). */
+const POOL_MAX = 16000
 /** Smaller hollows fill at once; water runs on past them. */
 const POOL_MIN = 40
 

@@ -60,17 +60,18 @@ export class WaterView {
   private streamCheck = 0
   private readonly ripples = rippleNormals()
   private readonly material = new THREE.MeshStandardMaterial({
-    color: 0x4a8aa6,
-    roughness: 0.09,
-    metalness: 0,
-    envMapIntensity: 2.2,
+    // The reel's water: a deep, sky-mirroring blue, not a pale film.
+    color: 0x2c5a80,
+    roughness: 0.05,
+    metalness: 0.1,
+    envMapIntensity: 2.6,
     // Light scattered inside the water: without it, a lake seen from above was
     // only its dark body colour and read as a hole.
-    emissive: 0x123a4a,
+    emissive: 0x0d2a40,
     normalMap: this.ripples,
-    normalScale: new THREE.Vector2(0.28, 0.28),
+    normalScale: new THREE.Vector2(0.22, 0.22),
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.95,
   })
   private t = 0
 

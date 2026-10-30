@@ -18,6 +18,12 @@
       body { font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); }
       canvas#game { display: block; width: 100vw; height: 100vh; outline: none; }
 
+      #vignette {
+        position: fixed; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(20, 16, 10, 0.32) 100%);
+      }
+      #perf { display: none; }
+      body.debug #perf { display: block; }
       #perf {
         position: fixed; top: 10px; left: 10px; padding: 6px 9px; border-radius: 6px;
         background: var(--panel); font: 11px/1.45 ui-monospace, 'SF Mono', Menlo, monospace;
@@ -45,6 +51,12 @@
         background: rgba(18, 20, 26, 0.5); color: var(--ink); font-size: 11px; font-weight: 600; display: none;
       }
       .label.climbing { background: rgba(242, 193, 78, 0.85); color: #1b1b1b; }
+      /* The reel's name tag: a short leader line from the giant up to the name. */
+      .label.mountain::before, .label.titan-name::before {
+        content: ''; position: absolute; left: -14px; bottom: -12px; width: 22px; height: 1.5px;
+        background: rgba(255, 255, 255, 0.9); transform: rotate(-52deg); transform-origin: left center;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+      }
       .label.mountain, .label.titan-name { background: none; text-align: left; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); font-size: 13px; }
       .label.mountain b, .label.titan-name b { display: block; font-size: 15px; }
       .label.mountain small, .label.titan-name small { display: block; font-size: 10px; letter-spacing: 0.14em; opacity: 0.85; }
@@ -136,6 +148,7 @@
   </head>
   <body>
     <canvas id="game" tabindex="0"></canvas>
+    <div id="vignette"></div>
     <div id="perf"></div>
     <div id="role"></div>
     <div id="hint"></div>

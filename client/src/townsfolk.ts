@@ -15,11 +15,11 @@ import { cloakedBodyGeometry } from './wanderer'
 import type { Settlement } from './settlement'
 import type { Threat } from './wildlife'
 
-const CLOAKS = [0x6b5a45, 0x5c6b4a, 0x7a5f4a, 0x4f5a66, 0x80704f, 0x6a4f5a, 0x8a4a3a, 0x3f5f5a]
+const CLOAKS = [0x6e5e48, 0x7a6a52, 0x5f5546, 0x84755c, 0x6a6458, 0x5b4e40, 0x8a7a60, 0x4f4a42]
 const WALK = 1.4
 const RUN = 5
 const ACTIVE_R = 420
-const MAX_FOLK = 140
+const MAX_FOLK = 260
 
 interface Person {
   x: number
@@ -87,7 +87,7 @@ export class Townsfolk {
     const want: Array<{ home: number; merchant: boolean }> = []
     b.forEach((q, i) => {
       if (q.kind === 'hut') want.push({ home: i, merchant: false })
-      else if (q.kind === 'house') want.push({ home: i, merchant: false }, { home: i, merchant: false })
+      else if (q.kind === 'house' || q.kind === 'townhouse') want.push({ home: i, merchant: false }, { home: i, merchant: false })
       else if (q.kind === 'stall') want.push({ home: i, merchant: true })
     })
     want.length = Math.min(want.length, MAX_FOLK)

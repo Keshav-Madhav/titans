@@ -116,7 +116,8 @@ world is dry until Titans bring water), and the river phase will route it.
 
 ## 6. Titans and Wanderers
 
-- **Scale:** Wanderer 1.8 m. Titans start at **180 m** (raised from 120 m at the user's request;
+- **Scale:** Wanderer 1.8 m. Titans start at **300 m** (120 → 180 at the user's request, then 300
+  to match the reel's giants, whose waists are among the clouds;
   spec range: 30 m to kilometres; more scale is a progression axis). A 180 m Titan drags 50 m
   strides about 5.4 s apart (≈ 9 m/s): dynamic similarity says time ∝ √size, and the extra factor
   is weight. Slowness is part of how it reads as huge.

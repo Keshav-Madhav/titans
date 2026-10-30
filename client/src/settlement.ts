@@ -11,25 +11,26 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { inBasin, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
 import type { PaintField } from './paint'
 
-export type BuildingKind = 'hut' | 'house' | 'well' | 'tower' | 'church' | 'stall' | 'windmill' | 'field'
-export const KINDS: BuildingKind[] = ['hut', 'house', 'well', 'tower', 'church', 'stall', 'windmill', 'field']
+export type BuildingKind = 'hut' | 'house' | 'townhouse' | 'well' | 'tower' | 'church' | 'stall' | 'windmill' | 'field'
+export const KINDS: BuildingKind[] = ['hut', 'house', 'townhouse', 'well', 'tower', 'church', 'stall', 'windmill', 'field']
 export const KIND_NAME: Record<BuildingKind, string> = {
   hut: 'Hut',
   house: 'House',
+  townhouse: 'Townhouse',
   well: 'Well',
   tower: 'Watchtower',
-  church: 'Church',
+  church: 'Cathedral',
   stall: 'Market stall',
   windmill: 'Windmill',
   field: 'Field',
 }
 
 /** Footprint radius (m) per kind: placement spacing and crush test. */
-const RADIUS: Record<BuildingKind, number> = { hut: 3.8, house: 5.4, well: 1.8, tower: 3.2, church: 8, stall: 2.4, windmill: 4, field: 12 }
+const RADIUS: Record<BuildingKind, number> = { hut: 3.8, house: 5.4, townhouse: 4.1, well: 1.8, tower: 3.2, church: 14, stall: 2.4, windmill: 4, field: 12 }
 /** How far from its centre a town may grow, and how near water a new one must start. */
 export const TOWN_RADIUS = 140
 const WATER_NEAR = 110
-const MAX_BUILDINGS = 44
+const MAX_BUILDINGS = 110
 /** Seconds between new buildings in a growing town. */
 const GROW_EVERY = 40
 
@@ -61,7 +62,7 @@ export interface SettlementSave {
   v: 2
   towns: Array<Omit<Town, 'growTimer'>>
   buildings: Array<{ kind: BuildingKind; x: number; z: number; rot: number; town: number }>
-  roads: Array<[number, number, number, number, number]>
+  roads: Array<[number, number, number, number, number, number?]>
 }
 
 /** A save from before towns could be many (one player town). */
@@ -80,8 +81,10 @@ const C = {
   thatch: 0xb39657,
   dark: 0x2e2620,
   cloth: 0xe9e2cf,
-  red: 0xa8432f,
-  ochre: 0xc49a3b,
+  red: 0x5d7a4c, // awnings: the reel's market greens
+  ochre: 0xd9cfae,
+  cathedral: 0xb9b2a4,
+  cream: 0xe8dcc0,
   wheat: 0xc8a957,
   crop: 0x6e8a36,
 }
@@ -147,17 +150,59 @@ function model(kind: BuildingKind, seed = 0): THREE.Group {
       add('dark', new THREE.BoxGeometry(1.1, 2, 0.3).translate(0, 1, 2.15))
       add('dark', new THREE.BoxGeometry(0.6, 1, 0.3).translate(0, 8, 2.15))
       break
-    case 'church':
-      // A nave, and a bell tower with a slate spire over the door.
-      add('timber', new THREE.BoxGeometry(7.4, 0.8, 13.4).translate(0, 0.4, -1.5))
-      add('wall', new THREE.BoxGeometry(7, 5.5, 13).translate(0, 3.55, -1.5))
-      add('slate', gable(8, 13.8, 3.6).translate(0, 6.3, -1.5))
-      add('stone', new THREE.BoxGeometry(3.8, 11, 3.8).translate(0, 5.5, 5.6))
-      add('slate', new THREE.ConeGeometry(2.9, 7.5, 4).rotateY(Math.PI / 4).translate(0, 14.75, 5.6))
-      add('dark', new THREE.BoxGeometry(1.6, 2.6, 0.3).translate(0, 1.3, 7.55))
-      add('dark', new THREE.BoxGeometry(0.9, 1.3, 0.3).translate(0, 9, 7.55))
-      for (const z of [-5, -1.5, 2]) for (const x of [-3.55, 3.55]) add('dark', new THREE.BoxGeometry(0.2, 2, 0.8).translate(x, 3.6, z))
+    case 'church': {
+      // A cathedral, as in the reel: a tall nave, twin west towers with
+      // spires, a rose window between them, lancet windows down the sides.
+      const L = 26
+      const W = 11
+      add('stone', new THREE.BoxGeometry(W + 0.6, 1, L + 0.6).translate(0, 0.5, -L / 2 + 4))
+      add('cathedral', new THREE.BoxGeometry(W, 13, L).translate(0, 7.5, -L / 2 + 4))
+      add('slate', gable(W + 1, L + 0.6, 7).translate(0, 14, -L / 2 + 4))
+      for (const x of [-4.2, 4.2]) {
+        add('cathedral', new THREE.BoxGeometry(5, 23, 5).translate(x, 11.5, 5.5))
+        add('slate', new THREE.ConeGeometry(2.6, 13, 8).translate(x, 29.5, 5.5))
+        for (const y of [8, 15, 20]) add('dark', new THREE.BoxGeometry(0.9, 2.6, 0.3).translate(x, y, 8.05))
+      }
+      add('cathedral', new THREE.BoxGeometry(3.6, 17, 2).translate(0, 8.5, 5.9))
+      add('slate', gable(4, 2.4, 3).rotateY(Math.PI / 2).translate(0, 17, 5.9))
+      add('dark', new THREE.CircleGeometry(1.5, 20).translate(0, 12.5, 6.95))
+      add('dark', new THREE.BoxGeometry(2.2, 4, 0.3).translate(0, 2.4, 6.95))
+      add('dark', new THREE.CylinderGeometry(1.1, 1.1, 0.3, 14, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, 4.4, 6.95))
+      for (let i = 0; i < 6; i++) {
+        const z = 1 - i * 4
+        for (const x of [-W / 2 - 0.05, W / 2 + 0.05]) add('dark', new THREE.BoxGeometry(0.2, 4.5, 1.1).translate(x, 8, z))
+        // Buttresses.
+        for (const x of [-W / 2 - 0.5, W / 2 + 0.5]) add('stone', new THREE.BoxGeometry(1, 9, 1.2).translate(x, 4.5, z - 2))
+      }
       break
+    }
+    case 'townhouse': {
+      // Three or four storeys, a grid of windows, dormers in a steep slate
+      // roof: the reel's terraces. Front (the door) faces +Z, to the street.
+      const n = 3 + (rand() < 0.45 ? 1 : 0)
+      const w = 7.6
+      const d = 9.4
+      const hgt = n * 3.2
+      add('stone', new THREE.BoxGeometry(w + 0.2, 0.9, d + 0.2).translate(0, 0.45, 0))
+      add(rand() < 0.8 ? 'wall' : 'cream', new THREE.BoxGeometry(w, hgt, d).translate(0, 0.9 + hgt / 2, 0))
+      add('slate', gable(d + 0.7, w + 0.5, 4.2).rotateY(Math.PI / 2).translate(0, 0.9 + hgt, 0))
+      add('stone', new THREE.BoxGeometry(0.9, 2.2, 0.9).translate(w * 0.3, 0.9 + hgt + 3.4, -1.2))
+      for (let k = 0; k < n; k++) {
+        const y = 0.9 + k * 3.2 + 1.75
+        for (const x of [-2.5, 0, 2.5]) {
+          if (k === 0 && x === 0) continue
+          for (const z of [d / 2 + 0.03, -d / 2 - 0.03]) add('dark', new THREE.BoxGeometry(1, 1.55, 0.12).translate(x, y, z))
+        }
+        for (const zz of [-2.6, 2.6]) for (const x of [w / 2 + 0.03, -w / 2 - 0.03]) add('dark', new THREE.BoxGeometry(0.12, 1.55, 1).translate(x, y, zz))
+      }
+      add('dark', new THREE.BoxGeometry(1.3, 2.3, 0.15).translate(0, 2.05, d / 2 + 0.04))
+      for (const x of [-2.2, 2.2]) {
+        add('wall', new THREE.BoxGeometry(1.4, 1.6, 1.4).translate(x, 0.9 + hgt + 1.5, d / 2 - 1.1))
+        add('slate', gable(1.7, 1.7, 0.9).translate(x, 0.9 + hgt + 2.3, d / 2 - 1.1))
+        add('dark', new THREE.BoxGeometry(0.7, 0.9, 0.1).translate(x, 0.9 + hgt + 1.5, d / 2 - 0.38))
+      }
+      break
+    }
     case 'stall': {
       for (const x of [-1.6, 1.6]) for (const z of [-1.1, 1.1]) add('timber', new THREE.BoxGeometry(0.15, 2.4, 0.15).translate(x, 1.2, z))
       add('timber', new THREE.BoxGeometry(3.3, 0.9, 1.6).translate(0, 0.45, 0.2))
@@ -214,7 +259,8 @@ export class Settlement {
   readonly buildings: Building[] = []
   readonly towns: Town[] = []
   /** Painted roads (kept to save and to repaint). */
-  readonly roads: Array<[number, number, number, number, number]> = []
+  /** Painted roads: ax, az, bx, bz, width, and 1 if cobbled (kept to save and repaint). */
+  readonly roads: Array<[number, number, number, number, number, number?]> = []
   /**
    * Each town is drawn as one merged mesh per material (a whole village in a
    * dozen draw calls), rebuilt when a building goes up, falls or settles.
@@ -234,6 +280,8 @@ export class Settlement {
     private readonly terrain: Terrain,
     private readonly lakes: LakeSystem,
     private readonly paint: PaintField,
+    /** Cobbles: town streets and squares. */
+    private readonly pave: PaintField,
   ) {
     this.group.name = 'settlement'
   }
@@ -294,7 +342,7 @@ export class Settlement {
     }
     if (hi - lo > (kind === 'well' || kind === 'stall' ? 1.2 : kind === 'field' ? 3 : 2.4)) return 'Too steep to build on.'
     // Streets stay open (wells and stalls belong on the square).
-    if (kind !== 'well' && kind !== 'stall' && this.paint.at(x, z) > 0.5) return 'That is the street.'
+    if (kind !== 'well' && kind !== 'stall' && (this.paint.at(x, z) > 0.5 || this.pave.at(x, z) > 0.5)) return 'That is the street.'
     for (const b of this.buildings) if (Math.hypot(b.x - x, b.z - z) < RADIUS[b.kind] + r + 0.8) return `Too close to the ${KIND_NAME[b.kind].toLowerCase()}.`
     return null
   }
@@ -473,9 +521,13 @@ export class Settlement {
     if (near) this.road(near.x, near.z, 0, 0, 3)
   }
 
-  private road(ax: number, az: number, bx: number, bz: number, w: number): void {
-    this.roads.push([ax, az, bx, bz, w])
-    this.paint.line(ax, az, bx, bz, w)
+  private road(ax: number, az: number, bx: number, bz: number, w: number, cobbled = false): void {
+    this.roads.push(cobbled ? [ax, az, bx, bz, w, 1] : [ax, az, bx, bz, w])
+    this.paintRoad(ax, az, bx, bz, w, cobbled)
+  }
+
+  private paintRoad(ax: number, az: number, bx: number, bz: number, w: number, cobbled: boolean): void {
+    ;(cobbled ? this.pave : this.paint).line(ax, az, bx, bz, w)
   }
 
   private village(cx: number, cz: number, rand: () => number): void {
@@ -485,11 +537,11 @@ export class Settlement {
     const fz = Math.cos(dir)
     const px = fz
     const pz = -fx
-    const L = 100
-    this.road(cx - fx * L, cz - fz * L, cx + fx * L, cz + fz * L, 5)
-    this.road(cx - px * 55, cz - pz * 55, cx + px * 55, cz + pz * 55, 4)
-    this.paint.disc(cx, cz, 13)
-    this.roads.push([cx, cz, cx, cz, 26])
+    const L = 112
+    // Cobbled streets through town and a cobbled square; dirt roads beyond.
+    this.road(cx - fx * L, cz - fz * L, cx + fx * L, cz + fz * L, 7, true)
+    this.road(cx - px * 70, cz - pz * 70, cx + px * 70, cz + pz * 70, 6, true)
+    this.road(cx, cz, cx, cz, 40, true)
     const put = (kind: BuildingKind, x: number, z: number, rot: number, jitter = 3) => {
       for (let k = 0; k < 6; k++) {
         const jx = x + (k ? (rand() - 0.5) * jitter : 0)
@@ -501,41 +553,53 @@ export class Settlement {
       }
       return false
     }
-    // The square: a well, stalls round it, the church on one side facing in.
+    // The square: a well, stalls round it, the cathedral on one corner, its west front to the well.
     put('well', cx, cz, 0, 0)
-    for (let i = 0; i < 3; i++) {
-      const a = dir + Math.PI / 4 + (i * Math.PI) / 2
-      put('stall', cx + Math.sin(a) * 9, cz + Math.cos(a) * 9, a + Math.PI, 1.5)
+    for (let i = 0; i < 4; i++) {
+      const a = dir + Math.PI / 4 + (i * Math.PI) / 2 + 0.35
+      put('stall', cx + Math.sin(a) * 12, cz + Math.cos(a) * 12, a + Math.PI, 1.5)
     }
-    // The church on a corner of the square (between the streets), its door to the well.
     const qx = (fx + px) * 0.7071
     const qz = (fz + pz) * 0.7071
-    put('church', cx + qx * 23, cz + qz * 23, Math.atan2(-qx, -qz), 3)
-    // Houses along both streets, doors to the street.
+    put('church', cx + qx * 38, cz + qz * 38, Math.atan2(-qx, -qz), 2)
+    // Terraces of tall townhouses along both streets, doors to the street.
     const along = (sx: number, sz: number, ox: number, oz: number, n: number, start: number) => {
       for (let i = 0; i < n; i++) {
-        const s = start + i * 14
+        const s = start + i * 9
         for (const side of [-1, 1]) {
-          const x = cx + sx * s + ox * side * 11
-          const z = cz + sz * s + oz * side * 11
-          put(rand() < 0.7 ? 'house' : 'hut', x, z, Math.atan2(-ox * side, -oz * side), 2.5)
+          const x = cx + sx * s + ox * side * 10
+          const z = cz + sz * s + oz * side * 10
+          put(rand() < 0.88 ? 'townhouse' : 'house', x, z, Math.atan2(-ox * side, -oz * side), 0.6)
         }
       }
     }
-    along(fx, fz, px, pz, 5, 26)
-    along(-fx, -fz, px, pz, 5, 26)
-    along(px, pz, fx, fz, 2, 40)
-    along(-px, -pz, fx, fz, 2, 40)
-    t.grown = 5
+    along(fx, fz, px, pz, 9, 24)
+    along(-fx, -fz, px, pz, 9, 24)
+    along(px, pz, fx, fz, 5, 24)
+    along(-px, -pz, fx, fz, 5, 24)
+    // A second row behind each street side, for a denser town.
+    const behind = (sx: number, sz: number, ox: number, oz: number, n: number, start: number) => {
+      for (let i = 0; i < n; i++) {
+        const s = start + i * 9
+        for (const side of [-1, 1]) {
+          const x = cx + sx * s + ox * side * 28
+          const z = cz + sz * s + oz * side * 28
+          put(rand() < 0.6 ? 'townhouse' : rand() < 0.6 ? 'house' : 'hut', x, z, Math.atan2(ox * side, oz * side), 1.5)
+        }
+      }
+    }
+    behind(fx, fz, px, pz, 7, 40)
+    behind(-fx, -fz, px, pz, 7, 40)
+    t.grown = 9
     // A windmill on the edge of town, fields beyond the houses.
-    put('windmill', cx + fx * (L + 20) + px * 22, cz + fz * (L + 20) + pz * 22, dir + Math.PI, 8)
+    put('windmill', cx + fx * (L + 22) + px * 26, cz + fz * (L + 22) + pz * 26, dir + Math.PI, 8)
     for (const [s, side] of [
       [1, 1],
       [1, -1],
       [-1, 1],
       [-1, -1],
     ]) {
-      put('field', cx + fx * s * 70 + px * side * 42, cz + fz * s * 70 + pz * side * 42, dir, 10)
+      put('field', cx + fx * s * 85 + px * side * 55, cz + fz * s * 85 + pz * side * 55, dir, 10)
     }
   }
 
@@ -552,7 +616,7 @@ export class Settlement {
       }
     }
     if (hi - lo > (kind === 'field' ? 3.5 : 2.6)) return 'steep'
-    if (kind !== 'well' && kind !== 'stall' && this.paint.at(x, z) > 0.5) return 'street'
+    if (kind !== 'well' && kind !== 'stall' && (this.paint.at(x, z) > 0.5 || this.pave.at(x, z) > 0.5)) return 'street'
     for (const b of this.buildings) if (Math.hypot(b.x - x, b.z - z) < RADIUS[b.kind] + r + 0.8) return 'crowded'
     return null
   }
@@ -564,7 +628,7 @@ export class Settlement {
     for (const t of this.towns) {
       const mine = this.buildings.filter((b) => b.town === t.id)
       if (mine.length >= MAX_BUILDINGS || !mine.some((b) => b.kind === 'well')) continue
-      if (mine.filter((b) => b.kind === 'house' || b.kind === 'hut').length < (t.player ? 2 : 3)) continue
+      if (mine.filter((b) => b.kind === 'house' || b.kind === 'hut' || b.kind === 'townhouse').length < (t.player ? 2 : 3)) continue
       t.growTimer -= dt
       if (t.growTimer > 0) continue
       t.growTimer = GROW_EVERY
@@ -599,13 +663,13 @@ export class Settlement {
       let rot: number
       if (!t.player) {
         // Extend the main street outward, a plot at a time, both ends, both sides.
-        const s = 26 + Math.floor(t.grown / 4) * 14
+        const s = 24 + Math.floor(t.grown / 4) * 9
         const end = t.grown % 2 ? 1 : -1
         const side = (t.grown >> 1) % 2 ? 1 : -1
-        x = t.cx + fx * end * s + px * side * 11
-        z = t.cz + fz * end * s + pz * side * 11
+        x = t.cx + fx * end * s + px * side * 10
+        z = t.cz + fz * end * s + pz * side * 10
         rot = Math.atan2(-px * side, -pz * side)
-        if (s > 100) this.road(t.cx + fx * end * (s - 14), t.cz + fz * end * (s - 14), t.cx + fx * end * (s + 4), t.cz + fz * end * (s + 4), 5)
+        if (s > 108) this.road(t.cx + fx * end * (s - 9), t.cz + fz * end * (s - 9), t.cx + fx * end * (s + 4), t.cz + fz * end * (s + 4), 7, true)
       } else {
         // A player's town grows in rings about its first building, a path to each door.
         const ring = 1 + Math.floor(t.grown / 8)
@@ -616,7 +680,7 @@ export class Settlement {
         rot = a + Math.PI
       }
       if (Math.hypot(x - t.cx, z - t.cz) > TOWN_RADIUS) continue
-      const kind: BuildingKind = rand() < 0.65 ? 'house' : 'hut'
+      const kind: BuildingKind = !t.player ? 'townhouse' : rand() < 0.65 ? 'house' : 'hut'
       if (this.whyNotGen(kind, x, z) || this.wet(x, z)) continue
       if (t.player) this.road(x + Math.sin(rot) * (RADIUS[kind] + 1), z + Math.cos(rot) * (RADIUS[kind] + 1), t.cx, t.cz, 2.4)
       return this.add(kind, x, z, rot, t.id)
@@ -690,8 +754,8 @@ export class Settlement {
     }
     for (const r of s.roads) {
       this.roads.push(r)
-      if (r[4] > 20) this.paint.disc(r[0], r[1], r[4] / 2)
-      else this.paint.line(r[0], r[1], r[2], r[3], r[4])
+      // (Older saves marked the square as a 26 m-wide dot of dirt.)
+      this.paintRoad(r[0], r[1], r[2], r[3], r[4], r[5] === 1)
     }
     for (const b of s.buildings) this.add(b.kind, b.x, b.z, b.rot, b.town)
   }

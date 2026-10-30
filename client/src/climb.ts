@@ -15,10 +15,10 @@ import * as THREE from 'three'
 import type { LumpSurface, Titan, TitanPart } from './titan'
 
 const GRAB_REACH = 1.8 // metres from the climber's chest to rock
-const CLIMB_SPEED = 1.9
+const CLIMB_SPEED = 3.0 // a 300 m giant: fast enough to reach the shoulders on one grip
 const TOP_SPEED = 3.2
 const TOP_NORMAL = 0.62 // surface normal.y above this: standing on top
-const DRAIN_STEEP = 0.011 // per second on steep rock, Titan still
+const DRAIN_STEEP = 0.007 // per second on steep rock, Titan still
 const DRAIN_MOVING = 0.025 // extra per second at the Titan's full stride
 const DRAIN_SHRUG = 0.6 // extra per second while it shrugs (upper body holds)
 const REGEN_TOP = 0.22

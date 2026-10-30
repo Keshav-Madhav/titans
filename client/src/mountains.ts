@@ -51,8 +51,9 @@ export class Mountains {
   add(id: string, info: MountainInfo): void {
     const p = info.pose
     const titan = new Titan(TITAN_HEIGHT, p.x, p.z, p.heading, 7, 1)
-    titan.gait.restore({ ...p, resting: true })
-    titan.restBlend = 1
+    // Mountains stand, as in the reel: a giant turned to stone mid-stride.
+    titan.gait.restore({ ...p, resting: false, swinging: false })
+    titan.restBlend = 0
     const label = document.createElement('div')
     label.className = 'label mountain'
     this.layer.appendChild(label)
@@ -79,7 +80,7 @@ export class Mountains {
       e.label.style.display = show ? 'block' : 'none'
       if (!show) continue
       e.label.innerHTML = `<b>${escapeHtml(e.info.name)}</b><small>DORMANT · ${slept(now - e.info.since)}</small>`
-      e.label.style.transform = `translate(-50%, -100%) translate(${this.px.x}px, ${this.px.y}px)`
+      e.label.style.transform = `translate(14px, -100%) translate(${this.px.x}px, ${this.px.y - 14}px)`
     }
   }
 

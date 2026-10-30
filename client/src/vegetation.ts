@@ -87,8 +87,8 @@ function smooth(g: THREE.BufferGeometry): THREE.BufferGeometry {
 }
 
 const TRUNK = 0x5a4430
-const PINE = 0x2f4a2c
-const LEAF = 0x4f6a30
+const PINE = 0x34432b
+const LEAF = 0x58602f
 const SRGB = THREE.SRGBColorSpace
 
 const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
@@ -185,6 +185,7 @@ export class Vegetation {
     private readonly biome: Biome,
     private readonly lakes: LakeSystem,
     private readonly paint: PaintField,
+    private readonly pave: PaintField,
     /** Something built here (no plant may stand on it). */
     private readonly occupied: (x: number, z: number) => boolean,
   ) {
@@ -332,7 +333,7 @@ export class Vegetation {
     const h = this.terrain.heightAt(x, z)
     if (h > maxH) return null
     if (Math.abs(this.terrain.delta.sample(x, z)) > 0.6) return null
-    if (this.paint.at(x, z) > 0.25) return null
+    if (this.paint.at(x, z) > 0.25 || this.pave.at(x, z) > 0.1) return null
     if (this.occupied(x, z)) return null
     if (this.wet(x, z, 0)) return null
     const sx = this.terrain.heightAt(x + 2, z) - h
@@ -452,7 +453,7 @@ export class Vegetation {
       } else {
         // Grass, from dry gold to green with the meadow, a touch darker than the ground (sRGB).
         const v = 0.88 + rand() * 0.2
-        this.col.setRGB((0.55 + (1 - meadow) * 0.12) * v, (0.6 + meadow * 0.05) * v, (0.27 + (1 - meadow) * 0.04) * v, SRGB)
+        this.col.setRGB((0.6 + (1 - meadow) * 0.12) * v, (0.58 + meadow * 0.04) * v, (0.3 + (1 - meadow) * 0.04) * v, SRGB)
       }
       const sc = 0.55 + rand() * 0.55
       this.add(b, x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.6), this.col)

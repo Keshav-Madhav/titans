@@ -51,6 +51,7 @@ import { Sound } from './audio'
 import { Tips } from './tips'
 import { toScreen } from './screen'
 import { Quality } from './quality'
+import { installAtmosphere } from './atmosphere'
 import { Menu } from './menu'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
@@ -67,8 +68,9 @@ const renderer = new THREE.WebGLRenderer({
   reversedDepthBuffer: params.get('rdb') !== '0',
 })
 renderer.setSize(innerWidth, innerHeight, false)
-renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 0.82
+// ACES plus the reel's grade (atmosphere.ts patches CustomToneMapping).
+renderer.toneMapping = THREE.CustomToneMapping
+renderer.toneMappingExposure = 0.84
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap
 
@@ -80,10 +82,13 @@ const terrainView = new TerrainView(terrain, WORLD_SEED)
 scene.add(terrainView.group)
 const biome = new Biome(WORLD_SEED)
 const paint = new PaintField()
+const pave = new PaintField()
 terrainView.biome = biome
 terrainView.paint = paint
+terrainView.pave = pave
 
 const sky = new SkySystem(scene, renderer)
+installAtmosphere(sky.sunDir)
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 
 const lakes = new LakeSystem(terrain.cellHeight)
@@ -93,7 +98,7 @@ const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
 const wildlife = new Wildlife(terrain, lakes)
 scene.add(wildlife.group)
-const settlement = new Settlement(terrain, lakes, paint)
+const settlement = new Settlement(terrain, lakes, paint, pave)
 scene.add(settlement.group)
 const townsfolk = new Townsfolk(terrain, settlement)
 scene.add(townsfolk.group)
@@ -110,11 +115,11 @@ settlement.onGrow = (t, b) => {
 }
 const clouds = new Clouds()
 scene.add(clouds.mesh)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, (x, z) => settlement.occupies(x, z))
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => settlement.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
 quality.refresh()
-paint.onPaint = (x0, z0, x1, z1) => {
+paint.onPaint = pave.onPaint = (x0, z0, x1, z1) => {
   terrainView.markDirty(x0, z0, x1, z1)
   vegetation.markDirty(x0, z0, x1, z1)
 }
@@ -132,7 +137,8 @@ const net = new Net()
 const remotes = new Remotes()
 scene.add(remotes.group)
 
-const wanderer = new Wanderer(identity.color)
+// The reel's adventurer wears red; in multiplayer each player keeps their own colour.
+const wanderer = new Wanderer(params.has('mp') || params.has('server') || loadSettings(Net.defaultUrl()).multiplayer ? identity.color : 0xa8291f)
 wanderer.place(0, terrain.heightAt(0, 0), 0)
 scene.add(wanderer.obj)
 
@@ -504,6 +510,12 @@ function toggleRole(want?: string): void {
   else setRole('titan', pick[0])
 }
 
+// The debug readout is out of the way unless asked for: ` toggles it (or ?debug).
+if (params.has('debug')) document.body.classList.add('debug')
+addEventListener('keydown', (e) => {
+  if (e.code === 'Backquote' && (e.target as HTMLElement | null)?.tagName !== 'INPUT') document.body.classList.toggle('debug')
+})
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
   camera.updateProjectionMatrix()
@@ -702,7 +714,7 @@ function placeTitanLabels(): void {
     a.label.style.display = show ? 'block' : 'none'
     if (!show) continue
     a.label.innerHTML = `<b>${name.replace(/[&<>]/g, '')}</b><small>TITAN · ${t.gait.steps.toLocaleString()} STEPS</small>`
-    a.label.style.transform = `translate(-50%, -100%) translate(${labelPx.x}px, ${labelPx.y}px)`
+    a.label.style.transform = `translate(14px, -100%) translate(${labelPx.x}px, ${labelPx.y - 14}px)`
   }
 }
 
@@ -821,6 +833,7 @@ function frame(now: number): void {
   water.update(dt)
   effects.update(dt)
   clouds.update(dt, camera.position)
+  sky.tick(dt)
   vegetation.update(dt, camera.position)
   wildlife.render()
   townsfolk.render(dt)

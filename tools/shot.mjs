@@ -275,7 +275,8 @@ const scenes = {
       while (g.titan.restBlend < 1) await new Promise((r) => setTimeout(r, 50))
       g.clock.scale = 1
       const t = g.titanState()
-      g.teleport(t.x + Math.sin(t.heading) * 330 + Math.cos(t.heading) * 140, t.z + Math.cos(t.heading) * 330 - Math.sin(t.heading) * 140)
+      const k = g.titan.H / 180
+      g.teleport(t.x + (Math.sin(t.heading) * 330 + Math.cos(t.heading) * 140) * k, t.z + (Math.cos(t.heading) * 330 - Math.sin(t.heading) * 140) * k)
       const p = g.player()
       g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.06, 7)
     })
@@ -284,7 +285,8 @@ const scenes = {
       const g = window.__g
       const t = g.titanState()
       // Side on, to read the sitting silhouette.
-      g.teleport(t.x + Math.cos(t.heading) * 330, t.z - Math.sin(t.heading) * 330)
+      const k = g.titan.H / 180
+      g.teleport(t.x + Math.cos(t.heading) * 330 * k, t.z - Math.sin(t.heading) * 330 * k)
       const p = g.player()
       g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.08, 7)
     })
@@ -352,7 +354,7 @@ const scenes = {
       g.setCam(Math.PI + Math.PI / 4, 0.45)
     }, v)
     await shot('village-above')
-    if (!v.kinds.church || !v.kinds.well || (v.kinds.house ?? 0) + (v.kinds.hut ?? 0) < 15) throw new Error('village gate: a village is missing its parts')
+    if (!v.kinds.church || !v.kinds.well || (v.kinds.house ?? 0) + (v.kinds.hut ?? 0) + (v.kinds.townhouse ?? 0) < 30) throw new Error('village gate: a village is missing its parts')
     // Towns grow: the old village, and a town founded by the lake with a well and two homes.
     const g2 = await page.evaluate(async (vid) => {
       const g = window.__g
@@ -391,6 +393,118 @@ const scenes = {
       g.setCam(Math.PI + Math.PI / 4, 0.42)
     })
     await shot('village-grown')
+  },
+  // The reel, shot for shot (as near as the game allows), to compare against it.
+  async reel() {
+    const T = () => page.evaluate(() => window.__g.titanState())
+    // Walk Titan 1 a while first: a trail of lakes, canals.
+    await page.evaluate(async () => {
+      const g = window.__g
+      const t0 = g.titanState().steps
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0.05
+      g.clock.scale = 10
+      while (g.titanState().steps < t0 + 12) await new Promise((r) => setTimeout(r, 40))
+      g.clock.scale = 1
+      // Keep it walking slowly for the stride pose.
+      await new Promise((r) => setTimeout(r, 1500))
+      g.autopilot.forward = 0
+      const until = Date.now() + 20000
+      while (Date.now() < until && !g.lakeStats().every((l) => l.full)) {
+        g.clock.scale = 10
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      g.clock.scale = 1
+    })
+    const H = await page.evaluate(() => window.__g.titan.H)
+    // 1 — "Some players are giants": high behind and beside the giant, looking down past it.
+    await page.evaluate((H) => {
+      const g = window.__g
+      const t = g.titanState()
+      const fx = Math.sin(t.heading), fz = Math.cos(t.heading)
+      g.teleport(t.x - fx * 0.95 * H + fz * 0.55 * H, t.z - fz * 0.95 * H - fx * 0.55 * H)
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 0.3 * H, focusHeight: 0.85 * H, follow: 50 })
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - t.x, p.z - t.z), 0.1)
+    }, H)
+    await shot('reel-1-giants')
+    // 2 — "Every step leaves a lake": above the trail, looking along it.
+    await page.evaluate((H) => {
+      const g = window.__g
+      const t = g.titanState()
+      const fx = Math.sin(t.heading), fz = Math.cos(t.heading)
+      g.teleport(t.x - fx * 3.2 * H, t.z - fz * 3.2 * H)
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 1.2 * H, focusHeight: 1.6 * H, follow: 50 })
+      g.setCam(Math.atan2(-fx, -fz), 0.9)
+    }, H)
+    await shot('reel-2-lakes')
+    // 3 — "Or be a single adventurer": in a village square, the church ahead, a giant beyond.
+    await page.evaluate((H) => {
+      const g = window.__g
+      const town = [...g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      const church = g.settlement.buildings.find((b) => b.town === town.id && b.kind === 'church')
+      const ax = church ? church.x : town.cx + 20
+      const az = church ? church.z : town.cz + 20
+      // Stand out on the main street (clear of the stalls), facing the church.
+      const sx = town.cx - Math.sin(town.dir) * 17, sz = town.cz - Math.cos(town.dir) * 17
+      const dx = ax - sx, dz = az - sz
+      const d = Math.hypot(dx, dz) || 1
+      g.teleport(sx, sz)
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 3.2, focusHeight: 1.7, follow: 50 })
+      g.setCam(Math.atan2(-dx, -dz), -0.16)
+      // Bring a giant to stand behind the church.
+      const tg = g.titan.gait
+      const bx = ax + (dx / d) * 1.4 * H, bz = az + (dz / d) * 1.4 * H
+      const ox = bx - tg.x, oz = bz - tg.z
+      tg.x += ox; tg.z += oz
+      tg.plant.forEach((p) => { p.x += ox; p.z += oz })
+      tg.swingFrom.x += ox; tg.swingFrom.z += oz; tg.swingTo.x += ox; tg.swingTo.z += oz
+      tg.heading = Math.atan2(-dx, -dz)
+    }, H)
+    await shot('reel-3-square')
+    // 4 — "Climb the giants": a climber high on the giant's back, the plain far below.
+    await page.evaluate(async (H) => {
+      const g = window.__g
+      g.grabTitan()
+      g.clock.scale = 12
+      g.input.press('KeyW')
+      const until = Date.now() + 40000
+      while (Date.now() < until && g.climbState().active && g.climbState().height < 0.62 * H) {
+        const c = g.climbState()
+        const t = g.titan.chest
+        g.setCam(Math.atan2(c.x - t.x, c.z - t.z), 0.15)
+        await new Promise((r) => setTimeout(r, 60))
+      }
+      g.input.release('KeyW')
+      g.clock.scale = 1
+      // From outside the body, a little above: the climber on the rock, the plain below.
+      const c = g.climbState()
+      const t = g.titan.chest
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 14, focusHeight: 1.2, follow: 50 })
+      g.setCam(Math.atan2(c.x - t.x, c.z - t.z), 0.45)
+    }, H)
+    await shot('reel-4-climb')
+    // 5 — "Log off, become a mountain".
+    await page.evaluate(async (H) => {
+      const g = window.__g
+      if (g.climber.active) g.climber.release(0)
+      g.goDormant('t1')
+      await new Promise((r) => setTimeout(r, 300))
+      const m = g.mountains.targets()[0].titan.gait
+      const away = 2.6 * H
+      g.teleport(m.x + Math.sin(m.heading) * away, m.z + Math.cos(m.heading) * away)
+      g.rig.setProfile({ minDist: 1, maxDist: 4000, dist: 0.25 * H, focusHeight: 0.3 * H, follow: 50 })
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - m.x, p.z - m.z), -0.05)
+    }, H)
+    await shot('reel-5-mountain')
+    if (process.env.DIAG) {
+      await page.evaluate(() => { window.__g.scene.getObjectByName('water').visible = false })
+      await shot('diag-nowater')
+      await page.evaluate(() => { window.__g.scene.getObjectByName('water').visible = true; window.__g.renderer.shadowMap.enabled = false; window.__g.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true }) })
+      await shot('diag-noshadow')
+    }
+    console.log('lakes:', JSON.stringify(await page.evaluate(() => window.__g.lakes.lakes.filter((l) => l.basin.sorted.length > 5000).map((l) => ({ cells: l.basin.sorted.length, depth: +(l.level - l.basin.bottom).toFixed(2), mean: +(l.level - l.basin.prefix[l.basin.sorted.length] / l.basin.sorted.length).toFixed(2), at: [l.basin.bx, l.basin.bz] })))))
   },
   // The reel's sky: a Wanderer looking up at a Titan with clouds about its waist.
   async sky() {
@@ -625,11 +739,11 @@ const scenes = {
       g.autopilot.forward = 0
       // Wait for the facts, not a timer: the Titan finishes its stride and
       // stands still, then the rain fills every print (or 20 s passes).
-      const until = Date.now() + 20000
+      const until = Date.now() + 45000
       while (Date.now() < until) {
         const t = g.titanState()
         const all = g.lakeStats()
-        if (t.speed === 0 && !g.titan.gait.isSwinging && all.every((l) => l.full)) break
+        if (t.speed === 0 && !g.titan.gait.isSwinging && all.every((l) => l.full || l.cells >= 20000)) break
         await new Promise((r) => setTimeout(r, 100))
       }
       g.clock.scale = 1
@@ -685,7 +799,7 @@ const scenes = {
     console.log('longest stream', JSON.stringify(st))
     if (st) await shot('p5-streams')
     // Footprint-sized lakes fill fast; a hectare-scale one formed by merges takes its time.
-    const small = lakes.filter((l) => l.cells < 10000)
+    const small = lakes.filter((l) => l.cells < 20000)
     if (lakes.length < 10 || small.some((l) => !l.full)) throw new Error(`lakes gate: ${lakes.length} lakes, ${full} full (${small.filter((l) => !l.full).length} small ones still filling)`)
   },
 }

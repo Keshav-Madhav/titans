@@ -6,8 +6,8 @@
 import * as THREE from 'three'
 import { mulberry32 } from '@titans/shared'
 
-const CLOUDS = 55
-const PUFFS = 16
+const CLOUDS = 120
+const PUFFS = 18
 const SPREAD = 7000 // clouds live within this distance of the camera (wrapping)
 
 function puffTexture(): THREE.CanvasTexture {
@@ -54,16 +54,18 @@ export class Clouds {
     for (let c = 0; c < CLOUDS; c++) {
       const a = rand() * Math.PI * 2
       const r = Math.sqrt(rand()) * SPREAD
-      this.centres.push(new THREE.Vector3(Math.cos(a) * r, 170 + rand() * 230, Math.sin(a) * r))
+      // Low: about a Titan's waist and chest, as in the reel.
+      this.centres.push(new THREE.Vector3(Math.cos(a) * r, 150 + rand() * rand() * 330, Math.sin(a) * r))
       const w = 120 + rand() * 160
       for (let p = 0; p < PUFFS; p++) {
         const ox = (rand() - 0.5) * 2 * w
         const oz = (rand() - 0.5) * 2 * w * 0.6
         // Puffs heap up toward the middle: a flat base, a towering crown.
         const crown = 1 - Math.min(1, Math.hypot(ox, oz) / w)
-        const oy = rand() * 20 + crown * crown * 90
+        // Flat bases, heaped crowns.
+        const oy = rand() * 12 + crown * crown * 80
         this.offsets.push(new THREE.Vector3(ox, oy, oz))
-        this.sizes.push(80 + rand() * 60 + crown * 90)
+        this.sizes.push(70 + rand() * 50 + crown * 80)
         shade[c * PUFFS + p] = Math.min(1, oy / 90) // 0 = base (shaded) … 1 = crown (sunlit)
       }
     }

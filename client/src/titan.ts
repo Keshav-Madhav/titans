@@ -23,54 +23,86 @@ interface LumpSpec {
 
 // Segment shapes, all as fractions of Titan height. Hunched, heavy, long-armed:
 // the reel's silhouette.
+// Shaped after the reel's giants: a hulking, gorilla-like mass of eroded
+// stone — great shoulders and back, a small head sunk between them, long
+// heavy arms hanging to the knees, short pillar legs. Lumps overlap so the
+// body reads as one sculpted form, not a stack of boulders.
 const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
   torso: {
-    len: 0.3,
+    len: 0.32,
     lumps: [
-      { at: 0.12, r: [0.17, 0.12, 0.13], off: [0, 0.02] },
-      { at: 0.4, r: [0.14, 0.12, 0.12], off: [0, 0.01] },
-      { at: 0.72, r: [0.12, 0.1, 0.11] },
-      { at: 0.95, r: [0.115, 0.08, 0.105], off: [0, -0.005] },
+      { at: 0.06, r: [0.22, 0.12, 0.17], off: [0, -0.035] }, // the back's great hump
+      { at: 0.04, r: [0.12, 0.11, 0.12], off: [0.175, -0.01] }, // shoulder caps
+      { at: 0.04, r: [0.12, 0.11, 0.12], off: [-0.175, -0.01] },
+      { at: 0.26, r: [0.19, 0.13, 0.15], off: [0, 0.035] }, // chest
+      { at: 0.32, r: [0.17, 0.14, 0.13], off: [0, -0.05] }, // back
+      { at: 0.56, r: [0.15, 0.12, 0.13], off: [0, 0.035] }, // belly
+      { at: 0.62, r: [0.14, 0.12, 0.12], off: [0, -0.03] },
+      { at: 0.9, r: [0.14, 0.09, 0.12] }, // hips
     ],
   },
-  head: { len: 0.075, lumps: [{ at: 0.1, r: [0.06, 0.065, 0.065], off: [0, 0.01] }, { at: 0.55, r: [0.045, 0.035, 0.05] }] },
-  upperArm: {
-    len: 0.24,
+  head: {
+    len: 0.07,
     lumps: [
-      { at: 0.05, r: [0.085, 0.08, 0.085] },
-      { at: 0.45, r: [0.06, 0.1, 0.062] },
-      { at: 0.88, r: [0.052, 0.06, 0.055] },
+      { at: 0.3, r: [0.058, 0.06, 0.062], off: [0, 0.02] },
+      { at: 0.15, r: [0.05, 0.03, 0.04], off: [0, 0.05] }, // brow
+    ],
+  },
+  upperArm: {
+    len: 0.25,
+    lumps: [
+      { at: 0.02, r: [0.1, 0.09, 0.1] },
+      { at: 0.4, r: [0.085, 0.12, 0.088] },
+      { at: 0.82, r: [0.075, 0.08, 0.075] },
     ],
   },
   forearm: {
-    len: 0.22,
+    len: 0.24,
     lumps: [
-      { at: 0.2, r: [0.065, 0.085, 0.066] },
-      { at: 0.65, r: [0.052, 0.075, 0.054] },
+      { at: 0.15, r: [0.085, 0.1, 0.088] },
+      { at: 0.55, r: [0.078, 0.11, 0.08] },
+      { at: 0.9, r: [0.065, 0.06, 0.068] },
     ],
   },
-  hand: { len: 0.07, lumps: [{ at: 0.45, r: [0.065, 0.06, 0.06] }] },
+  hand: {
+    len: 0.08,
+    lumps: [
+      { at: 0.45, r: [0.08, 0.07, 0.075] },
+      { at: 0.8, r: [0.065, 0.04, 0.06], off: [0, 0.02] },
+    ],
+  },
   thigh: {
     len: 0.225,
     lumps: [
-      { at: 0.15, r: [0.08, 0.075, 0.082] },
-      { at: 0.55, r: [0.07, 0.09, 0.072] },
-      { at: 0.92, r: [0.058, 0.05, 0.06] },
+      { at: 0.08, r: [0.118, 0.1, 0.12] },
+      { at: 0.45, r: [0.108, 0.12, 0.112], off: [0, 0.01] },
+      { at: 0.86, r: [0.09, 0.07, 0.095] },
     ],
   },
   shin: {
     len: 0.215,
     lumps: [
-      { at: 0.2, r: [0.066, 0.075, 0.07] },
-      { at: 0.65, r: [0.058, 0.08, 0.06] },
+      { at: 0.12, r: [0.095, 0.08, 0.1] },
+      { at: 0.48, r: [0.092, 0.11, 0.094], off: [0, -0.01] },
+      { at: 0.85, r: [0.085, 0.06, 0.088] },
     ],
   },
-  foot: { len: 0.04, lumps: [{ at: 0.6, r: [0.06, 0.035, 0.095], off: [0, 0.025] }, { at: 0.75, r: [0.045, 0.03, 0.05], off: [0, 0.075] }] },
+  foot: {
+    len: 0.04,
+    lumps: [
+      { at: 0.5, r: [0.075, 0.04, 0.11], off: [0, 0.03] },
+      { at: 0.7, r: [0.055, 0.035, 0.06], off: [0, 0.09] },
+    ],
+  },
 }
 
-const STONE = new THREE.Color(0x9c9483)
-const STONE_DARK = new THREE.Color(0x766e62)
-const MOSS = new THREE.Color(0x6b7a40)
+// Beige sandstone with olive moss (awake); red sandstone under snow (a mountain).
+const STONE = new THREE.Color(0xa59a84)
+const STONE_DARK = new THREE.Color(0x7b7163)
+const MOSS = new THREE.Color(0x6a7340)
+const RED = new THREE.Color(0xb3684c)
+const RED_DARK = new THREE.Color(0x8a4834)
+const SNOW = new THREE.Color(0xf0efea)
 
 let stoneTex: THREE.DataTexture | null = null
 
@@ -182,11 +214,16 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i)
     const s = 0.5 + 0.5 * noise3(v.x * 0.15 + 4, v.y * 0.15, v.z * 0.15)
-    c.copy(STONE).lerp(STONE_DARK, s * 0.7)
     const up = nrm.getY(i)
-    // A sleeping Titan grows moss far down its flanks.
-    const moss = THREE.MathUtils.smoothstep(up + 0.25 * noise3(v.x * 0.2, v.y * 0.2, v.z * 0.2), 0.45 - 0.75 * mossiness, 0.8 - 0.5 * mossiness)
-    c.lerp(MOSS, moss * (0.85 + 0.1 * mossiness))
+    const wobble = 0.25 * noise3(v.x * 0.2, v.y * 0.2, v.z * 0.2)
+    if (mossiness > 0) {
+      // A mountain: weathered red sandstone, snow lying on every ledge.
+      c.copy(RED).lerp(RED_DARK, s * 0.75)
+      c.lerp(SNOW, THREE.MathUtils.smoothstep(up + wobble, 0.42, 0.7))
+    } else {
+      c.copy(STONE).lerp(STONE_DARK, s * 0.7)
+      c.lerp(MOSS, THREE.MathUtils.smoothstep(up + wobble, 0.45, 0.8) * 0.85)
+    }
     colors[i * 3] = c.r
     colors[i * 3 + 1] = c.g
     colors[i * 3 + 2] = c.b
@@ -412,20 +449,21 @@ export class Titan {
     const heave = this.shrugT > 0 ? Math.sin(this.breath * 9) * 0.03 * H * Math.min(1, this.shrugT * 2) : 0
     this.chest
       .copy(this.pelvis)
-      .addScaledVector(this.fwd, 0.075 * H)
+      .addScaledVector(this.fwd, 0.1 * H)
       .addScaledVector(this.left, -swayAmt * 0.6 + heave)
     // Sitting: sat on the ground, back fairly straight (it was hunched over
     // its knees, and read as a crouch), head a little bowed.
     this.chest.y += SHAPES.torso.len * H * 0.97 + breathe + Math.abs(heave) * 0.5
     this.chest.addScaledVector(this.fwd, -0.02 * H * rb)
-    this.head.copy(this.chest).addScaledVector(this.fwd, (0.065 + 0.01 * rb) * H)
-    this.head.y += (0.035 - 0.02 * rb) * H
+    // The head sits low and forward, sunk between the shoulders.
+    this.head.copy(this.chest).addScaledVector(this.fwd, (0.085 + 0.01 * rb) * H)
+    this.head.y += (-0.005 - 0.02 * rb) * H
 
     // Arms swing opposite to the legs, by each foot's lead.
     for (const f of [0, 1] as const) {
       const side = f === 0 ? 1 : -1
-      J.shoulder[f].copy(this.chest).addScaledVector(this.left, side * 0.165 * H)
-      J.shoulder[f].y -= 0.035 * H
+      J.shoulder[f].copy(this.chest).addScaledVector(this.left, side * 0.2 * H)
+      J.shoulder[f].y -= 0.03 * H
       const other = f === 0 ? 1 : 0
       g.footPos(other, this.foot)
       const lead = ((this.foot.x - g.x) * this.fwd.x + (this.foot.z - g.z) * this.fwd.z) / b.stepLen

@@ -40,17 +40,18 @@ function lin(hex: number): [number, number, number] {
   const c = new THREE.Color(hex)
   return [c.r, c.g, c.b]
 }
-const GRASS_DRY = lin(0x9a8b5a)
-const GRASS_GREEN = lin(0x6f7341)
-const SOIL = lin(0xa48c63)
+const GRASS_DRY = lin(0xa89066)
+const GRASS_GREEN = lin(0x8a8150)
+const SOIL = lin(0xae9670)
 const WET_SOIL = lin(0x5c4f3e)
 const ROCK = lin(0x8e877d)
 const ROCK_DARK = lin(0x5d5852)
 const SNOW = lin(0xeef1f5)
-const MEADOW = lin(0x6f8a3c)
-const CANOPY = lin(0x4a5e2f)
-const CANOPY_DARK = lin(0x33452a)
+const MEADOW = lin(0x707a43)
+const CANOPY = lin(0x4b5331)
+const CANOPY_DARK = lin(0x363d26)
 const ROAD = lin(0xa58f68)
+const COBBLE = lin(0x9c968b)
 
 interface Chunk {
   key: number
@@ -72,10 +73,10 @@ function addGroundDetail(mat: THREE.MeshStandardMaterial, tex: THREE.Texture): v
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.detailMap = { value: tex }
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGroundPos;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvGroundPos = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGroundPos;\nattribute float aPave;\nvarying float vPave;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvGroundPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPave = aPave;')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D detailMap;\nvarying vec3 vGroundPos;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D detailMap;\nvarying vec3 vGroundPos;\nvarying float vPave;')
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
@@ -83,7 +84,18 @@ function addGroundDetail(mat: THREE.MeshStandardMaterial, tex: THREE.Texture): v
         float gd2 = texture2D(detailMap, vGroundPos.xz * 0.037).r;
         float gd3 = texture2D(detailMap, vGroundPos.xz * 0.0053).r;
         float gFade = 1.0 - smoothstep(40.0, 260.0, distance(vGroundPos, cameraPosition));
-        diffuseColor.rgb *= mix(1.0, 0.72 + 0.56 * gd1, gFade) * (0.8 + 0.4 * gd2) * (0.86 + 0.28 * gd3);`,
+        diffuseColor.rgb *= mix(1.0, 0.72 + 0.56 * gd1, gFade * (1.0 - vPave)) * (0.8 + 0.4 * gd2) * (0.86 + 0.28 * gd3);
+        // Cobbles: offset rows of rounded stones with dark joints, up close.
+        if (vPave > 0.02) {
+          vec2 cp = vGroundPos.xz / vec2(0.62, 0.5);
+          cp.x += mod(floor(cp.y), 2.0) * 0.5;
+          vec2 cell = floor(cp);
+          vec2 f = fract(cp) - 0.5;
+          float stone = 1.0 - smoothstep(0.32, 0.5, max(abs(f.x), abs(f.y)) + 0.12 * dot(f, f));
+          float hv = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+          float cobbleFade = (1.0 - smoothstep(25.0, 90.0, distance(vGroundPos, cameraPosition))) * smoothstep(0.02, 0.6, vPave);
+          diffuseColor.rgb *= mix(1.0, mix(0.55, 0.92 + 0.22 * hv, stone), cobbleFade);
+        }`,
       )
   }
 }
@@ -153,6 +165,8 @@ export class TerrainView {
   biome: Biome | null = null
   /** Roads and squares painted onto the ground. */
   paint: PaintField | null = null
+  /** Cobbled streets and squares (also drawn as stones up close). */
+  pave: PaintField | null = null
 
   constructor(private readonly terrain: Terrain, seed: number) {
     this.detail = makeSimplex2(seed + 999)
@@ -344,12 +358,14 @@ export class TerrainView {
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
       geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
+      geo.setAttribute('aPave', new THREE.BufferAttribute(new Float32Array(VERTS), 1))
       geo.setIndex(this.grid.index)
       if (c.mesh) c.mesh.geometry = geo
     }
     const P = geo.getAttribute('position').array as Float32Array
     const Nn = geo.getAttribute('normal').array as Float32Array
     const C = geo.getAttribute('color').array as Float32Array
+    const PV = geo.getAttribute('aPave').array as Float32Array
 
     for (let j = 0; j <= N; j++) {
       for (let i = 0; i <= N; i++) {
@@ -371,7 +387,8 @@ export class TerrainView {
         Nn[v * 3] = nx
         Nn[v * 3 + 1] = ny
         Nn[v * 3 + 2] = nz
-        this.shade(C, v * 3, x, z, h, ny, D[hi])
+        PV[v] = this.pave ? this.pave.at(x, z) : 0
+        this.shade(C, v * 3, x, z, h, ny, D[hi], PV[v])
       }
     }
 
@@ -387,11 +404,13 @@ export class TerrainView {
         Nn[dst * 3 + k] = Nn[src * 3 + k]
         C[dst * 3 + k] = C[src * 3 + k]
       }
+      PV[dst] = PV[src]
     }
 
     geo.getAttribute('position').needsUpdate = true
     geo.getAttribute('normal').needsUpdate = true
     geo.getAttribute('color').needsUpdate = true
+    geo.getAttribute('aPave').needsUpdate = true
     geo.computeBoundingSphere()
     geo.computeBoundingBox()
 
@@ -407,7 +426,7 @@ export class TerrainView {
     this.stats.built++
   }
 
-  private shade(C: Float32Array, o: number, x: number, z: number, h: number, ny: number, delta: number): void {
+  private shade(C: Float32Array, o: number, x: number, z: number, h: number, ny: number, delta: number, pave = 0): void {
     const v = this.detail(x * 0.013, z * 0.013)
     const big = this.detail(x * 0.0017 + 5.3, z * 0.0017 - 2.1)
     const slope = 1 - ny
@@ -424,7 +443,7 @@ export class TerrainView {
 
     if (this.biome) {
       // Lush meadow, then forest: canopy from afar, shaded floor up close.
-      t = this.biome.meadow(x, z) * 0.55
+      t = this.biome.meadow(x, z) * 0.3
       r += (MEADOW[0] - r) * t
       g += (MEADOW[1] - g) * t
       b += (MEADOW[2] - b) * t
@@ -452,12 +471,17 @@ export class TerrainView {
       b += (sb - b) * t
     }
 
-    // Roads and village squares.
+    // Dirt roads, and cobbled streets and squares.
     const p = this.paint ? this.paint.at(x, z) : 0
     if (p > 0) {
       r += (ROAD[0] - r) * p * 0.9
       g += (ROAD[1] - g) * p * 0.9
       b += (ROAD[2] - b) * p * 0.9
+    }
+    if (pave > 0) {
+      r += (COBBLE[0] - r) * pave
+      g += (COBBLE[1] - g) * pave
+      b += (COBBLE[2] - b) * pave
     }
 
     const alpine = smoothstep(140, 330, h) * 0.75
