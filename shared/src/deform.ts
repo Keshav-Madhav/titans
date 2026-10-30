@@ -71,6 +71,114 @@ export function applyFootprint(delta: DeltaField, e: FootprintEvent): Box {
   return { x0, z0, x1, z1 }
 }
 
+/** The round crater a footfall punches around the print. */
+export interface ImpactEvent {
+  kind: 'impact'
+  x: number
+  z: number
+  radius: number
+  depth: number
+}
+
+const EJECTA_OUT = 4 // ejecta apron reaches q = 4, i.e. twice the radius
+
+/**
+ * A shallow parabolic bowl with an ejecta rim. Works in squared distance, so
+ * there is no sqrt either.
+ */
+export function applyImpact(delta: DeltaField, e: ImpactEvent): Box {
+  const R2 = e.radius * e.radius
+  const reach = e.radius * 2 + 1
+  const x0 = Math.floor(e.x - reach)
+  const x1 = Math.ceil(e.x + reach)
+  const z0 = Math.floor(e.z - reach)
+  const z1 = Math.ceil(e.z + reach)
+  const rimH = e.depth * 0.45
+  for (let iz = z0; iz <= z1; iz++) {
+    for (let ix = x0; ix <= x1; ix++) {
+      const dx = ix - e.x
+      const dz = iz - e.z
+      const q = (dx * dx + dz * dz) / R2
+      if (q < 1) {
+        delta.add(ix, iz, -e.depth * (1 - q))
+      } else if (q < EJECTA_OUT) {
+        const s = (q - 1) / (EJECTA_OUT - 1)
+        const r = 1 - s
+        delta.add(ix, iz, rimH * 6.75 * s * r * r)
+      }
+    }
+  }
+  return { x0, z0, x1, z1 }
+}
+
+/** The trench a dragging foot cuts between two points. */
+export interface DragEvent {
+  kind: 'drag'
+  ax: number
+  az: number
+  bx: number
+  bz: number
+  width: number
+  depth: number
+}
+
+const BANK_OUT = 3.2 // banks reach q = 3.2 beside the trench
+
+/**
+ * A capsule-shaped trench with heaped banks. The cut uses `lowerTo`, so the
+ * overlapping ends of consecutive segments never dig twice, and it cuts
+ * straight through older rims (that is what lets canals reach the lakes).
+ * Banks only rise beside the segment, never at its end caps, and never fill
+ * an existing hollow.
+ */
+export function applyDrag(delta: DeltaField, e: DragEvent): Box {
+  const dx = e.bx - e.ax
+  const dz = e.bz - e.az
+  const len2 = dx * dx + dz * dz
+  const hw = e.width / 2
+  const w2 = hw * hw
+  const reach = hw * 1.8 + 1
+  const x0 = Math.floor(Math.min(e.ax, e.bx) - reach)
+  const x1 = Math.ceil(Math.max(e.ax, e.bx) + reach)
+  const z0 = Math.floor(Math.min(e.az, e.bz) - reach)
+  const z1 = Math.ceil(Math.max(e.az, e.bz) + reach)
+  const bankH = e.depth * 0.35
+  for (let iz = z0; iz <= z1; iz++) {
+    for (let ix = x0; ix <= x1; ix++) {
+      const px = ix - e.ax
+      const pz = iz - e.az
+      let t = len2 > 0 ? (px * dx + pz * dz) / len2 : 0
+      const inside = t > 0 && t < 1
+      if (t < 0) t = 0
+      else if (t > 1) t = 1
+      const ox = px - dx * t
+      const oz = pz - dz * t
+      const q = (ox * ox + oz * oz) / w2
+      if (q < 1) {
+        const u = 1 - q
+        delta.lowerTo(ix, iz, -e.depth * u * (2 - u))
+      } else if (inside && q < BANK_OUT) {
+        const s = (q - 1) / (BANK_OUT - 1)
+        const r = 1 - s
+        const bank = bankH * 6.75 * s * r * r
+        const cur = delta.at(ix, iz)
+        if (cur >= 0 && bank > cur) delta.set(ix, iz, bank)
+      }
+    }
+  }
+  return { x0, z0, x1, z1 }
+}
+
+/** Impact crater for a Titan of a given height. */
+export function impactFor(height: number, x: number, z: number): ImpactEvent {
+  return { kind: 'impact', x, z, radius: 0.13 * height, depth: 0.009 * height }
+}
+
+/** Drag trench for a Titan of a given height. */
+export function dragFor(height: number, ax: number, az: number, bx: number, bz: number): DragEvent {
+  return { kind: 'drag', ax, az, bx, bz, width: 0.075 * height, depth: 0.016 * height }
+}
+
 /** Footprint parameters for a Titan of a given height. */
 export function footprintFor(height: number, x: number, z: number, hx: number, hz: number): FootprintEvent {
   return {

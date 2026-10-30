@@ -10,7 +10,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { makeSimplex2, titanBody, TitanGait, type Footfall, type GaitInput, type Terrain, type TitanBody } from '@titans/shared'
+import { makeSimplex2, titanBody, TitanGait, type GaitEvent, type GaitInput, type Terrain, type TitanBody } from '@titans/shared'
 
 type V3 = THREE.Vector3
 
@@ -205,9 +205,9 @@ export class Titan {
     this.group.name = 'titan'
   }
 
-  step(dt: number, input: GaitInput): Footfall | null {
+  step(dt: number, input: GaitInput, out: GaitEvent[]): void {
     this.breath += dt
-    return this.gait.step(dt, input)
+    this.gait.step(dt, input, out)
   }
 
   /** Solve the pose for the current gait state. */

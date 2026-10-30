@@ -132,6 +132,16 @@ export class DeltaField {
     tile[(iz - oz) * DELTA_TILE + (ix - ox)] += v
   }
 
+  set(ix: number, iz: number, v: number): void {
+    const { tile, ox, oz } = this.tileFor(ix, iz)
+    tile[(iz - oz) * DELTA_TILE + (ix - ox)] = v
+  }
+
+  /** Carve down to `v` without filling anything deeper (overlapping cuts don't stack). */
+  lowerTo(ix: number, iz: number, v: number): void {
+    if (this.at(ix, iz) > v) this.set(ix, iz, v)
+  }
+
   /** Bilinear delta at any point. */
   sample(x: number, z: number): number {
     if (this.tiles.size === 0) return 0
@@ -182,6 +192,24 @@ export class Terrain {
     return this.base.height(x, z) + this.delta.sample(x, z)
   }
 
+  // Base heights at integer cells, cached per tile: lake floods touch
+  // hundreds of thousands of cells and the noise is the expensive part.
+  private readonly baseTiles = new Map<number, Float32Array>()
+
   /** Height at integer coordinates (no interpolation) — the lake grid. */
-  readonly cellHeight = (ix: number, iz: number): number => this.base.height(ix, iz) + this.delta.at(ix, iz)
+  readonly cellHeight = (ix: number, iz: number): number => {
+    const tx = Math.floor(ix / DELTA_TILE)
+    const tz = Math.floor(iz / DELTA_TILE)
+    const k = DeltaField.key(tx, tz)
+    let t = this.baseTiles.get(k)
+    if (!t) {
+      if (this.baseTiles.size > 3000) this.baseTiles.clear()
+      t = new Float32Array(DELTA_TILE * DELTA_TILE)
+      for (let j = 0; j < DELTA_TILE; j++) {
+        for (let i = 0; i < DELTA_TILE; i++) t[j * DELTA_TILE + i] = this.base.height(tx * DELTA_TILE + i, tz * DELTA_TILE + j)
+      }
+      this.baseTiles.set(k, t)
+    }
+    return t[(iz - tz * DELTA_TILE) * DELTA_TILE + (ix - tx * DELTA_TILE)] + this.delta.at(ix, iz)
+  }
 }

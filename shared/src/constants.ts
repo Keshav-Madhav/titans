@@ -12,4 +12,4 @@ export const DELTA_TILE = 64
 export const WANDERER_HEIGHT = 1.8
 
 /** A newly awakened Titan's height. Scale is a progression axis later. */
-export const TITAN_HEIGHT = 120
+export const TITAN_HEIGHT = 180

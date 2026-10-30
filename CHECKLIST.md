@@ -43,6 +43,15 @@ P4 20 steps → 39/40 planted-foot samples in a crater deeper than 2 m (min −4
 Gate result (2026-10-30): 14 steps → 11 lakes (early steps merge), all 11 filled to their spill height
 (`node tools/shot.mjs lakes`, shot `shots/p5-lakes.png`). Overflow is discarded for now — rivers come later.
 
+## P5b — Heavier Titans (user feedback, 2026-10-30)
+- [x] Titan 120 → 180 m, slower (5.4 s strides, ≈ 9 m/s)
+- [x] Foot drag: swing foot ploughs a trench between prints (canals); impact crater per footfall
+- [x] Dust + flying debris on impact, dust along the drag (client-only, pooled)
+- [x] Water: spill → downstream pools → merges (fill–spill–merge), lowland runoff capped
+- [x] Wanderer rendering: face sphere poked through the hood; detached shadow (0.6 m normal bias,
+      hem too high); 60 Hz sim un-interpolated on 120 Hz displays (judder); single-sided cloak
+- [x] Gates: trail 40/40 prints in craters (min −10.6 m); lakes gate fills canals; scale shot
+
 ## P6 — Together
 - [ ] Colyseus `WorldRoom`, guest identity, join/leave
 - [ ] Wanderer prediction + server validation; interpolation of remotes

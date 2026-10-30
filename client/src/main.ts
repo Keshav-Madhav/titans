@@ -1,11 +1,26 @@
 import * as THREE from 'three'
-import { applyFootprint, footprintFor, LakeSystem, Terrain, TITAN_HEIGHT, WORLD_SEED, type Footfall } from '@titans/shared'
+import {
+  applyDrag,
+  applyFootprint,
+  applyImpact,
+  dragFor,
+  footprintFor,
+  impactFor,
+  LakeSystem,
+  Terrain,
+  TITAN_HEIGHT,
+  WORLD_SEED,
+  type Box,
+  type GaitEvent,
+} from '@titans/shared'
+import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
 import { SkySystem } from './sky'
 import { Input } from './input'
 import { Wanderer } from './wanderer'
 import { Titan } from './titan'
 import { WaterView } from './water-view'
+import { Effects } from './effects'
 import { CameraRig, WANDERER_CAM, type CameraProfile } from './camera-rig'
 import { Hud } from './hud'
 
@@ -37,20 +52,22 @@ scene.add(terrainView.group)
 
 const sky = new SkySystem(scene, renderer)
 
-const lakes = new LakeSystem()
+const lakes = new LakeSystem(terrain.cellHeight)
 const water = new WaterView()
 scene.add(water.group)
+const effects = new Effects((x, z) => terrain.heightAt(x, z))
+scene.add(effects.group)
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
 const hud = new Hud()
 
 const wanderer = new Wanderer()
-wanderer.pos.set(0, terrain.heightAt(0, 0), 0)
+wanderer.place(0, terrain.heightAt(0, 0), 0)
 scene.add(wanderer.obj)
 
 // One Titan stands in the world from the start, a short walk from spawn.
-const titan = new Titan(TITAN_HEIGHT, 150, -260, Math.PI * 0.62)
+const titan = new Titan(TITAN_HEIGHT, 230, -400, Math.PI * 0.62)
 scene.add(titan.group)
 
 const TITAN_CAM: CameraProfile = {
@@ -73,14 +90,13 @@ function setRole(next: Role): void {
     rig.setProfile(TITAN_CAM)
     rig.yaw = titan.gait.heading + Math.PI
     rig.pitch = 0.32
-    sky.setShadowRadius(520)
+    sky.setShadowRadius(4.3 * TITAN_HEIGHT)
   } else {
     // Step out beside the left foot.
     const a = titan.ankle(0)
     const ox = a.x + Math.cos(titan.gait.heading) * 0.12 * TITAN_HEIGHT
     const oz = a.z - Math.sin(titan.gait.heading) * 0.12 * TITAN_HEIGHT
-    wanderer.pos.set(ox, terrain.heightAt(ox, oz), oz)
-    wanderer.vel.set(0, 0, 0)
+    wanderer.place(ox, terrain.heightAt(ox, oz), oz)
     wanderer.obj.visible = true
     rig.setProfile(WANDERER_CAM)
     sky.setShadowRadius(260)
@@ -88,14 +104,33 @@ function setRole(next: Role): void {
   hud.setRole(role, titan.gait.steps)
 }
 
-function onFootfall(f: Footfall): void {
-  const e = footprintFor(TITAN_HEIGHT, f.x, f.z, Math.sin(f.heading), Math.cos(f.heading))
-  const box = applyFootprint(terrain.delta, e)
-  terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
-  lakes.onDeform(terrain.cellHeight, box, e.x, e.z)
+// Everything one stride did to the ground, so lakes re-flood once per footfall.
+const strideBox: Box = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }
+function grow(b: Box): void {
+  strideBox.x0 = Math.min(strideBox.x0, b.x0)
+  strideBox.z0 = Math.min(strideBox.z0, b.z0)
+  strideBox.x1 = Math.max(strideBox.x1, b.x1)
+  strideBox.z1 = Math.max(strideBox.z1, b.z1)
+  terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
+}
+
+function onGait(ev: GaitEvent): void {
+  const H = TITAN_HEIGHT
+  if (ev.type === 'drag') {
+    grow(applyDrag(terrain.delta, dragFor(H, ev.ax, ev.az, ev.bx, ev.bz)))
+    effects.drag(ev.bx, terrain.heightAt(ev.bx, ev.bz), ev.bz, H)
+    return
+  }
+  falls.push({ foot: ev.foot, x: ev.x, z: ev.z })
+  grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z)))
+  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, Math.sin(ev.heading), Math.cos(ev.heading))))
+  lakes.onDeform(strideBox, ev.x, ev.z)
+  strideBox.x0 = strideBox.z0 = Infinity
+  strideBox.x1 = strideBox.z1 = -Infinity
+  effects.impact(ev.x, terrain.heightAt(ev.x, ev.z), ev.z, H)
   // The ground shakes for anyone near the footfall.
-  const d = Math.hypot(camera.position.x - f.x, camera.position.z - f.z)
-  rig.shake(Math.max(0, 1 - d / (6 * TITAN_HEIGHT)) * (role === 'titan' ? 0.006 : 0.012) * TITAN_HEIGHT)
+  const d = Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z)
+  rig.shake(Math.max(0, 1 - d / (6 * H)) * (role === 'titan' ? 0.006 : 0.012) * H)
   hud.setRole(role, titan.gait.steps)
 }
 
@@ -124,10 +159,14 @@ function simulate(dt: number): void {
   } else {
     wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
   }
-  const fall = titan.step(dt, gaitInput)
-  if (fall) onFootfall(fall)
+  gaitEvents.length = 0
+  titan.step(dt, gaitInput, gaitEvents)
+  for (const ev of gaitEvents) onGait(ev)
   lakes.step(dt)
 }
+const gaitEvents: GaitEvent[] = []
+/** Every footfall so far (tools read it to measure prints and canals). */
+const falls: Array<{ foot: 0 | 1; x: number; z: number }> = []
 
 function frame(now: number): void {
   requestAnimationFrame(frame)
@@ -142,23 +181,25 @@ function frame(now: number): void {
     simulate(STEP)
     acc -= STEP
   }
-  wanderer.sync()
+  // Render between the last two simulation states: on a 120 Hz display the
+  // 60 Hz simulation would otherwise move the Wanderer every other frame.
+  wanderer.sync(acc / STEP)
   titan.pose(terrain)
   water.sync(lakes.lakes)
+  effects.update(dt)
 
   const look = input.consumeLook()
-  const subject = role === 'titan' ? titan.pelvis : wanderer.pos
-  const focusBase = role === 'titan' ? tmpFocus.set(titan.gait.x, titan.pelvis.y - titan.body.hipHeight, titan.gait.z) : subject
+  const focusBase = role === 'titan' ? tmpFocus.set(titan.gait.x, titan.pelvis.y - titan.body.hipHeight, titan.gait.z) : wanderer.obj.position
   rig.update(dt, look.dx, look.dy, look.wheel, focusBase, terrain)
   terrainView.update(camera.position, ready ? 5 : 40)
-  sky.follow(role === 'titan' ? focusBase : wanderer.pos, camera)
+  sky.follow(focusBase, camera)
   renderer.render(scene, camera)
 
   if (!ready && terrainView.settled()) {
     ready = true
     hud.loaded()
   }
-  hud.frame(now, renderer, terrainView, role === 'titan' ? focusBase : wanderer.pos, camera)
+  hud.frame(now, renderer, terrainView, focusBase, camera)
 }
 const tmpFocus = new THREE.Vector3()
 setRole('wanderer')
@@ -176,6 +217,7 @@ const g = {
     return role
   },
   THREE,
+  shared,
   scene,
   camera,
   renderer,
@@ -189,10 +231,10 @@ const g = {
   sky,
   autopilot,
   clock,
+  falls,
   setRole,
   teleport(x: number, z: number) {
-    wanderer.pos.set(x, terrain.heightAt(x, z), z)
-    wanderer.vel.set(0, 0, 0)
+    wanderer.place(x, terrain.heightAt(x, z), z)
   },
   setCam(yaw: number, pitch: number, dist?: number) {
     rig.yaw = yaw

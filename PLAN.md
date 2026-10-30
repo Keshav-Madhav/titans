@@ -88,7 +88,20 @@ titans/
   automatically sees coarser, wider terrain. Chunk builds are time-sliced per frame. A deformation
   event dirties only the chunks it touches.
 
-## 5. Water: footprints become lakes
+## 5. Water: footprints become lakes, drag trenches become canals
+
+Titans **drag** their feet (user, 2026-10-30): the swing foot barely lifts and ploughs a trench
+from its last print to its next, so each foot leaves a canal linking its prints. Each footfall
+also punches a wide, shallow **impact crater** with an ejecta rim, plus cosmetic dust and debris.
+Kernels: `applyDrag` (capsule trench, `lowerTo` so overlapping segments never double-dig, banks
+only beside the segment), `applyImpact` (parabolic bowl in squared distance), `applyFootprint`.
+
+Water is **fill–spill–merge** (Barnes, Callaghan & Wickert 2020), run incrementally:
+full lakes pass excess to the lake downhill of their exit; spill that runs into a hollow with no
+lake makes a pool there (≤ 8,000 cells; tiny pits fill at once and the water runs on); lakes whose
+surfaces meet merge, each flooded at its own level to the true combined outlet. A flood that grows
+past 40,000 cells (≈ 4 ha) is water spreading into natural lowland: it is runoff, not a lake (this
+world is dry until Titans bring water), and the river phase will route it.
 
 1. A footprint carves a foot-shaped depression with a raised rim of displaced soil.
 2. The server runs a **priority-flood** (Barnes et al. 2014) on a local window around the
@@ -103,9 +116,10 @@ titans/
 
 ## 6. Titans and Wanderers
 
-- **Scale:** Wanderer 1.8 m. Titans start at **120 m** (spec range: 30 m to kilometres; more scale is
-  a progression axis). Walking follows dynamic similarity: a 120 m Titan takes roughly 40 m steps
-  about 3.4 s apart. Slowness is part of how it reads as huge.
+- **Scale:** Wanderer 1.8 m. Titans start at **180 m** (raised from 120 m at the user's request;
+  spec range: 30 m to kilometres; more scale is a progression axis). A 180 m Titan drags 50 m
+  strides about 5.4 s apart (≈ 9 m/s): dynamic similarity says time ∝ √size, and the extra factor
+  is weight. Slowness is part of how it reads as huge.
 - **The Titan is procedural:** a hierarchy of noise-displaced boulders (pelvis, spine, chest, head,
   arms, legs) for the reel's mossy stone look. Locomotion is procedural, with analytic two-bone
   leg IK: **the gait planner (shared) decides where each foot lands, and that exact point is where

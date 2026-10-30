@@ -32,8 +32,9 @@ export class SkySystem {
     const s = this.sun
     s.castShadow = true
     s.shadow.mapSize.set(4096, 4096)
-    s.shadow.bias = -0.0004
-    s.shadow.normalBias = 0.6
+    // Small biases: a 0.6 m normal bias detached the Wanderer's shadow from its feet.
+    s.shadow.bias = -0.0002
+    s.shadow.normalBias = 0.04
     s.shadow.camera.near = 1
     s.shadow.camera.far = 6000
     scene.add(s)

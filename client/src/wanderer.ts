@@ -11,11 +11,42 @@ const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
 
+/** A sphere open at the neck, with a round face opening cut toward +Z. */
+function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(radius, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.82).toNonIndexed()
+  const p = g.getAttribute('position')
+  const n = g.getAttribute('normal')
+  const keep: number[] = []
+  const axis = new THREE.Vector3(0, -0.12, 1).normalize()
+  const c = new THREE.Vector3()
+  const cos = Math.cos(openingAngle)
+  for (let t = 0; t < p.count; t += 3) {
+    c.set(0, 0, 0)
+    for (let k = 0; k < 3; k++) c.add(new THREE.Vector3().fromBufferAttribute(p, t + k))
+    if (c.normalize().dot(axis) > cos) continue
+    keep.push(t, t + 1, t + 2)
+  }
+  const out = new THREE.BufferGeometry()
+  const pos = new Float32Array(keep.length * 3)
+  const nrm = new Float32Array(keep.length * 3)
+  keep.forEach((i, j) => {
+    pos.set([p.getX(i), p.getY(i), p.getZ(i)], j * 3)
+    nrm.set([n.getX(i), n.getY(i), n.getZ(i)], j * 3)
+  })
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
+  g.dispose()
+  return out
+}
+
 export class Wanderer {
   readonly obj = new THREE.Group()
   readonly pos = new THREE.Vector3()
   readonly vel = new THREE.Vector3()
   yaw = 0
+  // Previous simulation state, for interpolated rendering.
+  private readonly prev = new THREE.Vector3()
+  private prevYaw = 0
   grounded = true
   private stride = 0
   private readonly legL: THREE.Mesh
@@ -23,7 +54,8 @@ export class Wanderer {
   private readonly cloak: THREE.Mesh
 
   constructor() {
-    const cloakMat = new THREE.MeshStandardMaterial({ color: 0xa8291f, roughness: 0.85 })
+    // Double-sided: the hem is open, and from a low camera the inside must not vanish.
+    const cloakMat = new THREE.MeshStandardMaterial({ color: 0xa8291f, roughness: 0.85, side: THREE.DoubleSide })
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.9 })
 
     // Cloak: a lathe from the neck flaring to the hem.
@@ -33,21 +65,26 @@ export class Wanderer {
       new THREE.Vector2(0.26, 1.36),
       new THREE.Vector2(0.29, 1.12),
       new THREE.Vector2(0.33, 0.78),
-      new THREE.Vector2(0.4, 0.42),
-      new THREE.Vector2(0.39, 0.38),
+      // Ankle-length: a hem 0.38 m up threw a shadow that started ~0.85 m
+      // away from the body at this sun angle and read as detached.
+      new THREE.Vector2(0.41, 0.16),
+      new THREE.Vector2(0.4, 0.12),
     ]
     this.cloak = new THREE.Mesh(new THREE.LatheGeometry(profile, 18), cloakMat)
     this.cloak.castShadow = true
     this.obj.add(this.cloak)
 
-    // Hood: a slightly pointed shell over a dark face.
-    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), cloakMat)
+    // Hood: a shell with a round opening at the front, and the dark face
+    // fully INSIDE it, so the face shows only through the opening. (A face
+    // sphere larger than the hood used to poke out of its sides as a black
+    // crescent.)
+    const hood = new THREE.Mesh(hoodShell(0.16, 0.74), cloakMat)
     hood.scale.set(1, 1.18, 1.08)
     hood.position.set(0, 1.62, -0.015)
     hood.castShadow = true
     this.obj.add(hood)
-    const face = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 10), darkMat)
-    face.position.set(0, 1.6, 0.075)
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.118, 14, 10), darkMat)
+    face.position.set(0, 1.6, 0.0)
     this.obj.add(face)
 
     const legGeo = new THREE.CapsuleGeometry(0.075, 0.38, 4, 8)
@@ -62,6 +99,8 @@ export class Wanderer {
 
   /** One fixed simulation step. `camYaw` orients WASD to the view. */
   step(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number, terrain: Terrain): void {
+    this.prev.copy(this.pos)
+    this.prevYaw = this.yaw
     // Camera looks along -Z at yaw 0, so forward is (-sin, -cos).
     const fx = -Math.sin(camYaw)
     const fz = -Math.cos(camYaw)
@@ -109,10 +148,19 @@ export class Wanderer {
     this.cloak.rotation.x = -Math.min(0.18, hs * 0.02)
   }
 
-  /** Copy simulation state to the scene graph. */
-  sync(): void {
-    this.obj.position.copy(this.pos)
-    this.obj.rotation.y = this.yaw
+  /** Teleport: no interpolation across the jump. */
+  place(x: number, y: number, z: number): void {
+    this.pos.set(x, y, z)
+    this.prev.copy(this.pos)
+    this.vel.set(0, 0, 0)
+  }
+
+  /** Copy simulation state to the scene graph, `alpha` of the way from the previous step. */
+  sync(alpha: number): void {
+    this.obj.position.lerpVectors(this.prev, this.pos, alpha)
+    let d = this.yaw - this.prevYaw
+    d = Math.atan2(Math.sin(d), Math.cos(d))
+    this.obj.rotation.y = this.prevYaw + d * alpha
   }
 
   get speed(): number {

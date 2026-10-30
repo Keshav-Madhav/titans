@@ -1,11 +1,16 @@
-// Titan gait planner. Decides where every foot lands; the animation solves
-// to it, never the reverse, and each landing is exactly where the footprint
-// event fires.
+// Titan gait planner. Decides where every foot goes; the animation solves
+// to it, never the reverse.
+//
+// Titans do not step cleanly — they DRAG. The swing foot barely leaves the
+// ground and ploughs a trench from its last footprint to its next one, so
+// each foot leaves a canal linking its prints (lakes). The planner emits
+// that path as short `drag` segments while the foot moves, then a `footfall`
+// where it lands.
 //
 // Phase is tied to distance travelled (one step per `stepLen` metres), so
-// feet never skate. Heading uses sin/cos, which is fine here: the server owns
-// the planner in multiplayer and footfalls travel as explicit coordinates,
-// so clients never need to reproduce these numbers bit-for-bit.
+// feet never skate. Heading uses sin/cos, which is fine here: the authority
+// runs the planner and events travel as explicit coordinates, so nobody
+// else has to reproduce these numbers bit-for-bit.
 
 export interface Vec2 {
   x: number
@@ -22,36 +27,30 @@ export interface TitanBody {
   stepTime: number
   lift: number
   turnRate: number
-  footLen: number
-  footWidth: number
+  dragSeg: number
 }
 
 /** Proportions as fractions of height — one table, any Titan scale. */
 export function titanBody(height: number): TitanBody {
-  const stepLen = 0.3 * height
-  const stepTime = 3.0 * Math.sqrt(height / 120) // dynamic similarity: time ∝ √size
   return {
     height,
     hipHeight: 0.42 * height,
     thigh: 0.225 * height,
     shin: 0.215 * height,
     hipHalf: 0.095 * height,
-    stepLen,
-    stepTime,
-    lift: 0.1 * height,
-    turnRate: 0.16,
-    footLen: 0.17 * height,
-    footWidth: 0.085 * height,
+    stepLen: 0.28 * height,
+    // Dynamic similarity says time ∝ √size; the extra factor is weight —
+    // these things are slower than any animal their size would be.
+    stepTime: 4.4 * Math.sqrt(height / 120),
+    lift: 0.016 * height, // a scrape, not a step
+    turnRate: 0.11,
+    dragSeg: 0.06 * height,
   }
 }
 
-export interface Footfall {
-  foot: 0 | 1 // 0 = left, 1 = right
-  x: number
-  z: number
-  heading: number
-  step: number
-}
+export type GaitEvent =
+  | { type: 'footfall'; foot: 0 | 1; x: number; z: number; heading: number; step: number }
+  | { type: 'drag'; foot: 0 | 1; ax: number; az: number; bx: number; bz: number }
 
 export interface GaitInput {
   forward: number // 0..1 (Titans do not walk backwards)
@@ -70,6 +69,8 @@ export class TitanGait {
   readonly swingFrom: Vec2 = { x: 0, z: 0 }
   readonly swingTo: Vec2 = { x: 0, z: 0 }
   private swinging = false
+  private readonly dragFrom: Vec2 = { x: 0, z: 0 }
+  private readonly cur = { x: 0, z: 0, lift: 0 }
 
   constructor(readonly body: TitanBody, x: number, z: number, heading: number) {
     this.x = x
@@ -94,8 +95,8 @@ export class TitanGait {
     }
   }
 
-  /** Advance by dt; returns a footfall if a foot landed this tick. */
-  step(dt: number, input: GaitInput): Footfall | null {
+  /** Advance by dt, pushing any drag segments and footfalls into `out`. */
+  step(dt: number, input: GaitInput, out: GaitEvent[]): void {
     const b = this.body
     const target = Math.max(0, Math.min(1, input.forward)) * this.maxSpeed
     const accel = this.maxSpeed / (b.stepTime * 1.5)
@@ -117,11 +118,11 @@ export class TitanGait {
       const rest = this.side(this.swingFoot, 0)
       const p = this.plant[this.swingFoot]
       const off = Math.hypot(p.x - rest.x, p.z - rest.z)
-      if (!moving && off < b.stepLen * 0.25) return null
+      if (!moving && off < b.stepLen * 0.25) return
       this.swinging = true
       this.phase = 0
-      this.swingFrom.x = p.x
-      this.swingFrom.z = p.z
+      this.swingFrom.x = this.dragFrom.x = p.x
+      this.swingFrom.z = this.dragFrom.z = p.z
     }
 
     // Distance-driven phase, with a floor so a stopping Titan finishes its step.
@@ -136,21 +137,34 @@ export class TitanGait {
     this.swingTo.x = t.x
     this.swingTo.z = t.z
 
-    if (this.phase < 1) return null
     const foot = this.swingFoot
+    if (this.phase < 1) {
+      // The dragging foot cuts its trench in segments behind it.
+      this.footPos(foot, this.cur)
+      const dx = this.cur.x - this.dragFrom.x
+      const dz = this.cur.z - this.dragFrom.z
+      if (dx * dx + dz * dz >= b.dragSeg * b.dragSeg) {
+        out.push({ type: 'drag', foot, ax: this.dragFrom.x, az: this.dragFrom.z, bx: this.cur.x, bz: this.cur.z })
+        this.dragFrom.x = this.cur.x
+        this.dragFrom.z = this.cur.z
+      }
+      return
+    }
+
+    out.push({ type: 'drag', foot, ax: this.dragFrom.x, az: this.dragFrom.z, bx: t.x, bz: t.z })
     this.plant[foot].x = t.x
     this.plant[foot].z = t.z
     this.swinging = false
     this.phase = 0
     this.swingFoot = foot === 0 ? 1 : 0
     this.steps++
-    return { foot, x: t.x, z: t.z, heading: this.heading, step: this.steps }
+    out.push({ type: 'footfall', foot, x: t.x, z: t.z, heading: this.heading, step: this.steps })
   }
 
-  /** Current foot positions: planted, or mid-swing with its arc height. */
+  /** Current foot positions: planted, or mid-drag with its (small) lift. */
   footPos(foot: 0 | 1, out: { x: number; z: number; lift: number }): void {
     if (this.swinging && foot === this.swingFoot) {
-      const p = this.phase
+      const p = Math.min(1, this.phase)
       const e = p * p * (3 - 2 * p)
       out.x = this.swingFrom.x + (this.swingTo.x - this.swingFrom.x) * e
       out.z = this.swingFrom.z + (this.swingTo.z - this.swingFrom.z) * e

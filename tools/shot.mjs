@@ -63,6 +63,17 @@ const scenes = {
     })
     await shot('p1-aerial-far')
   },
+  // The Wanderer up close, side-lit and back-lit: shadow attached at the feet, cloak solid.
+  async closeup() {
+    await page.evaluate(() => window.__g.setCam(Math.PI * 0.85, 0.18, 3.2))
+    await shot('wanderer-close')
+    await page.evaluate(() => window.__g.setCam(Math.PI * 0.85 + 2.2, -0.05, 2.6))
+    await shot('wanderer-close-2')
+    await page.evaluate(() => window.__g.setCam(Math.PI * 0.85 + 3.1, 0.05, 2.4))
+    await shot('wanderer-close-front')
+    await page.evaluate(() => window.__g.setCam(Math.PI * 0.85, 1.3, 5))
+    await shot('wanderer-top')
+  },
   async walk() {
     const before = await page.evaluate(() => window.__g.player())
     await page.evaluate(() => { window.__g.input.press('KeyW'); window.__g.input.press('ShiftLeft') })
@@ -82,11 +93,13 @@ const scenes = {
       const t = g.titanState()
       // Stand ahead of the Titan, a little off its path, and walk it toward us.
       const fx = Math.sin(t.heading), fz = Math.cos(t.heading)
-      g.teleport(t.x + fx * 400 + fz * 150, t.z + fz * 400 - fx * 150)
+      const k = g.titan.H / 120
+      g.teleport(t.x + (fx * 400 + fz * 150) * k, t.z + (fz * 400 - fx * 150) * k)
       g.autopilot.forward = 1
       g.clock.scale = 3
     })
-    await page.waitForTimeout(5000)
+    // Wait for strides, not seconds: the Titan's pace is a design knob.
+    await page.waitForFunction(() => window.__g.titanState().steps >= 4, null, { timeout: 60000 })
     await page.evaluate(() => {
       const g = window.__g
       g.clock.scale = 1
@@ -103,14 +116,23 @@ const scenes = {
     if (st.steps < 3) throw new Error('titan gate: Titan did not walk')
   },
   async titanview() {
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const g = window.__g
       g.setRole('titan')
-      g.clock.scale = 4
+      g.clock.scale = 10
+      const t0 = g.titanState().steps
+      g.input.press('KeyW')
+      while (g.titanState().steps < t0 + 10) await new Promise((r) => setTimeout(r, 50))
+      g.input.release('KeyW')
+      const until = Date.now() + 20000
+      while (Date.now() < until) {
+        if (g.titanState().speed === 0 && !g.titan.gait.isSwinging && g.lakeStats().every((l) => l.full)) break
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      g.clock.scale = 1
+      // Look back along the trail from behind the Titan's shoulder.
+      g.setCam(g.titanState().heading + 0.35, 0.42, 2.6 * g.titan.H)
     })
-    await page.evaluate(() => window.__g.input.press('KeyW'))
-    await page.waitForTimeout(6000)
-    await page.evaluate(() => { const g = window.__g; g.clock.scale = 1 })
     await shot('p3-titan-view')
   },
   // P4 gate: twenty steps leave twenty measured craters.
@@ -156,7 +178,7 @@ const scenes = {
       const t0 = g.titanState()
       g.autopilot.forward = 1
       g.autopilot.turn = 0.12
-      g.clock.scale = 8
+      g.clock.scale = 10
       while (g.titanState().steps < t0.steps + 14) await new Promise((r) => setTimeout(r, 50))
       g.autopilot.forward = 0
       // Wait for the facts, not a timer: the Titan finishes its stride and
@@ -179,11 +201,23 @@ const scenes = {
       const t = g.titanState()
       const bx = -Math.sin(t.heading), bz = -Math.cos(t.heading)
       // Behind the Titan and above the trail, looking along it toward the giant.
-      g.teleport(t.x + bx * 260, t.z + bz * 260)
-      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 230, focusHeight: 1.5, follow: 10 })
+      const k = g.titan.H / 120
+      g.teleport(t.x + bx * 300 * k, t.z + bz * 300 * k)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 260 * k, focusHeight: 1.5, follow: 10 })
       g.setCam(Math.atan2(bx, bz), 0.42)
     })
     await shot('p5-lakes')
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titanState()
+      const k = g.titan.H / 120
+      const bx = -Math.sin(t.heading), bz = -Math.cos(t.heading)
+      // Low and close, off to the side of the canals, looking back along them.
+      g.teleport(t.x + bx * 120 * k + bz * 60 * k, t.z + bz * 120 * k - bx * 60 * k)
+      g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 70 * k, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.atan2(-bz, bx), 0.5)
+    })
+    await shot('p5-canals')
     await page.evaluate(() => {
       const g = window.__g
       const p = g.player()
