@@ -113,7 +113,9 @@ export function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
         vec3 nTmp;
         float patchy = triTex(vLayer.x, 1.0 / (vLayer.z * 6.0), vRockPos + 17.0, rN, nTmp).g;
         float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
-        diffuseColor.rgb = mix(cA, cB * vec3(0.8, 1.15, 0.7), topT) * vColor.rgb;
+        // Ground layers on top get the ground's green; generated moss is coloured already.
+        vec3 topTint = vLayer.y < 7.5 ? vec3(0.8, 1.15, 0.7) : vec3(0.72, 0.8, 0.66);
+        diffuseColor.rgb = mix(cA, cB * topTint, topT) * vColor.rgb;
         rockN = normalize(mix(nA, nB, topT));`,
       )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(rockN, 0.0)).xyz);')

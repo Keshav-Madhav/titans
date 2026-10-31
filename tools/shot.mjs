@@ -398,21 +398,6 @@ const scenes = {
     console.log('pillar climb', JSON.stringify(climb))
     await shot('colossus-climbing')
     if (!climb.held || climb.rose < 6 || climb.inside) throw new Error('colossi gate: could not climb a pillar')
-    for (const [name, place, angle, dist, pitch] of views) {
-      await page.evaluate(([place, angle, dist, pitch]) => {
-        const g = window.__g
-        const c = g.colossi.places.get(place)
-        if (!c) return
-        // From the place toward the valley's centre, turned by `angle`.
-        const base = Math.atan2(-c.x, -c.z) + angle
-        const x = c.x + Math.sin(base) * dist
-        const z = c.z + Math.cos(base) * dist
-        g.teleport(x, z)
-        g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 8, focusHeight: 1.6, follow: 10 })
-        g.setCam(Math.atan2(x - c.x, z - c.z), -pitch, 8)
-      }, [place, angle, dist, pitch])
-      await shot(`colossus-${name}`)
-    }
   },
   // Rock formations: one of each kind, from a little way off; then into a cave.
   async rocks() {

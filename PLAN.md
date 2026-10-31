@@ -76,6 +76,18 @@ So:
   under storm and near colossi.
 - **Vast, dim spaces and vertigo**: pillared halls in the dark; ledges high on the colossi.
 
+## 2d. Impossibly big, impossibly far (user, 2026-10-31, with a Shadow of the Colossus still)
+
+"Being able to see into the distance and still see something so impossibly big that you know you
+can't reach it — and if you ever did, its size would be incomprehensible. The scary part: a rare
+event where that thing animates, and the game takes the camera to pan smoothly to it, and you watch
+it move, with dread." So:
+- **A much bigger world** — lands far larger and more open, so the big things look bigger still,
+  and some things are clearly beyond the world's edge ("offworld").
+- **Rare awakenings**: a far colossus moves (turns its head, takes a step, lifts an arm) maybe once
+  an hour; the camera is taken, pans to it, holds, the sound drops to a drone, then gives control
+  back. Never a jumpscare: slow, inevitable, and you see it coming.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

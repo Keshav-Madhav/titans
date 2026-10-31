@@ -14,5 +14,16 @@ CC0 (public domain) textures from [Poly Haven](https://polyhaven.com), packed by
 | redrock | cliff_side |
 | rock | rock_face_03 |
 | snow | snow_02 |
-| blocks | large_sandstone_blocks_01 (stonework, not ground) |
-| dressed | japanese_stone_wall (stonework, not ground) |
+
+Generated with Gemini image models by `tools/gen-textures.py` (made seamless, normal and height
+derived from luminance) — the colossi's surfaces:
+
+| Layer | What |
+| --- | --- |
+| carved | megalithic stone blocks with worn glyphs (the Sentinel, the stair, the Undercroft) |
+| relief | sandstone with a worn relief frieze (the colonnade) |
+| bone | weathered bone (the Fallen's ribs and skull) |
+| bark | giant tree bark |
+| flagstone | paving with grass in the joints (the plaza, the stair's treads) |
+| moss | thick moss (tops of stone) |
+| basalt | dark stone (the floating monoliths, the sword) |

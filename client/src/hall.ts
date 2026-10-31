@@ -125,7 +125,7 @@ export class Undercroft {
       return d
     }
     const shape: Shape = { field, hx: HALL.hx + 10, hy: D / 2 + 8, hz: HALL.hz + 10, cy: -D / 2 }
-    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.dressed, LAYER.grass], scale: 7, tint: [0.72, 0.72, 0.7] })
+    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.carved, LAYER.flagstone], scale: 9, tint: [0.82, 0.82, 0.8] })
     this.floor = new THREE.Vector3(HALL.x, top - D, HALL.z)
 
     // Shafts of daylight down through the skylights: soft, brightest at the top.

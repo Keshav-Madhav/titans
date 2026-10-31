@@ -2,7 +2,7 @@
 // same spots each run) and shoot what a player would see from the normal
 // camera — then tile them into contact sheets to look over for flaws.
 //
-//   node tools/inspect.mjs [out-dir] [per-land] [seed] [weather]
+//   node tools/inspect.mjs [out-dir] [per-land] [seed] [weather] [url]
 //
 // Writes <out-dir>/<land>-<n>.png and <out-dir>/sheet-<land>.jpg.
 import { chromium } from 'playwright-core'
@@ -13,6 +13,7 @@ const out = process.argv[2] ?? 'shots/inspect'
 const per = Number(process.argv[3] ?? 8)
 const seed = Number(process.argv[4] ?? 1)
 const weather = process.argv[5] ?? 'overcast'
+const url = process.argv[6] ?? 'http://localhost:4317/?offline'
 mkdirSync(out, { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
@@ -20,7 +21,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
-await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded', timeout: 120000 })
+await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 })
 await page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 120000 })
 await page.evaluate((w) => window.__g.weather.set(w, true), weather)
 

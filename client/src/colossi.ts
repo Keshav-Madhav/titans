@@ -22,13 +22,13 @@ import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
 import { canopyGeometry, foliageMaterial, foliageTexture } from './trees'
 
-const BONE: [number, number, number] = [1.12, 1.0, 0.8]
+const BONE: [number, number, number] = [1.0, 0.97, 0.9]
 /** Each colossus its own stone, so they never read as one beige material. */
-const STONE: [number, number, number] = [0.6, 0.64, 0.6] // the Sentinel: dark, weathered, green-grey
-const SANDSTONE: [number, number, number] = [1.12, 0.97, 0.78]
-const LIMESTONE: [number, number, number] = [1.2, 1.17, 1.1]
-const BASALT: [number, number, number] = [0.5, 0.52, 0.56]
-const IRON: [number, number, number] = [0.46, 0.47, 0.5]
+const STONE: [number, number, number] = [0.78, 0.8, 0.78] // the Sentinel: weathered, green-grey
+const SANDSTONE: [number, number, number] = [1.05, 1.0, 0.94]
+const LIMESTONE: [number, number, number] = [1.12, 1.1, 1.06]
+const BASALT: [number, number, number] = [1, 1, 1.04]
+const IRON: [number, number, number] = [0.85, 0.86, 0.9]
 
 /** Box SDF (exact). */
 const box = (x: number, y: number, z: number, bx: number, by: number, bz: number) => {
@@ -121,19 +121,19 @@ export class Colossi {
     // The Sentinel kneels on the valley floor at its northern edge, facing the
     // start: the first thing you see, and taller than the cliffs behind it.
     const sen = site(0, -640, 110, 260)
-    rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.dressed, LAYER.grass], scale: 9, tint: STONE, res: 130 })
+    rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 34, tint: STONE, res: 130 })
     place('sentinel', sen.x, sen.z, sen.y)
 
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
     const ribRot = 0.35
     const rib = site(250, 1950, 220, 350)
-    rocks.addColossus({ kind: 'ribcage', x: rib.x, z: rib.z, y: rib.y - 10, rot: ribRot, seed: 11, layers: [LAYER.snow, LAYER.sand], scale: 9, tint: BONE, res: 120 })
+    rocks.addColossus({ kind: 'ribcage', x: rib.x, z: rib.z, y: rib.y - 10, rot: ribRot, seed: 11, layers: [LAYER.bone, LAYER.sand], scale: 10, tint: BONE, res: 120 })
     place('ribcage', rib.x, rib.z, rib.y)
     const sk = site(rib.x + Math.sin(ribRot) * 380, rib.z + Math.cos(ribRot) * 380, 110, 120)
-    rocks.addColossus({ kind: 'skull', x: sk.x, z: sk.z, y: sk.y - 18, rot: ribRot + 0.5, seed: 13, layers: [LAYER.snow, LAYER.sand], scale: 9, tint: BONE, res: 110 })
+    rocks.addColossus({ kind: 'skull', x: sk.x, z: sk.z, y: sk.y - 18, rot: ribRot + 0.5, seed: 13, layers: [LAYER.bone, LAYER.sand], scale: 10, tint: BONE, res: 110 })
     place('skull', sk.x, sk.z, sk.y)
     const sw = site(-780, 1650, 70, 300)
-    rocks.addColossus({ kind: 'sword', x: sw.x, z: sw.z, y: sw.y, rot: 1.1, seed: 17, layers: [LAYER.dressed, LAYER.sand], scale: 6, tint: IRON })
+    rocks.addColossus({ kind: 'sword', x: sw.x, z: sw.z, y: sw.y, rot: 1.1, seed: 17, layers: [LAYER.basalt, LAYER.sand], scale: 12, tint: IRON })
     place('sword', sw.x, sw.z, sw.y)
 
     // The Old Wood's giant trees.
@@ -153,7 +153,7 @@ export class Colossi {
       }
       if (hi - lo > 18) continue
       const tseed = 100 + trees.length
-      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot: rand() * 6.28, seed: tseed, layers: [LAYER.rock, LAYER.forest], scale: 7, tint: [0.62, 0.47, 0.34], res: 96 })
+      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot: rand() * 6.28, seed: tseed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [1, 1, 1], res: 96 })
       const f = rocks.formations[rocks.formations.length - 1]
       trees.push({ x, y: lo - 2, z, h: f.cy + f.hy })
       place(`tree-${trees.length}`, x, z, lo)
@@ -190,7 +190,7 @@ export class Colossi {
         hz: r * 1.6,
         cy: h / 2,
       }
-      rocks.addBuilt(shape, column(r, h, broken, rand), { x, y, z, rot: rand() * 6.28, layers: [LAYER.blocks, LAYER.grass], scale: 7, tint: SANDSTONE })
+      rocks.addBuilt(shape, column(r, h, broken, rand), { x, y, z, rot: rand() * 6.28, layers: [LAYER.relief, LAYER.moss], scale: 16, tint: SANDSTONE })
       if (broken) {
         // Its fallen drums, lying in the grass.
         for (let k = 0; k < 3; k++) {
@@ -202,7 +202,7 @@ export class Colossi {
           const fy = H(fx, fz) + r * 0.55
           const drumShape: Shape = { field: (lx, ly, lz) => Math.max(Math.hypot(ly, lz) - r * 0.95, Math.abs(lx) - len / 2), hx: len / 2 + 4, hy: r + 4, hz: r + 4, cy: 0 }
           const drum = new THREE.CylinderGeometry(r * 0.95, r * 0.95, len, 40, 2).rotateZ(Math.PI / 2)
-          rocks.addBuilt(drumShape, merged([drum]), { x: fx, y: fy - r * 0.4, z: fz, rot: rand() * 6.28, layers: [LAYER.blocks, LAYER.grass], scale: 7, tint: SANDSTONE })
+          rocks.addBuilt(drumShape, merged([drum]), { x: fx, y: fy - r * 0.4, z: fz, rot: rand() * 6.28, layers: [LAYER.relief, LAYER.moss], scale: 16, tint: SANDSTONE })
         }
       }
     }
@@ -227,7 +227,7 @@ export class Colossi {
     ]
     stones.forEach(([x, z, alt, chained], i) => {
       const y = H(x, z) + alt
-      rocks.addColossus({ kind: 'monolith', x, z, y, rot: i * 1.3, seed: 300 + i, layers: [LAYER.blocks, LAYER.grass], scale: 7, tint: BASALT, float: chained ? undefined : { amp: 12, phase: i * 1.7, spin: 0.004 * (i % 2 ? 1 : -1) } })
+      rocks.addColossus({ kind: 'monolith', x, z, y, rot: i * 1.3, seed: 300 + i, layers: [LAYER.basalt, LAYER.moss], scale: 14, tint: BASALT, float: chained ? undefined : { amp: 12, phase: i * 1.7, spin: 0.004 * (i % 2 ? 1 : -1) } })
       const f = rocks.formations[rocks.formations.length - 1]
       if (chained) {
         // Static: chains hold it. Three run down to anchors on the ground.
@@ -284,7 +284,7 @@ export class Colossi {
     }
     const shape: Shape = { field, hx: W + 50, hy: (top + 340 + 60) / 2, hz: depth + 2 * pd + 20, cy: (top + 340 - 60) / 2 }
     // The field's z runs toward the gate as negative; centre the bounds on the whole build.
-    rocks.addBuilt(shape, merged(parts), { x, y, z, rot, layers: [LAYER.dressed, LAYER.grass], scale: 8, tint: LIMESTONE })
+    rocks.addBuilt(shape, merged(parts), { x, y, z, rot, layers: [LAYER.carved, LAYER.flagstone], scale: 26, tint: LIMESTONE })
     this.places.set('stair', new THREE.Vector3(x, y, z))
     this.places.set('gate', new THREE.Vector3(x - Math.sin(rot) * (depth + pd), y + top, z - Math.cos(rot) * (depth + pd)))
   }

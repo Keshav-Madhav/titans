@@ -29,9 +29,15 @@ LAYERS = [
     ('redrock', 'cliff_side'),
     ('rock', 'rock_face_03'),
     ('snow', 'snow_02'),
-    # Not splatted on the ground: the First Ones' stonework (monuments, colossi).
-    ('blocks', 'large_sandstone_blocks_01'),
-    ('dressed', 'japanese_stone_wall'),
+    # Not splatted on the ground: the colossi's surfaces, generated with
+    # tools/gen-textures.py (Gemini) — 'gen:<name>' reads tools/.cache/gen/<name>/.
+    ('carved', 'gen:carved'),
+    ('relief', 'gen:relief'),
+    ('bone', 'gen:bone'),
+    ('bark', 'gen:bark'),
+    ('flagstone', 'gen:flagstone'),
+    ('moss', 'gen:moss'),
+    ('basalt', 'gen:basalt'),
 ]
 SIZE = 1024
 # Poly Haven refuses Python's default user agent.
@@ -62,9 +68,15 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     for name, asset in LAYERS:
         print(name, '←', asset)
-        colour = Image.open(fetch(asset, 'Diffuse')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
-        normal = Image.open(fetch(asset, 'nor_gl')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
-        height = Image.open(fetch(asset, 'Displacement')).convert('L').resize((SIZE, SIZE), Image.LANCZOS)
+        if asset.startswith('gen:'):
+            folder = os.path.join(CACHE, 'gen', asset[4:])
+            colour = Image.open(os.path.join(folder, 'colour.png')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
+            normal = Image.open(os.path.join(folder, 'normal.png')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
+            height = Image.open(os.path.join(folder, 'height.png')).convert('L').resize((SIZE, SIZE), Image.LANCZOS)
+        else:
+            colour = Image.open(fetch(asset, 'Diffuse')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
+            normal = Image.open(fetch(asset, 'nor_gl')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
+            height = Image.open(fetch(asset, 'Displacement')).convert('L').resize((SIZE, SIZE), Image.LANCZOS)
         nr, ng, _ = normal.split()
         colour.save(os.path.join(OUT, f'{name}_c.jpg'), quality=88, optimize=True)
         Image.merge('RGB', (nr, ng, height)).save(os.path.join(OUT, f'{name}_n.jpg'), quality=90, optimize=True)
