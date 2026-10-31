@@ -69,6 +69,14 @@ export const CATALOGUE: Find[] = [
   f('lore', 'lore-herd', 'A stone near the Herd', "On the edge of the Herd's grazing.", 'The herd eats the stone that grows under the sand. Keep downwind. Keep low. The big one will chase you off if it thinks you are too near the young.'),
   f('lore', 'lore-walker', 'A stone on the western Green', 'Far out on the western Green.', 'The Walker has crossed the Green ten thousand times. It has never once stepped on our camp. It knows we are here. It simply does not mind.'),
   f('lore', 'lore-sleep', 'A stone under the arch', 'Under the stone arch out on the Green.', 'They sleep where the land is low and warm. When one sleeps long enough, the grass grows over it, and then there is a hill, and then you cannot tell.'),
+  // Relics: in the shrines on the giants' backs. Taking one is raiding something alive.
+  f('relic', 'relic-walker', "The Walker's relic", "In the shrine on the Walker's back.", "A disc of pale stone cut with the same mark that glows in the Walker's eyes. It is warm, like something alive, and a little heavier whenever the Walker is near.", 'coin', '#bcd2e6'),
+  f('relic', 'relic-grey', "The Grey One's relic", "In the shrine on the Grey One's back.", 'A stone ring worn smooth inside, as if something turned in it for a very long time.', 'ring', '#9db5c9'),
+  f('relic', 'relic-herd-1', "The herd-leader's relic", "In the shrine on the back of the herd's biggest.", 'A shard of blue stone. The big one did not like you taking it. It may remember.', 'shard', '#7ea4c8'),
+  f('relic', 'relic-herd-2', 'A relic from the herd', "In the shrine on one of the herd's flanks.", 'A stone bead the size of your fist, bored through by something no tool of yours could make.', 'beads', '#8fb0cf'),
+  f('relic', 'relic-herd-3', 'A relic from the herd', "In the shrine on the herd's other flank.", "A flat stone scratched with five marks, the smallest scratched over and over.", 'stone', '#a3bccf'),
+  f('relic', 'relic-herd-4', "A young one's relic", 'In the shrine on one of the young.', 'A pebble, still warm, that rattles as if something were inside it.', 'stone', '#b8c9d8'),
+  f('relic', 'relic-herd-5', "The smallest one's relic", "In the shrine on the herd's smallest.", 'A sliver of glyph-stone. It still glows a little, and dims when you hold it, as if shy.', 'shard', '#cfe0ef'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

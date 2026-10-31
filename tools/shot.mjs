@@ -388,6 +388,46 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Raiding: climb the Walker to the shrine on its back and take its relic; it shrugs.
+  async raid() {
+    await page.evaluate(() => window.__g.finds.find('bag'))
+    const grabbed = await page.evaluate(() => window.__g.grabTitan())
+    if (!grabbed) throw new Error('raid gate: could not grab the foot')
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const parts = []
+      g.clock.scale = 5
+      g.input.press('KeyW')
+      const until = Date.now() + 60000
+      let shrugged = false
+      while (Date.now() < until && !g.finds.has('relic-walker')) {
+        const c = g.climbState()
+        if (!c.active) break
+        if (parts[parts.length - 1] !== c.part) parts.push(c.part)
+        // Up the leg to the torso, then over the back to the glyph.
+        const next = { footL: ['shinL', 1], shinL: ['thighL', 2], thighL: ['torso', 0] }[c.part]
+        let t
+        if (next) {
+          const p = g.titan.part(next[0])
+          t = p.lumps[next[1]].c.clone().applyMatrix4(p.mesh.matrixWorld)
+        } else {
+          t = g.titan.group.getObjectByName('glyph').getWorldPosition(new g.THREE.Vector3())
+        }
+        if (Math.hypot(c.x - t.x, c.z - t.z) < 4) t = g.titan.pelvis
+        g.setCam(Math.atan2(c.x - t.x, c.z - t.z), 0.15)
+        await new Promise((res) => setTimeout(res, 60))
+      }
+      shrugged = g.titan.shrugging
+      g.input.release('KeyW')
+      g.clock.scale = 1
+      return { parts, got: g.finds.has('relic-walker'), shrugged, height: +g.climbState().height.toFixed(0) }
+    })
+    console.log(`climbed ${r.parts.join(' → ')}; relic taken: ${r.got}; it shrugged: ${r.shrugged}; at ${r.height} m`)
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.45, 14))
+    await page.waitForTimeout(1500)
+    await shot('raid')
+    if (!r.got) throw new Error('raid gate: the relic was not taken')
+  },
   // Words on stone and trinkets on high places: every one placed sensibly, readable, takeable.
   async spots() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 180000 })

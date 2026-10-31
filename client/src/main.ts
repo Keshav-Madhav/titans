@@ -653,6 +653,10 @@ function loadLocal(): boolean {
     tipState.bag = true
   }
   for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
+  for (const [gid, relic] of Object.entries(RELIC_OF)) {
+    const t = giantFor(gid)
+    if (t && finds.has(relic)) darkenGlyph(t)
+  }
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -771,6 +775,7 @@ function simulate(dt: number): void {
     return
   }
   if (climber.active) {
+    raid()
     if (input.pressed('KeyE')) letGo(0.6)
     else if (input.pressed('Space')) letGo(4.5)
     else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
@@ -899,10 +904,49 @@ function simulate(dt: number): void {
 }
 
 /** The waking giant the climber holds, if any (sleeping giants do not walk or shrug). */
+/**
+ * Raiding: each walking giant carries a relic in the glowing shrine on its
+ * back. Climb to it and it is yours — and the giant feels it: it shrugs hard
+ * and does its best to shake you off. The glyph goes dark.
+ */
+const RELIC_OF: Record<string, string> = { t1: 'relic-walker', t2: 'relic-grey', h1: 'relic-herd-1', h2: 'relic-herd-2', h3: 'relic-herd-3', h4: 'relic-herd-4', h5: 'relic-herd-5' }
+const DISPLEASED = ['It felt that.', 'The whole body shudders under you. It knows.', 'A sound comes up through the stone, low and long. It is not pleased.']
+const glyphAt = new THREE.Vector3()
+const darkGlyph = new THREE.MeshBasicMaterial({ color: 0x2a2c30 })
+let noBagWarned = false
+function giantFor(id: string): Titan | undefined {
+  return id.startsWith('h') ? herd.giants[Number(id.slice(1)) - 1] : titans.get(id)?.titan
+}
+function darkenGlyph(t: Titan): void {
+  for (const name of ['glyph', 'glyph-inner']) {
+    const m = t.group.getObjectByName(name) as THREE.Mesh | undefined
+    if (m) m.material = darkGlyph
+  }
+}
+function raid(): void {
+  const id = climber.target?.id
+  const relic = id && RELIC_OF[id]
+  if (!relic || finds.has(relic)) return
+  const t = giantFor(id)
+  const glyph = t?.group.getObjectByName('glyph')
+  if (!t || !glyph) return
+  glyph.getWorldPosition(glyphAt)
+  if (climber.world.distanceTo(glyphAt) > t.H * 0.07) return
+  if (!bag.have) {
+    if (!noBagWarned) narration.say('Something glows here, set into the stone. You have nothing to carry it in.')
+    noBagWarned = true
+    return
+  }
+  finds.find(relic)
+  darkenGlyph(t)
+  t.shrug(3.5)
+  sound.call(0)
+  setTimeout(() => narration.say(DISPLEASED[Math.floor(Math.random() * DISPLEASED.length)]), 2400)
+}
+
 function heldAwake(): Titan | undefined {
   const id = climber.target?.id
-  if (!id) return undefined
-  return id.startsWith('h') ? herd.giants[Number(id.slice(1)) - 1] : titans.get(id)?.titan
+  return id ? giantFor(id) : undefined
 }
 
 /** Let go of the giant: fall with its motion plus a push off the rock. */

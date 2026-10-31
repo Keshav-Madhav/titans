@@ -355,9 +355,12 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
       const glyph = new THREE.Mesh(new THREE.TorusGeometry(5.5 * S, 0.7 * S, 8, 40), materials.get('glyph'))
       glyph.rotation.x = Math.PI / 2
       glyph.position.set(top.x, top.y + 3.7 * S, top.z)
+      // Found by name: its relic can be taken (main.ts), and then it goes dark.
+      glyph.name = 'glyph'
       const inner = new THREE.Mesh(new THREE.TorusGeometry(2.6 * S, 0.45 * S, 6, 6), materials.get('glyph'))
       inner.rotation.x = Math.PI / 2
       inner.position.copy(glyph.position)
+      inner.name = 'glyph-inner'
       group.add(glyph, inner)
     }
   }

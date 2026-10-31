@@ -197,6 +197,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D3 Trinkets on the high places: 12, each on a standable top (the Sentinel's hood 370 m up,
       the tallest pillar 812 m, a chained stone 373 m, the ribs, the skull, the Stair, a spire, the
       arch…), glinting bright enough for the bloom to catch from far off
+- [x] D4 Raiding: a relic in the glowing shrine on each walking giant's back (the Walker, the Grey
+      One, the herd's five); climb to it and it is yours — the giant shrugs hard to shake you, the
+      glyph goes dark (saved). Gate: `shot.mjs raid` (taken at 258 m, it shrugged)
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
 
