@@ -61,9 +61,11 @@ export class Bag {
       cell.className = 'bag-cell'
       cell.title = item.name
       cell.appendChild(drawIcon(item.icon ?? 'stone', item.tint ?? '#b9ab8f'))
+      if (this.finds.unseen.has(item.id)) cell.classList.add('new')
       cell.addEventListener('click', () => this.show(item, cell))
       this.grid.appendChild(cell)
     }
+    for (const item of items) this.finds.unseen.delete(item.id)
     if (items.length) this.show(items[items.length - 1], this.grid.lastElementChild as HTMLElement)
     else this.detail.innerHTML = '<p>Deep, patched, and somehow never full. Small things you find will go in here.</p>'
   }
@@ -199,6 +201,56 @@ export function drawIcon(icon: string, tint: string, size = 64): HTMLCanvasEleme
         g.quadraticCurveTo(34, 62, 10, 52)
         g.closePath()
       })
+      break
+    case 'peak':
+      shape(() => {
+        g.moveTo(6, 54)
+        g.lineTo(24, 20)
+        g.lineTo(34, 36)
+        g.lineTo(42, 24)
+        g.lineTo(58, 54)
+        g.closePath()
+      })
+      shape(() => {
+        g.moveTo(24, 20)
+        g.lineTo(19, 30)
+        g.lineTo(28, 28)
+        g.closePath()
+      }, false)
+      break
+    case 'giant':
+      // A hunched figure, arms hanging long.
+      shape(() => g.ellipse(32, 14, 6, 6, 0, 0, Math.PI * 2))
+      shape(() => {
+        g.moveTo(18, 24)
+        g.quadraticCurveTo(32, 16, 46, 24)
+        g.lineTo(50, 46)
+        g.lineTo(44, 46)
+        g.lineTo(40, 32)
+        g.lineTo(40, 58)
+        g.lineTo(34, 58)
+        g.lineTo(32, 42)
+        g.lineTo(30, 58)
+        g.lineTo(24, 58)
+        g.lineTo(24, 32)
+        g.lineTo(20, 46)
+        g.lineTo(14, 46)
+        g.closePath()
+      })
+      break
+    case 'tablet':
+      shape(() => {
+        g.moveTo(18, 58)
+        g.lineTo(20, 10)
+        g.quadraticCurveTo(32, 4, 44, 10)
+        g.lineTo(46, 58)
+        g.closePath()
+      })
+      g.lineWidth = 1.6
+      for (const y of [20, 28, 36, 44]) shape(() => {
+        g.moveTo(25, y)
+        g.lineTo(39, y)
+      }, false)
       break
     case 'bow':
       g.lineWidth = 3.4

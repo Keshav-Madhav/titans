@@ -1443,6 +1443,16 @@ function frame(now: number): void {
   // What is in your hands: the tool in use (the pose and the prop follow), and the toolbar.
   wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 ? 'sight' : null
   toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : null))
+  if (finds.unseen.size) {
+    let j = false
+    let b = false
+    for (const id of finds.unseen) {
+      const k = CATALOGUE.find((c) => c.id === id)?.kind
+      if (k === 'place' || k === 'giant' || k === 'lore') j = true
+      else if (id !== 'bag') b = true
+    }
+    hud.news(j, b)
+  } else hud.news(false, false)
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
   water.sync(lakes.lakes)
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))

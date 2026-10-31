@@ -112,6 +112,14 @@
       #journal-body li { margin: 0 0 9px; font: 13px/1.45 ui-serif, Georgia, serif; }
       #journal-body li b { display: block; font: italic 700 14px ui-serif, Georgia, serif; }
       #journal-body li.unfound { color: #8a7f6b; }
+      #journal-body li img { float: left; width: 28px; height: 28px; margin: 2px 8px 0 0; }
+      #journal-body li em, .bag-cell.new::after {
+        font: 700 9px ui-sans-serif, system-ui; letter-spacing: 0.1em; text-transform: uppercase; font-style: normal;
+        color: #fff; background: #b5532c; padding: 1px 5px; border-radius: 3px; vertical-align: 2px;
+      }
+      .bag-cell { position: relative; }
+      .bag-cell.new::after { content: 'new'; position: absolute; top: -6px; right: -6px; }
+      #hint kbd.news { box-shadow: 0 0 0 2px #e0903a; }
       #bag {
         position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
         background: rgba(12, 12, 14, 0.62); z-index: 6;

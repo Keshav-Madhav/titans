@@ -17,6 +17,14 @@ export class Hud {
   last = { fps: 0, calls: 0, tris: 0 }
 
   /** What you are doing now: the chip at the top right and the hint line. */
+  /** Mark the J / I keys while something found has not been looked at yet. */
+  news(journal: boolean, bag: boolean): void {
+    for (const k of this.hint.querySelectorAll('kbd')) {
+      if (k.textContent === 'J') k.classList.toggle('news', journal)
+      if (k.textContent === 'I') k.classList.toggle('news', bag)
+    }
+  }
+
   setMode(mode: 'wanderer' | 'climbing'): void {
     if (mode === this.mode) return
     this.mode = mode

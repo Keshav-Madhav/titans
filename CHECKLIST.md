@@ -256,6 +256,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       hand drawn to the cheek; the horn to the mouth; the sight-stone before the eye
 - [x] The toolbar (top left): the tools you have found, drawn, with their keys; the one in use lifts
       and lights. Gate: `shot.mjs hands`
+- [x] "New": what you found since you last looked wears a mark in the journal and the bag, and the
+      J / I keys in the hint bar glow until you do; the journal's entries carry a drawn icon of
+      their kind (a peak, a giant, a carved tablet)
 
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the

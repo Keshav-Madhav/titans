@@ -134,6 +134,8 @@ export const CATALOGUE: Find[] = [
 
 export class Discoveries {
   private readonly found = new Set<string>()
+  /** Found since the journal or the bag last showed them (they wear a "new" mark until then). */
+  readonly unseen = new Set<string>()
   /** A new find: show it, sound it, save. */
   onFind: (find: Find) => void = () => {}
 
@@ -147,6 +149,7 @@ export class Discoveries {
     const find = CATALOGUE.find((c) => c.id === id)
     if (!find) return false
     this.found.add(id)
+    this.unseen.add(id)
     this.onFind(find)
     return true
   }
