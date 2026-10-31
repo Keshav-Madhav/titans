@@ -88,6 +88,15 @@
         display: flex; justify-content: space-between;
       }
       #map-title small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
+      #prompt {
+        position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); display: none;
+        padding: 7px 14px; border-radius: 8px; background: rgba(18, 20, 26, 0.6); color: var(--ink);
+        font-weight: 600; letter-spacing: 0.04em;
+      }
+      #prompt kbd {
+        font: 700 11px ui-monospace, Menlo, monospace; padding: 1px 6px; margin-right: 8px; border-radius: 4px;
+        background: var(--ink); color: #1b1b1b;
+      }
       #fade {
         position: fixed; inset: 0; background: #07080a; opacity: 0; pointer-events: none;
         transition: opacity 0.9s ease-in;
@@ -116,6 +125,7 @@
     <div id="narration"></div>
     <canvas id="minimap" width="168" height="168"></canvas>
     <div id="fade"></div>
+    <div id="prompt"></div>
     <div id="map">
       <div id="map-frame">
         <div id="map-title"><span>The Land</span><small id="map-explored"></small></div>

@@ -50,6 +50,7 @@ import { Colossi } from './colossi'
 import { Leviathans } from './leviathans'
 import { Undercroft } from './hall'
 import { WorldMap, type MapPlace } from './map'
+import { Cairns, type CairnPlace } from './cairns'
 import { Striders } from './striders'
 import { Watchers } from './watchers'
 import { Birds } from './life'
@@ -179,10 +180,61 @@ const mapPlaces: MapPlace[] = [
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = () => input.releaseAll()
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6))
+
+// Cairns on the hardest high places: light one and the land below is uncovered.
+const cairnPlaces: CairnPlace[] = []
+{
+  // The two highest peaks of each land (well apart), inside the mountains.
+  const NAMES: Record<string, string[]> = {
+    forest: ['Moss Crown', 'Rootwatch'],
+    desert: ['The Red Tooth', 'Dune Watch'],
+    ruins: ['The High Terrace', 'The Last Step'],
+  }
+  for (const land of ['forest', 'desert', 'ruins'] as const) {
+    const peaks: Array<{ x: number; z: number; h: number }> = []
+    for (let z = -2500; z <= 2500; z += 50) {
+      for (let x = -2500; x <= 2500; x += 50) {
+        if (Math.hypot(x, z) > 2500 || terrain.base.regions.name(x, z) !== land || inHall(x, z, 60)) continue
+        const h = terrain.heightAt(x, z)
+        if (h > 330) continue // the snow line: out of reach for now
+        let top = true
+        for (let k = 0; k < 8 && top; k++) if (terrain.heightAt(x + Math.cos(k * 0.785) * 120, z + Math.sin(k * 0.785) * 120) > h) top = false
+        if (top) peaks.push({ x, z, h })
+      }
+    }
+    peaks.sort((a, b) => b.h - a.h)
+    const chosen: typeof peaks = []
+    for (const p of peaks) if (chosen.length < 2 && chosen.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > 900)) chosen.push(p)
+    chosen.forEach((p, i) => cairnPlaces.push({ name: NAMES[land][i], x: p.x, y: terrain.heightAt(p.x, p.z), z: p.z }))
+  }
+  // The top of the tallest standing pillar of the colonnade.
+  const pillar = rocks.formations.filter((f) => f.kind === 'built' && f.hx < 80 && f.hy > 200).sort((a, b) => b.hy - a.hy)[0]
+  const pillarTop = pillar && rocks.topAt(pillar.x, pillar.z)
+  if (pillar && pillarTop !== null) cairnPlaces.push({ name: 'The Tallest Pillar', x: pillar.x, y: pillarTop, z: pillar.z })
+  // The crown of the Sentinel's hood: its highest point.
+  const sen = colossi.places.get('sentinel')
+  if (sen) {
+    let best = { x: sen.x, z: sen.z, y: -Infinity }
+    for (let dz = -60; dz <= 60; dz += 4) {
+      for (let dx = -60; dx <= 60; dx += 4) {
+        const y = rocks.topAt(sen.x + dx, sen.z + dz)
+        if (y !== null && y > best.y) best = { x: sen.x + dx, z: sen.z + dz, y }
+      }
+    }
+    if (best.y > 0) cairnPlaces.push({ name: "The Sentinel's Hood", ...best })
+  }
+}
+const cairns = new Cairns(cairnPlaces)
+scene.add(cairns.group)
+const promptEl = document.getElementById('prompt')!
+let promptHtml = ''
+const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a long way.', 'The flame catches. The wind takes the smoke.', 'Someone stood here once, and looked out as you do.']
+/** Keep a clearing round each cairn (they are placed further down; plants grow later, lazily). */
+const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z))
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
-const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z))
+const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z))
 scene.add(grass.mesh)
 quality.vegetation = vegetation
 quality.refresh()
@@ -351,6 +403,7 @@ function saveLocal(): void {
     player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
     lakes: lakes.save(),
     seen: worldMap.save(),
+    cairns: cairns.save(),
   }
   if (!saveWorld(data)) narration.say('Could not save (browser storage is full or blocked).')
   saveDirty = false
@@ -375,6 +428,7 @@ function loadLocal(): boolean {
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
   if (d.seen) worldMap.load(d.seen)
+  if (d.cairns) cairns.load(d.cairns)
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -512,7 +566,15 @@ function simulate(dt: number): void {
       }
     }
   } else {
-    if (input.pressed('KeyE')) {
+    const cairn = cairns.near(wanderer.pos)
+    if (cairn && input.pressed('KeyE')) {
+      // Light the cairn: the beam rises, the land round it is uncovered.
+      cairns.light(cairn)
+      worldMap.revealAround(cairn.x, cairn.z, 1400)
+      sound.chime()
+      narration.say(`${cairn.name}. ${CAIRN_LINES[cairns.litCount % CAIRN_LINES.length]}`)
+      saveDirty = true
+    } else if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
       // No giant within reach: a rock formation or colossus; else the land, if there is a wall to hand.
@@ -717,6 +779,15 @@ function frame(now: number): void {
   vegetation.update(dt, camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
+  cairns.update(dt)
+  // What E would do here.
+  const near = !climber.active && !cliff.active ? cairns.near(wanderer.pos) : null
+  const html = near ? `<kbd>E</kbd>Light the cairn` : ''
+  if (html !== promptHtml) {
+    promptHtml = html
+    promptEl.innerHTML = html
+    promptEl.style.display = html ? 'block' : 'none'
+  }
   crownWind.value += dt
   rocks.animate(crownWind.value)
   wildlife.render()
@@ -818,6 +889,7 @@ const g = {
   colossi,
   undercroft,
   worldMap,
+  cairns,
   leviathans,
   striders,
   watchers,

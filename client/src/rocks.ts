@@ -370,6 +370,26 @@ export class Rocks {
     return null
   }
 
+  /** The highest solid surface over (x, z) among the formations (null if none is there). */
+  topAt(x: number, z: number): number | null {
+    let best: number | null = null
+    for (const f of this.near(x, z, 1)) {
+      let y = f.y + f.cy + f.hy + 2
+      const lo = f.y + f.cy - f.hy - 2
+      for (; y > lo; y -= 0.5) if (this.sdf(f, x, y, z) < 0) break
+      if (y <= lo) continue
+      let a = y
+      let b = y + 0.5
+      for (let k = 0; k < 8; k++) {
+        const m = (a + b) / 2
+        if (this.sdf(f, x, m, z) < 0) a = m
+        else b = m
+      }
+      if (best === null || b > best) best = b
+    }
+    return best
+  }
+
   /** Push a body of radius `r` (its centre at `p`) out of any rock. */
   pushOut(p: THREE.Vector3, r = 0.45): boolean {
     let moved = false

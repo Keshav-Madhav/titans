@@ -31,6 +31,8 @@ export interface SaveData {
   lakes?: LakesSave
   /** The land you have seen (the map's uncovered grid, packed). */
   seen?: string
+  /** The cairns you have lit, by name. */
+  cairns?: string[]
 }
 
 export interface Settings {

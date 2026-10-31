@@ -121,6 +121,51 @@ const scenes = {
     await page.evaluate(() => window.__g.worldMap.toggle())
     if (!(seen.high > seen.ground && seen.ground > seen.before)) throw new Error('map gate: exploring did not uncover the map')
   },
+  // Cairns: where they are; light one on a peak and the one on the pillar; the beams from afar.
+  async cairns() {
+    const list = await page.evaluate(() => window.__g.cairns.cairns.map((c) => ({ name: c.name, x: Math.round(c.x), y: Math.round(c.y), z: Math.round(c.z) })))
+    console.log(`${list.length} cairns:`, list.map((c) => `${c.name} (${c.y} m)`).join(', '))
+    const lit = await page.evaluate(async () => {
+      const g = window.__g
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      const before = g.worldMap.explored
+      const out = []
+      for (const name of ['Moss Crown', 'The Tallest Pillar', 'The Red Tooth']) {
+        const c = g.cairns.cairns.find((q) => q.name === name)
+        if (!c) continue
+        g.wanderer.place(c.x + 2, c.y + 0.2, c.z + 1)
+        await wait(300)
+        g.input.press('KeyE')
+        await wait(120)
+        g.input.release('KeyE')
+        await wait(300)
+        out.push({ name, lit: c.lit, prompt: document.getElementById('prompt').textContent })
+      }
+      return { out, before, after: g.worldMap.explored, said: g.narration.lines.slice(-1)[0] }
+    })
+    console.log('lit', JSON.stringify(lit))
+    // A lit cairn close up, the land below.
+    await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      const c = g.cairns.cairns.find((q) => q.name === 'Moss Crown')
+      g.wanderer.place(c.x + 3, c.y + 0.2, c.z + 2)
+      g.wanderer.yaw = Math.atan2(-c.x, -c.z)
+      await new Promise((r) => setTimeout(r, 4500))
+      g.lookFrom([c.x + 9, c.y + 4, c.z + 7], [c.x, c.y + 1.5, c.z])
+    })
+    await shot('cairn-lit')
+    // From the valley: the beams rising over the lands.
+    await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('overcast', true)
+      g.teleport(0, 300)
+      g.lookFrom([0, g.heightAt(0, 300) + 40, 300], [300, 260, -1200])
+    })
+    await shot('cairn-beams')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    if (lit.out.length < 3 || lit.out.some((c) => !c.lit) || !(lit.after > lit.before)) throw new Error('cairns gate: could not light the cairns')
+  },
   // Falls: a short drop is nothing; a long one blacks out and wakes you at the last safe ground.
   async fall() {
     const r = await page.evaluate(async () => {

@@ -209,6 +209,13 @@ export class Sound {
     }
   }
 
+  /** A cairn catches: three glass notes rising from the chord, into the hall. */
+  chime(): void {
+    if (!this.ctx || !this.on) return
+    const c = CHORDS[this.chord]
+    ;[0, 0.45, 0.95].forEach((d, i) => setTimeout(() => this.glass([c[0], c[1 + i], c[1 + i], c[1 + i]]), d * 1000))
+  }
+
   /** Something enormous, very far away, groaning: a deep horn sliding down, mostly reverb. */
   farHorn(): void {
     if (!this.ctx || !this.on) return

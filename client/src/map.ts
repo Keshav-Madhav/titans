@@ -140,6 +140,22 @@ export class WorldMap {
     if (changed) this.drawFog()
   }
 
+  /** Uncover a circle of radius `r` round (x, z) (a lit cairn). */
+  revealAround(x: number, z: number, r: number): void {
+    const cell = SPAN / FOG
+    const cx = Math.floor((x + WORLD_HALF) / cell)
+    const cz = Math.floor((z + WORLD_HALF) / cell)
+    const n = Math.ceil(r / cell)
+    for (let j = -n; j <= n; j++) {
+      for (let i = -n; i <= n; i++) {
+        const gx = cx + i
+        const gz = cz + j
+        if (i * i + j * j <= n * n && gx >= 0 && gz >= 0 && gx < FOG && gz < FOG) this.seen[gz * FOG + gx] = 1
+      }
+    }
+    this.drawFog()
+  }
+
   private drawFog(): void {
     const ctx = this.fog.getContext('2d')!
     const img = ctx.createImageData(FOG, FOG)
