@@ -8,7 +8,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { inBasin, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
+import { inBasin, mulberry32, type Lake, type LakeSystem, type Terrain } from '@titans/shared'
 import type { PaintField } from './paint'
 
 export type BuildingKind = 'hut' | 'house' | 'townhouse' | 'well' | 'tower' | 'church' | 'stall' | 'windmill' | 'field'
@@ -26,7 +26,7 @@ export const KIND_NAME: Record<BuildingKind, string> = {
 }
 
 /** Footprint radius (m) per kind: placement spacing and crush test. */
-const RADIUS: Record<BuildingKind, number> = { hut: 3.8, house: 5.4, townhouse: 4.1, well: 1.8, tower: 3.2, church: 14, stall: 2.4, windmill: 4, field: 12 }
+const RADIUS: Record<BuildingKind, number> = { hut: 3.8, house: 5.4, townhouse: 4.1, well: 1.8, tower: 3.2, church: 14, stall: 2.4, windmill: 4, field: 13 }
 /** How far from its centre a town may grow, and how near water a new one must start. */
 export const TOWN_RADIUS = 140
 const WATER_NEAR = 110
@@ -41,8 +41,10 @@ export interface Town {
   cz: number
   /** Main street direction (radians). */
   dir: number
-  /** Founded by the player (vs an old village). */
+  /** Founded by the player (vs an old village or settlers). */
   player: boolean
+  /** Old villages grow along streets; your towns and settlers' hamlets in rings. */
+  layout?: 'street' | 'ring'
   /** How far its street has been extended by growth (plots used). */
   grown: number
   growTimer: number
@@ -56,6 +58,8 @@ export interface Building {
   rot: number
   town: number
   mesh: THREE.Group
+  /** Top of the chimney, if it has one (world space): smoke rises from here. */
+  chimney?: THREE.Vector3
 }
 
 export interface SettlementSave {
@@ -127,6 +131,7 @@ function model(kind: BuildingKind, seed = 0): THREE.Group {
       add('wall', new THREE.BoxGeometry(w, hgt, l).translate(0, 0.8 + hgt / 2, 0))
       add(roof, gable(w + 0.9, l + 0.8, 2.6 + rand() * 0.8).translate(0, 0.8 + hgt, 0))
       add('stone', new THREE.BoxGeometry(0.8, 2.4, 0.8).translate(w * 0.3, 2.2 + hgt, -l * 0.28))
+      g.userData.chimney = new THREE.Vector3(w * 0.3, 3.5 + hgt, -l * 0.28)
       add('dark', new THREE.BoxGeometry(1.2, 2, 0.3).translate(0, 1.2, l / 2 + 0.05))
       for (const x of [-w * 0.32, w * 0.32]) add('dark', new THREE.BoxGeometry(0.9, 0.9, 0.2).translate(x, 0.8 + hgt * 0.6, l / 2 + 0.05))
       break
@@ -188,6 +193,7 @@ function model(kind: BuildingKind, seed = 0): THREE.Group {
       add(rand() < 0.8 ? 'wall' : 'cream', new THREE.BoxGeometry(w, hgt, d).translate(0, 0.9 + hgt / 2, 0))
       add('slate', gable(d + 0.7, w + 0.5, 4.2).rotateY(Math.PI / 2).translate(0, 0.9 + hgt, 0))
       add('stone', new THREE.BoxGeometry(0.9, 2.2, 0.9).translate(w * 0.3, 0.9 + hgt + 3.4, -1.2))
+      g.userData.chimney = new THREE.Vector3(w * 0.3, 0.9 + hgt + 4.6, -1.2)
       for (let k = 0; k < n; k++) {
         const y = 0.9 + k * 3.2 + 1.75
         for (const x of [-2.5, 0, 2.5]) {
@@ -222,11 +228,23 @@ function model(kind: BuildingKind, seed = 0): THREE.Group {
       const crop = rand() < 0.55 ? 'wheat' : 'crop'
       add('timber', new THREE.BoxGeometry(17, 0.25, 23).translate(0, 0.05, 0))
       for (let i = 0; i < 11; i++) add(crop, new THREE.BoxGeometry(0.9, 0.7 + rand() * 0.15, 22).translate(-7.5 + i * 1.5, 0.45, 0))
+      // A post-and-rail fence round it, and a haystack at one corner.
+      for (const [len, along, at] of [
+        [18, 'x', 12],
+        [18, 'x', -12],
+        [24, 'z', 9],
+        [24, 'z', -9],
+      ] as const) {
+        for (let k = -len / 2; k <= len / 2; k += 3) add('timber', new THREE.BoxGeometry(0.16, 1.2, 0.16).translate(along === 'x' ? k : at, 0.6, along === 'x' ? at : k))
+        for (const y of [0.55, 1.0]) add('timber', along === 'x' ? new THREE.BoxGeometry(len, 0.08, 0.08).translate(0, y, at) : new THREE.BoxGeometry(0.08, 0.08, len).translate(at, y, 0))
+      }
+      add('wheat', new THREE.CylinderGeometry(1.4, 1.5, 1.6, 10).translate(10.8, 0.8, 13.5))
+      add('wheat', new THREE.ConeGeometry(1.55, 1.3, 10).translate(10.8, 2.25, 13.5))
       break
     }
   }
   for (const [m, geos] of Object.entries(parts) as Array<[keyof typeof C, THREE.BufferGeometry[]]>) {
-    const merged = mergeGeometries(geos.map((x) => x.toNonIndexed()))!
+    const merged = mergeGeometries(geos.map((x) => (x.index ? x.toNonIndexed() : x)))!
     merged.computeVertexNormals()
     const mesh = new THREE.Mesh(merged, MATS[m])
     mesh.castShadow = kind !== 'field'
@@ -357,7 +375,7 @@ export class Settlement {
     return this.add(kind, x, z, rot, town.id)
   }
 
-  private found(x: number, z: number, player: boolean, dir: number, name?: string): Town {
+  private found(x: number, z: number, player: boolean, dir: number, name?: string, layout: 'street' | 'ring' = player ? 'ring' : 'street'): Town {
     const rand = mulberry32(Math.floor(x * 31 + z * 17) ^ 0x2545f491)
     const t: Town = {
       id: this.nextTown++,
@@ -366,6 +384,7 @@ export class Settlement {
       cz: z,
       dir,
       player,
+      layout,
       grown: 0,
       growTimer: GROW_EVERY * (0.5 + rand()),
     }
@@ -388,7 +407,8 @@ export class Settlement {
       sails.name = `sails:${id}`
       this.group.add(sails)
     }
-    const b = { id, kind, x, z, rot, town, mesh }
+    const b: Building = { id, kind, x, z, rot, town, mesh }
+    if (mesh.userData.chimney) b.chimney = (mesh.userData.chimney as THREE.Vector3).clone().applyMatrix4(mesh.matrixWorld)
     this.buildings.push(b)
     this.dirtyTowns.add(town)
     return b
@@ -475,6 +495,7 @@ export class Settlement {
     for (const b of this.buildings) {
       const y = this.lowest(b.kind, b.x, b.z)
       if (Math.abs(y - b.mesh.position.y) < 0.01) continue
+      if (b.chimney) b.chimney.y += y - b.mesh.position.y
       b.mesh.position.y = y
       this.dirtyTowns.add(b.town)
       const sails = this.group.getObjectByName(`sails:${b.id}`)
@@ -490,29 +511,57 @@ export class Settlement {
    * streets of houses and huts, a windmill and fields; dirt roads join them
    * and lead one in from where you start.
    */
-  generate(seed: number, count: number, avoid: Array<{ x: number; z: number; r: number }>, forest: (x: number, z: number) => number): void {
+  generate(
+    seed: number,
+    count: number,
+    avoid: Array<{ x: number; z: number; r: number }>,
+    forest: (x: number, z: number) => number,
+    /** Lakes to settle beside (the old trails): villages start on their shores. */
+    water: Array<{ x: number; z: number }> = [],
+  ): void {
     const rand = mulberry32(seed ^ 0x9e3779b9)
-    const centres: Array<{ x: number; z: number }> = []
+    const centres: Array<{ x: number; z: number; dir?: number }> = []
+    const ok = (x: number, z: number) => {
+      if (this.terrain.heightAt(x, z) > 45 || forest(x, z) > 0.35) return false
+      if (avoid.some((p) => Math.hypot(p.x - x, p.z - z) < p.r)) return false
+      if (centres.some((c) => Math.hypot(c.x - x, c.z - z) < 650)) return false
+      // Fairly level and dry over the whole square.
+      let lo = Infinity
+      let hi = -Infinity
+      for (let i = 0; i < 16; i++) {
+        const px = x + Math.cos(i * 0.39) * 40
+        const pz = z + Math.sin(i * 0.39) * 40
+        if (this.wet(px, pz)) return false
+        const h = this.terrain.heightAt(px, pz)
+        lo = Math.min(lo, h)
+        hi = Math.max(hi, h)
+      }
+      return hi - lo <= 7
+    }
+    // On a shore first: a ring of spots round each lake, the main street running down to the water.
+    for (const w of water) {
+      if (centres.length >= count) break
+      for (const d of [120, 150, 185, 220]) {
+        let placed = false
+        for (let i = 0; i < 16 && !placed; i++) {
+          const a = (i / 16) * Math.PI * 2 + rand() * 0.2
+          const x = w.x + Math.cos(a) * d
+          const z = w.z + Math.sin(a) * d
+          if (!ok(x, z)) continue
+          centres.push({ x, z, dir: Math.atan2(w.x - x, w.z - z) })
+          placed = true
+        }
+        if (placed) break
+      }
+    }
     for (let tries = 0; tries < 400 && centres.length < count; tries++) {
       const a = rand() * Math.PI * 2
       const r = 480 + rand() * 900
       const x = Math.cos(a) * r
       const z = Math.sin(a) * r
-      if (this.terrain.heightAt(x, z) > 35 || forest(x, z) > 0.25) continue
-      if (avoid.some((p) => Math.hypot(p.x - x, p.z - z) < p.r)) continue
-      if (centres.some((c) => Math.hypot(c.x - x, c.z - z) < 650)) continue
-      // Fairly level over the whole square.
-      let lo = Infinity
-      let hi = -Infinity
-      for (let i = 0; i < 16; i++) {
-        const h = this.terrain.heightAt(x + Math.cos(i * 0.39) * 40, z + Math.sin(i * 0.39) * 40)
-        lo = Math.min(lo, h)
-        hi = Math.max(hi, h)
-      }
-      if (hi - lo > 6) continue
-      centres.push({ x, z })
+      if (ok(x, z)) centres.push({ x, z })
     }
-    for (const c of centres) this.village(c.x, c.z, rand)
+    for (const c of centres) this.village(c.x, c.z, rand, c.dir)
     // Roads between neighbouring villages, and one in from the start.
     for (let i = 0; i < centres.length; i++) {
       const j = (i + 1) % centres.length
@@ -531,8 +580,8 @@ export class Settlement {
     ;(cobbled ? this.pave : this.paint).line(ax, az, bx, bz, w)
   }
 
-  private village(cx: number, cz: number, rand: () => number): void {
-    const dir = rand() * Math.PI
+  private village(cx: number, cz: number, rand: () => number, towardWater?: number): void {
+    const dir = towardWater ?? rand() * Math.PI
     const t = this.found(cx, cz, false, dir)
     const fx = Math.sin(dir)
     const fz = Math.cos(dir)
@@ -560,9 +609,17 @@ export class Settlement {
       const a = dir + Math.PI / 4 + (i * Math.PI) / 2 + 0.35
       put('stall', cx + Math.sin(a) * 12, cz + Math.cos(a) * 12, a + Math.PI, 1.5)
     }
-    const qx = (fx + px) * 0.7071
-    const qz = (fz + pz) * 0.7071
-    put('church', cx + qx * 38, cz + qz * 38, Math.atan2(-qx, -qz), 2)
+    // The cathedral on a corner of the square: whichever corner is dry land.
+    for (const [a, b] of [
+      [-1, 1],
+      [-1, -1],
+      [1, 1],
+      [1, -1],
+    ]) {
+      const qx = (a * fx + b * px) * 0.7071
+      const qz = (a * fz + b * pz) * 0.7071
+      if (put('church', cx + qx * 38, cz + qz * 38, Math.atan2(-qx, -qz), 2)) break
+    }
     // Terraces of tall townhouses along both streets, doors to the street.
     const along = (sx: number, sz: number, ox: number, oz: number, n: number, start: number) => {
       for (let i = 0; i < n; i++) {
@@ -592,8 +649,9 @@ export class Settlement {
     behind(fx, fz, px, pz, 7, 40)
     behind(-fx, -fz, px, pz, 7, 40)
     t.grown = 9
-    // A windmill on the edge of town, fields beyond the houses.
-    put('windmill', cx + fx * (L + 22) + px * 26, cz + fz * (L + 22) + pz * 26, dir + Math.PI, 8)
+    // A windmill on the landward edge of town, fields beyond the houses.
+    put('windmill', cx - fx * (L + 22) + px * 26, cz - fz * (L + 22) + pz * 26, dir, 8) ||
+      put('windmill', cx - fx * (L + 22) - px * 26, cz - fz * (L + 22) - pz * 26, dir, 8)
     for (const [s, side] of [
       [1, 1],
       [1, -1],
@@ -617,6 +675,8 @@ export class Settlement {
       }
     }
     if (hi - lo > (kind === 'field' ? 3.5 : 2.6)) return 'steep'
+    for (let a = 0; a < 8; a++) if (this.wet(x + Math.cos(a * 0.785) * r, z + Math.sin(a * 0.785) * r)) return 'wet'
+    if (this.wet(x, z)) return 'wet'
     if (kind !== 'well' && kind !== 'stall' && (this.paint.at(x, z) > 0.5 || this.pave.at(x, z) > 0.5)) return 'street'
     for (const b of this.buildings) if (Math.hypot(b.x - x, b.z - z) < RADIUS[b.kind] + r + 0.8) return 'crowded'
     return null
@@ -636,6 +696,11 @@ export class Settlement {
       const b = this.growOne(t)
       if (b) this.onGrow(t, b)
     }
+  }
+
+  /** Add one building to a town now (world creation: hamlets that have stood a while). */
+  growNow(t: Town): void {
+    this.growOne(t)
   }
 
   /** Catch up after time away: up to `n` new buildings per town. */
@@ -662,7 +727,7 @@ export class Settlement {
       let x: number
       let z: number
       let rot: number
-      if (!t.player) {
+      if ((t.layout ?? (t.player ? 'ring' : 'street')) === 'street') {
         // Extend the main street outward, a plot at a time, both ends, both sides.
         const s = 24 + Math.floor(t.grown / 4) * 9
         const end = t.grown % 2 ? 1 : -1
@@ -672,7 +737,7 @@ export class Settlement {
         rot = Math.atan2(-px * side, -pz * side)
         if (s > 108) this.road(t.cx + fx * end * (s - 9), t.cz + fz * end * (s - 9), t.cx + fx * end * (s + 4), t.cz + fz * end * (s + 4), 7, true)
       } else {
-        // A player's town grows in rings about its first building, a path to each door.
+        // Your towns and settlers' hamlets grow in rings about the first building, a path to each door.
         const ring = 1 + Math.floor(t.grown / 8)
         const a = t.dir + (t.grown % 8) * (Math.PI / 4) + ring * 0.4
         const d = 14 + ring * 13
@@ -681,10 +746,87 @@ export class Settlement {
         rot = a + Math.PI
       }
       if (Math.hypot(x - t.cx, z - t.cz) > TOWN_RADIUS) continue
-      const kind: BuildingKind = !t.player ? 'townhouse' : rand() < 0.65 ? 'house' : 'hut'
+      const street = (t.layout ?? (t.player ? 'ring' : 'street')) === 'street'
+      const kind: BuildingKind = street ? 'townhouse' : rand() < 0.65 ? 'house' : rand() < 0.5 ? 'hut' : 'townhouse'
       if (this.whyNotGen(kind, x, z) || this.wet(x, z)) continue
-      if (t.player) this.road(x + Math.sin(rot) * (RADIUS[kind] + 1), z + Math.cos(rot) * (RADIUS[kind] + 1), t.cx, t.cz, 2.4)
+      if (!street) this.road(x + Math.sin(rot) * (RADIUS[kind] + 1), z + Math.cos(rot) * (RADIUS[kind] + 1), t.cx, t.cz, 2.4)
       return this.add(kind, x, z, rot, t.id)
+    }
+    return null
+  }
+
+  // --- settlers -------------------------------------------------------------
+
+  private clockS = 0
+  private emergeTimer = 40
+  /** When each full lake was first seen full (game seconds). */
+  private readonly lakeSeen = new Map<number, number>()
+  /** Places settlers will come to: a sleeping giant's feet, a caravan's camp. */
+  private readonly comingTo: Array<{ x: number; z: number; r: number; at: number }> = []
+  /** Settlers founded a hamlet (for the chat). */
+  onSettle: (town: Town, why: string) => void = () => {}
+
+  /** Settlers will come here in `delay` seconds (a mountain's feet, a camp). */
+  settleSoon(x: number, z: number, r: number, delay: number): void {
+    this.comingTo.push({ x, z, r, at: this.clockS + delay })
+  }
+
+  /**
+   * Life follows the water: a lake a giant left, full for a couple of minutes
+   * with no town near, draws settlers, who found a hamlet on its shore. So do
+   * the places in `comingTo`. At most one new hamlet per check.
+   */
+  emerge(dt: number, lakes: readonly Lake[]): void {
+    this.clockS += dt
+    this.emergeTimer -= dt
+    if (this.emergeTimer > 0) return
+    this.emergeTimer = 90
+    if (this.towns.length >= 24) return
+    for (let i = 0; i < this.comingTo.length; i++) {
+      const c = this.comingTo[i]
+      if (c.at > this.clockS) continue
+      this.comingTo.splice(i, 1)
+      const t = this.hamlet(c.x, c.z, c.r * 0.6, c.r)
+      if (t) return this.onSettle(t, 'mountain')
+      return
+    }
+    for (const l of lakes) {
+      const b = l.basin
+      if (l.level < b.spill - 0.01 || b.sorted.length < 600 || b.capped) continue
+      const first = this.lakeSeen.get(l.id) ?? this.lakeSeen.set(l.id, this.clockS).get(l.id)!
+      if (this.clockS - first < 120) continue
+      if (this.towns.some((t) => Math.hypot(t.cx - b.bx, t.cz - b.bz) < 420)) continue
+      const t = this.hamlet(b.bx, b.bz, 70, 150)
+      if (t) return this.onSettle(t, 'lake')
+      this.lakeSeen.set(l.id, this.clockS + 600) // nowhere to build here; look again much later
+    }
+  }
+
+  /** Found a settlers' hamlet on dry, level ground r0–r1 from (x, z), facing it: a well and three homes. */
+  hamlet(x: number, z: number, r0: number, r1: number): Town | null {
+    const rand = mulberry32(Math.floor(x * 13 + z * 7) ^ 0x51ed)
+    for (let r = r0; r <= r1; r += 15) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2 + rand() * 0.3
+        const hx = x + Math.cos(a) * r
+        const hz = z + Math.sin(a) * r
+        if (this.townAt(hx, hz) || this.whyNotGen('well', hx, hz)) continue
+        // Room to grow: dry and level for 30 m around.
+        let fine = true
+        for (let k = 0; k < 8 && fine; k++) {
+          const px = hx + Math.cos(k * 0.785) * 30
+          const pz = hz + Math.sin(k * 0.785) * 30
+          if (this.wet(px, pz) || Math.abs(this.terrain.heightAt(px, pz) - this.terrain.heightAt(hx, hz)) > 6) fine = false
+        }
+        if (!fine) continue
+        const t = this.found(hx, hz, false, Math.atan2(x - hx, z - hz), undefined, 'ring')
+        this.add('well', hx, hz, 0, t.id)
+        for (let k = 0; k < 3; k++) this.growOne(t)
+        const fa = Math.atan2(hx - x, hz - z)
+        const fd = 40
+        if (!this.whyNotGen('field', hx + Math.sin(fa) * fd, hz + Math.cos(fa) * fd)) this.add('field', hx + Math.sin(fa) * fd, hz + Math.cos(fa) * fd, fa, t.id)
+        return t
+      }
     }
     return null
   }
@@ -694,6 +836,16 @@ export class Settlement {
     for (const o of this.group.children) if (o.name.startsWith('sails:')) o.rotateZ(dt * 0.6)
     for (const t of this.dirtyTowns) this.rebatch(t)
     this.dirtyTowns.clear()
+  }
+
+  /** Chimney tops within `r` of (x, z), for smoke. */
+  chimneysNear(x: number, z: number, r: number): Array<{ id: number; x: number; y: number; z: number }> {
+    const out: Array<{ id: number; x: number; y: number; z: number }> = []
+    for (const b of this.buildings) {
+      if (!b.chimney || Math.abs(b.x - x) > r || Math.abs(b.z - z) > r) continue
+      out.push({ id: b.id, x: b.chimney.x, y: b.chimney.y, z: b.chimney.z })
+    }
+    return out
   }
 
   /** Draw calls the towns cost (tools). */

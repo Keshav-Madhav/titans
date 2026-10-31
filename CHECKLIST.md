@@ -208,7 +208,33 @@ measures sky colour against the reel's (about rgb 62, 84, 109 high up).
       oxen follow the nearest walking giant ~1.25 H behind, in file, round water; when it stops they
       circle up round a fire. Traditional AI; single player for now
 - [x] Returning worlds settle up to 1,500 merge rounds (capped at 2.5 s, under the loading screen):
-      300 m giants make many more merges
+      300 m giants make many more merges (superseded: lakes are now saved, see below)
+
+## A lived-in world (user, 2026-10-31: "still too barren… villages don't form around water…
+## villages don't start popping up around giants which have left… add life")
+- [x] The First Ones' trails (`ancient.ts`): a fresh world starts with three old giant trails, laid
+      with the real gait, kernels and water: chains of old footprint lakes joined by dragged
+      channels, grown over (no fresh-earth tint; plants regrow). Saved like any other ground
+- [x] Old villages stand on those lakes' shores, streets running down to the water; up to four
+      hamlets by other old lakes
+- [x] Settlers: hamlets spring up by lakes that have stood full a while, at the foot of a giant
+      gone to sleep (a few minutes after it becomes a mountain), and where a caravan camps long
+      enough; each says so in the chat
+- [x] Life: birds wheeling over lakes and towns, chimney smoke, sheep in fenced fields (scatter
+      from giants), travellers on the roads between towns, haystacks
+- [x] Land: shrubs on the open plain, copses and lone trees, trampled ground greening over (5 min)
+- [x] Ruins of the First Ones: stone circles, colonnades, a colossal hand, a buried face
+- [x] Lakes, made robust for long trails (`tools/fill-bench.ts`, the Node lake gate):
+      spill only makes new pools in hollows a Titan dug (natural hollows stay dry — before, full
+      lakes spilled from hollow to hollow down whole valleys: 2.2 s of lake work a minute, 67 ms
+      hitches); a pair that merged and came apart never re-merges (it cycled forever);
+      "settled" now means step() changed nothing at all. Refill 0.7 s (was > 10 s, never settled);
+      a minute of play 51 ms of lake work, worst step 0.3 ms
+- [x] Lakes are saved with the world (outlines run-length encoded, ≈ 28 KB, plus what was learned
+      merging them): a reload rebuilds them in 18 ms instead of re-running the rain; a refill that
+      outlasts its loading budget carries on a few ms a frame
+- [x] Building onto an old village joins it ("The people of X take in your house") — it used to
+      say "You founded null"
 
 ## P12 — Beta polish → Beta 1
 - [x] Clouds: cumulus clusters of billboard puffs (lit crowns, shaded bases) at a Titan's waist,

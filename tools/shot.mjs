@@ -333,7 +333,7 @@ const scenes = {
   async village() {
     const v = await page.evaluate(() => {
       const g = window.__g
-      const t = [...g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      const t = [...g.settlement.towns].filter((q) => q.layout === 'street').sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
       const kinds = {}
       for (const b of g.settlement.buildings) if (b.town === t.id) kinds[b.kind] = (kinds[b.kind] ?? 0) + 1
       return { name: t.name, cx: t.cx, cz: t.cz, dir: t.dir, kinds, towns: g.settlement.towns.length }
@@ -343,8 +343,9 @@ const scenes = {
       const g = window.__g
       // On the main street, 70 m out, looking at the square.
       const fx = Math.sin(v.dir), fz = Math.cos(v.dir)
-      g.teleport(v.cx + fx * 75, v.cz + fz * 75)
-      g.setCam(Math.atan2(fx, fz), 0.12, 6)
+      // On the landward end of the main street (it runs down to the water), looking along it.
+      g.teleport(v.cx - fx * 75, v.cz - fz * 75)
+      g.setCam(Math.atan2(-fx, -fz), 0.12, 6)
     }, v)
     await shot('village-street')
     await page.evaluate((v) => {
@@ -382,7 +383,7 @@ const scenes = {
       g.settlement.update(0)
       g.townsfolk.sync()
       return { name: mine?.name, before, after: { mine: mine ? count(mine.id) : 0, village: count(vid) }, folk: g.townsfolk.folk.length, calls: g.settlement.drawCalls }
-    }, (await page.evaluate(() => [...window.__g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0].id)))
+    }, (await page.evaluate(() => [...window.__g.settlement.towns].filter((q) => q.layout === 'street').sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0].id)))
     console.log(`growth: ${g2.name} ${g2.before.mine} → ${g2.after.mine} buildings; ${v.name} ${g2.before.village} → ${g2.after.village}; ${g2.folk} townsfolk; towns drawn in ${g2.calls} calls`)
     if (g2.after.mine < g2.before.mine + 10 || g2.after.village <= g2.before.village) throw new Error('village gate: towns did not grow')
     await page.evaluate(() => {
@@ -441,7 +442,7 @@ const scenes = {
     // 3 — "Or be a single adventurer": in a village square, the church ahead, a giant beyond.
     await page.evaluate((H) => {
       const g = window.__g
-      const town = [...g.settlement.towns].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      const town = [...g.settlement.towns].filter((q) => q.layout === 'street').sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
       const church = g.settlement.buildings.find((b) => b.town === town.id && b.kind === 'church')
       const ax = church ? church.x : town.cx + 20
       const az = church ? church.z : town.cz + 20
@@ -534,6 +535,103 @@ const scenes = {
       await shot('diag-noshadow')
     }
     console.log('lakes:', JSON.stringify(await page.evaluate(() => window.__g.lakes.lakes.filter((l) => l.basin.sorted.length > 5000).map((l) => ({ cells: l.basin.sorted.length, depth: +(l.level - l.basin.bottom).toFixed(2), mean: +(l.level - l.basin.prefix[l.basin.sorted.length] / l.basin.sorted.length).toFixed(2), at: [l.basin.bx, l.basin.bz] })))))
+  },
+  // Life follows the water: settlers found hamlets by a giant's lakes and at a sleeping giant's feet.
+  async settlers() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const S = g.settlement
+      const before = S.towns.length
+      // Walk the giant away from the old villages, leaving lakes.
+      const t0 = g.titanState().steps
+      g.autopilot.forward = 1
+      g.autopilot.turn = 0.08
+      g.clock.scale = 10
+      while (g.titanState().steps < t0 + 10) await new Promise((r) => setTimeout(r, 40))
+      g.autopilot.forward = 0
+      const until = Date.now() + 30000
+      while (Date.now() < until && !(g.titanState().speed === 0 && g.lakeStats().every((l) => l.full || l.cells > 20000))) await new Promise((r) => setTimeout(r, 100))
+      g.clock.scale = 1
+      // Ten minutes pass for the settlers.
+      for (let i = 0; i < 40; i++) S.emerge(15, g.lakes.lakes)
+      const byLake = S.towns.slice(before).map((t) => t.name)
+      // The giant sleeps; settlers come to its feet.
+      const tg = g.titanState()
+      const n = S.towns.length
+      g.goDormant('t1')
+      for (let i = 0; i < 20; i++) S.emerge(15, g.lakes.lakes)
+      const feet = S.towns.slice(n).map((t) => ({ name: t.name, d: Math.round(Math.hypot(t.cx - tg.x, t.cz - tg.z)) }))
+      S.update(0)
+      g.townsfolk.sync()
+      const first = S.towns[before]
+      return { byLake, feet, first: first && { x: first.cx, z: first.cz, n: S.buildings.filter((b) => b.town === first.id).length }, said: [...document.querySelectorAll('#chat-log .line')].map((e) => e.textContent).filter((t) => t.includes('founded')).slice(-3) }
+    })
+    console.log(`hamlets by the giant's lakes: ${r.byLake.join(', ') || 'none'}; at the sleeping giant's feet: ${r.feet.map((f) => `${f.name} (${f.d} m)`).join(', ') || 'none'}`)
+    console.log('chat:', r.said.join(' | '))
+    if (r.first) {
+      await page.evaluate((f) => {
+        const g = window.__g
+        g.teleport(f.x - 60, f.z - 60)
+        g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 90, focusHeight: 1.5, follow: 50 })
+        g.setCam(Math.PI + Math.PI / 4, 0.4)
+      }, r.first)
+      await shot('settlers-hamlet')
+    }
+    if (r.byLake.length < 1 || r.feet.length < 1) throw new Error('settlers gate: no hamlets came')
+  },
+  // Life: a village's edge — smoke, sheep by the fields, birds overhead — and a hamlet.
+  async life() {
+    const v = await page.evaluate(async () => {
+      const g = window.__g
+      const t = [...g.settlement.towns].filter((q) => q.layout === 'street').sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      // The flock nearest this town: stand beyond it, looking over it to the town.
+      const flock = [...g.livestock.flocks].sort((a, b) => Math.hypot(a.hx - t.cx, a.hz - t.cz) - Math.hypot(b.hx - t.cx, b.hz - t.cz))[0]
+      const at = flock ? { x: flock.hx, z: flock.hz } : { x: t.cx + 90, z: t.cz }
+      const dx = at.x - t.cx, dz = at.z - t.cz
+      const d = Math.hypot(dx, dz) || 1
+      g.teleport(at.x + (dx / d) * 22, at.z + (dz / d) * 22)
+      g.setCam(Math.atan2(dx, dz), 0.1, 6)
+      // Let the smoke rise and the birds gather.
+      await new Promise((r) => setTimeout(r, 6000))
+      return { town: t.name, sheep: g.livestock.count, chimneys: g.settlement.chimneysNear(t.cx, t.cz, 380).length }
+    })
+    console.log('life', JSON.stringify(v))
+    await shot('life-village-edge')
+    // Boats: from the shore, a fisher on the village's lake.
+    const b = await page.evaluate(async () => {
+      const g = window.__g
+      const t = [...g.settlement.towns].filter((q) => q.layout === 'street').sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[0]
+      const boat = [...g.boats.boats].sort((a, b) => Math.hypot(a.x - t.cx, a.z - t.cz) - Math.hypot(b.x - t.cx, b.z - t.cz))[0]
+      if (!boat) return { boats: 0 }
+      // Walk from the boat toward the town until dry ground, then a little further.
+      const dx = t.cx - boat.x, dz = t.cz - boat.z
+      const d = Math.hypot(dx, dz) || 1
+      let k = 0
+      while (k < d && g.settlement.wet(boat.x + (dx / d) * k, boat.z + (dz / d) * k)) k += 2
+      k = Math.min(Math.max(k + 10, 30), 70)
+      g.teleport(boat.x + (dx / d) * k, boat.z + (dz / d) * k)
+      g.setCam(Math.atan2(dx, dz), 0.12, 6)
+      await new Promise((r) => setTimeout(r, 1500))
+      return { boats: g.boats.boats.length, from: Math.round(k) }
+    })
+    console.log('boats', JSON.stringify(b))
+    await shot('life-boats')
+    if (b.boats < 3) throw new Error('life gate: no boats on the village lakes')
+  },
+  // Landmarks: each kind of ruin, from the ground.
+  async ruins() {
+    const sites = await page.evaluate(() => window.__g.ruins.sites)
+    for (const kind of ['hand', 'circle', 'colonnade', 'face']) {
+      const s = sites.find((q) => q.kind === kind)
+      if (!s) continue
+      await page.evaluate((s) => {
+        const g = window.__g
+        g.teleport(s.x + 45, s.z + 30)
+        const p = g.player()
+        g.setCam(Math.atan2(p.x - s.x, p.z - s.z), 0.08, 7)
+      }, s)
+      await shot(`ruin-${kind}`)
+    }
   },
   // The reel's sky: a Wanderer looking up at a Titan with clouds about its waist.
   async sky() {

@@ -76,6 +76,10 @@ export class Caravan {
   private campX = 0
   private campZ = 0
   private t = 0
+  /** Seconds camped in one place. Long enough by water, and the caravan settles there. */
+  private camped = 0
+  /** Asked whether to settle at the camp; true if a hamlet was founded there. */
+  onSettle: (x: number, z: number) => boolean = () => false
 
   constructor(
     private readonly terrain: Terrain,
@@ -118,6 +122,14 @@ export class Caravan {
       this.campX = lead.x
       this.campZ = lead.z
     }
+
+    if (this.state === 'camp') {
+      this.camped += dt
+      if (this.camped > 200) {
+        this.camped = 0
+        if (this.onSettle(this.campX, this.campZ)) this.depart()
+      }
+    } else this.camped = 0
 
     if (this.state === 'follow' && best) {
       const g = best.gait
@@ -187,6 +199,25 @@ export class Caravan {
       const f = 0.85 + 0.15 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3)
       this.fire.scale.set(f, 0.8 + 0.4 * f, f)
     }
+  }
+
+  /** Settled: the families stay; a new caravan will set out from a town (moveTo). */
+  depart(): void {
+    this.departed = true
+  }
+  departed = false
+
+  /** Start again from (x, z) (a town's edge), camped. */
+  moveTo(x: number, z: number): void {
+    this.wagons.forEach((w, i) => {
+      const a = (i / this.wagons.length) * Math.PI * 2
+      w.x = x + Math.cos(a) * 17
+      w.z = z + Math.sin(a) * 17
+    })
+    this.campX = x
+    this.campZ = z
+    this.state = 'camp'
+    this.departed = false
   }
 
   centre(): { x: number; z: number } {

@@ -34,6 +34,8 @@ interface Person {
   home: number
   town: number
   merchant: boolean
+  /** Travels between towns along the roads (always simulated, wherever they are). */
+  traveller?: boolean
   state: 'idle' | 'walk' | 'flee'
   timer: number
   tx: number
@@ -126,8 +128,9 @@ export class Townsfolk {
         tz: door.z,
       })
     }
+    const travellers = this.folk.filter((p) => p.traveller)
     this.folk.length = 0
-    this.folk.push(...kept)
+    this.folk.push(...kept, ...travellers)
   }
 
   step(dt: number, threats: readonly Threat[], camera: THREE.Vector3): void {
@@ -136,8 +139,21 @@ export class Townsfolk {
     if (places.length === 0) return
     const ids = this.town.buildings.map((q) => q.id)
     for (const p of this.folk) {
-      if (Math.hypot(p.x - camera.x, p.z - camera.z) > ACTIVE_R) continue
+      if (!p.traveller && Math.hypot(p.x - camera.x, p.z - camera.z) > ACTIVE_R) continue
       p.timer -= dt
+      if (p.traveller && p.state === 'idle' && p.timer <= 0) {
+        // On to another town, by the road.
+        const towns = this.town.towns
+        const t = towns[Math.floor(this.rand() * towns.length)]
+        if (t && t.id !== p.town) {
+          p.town = t.id
+          p.tx = t.cx + (this.rand() - 0.5) * 20
+          p.tz = t.cz + (this.rand() - 0.5) * 20
+          p.state = 'walk'
+          p.timer = Math.hypot(p.tx - p.x, p.tz - p.z) / WALK + 120
+        } else p.timer = 10
+        continue
+      }
       // A Titan close by: run.
       if (p.state !== 'flee') {
         for (const t of threats) {
@@ -179,6 +195,11 @@ export class Townsfolk {
         p.state = 'walk'
         p.timer = 90
       }
+      if (p.state === 'flee' && p.timer <= 0 && p.traveller) {
+        p.state = 'idle'
+        p.timer = 5
+        continue
+      }
       if (p.state === 'flee' && p.timer <= 0) {
         p.tx = homeAt.x
         p.tz = homeAt.z
@@ -208,6 +229,32 @@ export class Townsfolk {
       let dy = Math.atan2(dx, dz) - p.yaw
       dy = Math.atan2(Math.sin(dy), Math.cos(dy))
       p.yaw += dy * Math.min(1, dt * 6)
+    }
+  }
+
+  /** People on the roads between towns: `n` of them, starting at random towns. */
+  addTravellers(n: number): void {
+    const towns = this.town.towns
+    if (!towns.length) return
+    for (let i = 0; i < n; i++) {
+      const t = towns[Math.floor(this.rand() * towns.length)]
+      this.folk.push({
+        x: t.cx + (this.rand() - 0.5) * 30,
+        z: t.cz + (this.rand() - 0.5) * 30,
+        stride: 0,
+        px: t.cx,
+        pz: t.cz,
+        color: CLOAKS[Math.floor(this.rand() * CLOAKS.length)],
+        yaw: 0,
+        home: -1,
+        town: t.id,
+        merchant: false,
+        traveller: true,
+        state: 'idle',
+        timer: this.rand() * 20,
+        tx: t.cx,
+        tz: t.cz,
+      })
     }
   }
 

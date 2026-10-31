@@ -170,6 +170,8 @@ export class TerrainView {
   paint: PaintField | null = null
   /** Cobbled streets and squares (also drawn as stones up close). */
   pave: PaintField | null = null
+  /** Is this ground freshly churned by a giant (bare sand), or old and grown over? */
+  fresh: (x: number, z: number) => boolean = () => true
 
   constructor(private readonly terrain: Terrain, seed: number) {
     this.detail = makeSimplex2(seed + 999)
@@ -446,6 +448,11 @@ export class TerrainView {
 
     if (this.biome) {
       // Lush meadow, then forest: canopy from afar, shaded floor up close.
+      // Darker where the scrub is thick (it reads from afar before the bushes do).
+      t = (this.biome.scrub(x, z) - 0.2) * 0.22
+      r += (CANOPY[0] - r) * t
+      g += (CANOPY[1] - g) * t
+      b += (CANOPY[2] - b) * t
       t = this.biome.meadow(x, z) * 0.3
       r += (MEADOW[0] - r) * t
       g += (MEADOW[1] - g) * t
@@ -464,7 +471,8 @@ export class TerrainView {
 
     // Freshly disturbed ground (Titan footprints) reads as turned soil.
     if (delta !== 0) {
-      t = smoothstep(0.15, 1.8, Math.abs(delta))
+      // Fresh: bare sand. Old (regrown, or the First Ones' trails): a little earth on the walls.
+      t = smoothstep(0.15, 1.8, Math.abs(delta)) * (this.fresh(x, z) ? 1 : 0.22)
       const wet = delta < 0 ? smoothstep(0.5, 3, -delta) : 0
       const sr = SAND[0] + (WET_SOIL[0] - SAND[0]) * wet
       const sg = SAND[1] + (WET_SOIL[1] - SAND[1]) * wet

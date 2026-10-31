@@ -42,6 +42,8 @@ human-scale Wanderers who follow, climb and build around them.
 - Verify before claiming done: `npm run build`, then the phase's gate against `npm run preview`
   (port 4317): `node tools/shot.mjs <scene>` (tool mode), `node tools/single.mjs` (the real default),
   and for multiplayer `node tools/mp.mjs` (opens `?mp`) with a fresh `npm run server` (port 2567);
-  `persist`/`dormant`/`wild.mjs` start their own servers.
+  `persist`/`dormant`/`wild.mjs` start their own servers. Anything touching `shared/src/water.ts`:
+  `npx tsx tools/fill-bench.ts` (Node, no browser) — the refill must truly settle (more rain merges
+  nothing), restore exactly, and keep a lake step under half a frame.
 - Online, the server owns the Titan and the terrain-event order; the client never applies its own
   Titan events online (it extrapolates the gait and discards them). Offline, it simulates both.

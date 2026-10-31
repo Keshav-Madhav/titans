@@ -1,11 +1,12 @@
 // Single-player memory: the world you made survives a reload. Saved in
 // localStorage — the ordered terrain events (rounded to the millimetre,
-// compact arrays), every Titan's gait, the mountains, and where you stood.
+// compact arrays), every Titan's gait, the mountains, the lakes, and where
+// you stood.
 // Loading replays the events exactly as joining a server does.
 //
 // Settings (single player vs multiplayer, server address) live here too.
 
-import type { MountainInfo, TitanSnapshot } from '@titans/shared'
+import type { LakesSave, MountainInfo, TitanSnapshot } from '@titans/shared'
 import type { SettlementSave } from './settlement'
 
 const SAVE_KEY = 'titans.world.v1'
@@ -35,6 +36,8 @@ export interface SaveData {
   mountains: Record<string, MountainInfo>
   player: { x: number; y: number; z: number }
   settlement?: SettlementSave | null
+  /** The lakes as they stood (rebuilding them from the events alone means re-running all the rain). */
+  lakes?: LakesSave
 }
 
 export interface Settings {

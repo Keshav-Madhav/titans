@@ -106,7 +106,10 @@ try {
   // Build by hand: found a town beside the lake (B, pick, aim, click), reload, it is still there.
   const town = await ev(async () => {
     const g = window.__g
-    const lake = [...g.lakes.lakes].sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
+    // The biggest lake with no village on its shore (building there founds a town of our own).
+    const lake = [...g.lakes.lakes]
+      .filter((l) => !g.settlement.towns.some((t) => Math.hypot(t.cx - l.basin.bx, t.cz - l.basin.bz) < 400))
+      .sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)[0]
     // Near the lake but well above its rising water: nothing wet within 20 m.
     let spot = null
     search: for (let d = 30; d <= 150; d += 4) {

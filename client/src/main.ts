@@ -44,6 +44,9 @@ import { Wildlife, type Threat } from './wildlife'
 import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
 import { Townsfolk } from './townsfolk'
 import { Caravan } from './caravan'
+import { ancientTrails } from './ancient'
+import { Ruins } from './ruins'
+import { Birds, Boats, Livestock, Smoke } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
@@ -92,7 +95,8 @@ const sky = new SkySystem(scene, renderer)
 installAtmosphere(sky.sunDir)
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 
-const lakes = new LakeSystem(terrain.cellHeight)
+// New pools only in hollows a Titan dug (natural hollows stay dry).
+const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
 const water = new WaterView()
 scene.add(water.group)
 const effects = new Effects((x, z) => terrain.heightAt(x, z))
@@ -104,6 +108,18 @@ scene.add(settlement.group)
 const townsfolk = new Townsfolk(terrain, settlement)
 scene.add(townsfolk.group)
 let lastGrowNote = -Infinity
+settlement.onSettle = (t, why) => {
+  townsfolk.sync()
+  populate()
+  saveDirty = true
+  chat.system(
+    why === 'mountain'
+      ? `Settlers have come to the sleeping giant's feet: ${t.name} is founded.`
+      : why === 'caravan'
+        ? `The caravan has settled for good: ${t.name} is founded by the water.`
+        : `Settlers have found the giant's lake: ${t.name} is founded on its shore.`,
+  )
+}
 settlement.onGrow = (t, b) => {
   townsfolk.sync()
   saveDirty = true
@@ -116,12 +132,40 @@ settlement.onGrow = (t, b) => {
 }
 const clouds = new Clouds()
 scene.add(clouds.mesh)
+const birds = new Birds(terrain)
+scene.add(birds.mesh)
+const smoke = new Smoke()
+scene.add(smoke.mesh)
+const livestock = new Livestock(terrain)
+scene.add(livestock.group)
+const boats = new Boats(terrain)
+scene.add(boats.group)
+/** Towns that already have their sheep and travellers (by id). */
+const peopled = new Set<number>()
+/** Sheep by every town's fields, travellers on the roads: once per town. */
+function populate(): void {
+  for (const t of settlement.towns) {
+    if (peopled.has(t.id)) continue
+    peopled.add(t.id)
+    const fields = settlement.buildings.filter((b) => b.town === t.id && b.kind === 'field')
+    for (const f of fields.slice(0, 2)) livestock.addFlock(f.x + Math.sin(f.rot) * 26, f.z + Math.cos(f.rot) * 26, 7 + Math.floor(Math.random() * 7))
+    townsfolk.addTravellers(t.player ? 0 : 2)
+  }
+}
 /** A caravan that follows the giants (made with the old villages; single player). */
 let caravan: Caravan | null = null
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => settlement.occupies(x, z))
+// The First Ones' trails and ruins come from the seed alone, so they are the
+// same in every session: ruins stand clear of the trails' lakes and rivers.
+const trails = ancientTrails(WORLD_SEED, TITAN_HEIGHT, (x, z) => terrain.heightAt(x, z))
+const trailPoints = trails.flatMap((t) => t.events.map((e) => (e.type === 'drag' ? { x: e.bx, z: e.bz } : { x: e.x, z: e.z })))
+const ruins = new Ruins(terrain, WORLD_SEED, (x, z) => Math.hypot(x, z) > 300 && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < 140))
+scene.add(ruins.mesh)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => settlement.occupies(x, z) || ruins.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
 quality.refresh()
+terrainView.fresh = (x, z) => vegetation.isFresh(x, z)
+vegetation.onRegrow = (x0, z0, x1, z1) => terrainView.markDirty(x0, z0, x1, z1)
 paint.onPaint = pave.onPaint = (x0, z0, x1, z1) => {
   terrainView.markDirty(x0, z0, x1, z1)
   vegetation.markDirty(x0, z0, x1, z1)
@@ -129,6 +173,8 @@ paint.onPaint = pave.onPaint = (x0, z0, x1, z1) => {
 /** Build mode: the chosen piece (null = not building) and its turn. */
 let building: BuildingKind | null = null
 let buildRot = 0
+/** Villages that have taken in something you built (said once each). */
+const welcomed = new Set<number>()
 const buildAt = { x: 0, z: 0, ok: false }
 
 const input = new Input(canvas)
@@ -238,9 +284,15 @@ function grow(b: Box): void {
   strideBox.x1 = Math.max(strideBox.x1, b.x1)
   strideBox.z1 = Math.max(strideBox.z1, b.z1)
   terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
-  // A Titan's foot flattens whatever grew there.
-  vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
+  // A Titan's foot flattens whatever grew there; it greens over again later.
+  // (Replays and the First Ones' trails are old ground already.)
+  if (!replaying) vegetation.trample(b.x0, b.z0, b.x1, b.z1)
+  else vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
+/** True while applying events that are not happening now (loading, ancient trails). */
+let replaying = false
+/** True while laying down the First Ones' trails (their footfalls are not "steps" anyone saw). */
+let ancient = false
 
 /** Buildings a Titan just crushed: rubble, and word of it. */
 function crushed(gone: ReturnType<Settlement['crush']>, replay: boolean): void {
@@ -260,6 +312,7 @@ const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
 /** Apply one terrain event. `replay` = catching up on join: no dust, no shake. */
 function onGait(ev: GaitEvent | MountainRise, replay = false): void {
+  replaying = replay
   const H = TITAN_HEIGHT
   if (ev.type === 'mountain') {
     // A Titan fell asleep: the hill rising under it.
@@ -277,7 +330,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
     return
   }
   crushed(settlement.crush(ev.x, ev.z, (ev.stomp ? 0.2 : 0.11) * H), replay)
-  falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
+  if (!ancient) falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
   grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
   lakes.onDeform(strideBox, ev.x, ev.z)
@@ -430,6 +483,7 @@ function saveLocal(): void {
     mountains: mountains.infos(),
     player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
     settlement: settlement.save(),
+    lakes: lakes.save(),
   }
   if (!saveWorld(data)) chat.system('Could not save the world (browser storage is full or blocked).')
   saveDirty = false
@@ -452,10 +506,13 @@ function loadLocal(): void {
     a.lastDriver = t.lastDriver ?? ''
   }
   wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
-  // Time has passed: the rain has fallen.
+  // Time has passed: the rain has fallen. The lakes come back as they were,
+  // brim-full (and settle whatever was still merging when you left).
+  if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   if (d.settlement) {
     settlement.load(d.settlement)
+    populate()
     // Towns kept growing while you were away.
     const grew = settlement.catchUp(Math.min(8, Math.floor((Date.now() - d.savedAt) / 120000)))
     if (grew) chat.system(`While you were away, the towns built ${grew} new home${grew === 1 ? '' : 's'}.`)
@@ -483,13 +540,55 @@ function loadLocal(): void {
  */
 function ensureVillages(): void {
   if (settlement.towns.length === 0 && !params.has('novillages')) {
-    settlement.generate(WORLD_SEED, 3, [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 }))], (x, z) => biome.forest(x, z))
+    // The First Ones' trails: old lakes and rivers, grown over. Saved like any
+    // other ground (they are part of this world now).
+    ancient = true
+    for (const trail of trails) {
+      for (const ev of trail.events) {
+        const packed = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
+        const exact = packed ? (unpackEvent(packed) as GaitEvent) : ev
+        onGait(exact, true)
+        record(exact)
+      }
+    }
+    ancient = false
+    lakes.fillAll()
+    // The old villages stand on their shores.
+    const water = lakes.lakes
+      .filter((l) => l.basin.sorted.length >= 800)
+      .sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)
+      .map((l) => ({ x: l.basin.bx, z: l.basin.bz }))
+    const avoid = [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 })), ...ruins.sites.map((r) => ({ x: r.x, z: r.z, r: 220 }))]
+    settlement.generate(WORLD_SEED, 3, avoid, (x, z) => biome.forest(x, z), water)
+    // Hamlets already stand by some of the other old lakes: the world is lived in.
+    let hamlets = 0
+    for (const w of water) {
+      if (hamlets >= 4) break
+      if (settlement.towns.some((t) => Math.hypot(t.cx - w.x, t.cz - w.z) < 450)) continue
+      if (ruins.sites.some((r) => Math.hypot(r.x - w.x, r.z - w.z) < 200)) continue
+      if (settlement.hamlet(w.x, w.z, 70, 150)) {
+        hamlets++
+        for (const t of settlement.towns.slice(-1)) for (let k = 0; k < 4; k++) settlement.growNow(t)
+      }
+    }
     townsfolk.sync()
+    populate()
   }
   // A caravan camps on the plain between spawn and the first giant, ready to follow it.
   if (!caravan && !params.has('novillages')) {
     caravan = new Caravan(terrain, TITAN_SPAWNS[0].x * 0.45 - 60, TITAN_SPAWNS[0].z * 0.45 + 40)
     scene.add(caravan.group)
+    // Camped long by water, the caravan's families settle; a new caravan sets out from a town.
+    caravan.onSettle = (x, z) => {
+      if (!lakes.lakes.some((l) => l.level > l.basin.bottom + 0.3 && Math.hypot(l.basin.bx - x, l.basin.bz - z) < 260)) return false
+      if (settlement.towns.some((t) => Math.hypot(t.cx - x, t.cz - z) < 380)) return false
+      const t = settlement.hamlet(x, z, 10, 90)
+      if (!t) return false
+      settlement.onSettle(t, 'caravan')
+      const from = settlement.towns[Math.floor(Math.random() * settlement.towns.length)]
+      caravan!.moveTo(from.cx + Math.sin(from.dir) * 160, from.cz + Math.cos(from.dir) * 160)
+      return true
+    }
   }
 }
 
@@ -571,13 +670,19 @@ function simulate(dt: number): void {
       if (building && input.clicked()) {
         if (!buildAt.ok) chat.system(settlement.preview(building, buildAt.x, buildAt.z, buildRot) ?? 'Look at the ground where it should go.')
         else {
-          const founded = !settlement.name
+          const towns = settlement.towns.length
           const b = settlement.place(building, buildAt.x, buildAt.z, buildRot)
           if (typeof b === 'string') chat.system(b)
           else {
             townsfolk.sync()
             saveDirty = true
-            if (founded) chat.system(`You founded ${settlement.name}. Give it a well and a few homes, and it will grow.`)
+            const town = settlement.towns.find((t) => t.id === b.town)!
+            if (settlement.towns.length > towns) chat.system(`You founded ${town.name}. Give it a well and a few homes, and it will grow.`)
+            else if (!town.player && !welcomed.has(town.id)) {
+              // Built onto an old village: it is theirs, and they are glad of it.
+              welcomed.add(town.id)
+              chat.system(`The people of ${town.name} take in your ${KIND_NAME[b.kind].toLowerCase()}.`)
+            }
           }
         }
       }
@@ -664,7 +769,9 @@ function simulate(dt: number): void {
       a.aloneSince = 0
     }
   }
-  lakes.step(dt)
+  // A refill that ran out of loading time carries on a little each frame.
+  if (lakes.settling) lakes.settle(4)
+  else lakes.step(dt)
   // Big things to keep clear of: every awake Titan (more so when it walks),
   // and a Wanderer running right at them.
   threats.length = 0
@@ -675,8 +782,13 @@ function simulate(dt: number): void {
   if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
   townsfolk.step(dt, threats, camera.position)
+  livestock.step(dt, camera.position, threats, (x, z) => settlement.wet(x, z))
+  boats.step(dt, lakes.lakes, settlement.towns)
   caravan?.step(dt, [...titans.values()].map((a) => a.titan), (x, z) => settlement.wet(x, z))
-  if (!toolMode || params.has('grow')) settlement.grow(dt)
+  if (!toolMode || params.has('grow')) {
+    settlement.grow(dt)
+    settlement.emerge(dt, lakes.lakes)
+  }
   if (role === 'wanderer' && !climber.active) tipState.moved += wanderer.speed * dt
   if (role === 'titan' || climber.active) tipState.titanOrClimb = true
 }
@@ -779,6 +891,8 @@ function goDormant(id = driving || 't1'): void {
   if (!t) return
   const mid = `local-${mountains.count + 1}`
   const owner = titans.get(id)!
+  // In a while, settlers come to its feet (the reel's town round the mountain).
+  settlement.settleSoon(t.gait.x, t.gait.z, 1.0 * TITAN_HEIGHT, 120)
   mountains.add(mid, { name: owner.lastDriver || 'A nameless Titan', since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
   owner.aloneSince = 0
   owner.lastDriver = ''
@@ -843,6 +957,14 @@ function frame(now: number): void {
   water.update(dt)
   effects.update(dt)
   clouds.update(dt, camera.position)
+  birdSpots.length = 0
+  for (const l of lakes.lakes) if (l.basin.sorted.length > 400 && l.level > l.basin.bottom + 0.5) birdSpots.push({ x: l.basin.bx, z: l.basin.bz })
+  for (const t of settlement.towns) birdSpots.push({ x: t.cx, z: t.cz })
+  birds.step(dt, camera.position, birdSpots)
+  birds.render()
+  smoke.step(dt, settlement.chimneysNear(camera.position.x, camera.position.z, 380))
+  livestock.render(camera.position)
+  boats.render(lakes.lakes)
   sky.tick(dt)
   vegetation.update(dt, camera.position)
   wildlife.render()
@@ -892,6 +1014,7 @@ function frame(now: number): void {
   }
 }
 const tmpFocus = new THREE.Vector3()
+const birdSpots: Array<{ x: number; z: number }> = []
 // While the land wakes: the story, a line at a time (from the design's "The First World").
 const LORE = [
   'Before recorded history, the world was flat and silent.',
@@ -946,6 +1069,11 @@ const g = {
   },
   mountains,
   wildlife,
+  ruins,
+  birds,
+  smoke,
+  livestock,
+  boats,
   get caravan() {
     return caravan
   },

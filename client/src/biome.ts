@@ -30,6 +30,16 @@ export class Biome {
     return smoothstep(-0.25, 0.55, this.b(x * 0.0016 + 3, z * 0.0016 - 9))
   }
 
+  /** Copses: small clumps of trees out on the open plain. 0 … 1. */
+  copse(x: number, z: number): number {
+    return smoothstep(0.5, 0.78, this.c(x * 0.0065 + 11, z * 0.0065 - 7))
+  }
+
+  /** Scrub: how thick the low bushes are (the reel's speckled savanna). 0.2 … 1. */
+  scrub(x: number, z: number): number {
+    return 0.2 + 0.8 * smoothstep(-0.4, 0.6, this.b(x * 0.0042 - 3, z * 0.0042 + 5))
+  }
+
   /** Patches of wildflowers: 0 none … 1 thick. */
   flowers(x: number, z: number): number {
     return smoothstep(0.35, 0.75, this.c(x * 0.012, z * 0.012))

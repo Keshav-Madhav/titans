@@ -16,9 +16,11 @@ import type { Biome } from './biome'
 import type { PaintField } from './paint'
 
 const CELL = 96
+/** Seconds of game time before churned ground greens over. */
+const REGROW = 300
 const GCELL = 24 // grass cells
 
-type Kind = 'coniferNear' | 'coniferMid' | 'broadNear' | 'broadMid' | 'rock' | 'bush' | 'grass' | 'reed'
+type Kind = 'coniferNear' | 'coniferMid' | 'broadNear' | 'broadMid' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub'
 const CAP: Record<Kind, number> = {
   coniferNear: 7000,
   coniferMid: 26000,
@@ -28,6 +30,7 @@ const CAP: Record<Kind, number> = {
   bush: 9000,
   grass: 34000,
   reed: 6000,
+  shrub: 40000,
 }
 
 /** Instances of each kind in one cell: packed matrices + colours (number[] while generating, typed once done). */
@@ -40,7 +43,7 @@ interface Batch {
 function pack(b: Batch): Batch {
   return { m: Float32Array.from(b.m), c: Float32Array.from(b.c), n: b.n }
 }
-type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed', Batch>>
+type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed' | 'shrub', Batch>>
 
 function colored(g: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   const c = new THREE.Color(hex)
@@ -110,6 +113,8 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   broadMid: () => colored(smooth(new THREE.IcosahedronGeometry(1, 1)).scale(3.7, 3.2, 3.7).translate(0, 6.4, 0), LEAF),
   rock: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 21, 0.26).scale(1, 0.7, 1), 0x8f877b),
   bush: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 31, 0.22).scale(1.3, 0.85, 1.3).translate(0, 0.55, 0), 0x55702f),
+  // Low scrub: a few triangles each, thousands of them — the savanna's dark speckle.
+  shrub: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 0), 37, 0.25).scale(1.1, 0.6, 1.1).translate(0, 0.35, 0), 0x4c5629),
   grass: () => {
     // A tuft of thin blades leaning outward.
     const pos: number[] = []
@@ -157,7 +162,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   },
 }
 
-const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, broadNear: 0.014, broadMid: 0.01, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1 }
+const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, broadNear: 0.014, broadMid: 0.01, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0 }
 
 export class Vegetation {
   readonly group = new THREE.Group()
@@ -178,7 +183,17 @@ export class Vegetation {
   private readonly v = new THREE.Vector3()
   private readonly s = new THREE.Vector3()
   private readonly col = new THREE.Color()
-  stats = { trees: 0, rocks: 0, bushes: 0, grass: 0, reeds: 0 }
+  stats = { trees: 0, rocks: 0, bushes: 0, grass: 0, reeds: 0, shrubs: 0 }
+  /**
+   * Ground a giant has just churned up stays bare for REGROW seconds of game
+   * time; then grass, bushes and trees return (old craters, ancient trails).
+   * 64 m cells → the game time they become green again.
+   */
+  private readonly churned = new Map<number, number>()
+  private clockS = 0
+  private sinceExpire = 0
+  /** Called when churned ground greens over (the terrain recolours it). */
+  onRegrow: (x0: number, z0: number, x1: number, z1: number) => void = () => {}
 
   constructor(
     private readonly terrain: Terrain,
@@ -218,6 +233,19 @@ export class Vegetation {
     }
   }
 
+  /** A giant just tore up this ground: bare for a while. */
+  trample(x0: number, z0: number, x1: number, z1: number): void {
+    const until = this.clockS + REGROW
+    for (let cz = Math.floor(z0 / 64); cz <= Math.floor(z1 / 64); cz++) for (let cx = Math.floor(x0 / 64); cx <= Math.floor(x1 / 64); cx++) this.churned.set(key(cx, cz), until)
+    this.markDirty(x0, z0, x1, z1)
+  }
+
+  /** Is this ground still raw from a giant's foot? */
+  isFresh(x: number, z: number): boolean {
+    const until = this.churned.get(key(Math.floor(x / 64), Math.floor(z / 64)))
+    return until !== undefined && until > this.clockS
+  }
+
   /** Terrain changed (or something was built) inside the box: regrow those cells. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
     for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) this.cells.delete(key(cx, cz))
@@ -227,6 +255,19 @@ export class Vegetation {
 
   update(dt: number, cam: THREE.Vector3): void {
     this.time.value += dt
+    this.clockS += dt
+    this.sinceExpire += dt
+    if (this.sinceExpire > 2) {
+      this.sinceExpire = 0
+      for (const [k, until] of this.churned) {
+        if (until > this.clockS) continue
+        this.churned.delete(k)
+        const cx = Math.floor(k / 65536) - 32768
+        const cz = (k % 65536) - 32768
+        this.markDirty(cx * 64, cz * 64, cx * 64 + 64, cz * 64 + 64)
+        this.onRegrow(cx * 64, cz * 64, cx * 64 + 64, cz * 64 + 64)
+      }
+    }
     this.since += dt
     // The lakes rose or spread: the shore plants move with them.
     if (this.since > 2) {
@@ -245,7 +286,7 @@ export class Vegetation {
   }
 
   private rebuild(cam: THREE.Vector3): void {
-    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, broadNear: 0, broadMid: 0, rock: 0, bush: 0, grass: 0, reed: 0 }
+    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, broadNear: 0, broadMid: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const push = (kind: Kind, b: Batch) => {
       const fit = Math.min(b.n, CAP[kind] - n[kind])
@@ -289,6 +330,7 @@ export class Vegetation {
         if (c.rock) push('rock', c.rock)
         if (c.bush) push('bush', c.bush)
       }
+      if (d < this.midR * 0.85 && c.shrub) push('shrub', c.shrub)
       if (d < this.nearR && c.reed) push('reed', c.reed)
     }
     // Grass and flowers, close by.
@@ -320,6 +362,7 @@ export class Vegetation {
       bushes: n.bush,
       grass: n.grass,
       reeds: n.reed,
+      shrubs: n.shrub,
     }
     // Keep the caches from growing without bound as the camera roams.
     if (this.cells.size > 1800) this.cells.clear()
@@ -332,7 +375,7 @@ export class Vegetation {
   private ground(x: number, z: number, maxH = 250): number | null {
     const h = this.terrain.heightAt(x, z)
     if (h > maxH) return null
-    if (Math.abs(this.terrain.delta.sample(x, z)) > 0.6) return null
+    if (Math.abs(this.terrain.delta.sample(x, z)) > 0.6 && this.isFresh(x, z)) return null
     if (this.paint.at(x, z) > 0.25 || this.pave.at(x, z) > 0.1) return null
     if (this.occupied(x, z)) return null
     if (this.wet(x, z, 0)) return null
@@ -370,7 +413,8 @@ export class Vegetation {
         const x = x0 + gx + rand() * 7
         const z = z0 + gz + rand() * 7
         const f = this.biome.forest(x, z)
-        const p = f > 0.45 ? 0.2 + f * 0.62 : f * 0.06 + 0.004
+        const cp = this.biome.copse(x, z)
+        const p = f > 0.45 ? 0.2 + f * 0.62 : f * 0.06 + 0.011 + cp * 0.42
         if (rand() > p) continue
         const h = this.ground(x, z, 240)
         if (h === null) continue
@@ -398,7 +442,7 @@ export class Vegetation {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
-      const edge = f > 0.15 && f < 0.6 ? 0.45 : 0.04
+      const edge = f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4
       const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 : 0
       if (rand() > edge + waterSide) continue
       const h = this.ground(x, z)
@@ -407,6 +451,18 @@ export class Vegetation {
       const t = 0.8 + rand() * 0.35
       this.col.setRGB(t, t, t * 0.9)
       this.add(batch('bush'), x, h - 0.1, z, rand() * 6.28, sc, sc, this.col)
+    }
+    // Scrub across the plain, thick in places, thin in others.
+    for (let i = 0; i < 70; i++) {
+      const x = x0 + rand() * CELL
+      const z = z0 + rand() * CELL
+      if (rand() > this.biome.scrub(x, z) * 0.75) continue
+      const h = this.ground(x, z, 220)
+      if (h === null) continue
+      const sc = 0.55 + rand() * 1.1
+      const t = 0.75 + rand() * 0.45
+      this.col.setRGB(t, t * (0.95 + rand() * 0.1), t * 0.85)
+      this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc, sc * (0.7 + rand() * 0.6), this.col)
     }
     // Reeds in the shallows of the Titans' lakes.
     for (const l of this.lakes.lakes) {

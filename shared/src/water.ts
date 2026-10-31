@@ -49,6 +49,19 @@ const MAX_CELLS = 90000
 const POOL_MAX = 16000
 /** Smaller hollows fill at once; water runs on past them. */
 const POOL_MIN = 40
+/** fillAll() gives up after this many rounds (it settles in a few hundred). */
+const MAX_FILL_ROUNDS = 4000
+
+/** A lake, saved: its id, outline (bbox origin and width, run lengths) and brim, its lowest cell and exit. */
+export type LakeSave = [id: number, x0: number, z0: number, w: number, spill: number, bx: number, bz: number, ex: number | null, ez: number | null, runs: number[]]
+/** Every lake, and the pairs (by shape) already tried: see LakeSystem.save(). */
+export interface LakesSave {
+  lakes: LakeSave[]
+  failed: string[]
+  resolved: string[]
+  lowland: string[]
+  merged?: string[]
+}
 
 /** Bed mask without the volume tables — a lake's wet area on today's terrain. */
 interface Region {
@@ -467,7 +480,17 @@ export class LakeSystem {
   readonly lakes: Lake[] = []
   private nextId = 1
 
-  constructor(private readonly H: CellHeight, public rainRate = 0.06) {}
+  /**
+   * `dug` says whether a Titan has dug a cell down. Spill only makes a new
+   * pool in a hollow whose lowest point is dug ground: the world's natural
+   * hollows stay dry (otherwise every full lake would spill on from hollow to
+   * hollow down every valley, merging all the way).
+   */
+  constructor(
+    private readonly H: CellHeight,
+    public rainRate = 0.06,
+    private readonly dug: (ix: number, iz: number) => boolean = () => true,
+  ) {}
 
   /**
    * Terrain, or the water surface where a lake holds water. `wet` replaces a
@@ -661,7 +684,7 @@ export class LakeSystem {
         }
         if (pool.capped) break // running off into lowland: lost, for now
         if (pool.sorted.length >= POOL_MIN) {
-          if (pool.sorted.length <= POOL_MAX) {
+          if (pool.sorted.length <= POOL_MAX && this.dug(pool.bx, pool.bz)) {
             const p: Lake = { id: this.nextId++, basin: pool, volume: 0, level: pool.bottom, carry: 0, version: 1 }
             this.lakes.push(p)
             l.down = p.id
@@ -687,30 +710,36 @@ export class LakeSystem {
   /**
    * A world you return to has had its rain: fill every lake to its brim, let
    * the spill find (and fill) the pools below, and let surfaces that now meet
-   * merge — repeated until nothing changes.
+   * merge — repeated until nothing changes. Long trails can take thousands of
+   * merges: past `budgetMs` it stops (every lake brim-full) and settle()
+   * carries on from there. True once settled.
    */
-  fillAll(): void {
+  fillAll(budgetMs = 2500): boolean {
+    this.calm = 0
+    this.lastFillRounds = 0
+    this.lastFillMs = 0
+    return this.settle(budgetMs)
+  }
+
+  /** More of fillAll(), for at most `budgetMs` (a frame's share). True once settled. */
+  settle(budgetMs: number): boolean {
     // Rain for real (a step with no rain never overflows, so the merges that
     // only happen when water spills never fired), until a step changes nothing.
-    // Big giants mean many merges (one per step): give it room, but never
-    // more than a couple of seconds (the loading screen covers it).
-    let calm = 0
-    let round = 0
-    const until = Date.now() + 2500
-    for (; round < 1500 && calm < 2 && Date.now() < until; round++) {
-      for (const l of this.lakes) {
-        l.volume = volumeAt(l.basin, l.basin.spill)
-        l.level = l.basin.spill
-        l.carry = 0
-      }
-      const count = this.lakes.length
-      const shapes = this.lakes.map((l) => l.basin.sorted.length).join(',')
-      this.step(30)
-      const same = this.lakes.length === count && this.lakes.map((l) => l.basin.sorted.length).join(',') === shapes
-      calm = same ? calm + 1 : 0
+    const start = Date.now()
+    while (this.calm < 2 && this.lastFillRounds < MAX_FILL_ROUNDS && Date.now() - start < budgetMs) {
+      this.brim()
+      // step() reports any merge or settle, even one that changed no shape.
+      this.calm = this.step(30) ? 0 : this.calm + 1
+      this.lastFillRounds++
     }
-    this.lastFillRounds = round
+    this.lastFillMs += Date.now() - start
     // Whatever the last merge left half-filled: brim-full, as rain would have it.
+    this.brim()
+    this.settling = this.calm < 2 && this.lastFillRounds < MAX_FILL_ROUNDS
+    return !this.settling
+  }
+
+  private brim(): void {
     for (const l of this.lakes) {
       l.volume = volumeAt(l.basin, l.basin.spill)
       l.level = l.basin.spill
@@ -718,13 +747,90 @@ export class LakeSystem {
     }
   }
 
+  /**
+   * The lakes as they stand, outline and all (restore() rebuilds them full),
+   * with what was learned settling them: which pairs could not merge, and
+   * whose shared overflow runs off. Without it they would be tried again.
+   */
+  save(): LakesSave {
+    const shapes = new Set(this.lakes.map((l) => `${l.id}:${l.basin.sorted.length}`))
+    const live = (set: Set<string>) =>
+      [...set].filter((k) => {
+        const [a, n, b, m] = k.split(':')
+        return shapes.has(`${a}:${n}`) && shapes.has(`${b}:${m}`)
+      })
+    const lakes = this.lakes.map((l): LakeSave => {
+      const b = l.basin
+      // The outline, row by row: run lengths, alternately dry and wet.
+      const runs: number[] = []
+      let wet = 0
+      let run = 0
+      for (const m of b.mask) {
+        if (m === wet) run++
+        else {
+          runs.push(run)
+          wet = m
+          run = 1
+        }
+      }
+      runs.push(run)
+      return [l.id, b.x0, b.z0, b.w, b.spill, b.bx, b.bz, Number.isNaN(b.ex) ? null : b.ex, Number.isNaN(b.ez) ? null : b.ez, runs]
+    })
+    return { lakes, failed: live(this.failed), resolved: live(this.resolved), lowland: live(this.lowland), merged: live(this.merged) }
+  }
+
+  /**
+   * Lakes from save(), every one full: the outline as saved, its bed read off
+   * today's ground — no flooding at all, against the fill–spill–merge rounds
+   * it took to find them. False, changing nothing, if a bed cell is not below
+   * the brim (the ground is not what it was); fill from scratch then.
+   */
+  restore(saved: LakesSave): boolean {
+    const out: Lake[] = []
+    for (const [id, x0, z0, w, spill, bx, bz, ex, ez, runs] of saved.lakes) {
+      const n = runs.reduce((a, r) => a + r, 0)
+      if (w <= 0 || n % w !== 0) return false
+      const mask = new Uint8Array(n)
+      let at = 0
+      runs.forEach((r, i) => {
+        mask.fill(i % 2, at, at + r)
+        at += r
+      })
+      const beds: number[] = []
+      let bottom = Infinity
+      for (let k = 0; k < n; k++) {
+        if (!mask[k]) continue
+        const h = this.H(x0 + (k % w), z0 + Math.floor(k / w))
+        if (!(h < spill)) return false
+        beds.push(h)
+        if (h < bottom) bottom = h
+      }
+      const sorted = Float64Array.from(beds).sort()
+      const prefix = new Float64Array(sorted.length + 1)
+      for (let i = 0; i < sorted.length; i++) prefix[i + 1] = prefix[i] + sorted[i]
+      const basin: Basin = { x0, z0, w, h: n / w, mask, bottom, spill, bx, bz, ex: ex ?? NaN, ez: ez ?? NaN, sorted, prefix, capped: false }
+      out.push({ id, basin, volume: volumeAt(basin, spill), level: spill, carry: 0, version: 1 })
+    }
+    this.lakes.length = 0
+    this.lakes.push(...out)
+    for (const l of out) this.nextId = Math.max(this.nextId, l.id + 1)
+    for (const k of saved.failed) this.failed.add(k)
+    for (const k of saved.resolved) this.resolved.add(k)
+    for (const k of saved.lowland) this.lowland.add(k)
+    for (const k of saved.merged ?? []) this.merged.add(k)
+    this.calm = 2
+    this.settling = false
+    return true
+  }
+
   isFull(l: Lake): boolean {
     return l.level >= l.basin.spill
   }
 
-  /** Rain, spill and merge. Returns true if any lake changed. */
+  /** Rain, spill and merge. Returns true if any lake changed (or spill made a new one). */
   step(dt: number): boolean {
     if (this.lakes.length === 0) return false
+    const count = this.lakes.length
     let changed = false
     // Upstream first: a lake with a higher spill pours into lower ones.
     const order = [...this.lakes].sort((a, b) => b.basin.spill - a.basin.spill)
@@ -770,6 +876,12 @@ export class LakeSystem {
         }
       }
       if (d.level < l.basin.spill || this.failed.has(pair)) continue
+      // This very pair merged before, and has come apart since (a settle split
+      // it): merging again would only go round in circles. Leave them be.
+      if (this.merged.has(pair)) {
+        this.failed.add(pair)
+        continue
+      }
       const before = this.lakes.length
       // Flood from this lake across where each lake's water really reaches
       // today, each at ITS OWN level, out to the true combined outlet.
@@ -784,12 +896,13 @@ export class LakeSystem {
       const lb = l.basin
       const ok = this.reflood([[lb.bx, lb.bz]], wet, undefined, true)
       if (ok && this.lakes.length < before) {
+        this.merged.add(pair)
         changed = true
         break
       }
       this.failed.add(pair)
     }
-    return changed
+    return changed || this.lakes.length !== count
   }
 
   /**
@@ -910,9 +1023,15 @@ export class LakeSystem {
   }
 
   private readonly failed = new Set<string>()
-  /** Rounds the last fillAll() needed (diagnostics). */
+  /** fillAll() stopped at its budget; settle() is still finishing it. */
+  settling = false
+  private calm = 0
+  /** Rounds and milliseconds the last fillAll() has taken so far (diagnostics). */
   lastFillRounds = 0
+  lastFillMs = 0
   private readonly resolved = new Set<string>()
+  /** Pairs (by shape) that have merged once. */
+  private readonly merged = new Set<string>()
   /** Pairs (by shape) whose shared overflow runs off into lowland. */
   private readonly lowland = new Set<string>()
 }
