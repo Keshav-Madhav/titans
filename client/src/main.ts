@@ -56,6 +56,8 @@ import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
+import { Discoveries, visit, type Site } from './discovery'
+import { Journal } from './journal'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -256,6 +258,51 @@ sky.setShadowRadius(260)
 const hud = new Hud()
 const narration = new Narration()
 
+// Discovery: places, the ones who live here, words on stone, relics, trinkets.
+const finds = new Discoveries()
+const journal = new Journal(finds)
+journal.onToggle = () => input.releaseAll()
+finds.onFind = (f) => {
+  journal.announce(f)
+  sound.chime()
+  setTimeout(() => narration.say(f.text), 1600)
+  saveDirty = true
+}
+const near = (x: number, z: number) => () => ({ x, z })
+const placeAt = (name: string) => () => colossi.places.get(name) ?? null
+const sites: Site[] = [
+  { id: 'green', r: 500, at: near(0, 0) },
+  { id: 'sentinel', r: 520, at: placeAt('sentinel') },
+  { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
+  { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
+  { id: 'fallen', r: 650, at: placeAt('ribcage') },
+  { id: 'sword', r: 420, at: placeAt('sword') },
+  { id: 'colonnade', r: 600, at: placeAt('colonnade') },
+  { id: 'stair', r: 520, at: placeAt('stair') },
+  { id: 'chained', r: 700, at: () => {
+    const p = wanderer.pos
+    let best: { x: number; z: number } | null = null
+    for (let i = 1; i <= 4; i++) {
+      const s = colossi.places.get(`stone-${i}`)
+      if (s && (!best || Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = s
+    }
+    return best
+  } },
+  { id: 'walker', r: 750, at: () => titans.get('t1')?.titan.gait ?? null },
+  { id: 'wanderer2', r: 750, at: () => titans.get('t2')?.titan.gait ?? null },
+  { id: 'herd', r: 950, at: () => {
+    const c = herd.centre()
+    return { x: c.x, z: c.y }
+  } },
+  { id: 'striders', r: 900, at: () => {
+    const p = wanderer.pos
+    let best: { x: number; z: number } | null = null
+    for (const s of striders.striders) if (!best || Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = s
+    return best
+  } },
+]
+let visitClock = 0
+
 const wanderer = new Wanderer(0xa8291f)
 wanderer.place(0, terrain.heightAt(0, 0), 0)
 scene.add(wanderer.obj, wanderer.world)
@@ -313,6 +360,7 @@ awakening.on = (what) => {
   } else {
     sound.hush(false)
     narration.say(AWAKE_LINES[Math.floor(Math.random() * AWAKE_LINES.length)])
+    setTimeout(() => finds.find('beyond'), 5000)
   }
 }
 const AWAKE_LINES = ['Something very far away moved.', 'It turned toward you. You are almost sure of it.', 'The ground remembers it for a long time after.']
@@ -441,6 +489,7 @@ function saveLocal(): void {
     lakes: lakes.save(),
     seen: worldMap.save(),
     cairns: cairns.save(),
+    found: finds.save(),
   }
   if (!saveWorld(data)) narration.say('Could not save (browser storage is full or blocked).')
   saveDirty = false
@@ -466,6 +515,7 @@ function loadLocal(): boolean {
   // brim-full (and settle whatever was still merging when you left).
   if (d.seen) worldMap.load(d.seen)
   if (d.cairns) cairns.load(d.cairns)
+  if (d.found) finds.load(d.found)
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -617,6 +667,8 @@ function simulate(dt: number): void {
       narration.say(`${cairn.name}. ${CAIRN_LINES[cairns.litCount % CAIRN_LINES.length]}`)
       // The first time you look out from a high place, something answers.
       if (cairns.litCount === 1) setTimeout(() => awakening.begin(camera), 6000)
+      // From up here, on a clear enough day, the edge of the world.
+      setTimeout(() => finds.find('wall'), 2500)
       saveDirty = true
     } else if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
@@ -853,6 +905,11 @@ function frame(now: number): void {
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
   cairns.update(dt)
+  visitClock -= dt
+  if (visitClock <= 0 && ready) {
+    visitClock = 0.5
+    visit(sites, finds, wanderer.pos.x, wanderer.pos.z)
+  }
   // What E would do here.
   const near = !climber.active && !cliff.active ? cairns.near(wanderer.pos) : null
   const html = near ? `<kbd>E</kbd>Light the cairn` : ''
@@ -990,6 +1047,8 @@ const g = {
   awakening,
   farGiants,
   herd,
+  finds,
+  journal,
   birds,
   vegetation,
   grass,

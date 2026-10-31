@@ -89,6 +89,37 @@
         display: flex; justify-content: space-between;
       }
       #map-title small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
+      #journal {
+        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+        background: rgba(12, 12, 14, 0.62); cursor: pointer; z-index: 6;
+      }
+      #journal-frame {
+        width: min(980px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 22px 26px;
+        border-radius: 6px; background: #d6ccb4; color: #3a3226; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+      #journal-frame h1 {
+        margin: 0 0 4px; font: italic 700 22px/1 ui-serif, Georgia, serif; letter-spacing: 0.06em;
+        display: flex; justify-content: space-between; align-items: baseline;
+      }
+      #journal-frame h1 small, #journal-frame h2 small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
+      #journal-body { columns: 2 380px; column-gap: 28px; }
+      #journal-body section { break-inside: avoid; margin-top: 16px; }
+      #journal-body h2 {
+        margin: 0 0 6px; font: 700 12px ui-sans-serif, system-ui; letter-spacing: 0.14em; text-transform: uppercase;
+        border-bottom: 1px solid rgba(58, 50, 38, 0.3); padding-bottom: 4px; display: flex; justify-content: space-between;
+      }
+      #journal-body ul { list-style: none; margin: 0; padding: 0; }
+      #journal-body li { margin: 0 0 9px; font: 13px/1.45 ui-serif, Georgia, serif; }
+      #journal-body li b { display: block; font: italic 700 14px ui-serif, Georgia, serif; }
+      #journal-body li.unfound { color: #8a7f6b; }
+      #found {
+        position: fixed; top: 16%; left: 50%; transform: translate(-50%, 6px); text-align: center;
+        opacity: 0; transition: opacity 1.4s, transform 1.4s; pointer-events: none; color: #f4efe6;
+        text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+      }
+      #found.on { opacity: 1; transform: translate(-50%, 0); }
+      #found small { display: block; font: 600 11px ui-sans-serif, system-ui; letter-spacing: 0.32em; text-transform: uppercase; opacity: 0.8; }
+      #found b { display: block; margin-top: 6px; font: italic 700 30px/1.1 ui-serif, Georgia, serif; letter-spacing: 0.04em; }
       #prompt {
         position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); display: none;
         padding: 7px 14px; border-radius: 8px; background: rgba(18, 20, 26, 0.6); color: var(--ink);
@@ -136,6 +167,13 @@
     <div id="fade"></div>
     <div id="bars"></div>
     <div id="prompt"></div>
+    <div id="found"></div>
+    <div id="journal">
+      <div id="journal-frame">
+        <h1><span>What you have found</span><small id="journal-count"></small></h1>
+        <div id="journal-body"></div>
+      </div>
+    </div>
     <div id="map">
       <div id="map-frame">
         <div id="map-title"><span>The Land</span><small id="map-explored"></small></div>

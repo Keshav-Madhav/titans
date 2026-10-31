@@ -388,6 +388,28 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Discovery: walking up to places finds them; the card rises; the journal lists them.
+  async discover() {
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const start = await page.evaluate(() => window.__g.finds.count)
+    // To the Sentinel's feet.
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.colossi.places.get('sentinel')
+      g.teleport(s.x + 300, s.z + 300)
+      g.setCam(Math.atan2(300, 300), 0.12, 7)
+    })
+    await page.waitForFunction(() => window.__g.finds.has('sentinel'), null, { timeout: 20000 })
+    await page.waitForTimeout(1600)
+    await shot('discover-card')
+    await page.keyboard.press('KeyJ')
+    await page.waitForTimeout(300)
+    await shot('discover-journal')
+    await page.keyboard.press('KeyJ')
+    const end = await page.evaluate(() => ({ n: window.__g.finds.count, ids: window.__g.finds.save() }))
+    console.log(`found ${start} → ${end.n}: ${end.ids.join(', ')}`)
+    if (!end.ids.includes('green') || !end.ids.includes('sentinel')) throw new Error('discover gate: the Green and the Sentinel should be found')
+  },
   // The giant trees, together: from the forest's edge, and from among them.
   async forest() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.kind === 'trunk').every((f) => f.mesh), null, { timeout: 180000 })

@@ -4,7 +4,7 @@ import type * as THREE from 'three'
 import type { TerrainView } from './terrain-view'
 
 const HINTS = {
-  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb · <kbd>M</kbd> map',
+  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb · <kbd>M</kbd> map · <kbd>J</kbd> journal',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
 }
 
