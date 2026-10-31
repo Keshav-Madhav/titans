@@ -121,6 +121,34 @@ const scenes = {
     await page.evaluate(() => window.__g.worldMap.toggle())
     if (!(seen.high > seen.ground && seen.ground > seen.before)) throw new Error('map gate: exploring did not uncover the map')
   },
+  // Falls: a short drop is nothing; a long one blacks out and wakes you at the last safe ground.
+  async fall() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      g.teleport(150, 80)
+      await wait(2200) // long enough to count as safe ground
+      const safe = g.lastSafe
+      // A short drop, a few metres away.
+      g.wanderer.place(158, g.heightAt(158, 80) + 8, 80)
+      await wait(1500)
+      const short = g.player()
+      // A long drop, further off.
+      g.wanderer.place(190, g.heightAt(190, 80) + 60, 80)
+      await wait(4500)
+      const long = g.player()
+      return {
+        safe: [safe.x, safe.z].map(Math.round),
+        shortStayed: Math.hypot(short.x - 158, short.z - 80) < 2,
+        longBack: Math.hypot(long.x - safe.x, long.z - safe.z) < 2,
+        long: [long.x, long.z].map(Math.round),
+        said: g.narration.lines.slice(-1)[0] ?? '',
+      }
+    })
+    console.log('falls', JSON.stringify(r))
+    if (!r.shortStayed) throw new Error('fall gate: a short drop moved you')
+    if (!r.longBack) throw new Error('fall gate: a long fall did not wake you at the last safe ground')
+  },
   // The wanderer up close: standing, running (cape streaming), in a storm's wind, in the dark.
   async hero() {
     await page.evaluate(() => window.__g.weather.set('breaking', true))

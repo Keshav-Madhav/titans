@@ -430,7 +430,63 @@ const threats: Threat[] = []
 const chest = new THREE.Vector3()
 const still: GaitInput = { forward: 0, turn: 0 }
 
+// Falls. Nothing hurts you — but a fall too long to walk away from fades to
+// black, and you wake where you last stood on safe ground. (So a climb is
+// worth something: let go at a giant's shoulder and it is lost.)
+const FATAL_FALL = 24
+/** Where you last stood on safe ground. */
+const lastSafe = new THREE.Vector3(0, 0, 0)
+let safeFor = 0
+/** The highest point of the current fall (NaN on the ground). */
+let fallTop = NaN
+/** Seconds left blacked out after a fall (the world goes on). */
+let blackout = 0
+const fadeEl = document.getElementById('fade')!
+
+function watchFalls(dt: number): void {
+  if (blackout > 0) {
+    blackout -= dt
+    if (blackout <= 0) fadeEl.classList.remove('on')
+    return
+  }
+  if (climber.active || cliff.active) {
+    fallTop = NaN
+    return
+  }
+  const p = wanderer.pos
+  if (!wanderer.grounded) {
+    fallTop = Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
+    return
+  }
+  // Landed.
+  if (!Number.isNaN(fallTop) && fallTop - p.y > FATAL_FALL) {
+    fallTop = NaN
+    blackout = 1.8
+    fadeEl.classList.add('on')
+    narration.say(FALL_LINES[Math.floor(Math.random() * FALL_LINES.length)])
+    // Wake at the last safe ground once it is dark.
+    setTimeout(() => {
+      wanderer.place(lastSafe.x, terrain.heightAt(lastSafe.x, lastSafe.z), lastSafe.z)
+      onRock()
+    }, 420)
+    return
+  }
+  fallTop = NaN
+  // Safe ground: standing (not sliding), gentle, not on a giant, a moment at least.
+  safeFor += dt
+  if (!wanderer.sliding && safeFor > 1.5) {
+    const h = terrain.heightAt(p.x, p.z)
+    const flat = Math.abs(terrain.heightAt(p.x + 1, p.z) - h) + Math.abs(terrain.heightAt(p.x, p.z + 1) - h) < 0.9
+    if (flat && Math.abs(p.y - h) < 0.4) {
+      lastSafe.copy(p)
+      safeFor = 0
+    }
+  }
+}
+const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
+
 function simulate(dt: number): void {
+  watchFalls(dt)
   if (climber.active) {
     if (input.pressed('KeyE')) letGo(0.6)
     else if (input.pressed('Space')) letGo(4.5)
@@ -781,6 +837,9 @@ const g = {
   },
   climber,
   cliff,
+  get lastSafe() {
+    return lastSafe.clone()
+  },
   goDormant,
   setWild(on: boolean) {
     wild = on
@@ -808,6 +867,7 @@ const g = {
   },
   teleport(x: number, z: number) {
     wanderer.place(x, terrain.heightAt(x, z), z)
+    fallTop = NaN
   },
   /** Walk up to giant 1's left foot from outside and grab it. */
   grabTitan(): boolean {

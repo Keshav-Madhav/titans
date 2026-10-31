@@ -361,7 +361,7 @@ export class Wanderer {
     }
     this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
     this.cape = new Cloth(7, 9, 0.135, red)
-    this.scarf = new Cloth(2, 12, 0.16, red, (row) => 1 - row / 16)
+    this.scarf = new Cloth(2, 8, 0.15, red, (row) => 1 - row / 12)
     this.world.add(this.cape.mesh, this.scarf.mesh)
   }
 

@@ -88,6 +88,11 @@
         display: flex; justify-content: space-between;
       }
       #map-title small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
+      #fade {
+        position: fixed; inset: 0; background: #07080a; opacity: 0; pointer-events: none;
+        transition: opacity 0.9s ease-in;
+      }
+      #fade.on { opacity: 1; transition: opacity 0.35s ease-out; }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
         background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
@@ -110,6 +115,7 @@
     <div id="tips"><span></span><button aria-label="Dismiss hints">✕</button></div>
     <div id="narration"></div>
     <canvas id="minimap" width="168" height="168"></canvas>
+    <div id="fade"></div>
     <div id="map">
       <div id="map-frame">
         <div id="map-title"><span>The Land</span><small id="map-explored"></small></div>
