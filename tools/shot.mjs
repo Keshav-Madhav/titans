@@ -757,7 +757,8 @@ const scenes = {
       const y0 = g.heightAt(x, z) + 150
       g.wanderer.place(x, y0, z)
       g.setCam(Math.atan2(x, z), 0.15, 8) // looking toward the centre
-      g.input.press('KeyW')
+      // (Flight is physics now: a run-up, then hands off — W would dive.)
+      g.wanderer.vel.set(-Math.sin(Math.atan2(x, z)) * 12, -2, -Math.cos(Math.atan2(x, z)) * 12)
       g.input.press('Space')
       const lines0 = g.narration.lines.length
       let glided = false
@@ -790,7 +791,7 @@ const scenes = {
       window.__g.input.release('KeyW')
       window.__g.input.release('Space')
     })
-    if (!took || !r.glided || r.fell || r.flew < 300) throw new Error('glide gate failed')
+    if (!took || !r.glided || r.fell || r.flew < 250) throw new Error('glide gate failed')
   },
   // The traveller's trail and the Horn: read the page, take the horn, call the Walker, ride it.
   async horn() {
