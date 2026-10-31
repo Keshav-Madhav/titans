@@ -1,6 +1,10 @@
-// The Wanderer: a red-cloaked figure at human scale. Procedural on purpose —
-// a cloak hides the body, so a simple stride reads well until a rigged CC0
-// character replaces it.
+// The Wanderer: a small figure in a red cloak — the one thing in this world
+// at human scale, so it has to read at a glance from far away and feel alive
+// up close. Procedural: a slim body in a dark tunic, jointed legs and boots,
+// arms that swing, a deep pointed hood with the face lost in shadow; and
+// cloth — a long red cape and a scarf, simulated (verlet), streaming behind
+// when you run, lifted by the weather's wind, never through the body or the
+// ground. A small lantern at the hip glows warm in dark places.
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
@@ -22,6 +26,13 @@ const _cx = new THREE.Vector3()
 const _cy = new THREE.Vector3()
 const _cz = new THREE.Vector3()
 const _cm = new THREE.Matrix4()
+const _v = new THREE.Vector3()
+const _w = new THREE.Vector3()
+
+const RED = 0xa3241c
+const TUNIC = 0x4a4036
+const LEATHER = 0x2a211a
+const SKIN = 0x6a4a36
 
 /** A sphere open at the neck, with a round face opening cut toward +Z. */
 function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
@@ -51,32 +62,196 @@ function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   return out
 }
 
+/** The hood: the shell, drawn back to a soft point behind the head. */
+function hoodGeometry(): THREE.BufferGeometry {
+  const g = hoodShell(0.165, 0.72)
+  const p = g.getAttribute('position')
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i)
+    const z = p.getZ(i)
+    const back = Math.max(0, -z) / 0.165
+    const top = Math.max(0, y) / 0.165
+    p.setXYZ(i, p.getX(i) * (1 - 0.15 * back * top), y + back * top * 0.05, z - back * back * top * 0.12)
+  }
+  return g.scale(1, 1.15, 1.1)
+}
+
+// --- cloth ------------------------------------------------------------------------
+
 /**
- * The cloaked body's pieces as plain geometry, in body space, for drawing
- * many people at once (townsfolk are instanced): the cloak, the hood (both
- * take the cloak colour), the face and one leg (hung from its hip).
+ * A sheet of cloth: a grid of verlet particles, the top row pinned to points
+ * that follow the body, the rest hanging under gravity and the wind, held
+ * together by distance constraints, kept out of a capsule round the body and
+ * above the ground. Drawn as a double-sided mesh rebuilt each frame.
  */
-export function cloakedBodyGeometry(): { cloak: THREE.BufferGeometry; face: THREE.BufferGeometry; leg: THREE.BufferGeometry } {
-  const profile = [
-    new THREE.Vector2(0.02, 1.5),
-    new THREE.Vector2(0.17, 1.46),
-    new THREE.Vector2(0.26, 1.36),
-    new THREE.Vector2(0.29, 1.12),
-    new THREE.Vector2(0.33, 0.78),
-    new THREE.Vector2(0.41, 0.16),
-    new THREE.Vector2(0.4, 0.12),
-  ]
-  const lathe = new THREE.LatheGeometry(profile, 14).toNonIndexed()
-  lathe.deleteAttribute('uv')
-  const hood = hoodShell(0.16, 0.74).scale(1, 1.18, 1.08).translate(0, 1.62, -0.015)
-  const cloak = mergeGeometries([lathe, hood])!
-  const face = new THREE.SphereGeometry(0.118, 10, 8).translate(0, 1.6, 0)
-  const leg = new THREE.CapsuleGeometry(0.075, 0.38, 3, 6).translate(0, -0.24, 0)
-  return { cloak, face, leg }
+class Cloth {
+  readonly mesh: THREE.Mesh
+  private readonly p: Float32Array
+  private readonly q: Float32Array
+  private ready = false
+  /** The pinned spacing between neighbouring columns (set from the first pins). */
+  private widths: number[] = []
+
+  constructor(
+    private readonly cols: number,
+    private readonly rows: number,
+    private readonly seg: number,
+    material: THREE.Material,
+    /** Width of the strip at each row (1 = as pinned): a scarf tapers. */
+    private readonly taper: (row: number) => number = () => 1,
+  ) {
+    this.p = new Float32Array(cols * rows * 3)
+    this.q = new Float32Array(cols * rows * 3)
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cols * rows * 3), 3))
+    const idx: number[] = []
+    for (let r = 0; r < rows - 1; r++) {
+      for (let c = 0; c < cols - 1; c++) {
+        const a = r * cols + c
+        idx.push(a, a + cols, a + 1, a + 1, a + cols, a + cols + 1)
+      }
+    }
+    g.setIndex(idx)
+    this.mesh = new THREE.Mesh(g, material)
+    this.mesh.castShadow = true
+    this.mesh.frustumCulled = false
+  }
+
+  /**
+   * Advance by dt. `pins` are the top row's world positions; `hang` the way
+   * it hangs from them when still; `wind` an acceleration; the body a capsule
+   * (a→b, radius r) the cloth stays outside; `ground` the land under it.
+   */
+  step(dt: number, pins: THREE.Vector3[], hang: THREE.Vector3, wind: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number): void {
+    const { cols, rows, p, q } = this
+    // The first time, or after a teleport: hang straight from the pins.
+    if (!this.ready || pins[0].distanceTo(_v.set(p[0], p[1], p[2])) > 4) {
+      this.widths = pins.slice(1).map((v, i) => v.distanceTo(pins[i]))
+      for (let row = 0; row < rows; row++) {
+        for (let c = 0; c < cols; c++) {
+          const k = (row * cols + c) * 3
+          p[k] = q[k] = pins[c].x + hang.x * this.seg * row
+          p[k + 1] = q[k + 1] = pins[c].y + hang.y * this.seg * row
+          p[k + 2] = q[k + 2] = pins[c].z + hang.z * this.seg * row
+        }
+      }
+      this.ready = true
+    }
+    const steps = 3
+    const h = Math.min(dt, 1 / 30) / steps
+    for (let s = 0; s < steps; s++) {
+      // Integrate: inertia (damped), gravity, the wind (gustier toward the hem).
+      for (let row = 1; row < rows; row++) {
+        const flutter = row / rows
+        for (let c = 0; c < cols; c++) {
+          const k = (row * cols + c) * 3
+          const vx = (p[k] - q[k]) * 0.985
+          const vy = (p[k + 1] - q[k + 1]) * 0.985
+          const vz = (p[k + 2] - q[k + 2]) * 0.985
+          q[k] = p[k]
+          q[k + 1] = p[k + 1]
+          q[k + 2] = p[k + 2]
+          p[k] += vx + wind.x * h * h * flutter
+          p[k + 1] += vy - 9.8 * h * h + wind.y * h * h * flutter
+          p[k + 2] += vz + wind.z * h * h * flutter
+        }
+      }
+      for (let c = 0; c < cols; c++) {
+        p[c * 3] = q[c * 3] = pins[c].x
+        p[c * 3 + 1] = q[c * 3 + 1] = pins[c].y
+        p[c * 3 + 2] = q[c * 3 + 2] = pins[c].z
+      }
+      // Constraints: neighbours down and across keep their distance.
+      for (let it = 0; it < 4; it++) {
+        for (let row = 0; row < rows; row++) {
+          const w = this.taper(row)
+          for (let c = 0; c < cols; c++) {
+            const i = row * cols + c
+            if (row < rows - 1) this.keep(i, i + cols, this.seg, row === 0)
+            if (c < cols - 1) this.keep(i, i + 1, (this.widths[c] ?? this.seg) * w, row === 0)
+          }
+        }
+        for (let i = cols; i < cols * rows; i++) this.collide(i, a, b, r, ground)
+      }
+    }
+    const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+    ;(pos.array as Float32Array).set(p)
+    pos.needsUpdate = true
+    this.mesh.geometry.computeVertexNormals()
+  }
+
+  private keep(i: number, j: number, len: number, pinnedI: boolean): void {
+    const p = this.p
+    const a = i * 3
+    const b = j * 3
+    const dx = p[b] - p[a]
+    const dy = p[b + 1] - p[a + 1]
+    const dz = p[b + 2] - p[a + 2]
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6
+    const k = (d - len) / d
+    if (pinnedI) {
+      // A pinned point does not move: its neighbour takes all of it.
+      p[b] -= dx * k
+      p[b + 1] -= dy * k
+      p[b + 2] -= dz * k
+    } else {
+      p[a] += dx * k * 0.5
+      p[a + 1] += dy * k * 0.5
+      p[a + 2] += dz * k * 0.5
+      p[b] -= dx * k * 0.5
+      p[b + 1] -= dy * k * 0.5
+      p[b + 2] -= dz * k * 0.5
+    }
+  }
+
+  private collide(i: number, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number): void {
+    const p = this.p
+    const k = i * 3
+    _v.subVectors(b, a)
+    const t = Math.max(0, Math.min(1, ((p[k] - a.x) * _v.x + (p[k + 1] - a.y) * _v.y + (p[k + 2] - a.z) * _v.z) / _v.lengthSq()))
+    _w.copy(a).addScaledVector(_v, t)
+    const dx = p[k] - _w.x
+    const dy = p[k + 1] - _w.y
+    const dz = p[k + 2] - _w.z
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    if (d < r && d > 1e-5) {
+      p[k] = _w.x + (dx / d) * r
+      p[k + 1] = _w.y + (dy / d) * r
+      p[k + 2] = _w.z + (dz / d) * r
+    }
+    const gy = ground(p[k], p[k + 2]) + 0.03
+    if (p[k + 1] < gy) p[k + 1] = gy
+  }
+}
+
+// --- the body ----------------------------------------------------------------------
+
+/** A limb segment: a tapered capsule hanging down from its joint (the group's origin). */
+function limb(len: number, r0: number, r1: number, mat: THREE.Material): THREE.Group {
+  const g = new THREE.Group()
+  const m = new THREE.Mesh(
+    mergeGeometries([new THREE.CylinderGeometry(r1, r0, len, 10, 1).translate(0, -len / 2, 0).toNonIndexed(), new THREE.SphereGeometry(r0, 10, 6).toNonIndexed()])!,
+    mat,
+  )
+  m.castShadow = true
+  g.add(m)
+  return g
+}
+
+interface Leg {
+  hip: THREE.Group
+  knee: THREE.Group
+}
+
+interface Arm {
+  shoulder: THREE.Group
+  elbow: THREE.Group
 }
 
 export class Wanderer {
   readonly obj = new THREE.Group()
+  /** World-space things that are not children of `obj` (the cloth): add these to the scene too. */
+  readonly world = new THREE.Group()
   readonly pos = new THREE.Vector3()
   readonly vel = new THREE.Vector3()
   yaw = 0
@@ -86,56 +261,108 @@ export class Wanderer {
   grounded = true
   /** On ground too steep to stand on. */
   sliding = false
-  /** Seconds left knocked off your feet (a Titan stomped nearby). */
+  /** Seconds left knocked off your feet (a giant stomped nearby). */
   stunned = 0
   private tilt = 0
   private stride = 0
-  private readonly legL: THREE.Mesh
-  private readonly legR: THREE.Mesh
-  private readonly cloak: THREE.Mesh
+  private t = 0
+  /** Smoothed speed (in walks) the limbs follow. */
+  private gait = 0
+  private climbing = false
+  private climbMoving = 0
+  private readonly pelvis = new THREE.Group()
+  private readonly chest = new THREE.Group()
+  private readonly head = new THREE.Group()
+  private readonly legs: Leg[] = []
+  private readonly arms: Arm[] = []
+  private readonly cape: Cloth
+  private readonly scarf: Cloth
+  private readonly lantern: THREE.PointLight
+  private readonly lanternGlow: THREE.Mesh
+  private readonly capeAnchors: THREE.Vector3[] = []
+  private readonly scarfAnchors = [new THREE.Vector3(-0.05, 1.47, -0.1), new THREE.Vector3(0.05, 1.47, -0.1)]
+  private readonly capePins: THREE.Vector3[]
+  private readonly scarfPins = [new THREE.Vector3(), new THREE.Vector3()]
+  private readonly axisA = new THREE.Vector3()
+  private readonly axisB = new THREE.Vector3()
+  private readonly hangDir = new THREE.Vector3()
+  private readonly windV = new THREE.Vector3()
 
-  constructor(cloak: THREE.ColorRepresentation = 0xa8291f) {
-    // Double-sided: the hem is open, and from a low camera the inside must not vanish.
-    const cloakMat = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.85, side: THREE.DoubleSide })
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.9 })
+  constructor(cloak: THREE.ColorRepresentation = RED) {
+    const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.82, side: THREE.DoubleSide })
+    const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.92 })
+    const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.8 })
+    const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 })
+    const dark = new THREE.MeshStandardMaterial({ color: 0x0c0a09, roughness: 1 })
 
-    // Cloak: a lathe from the neck flaring to the hem.
-    const profile = [
-      new THREE.Vector2(0.02, 1.5),
-      new THREE.Vector2(0.17, 1.46),
-      new THREE.Vector2(0.26, 1.36),
-      new THREE.Vector2(0.29, 1.12),
-      new THREE.Vector2(0.33, 0.78),
-      // Ankle-length: a hem 0.38 m up threw a shadow that started ~0.85 m
-      // away from the body at this sun angle and read as detached.
-      new THREE.Vector2(0.41, 0.16),
-      new THREE.Vector2(0.4, 0.12),
-    ]
-    this.cloak = new THREE.Mesh(new THREE.LatheGeometry(profile, 18), cloakMat)
-    this.cloak.castShadow = true
-    this.obj.add(this.cloak)
+    // Pelvis at the hips; the chest, head and arms hang from it.
+    this.pelvis.position.y = 0.92
+    this.obj.add(this.pelvis)
+    const torso = new THREE.Mesh(
+      mergeGeometries([
+        new THREE.CylinderGeometry(0.17, 0.145, 0.5, 12, 2).translate(0, 0.28, 0).scale(1.15, 1, 0.82).toNonIndexed(),
+        new THREE.SphereGeometry(0.18, 12, 8).translate(0, 0.5, 0).scale(1.18, 0.75, 0.82).toNonIndexed(),
+        // The tunic's skirt, flaring to the knee.
+        new THREE.CylinderGeometry(0.15, 0.25, 0.52, 14, 2, true).translate(0, -0.18, 0).scale(1.1, 1, 0.92).toNonIndexed(),
+      ])!,
+      tunic,
+    )
+    torso.castShadow = true
+    this.chest.add(torso)
+    this.chest.add(new THREE.Mesh(new THREE.TorusGeometry(0.142, 0.022, 6, 18).rotateX(Math.PI / 2).scale(1.15, 1, 0.85).translate(0, 0.06, 0), leather))
+    this.pelvis.add(this.chest)
 
-    // Hood: a shell with a round opening at the front, and the dark face
-    // fully INSIDE it, so the face shows only through the opening. (A face
-    // sphere larger than the hood used to poke out of its sides as a black
-    // crescent.)
-    const hood = new THREE.Mesh(hoodShell(0.16, 0.74), cloakMat)
-    hood.scale.set(1, 1.18, 1.08)
-    hood.position.set(0, 1.62, -0.015)
+    // Head in its hood; the face a dark hollow you never quite see into.
+    this.head.position.y = 0.6
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 10).translate(0, 0.08, 0.005), dark)
+    const hood = new THREE.Mesh(hoodGeometry().translate(0, 0.095, -0.015), red)
     hood.castShadow = true
-    this.obj.add(hood)
-    const face = new THREE.Mesh(new THREE.SphereGeometry(0.118, 14, 10), darkMat)
-    face.position.set(0, 1.6, 0.0)
-    this.obj.add(face)
+    // A mantle round the shoulders: the hood's skirt.
+    const mantle = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.27, 0.2, 16, 1, true).translate(0, -0.06, -0.01).scale(1, 1, 0.85), red)
+    mantle.castShadow = true
+    this.head.add(face, hood, mantle)
+    this.chest.add(this.head)
 
-    const legGeo = new THREE.CapsuleGeometry(0.075, 0.38, 4, 8)
-    legGeo.translate(0, -0.24, 0)
-    this.legL = new THREE.Mesh(legGeo, darkMat)
-    this.legR = new THREE.Mesh(legGeo, darkMat)
-    this.legL.position.set(-0.11, 0.48, 0)
-    this.legR.position.set(0.11, 0.48, 0)
-    this.legL.castShadow = this.legR.castShadow = true
-    this.obj.add(this.legL, this.legR)
+    // Legs: thigh (tunic) and shin (boot), hung from the hips.
+    for (const side of [-1, 1]) {
+      const hip = limb(0.44, 0.09, 0.072, tunic)
+      hip.position.set(side * 0.095, 0, 0)
+      const knee = limb(0.44, 0.07, 0.06, leather)
+      knee.position.y = -0.44
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.24).translate(0, -0.47, 0.05), leather)
+      foot.castShadow = true
+      knee.add(foot)
+      hip.add(knee)
+      this.pelvis.add(hip)
+      this.legs.push({ hip, knee })
+    }
+    // Arms: sleeve, forearm, hand.
+    for (const side of [-1, 1]) {
+      const shoulder = limb(0.29, 0.068, 0.058, tunic)
+      shoulder.position.set(side * 0.22, 0.52, 0)
+      const elbow = limb(0.27, 0.056, 0.048, tunic)
+      elbow.position.y = -0.29
+      elbow.add(new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 6).translate(0, -0.3, 0), skin))
+      shoulder.add(elbow)
+      this.chest.add(shoulder)
+      this.arms.push({ shoulder, elbow })
+    }
+    // The lantern at the left hip: a small warm light.
+    this.pelvis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.11, 8).translate(-0.19, -0.12, 0.05), leather))
+    this.lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8).translate(-0.19, -0.12, 0.1), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
+    this.lantern = new THREE.PointLight(0xffb066, 0.6, 9, 1.6)
+    this.lantern.position.set(-0.19, -0.12, 0.12)
+    this.pelvis.add(this.lanternGlow, this.lantern)
+
+    // The cape: pinned in an arc across the shoulders and round the back, hanging to the calves.
+    for (let i = 0; i < 7; i++) {
+      const a = Math.PI * (0.1 + (0.8 * i) / 6)
+      this.capeAnchors.push(new THREE.Vector3(-Math.cos(a) * 0.22, 1.44, -Math.sin(a) * 0.15 - 0.03))
+    }
+    this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
+    this.cape = new Cloth(7, 9, 0.135, red)
+    this.scarf = new Cloth(2, 12, 0.16, red, (row) => 1 - row / 16)
+    this.world.add(this.cape.mesh, this.scarf.mesh)
   }
 
   /** One fixed simulation step. `camYaw` orients WASD to the view. */
@@ -207,11 +434,6 @@ export class Wanderer {
       d = Math.atan2(Math.sin(d), Math.cos(d))
       this.yaw += d * Math.min(1, 12 * dt)
     }
-    this.stride += hs * dt * 2.6
-    const swing = this.grounded ? Math.sin(this.stride) * Math.min(1, hs / WALK) * 0.55 : 0.35
-    this.legL.rotation.x = swing
-    this.legR.rotation.x = -swing
-    this.cloak.rotation.x = -Math.min(0.18, hs * 0.02)
   }
 
   /** A shockwave: thrown by `impulse` and knocked down for `seconds`. */
@@ -230,6 +452,7 @@ export class Wanderer {
 
   /** Copy simulation state to the scene graph, `alpha` of the way from the previous step. */
   sync(alpha: number): void {
+    this.climbing = false
     this.obj.position.lerpVectors(this.prev, this.pos, alpha)
     let d = this.yaw - this.prevYaw
     d = Math.atan2(Math.sin(d), Math.cos(d))
@@ -238,12 +461,14 @@ export class Wanderer {
   }
 
   /**
-   * Pose on a Titan's body. On steep rock: chest to the stone, head up the
-   * slope, held a little off the surface. Standing on top (a shoulder, the
-   * head): upright, facing `yaw`. `moving` (m/s) drives the limbs.
+   * Pose on a giant's body or a rock face. On steep rock: chest to the stone,
+   * head up the slope, held a little off the surface. Standing on top: upright,
+   * facing `yaw`. `moving` (m/s) drives the limbs.
    */
-  climbPose(dt: number, point: THREE.Vector3, normal: THREE.Vector3, standing: boolean, yaw: number, moving: number): void {
+  climbPose(_dt: number, point: THREE.Vector3, normal: THREE.Vector3, standing: boolean, yaw: number, moving: number): void {
     const o = this.obj
+    this.climbing = !standing
+    this.climbMoving = moving
     if (standing) {
       o.position.copy(point)
       o.quaternion.setFromAxisAngle(_up, yaw)
@@ -256,13 +481,8 @@ export class Wanderer {
       _cx.crossVectors(_cy, _cz)
       _cm.makeBasis(_cx, _cy, _cz)
       o.quaternion.setFromRotationMatrix(_cm)
-      o.position.copy(point).addScaledVector(normal, 0.32).addScaledVector(_cy, -0.85)
+      o.position.copy(point).addScaledVector(normal, 0.3).addScaledVector(_cy, -1.2)
     }
-    this.stride += moving * dt * 3.2
-    const swing = moving > 0 ? Math.sin(this.stride) * 0.5 : standing ? 0 : 0.25
-    this.legL.rotation.x = swing
-    this.legR.rotation.x = standing ? -swing : -swing * 0.6 - 0.2
-    this.cloak.rotation.x = standing ? 0 : 0.12
   }
 
   /** Back to upright after a climb (sync() only sets yaw). */
@@ -271,18 +491,91 @@ export class Wanderer {
   }
 
   /**
-   * Pose a body we do not simulate (another player): place it, and animate
-   * the stride from how far it moved since last frame.
+   * Animate the body and its cloth for this frame: the stride from the speed,
+   * arms swinging, breathing; reaching and pulling when climbing; the cape and
+   * scarf in the `wind` (an acceleration, m/s²). `dark` (0 … 1) brightens the lantern.
    */
-  drive(dt: number, x: number, y: number, z: number, yaw: number): void {
-    const hs = dt > 0 ? Math.hypot(x - this.obj.position.x, z - this.obj.position.z) / dt : 0
-    this.obj.position.set(x, y, z)
-    this.obj.quaternion.setFromAxisAngle(_up, yaw)
-    this.stride += Math.min(hs, 12) * dt * 2.6
-    const swing = Math.sin(this.stride) * Math.min(1, hs / WALK) * 0.55
-    this.legL.rotation.x = swing
-    this.legR.rotation.x = -swing
-    this.cloak.rotation.x = -Math.min(0.18, hs * 0.02)
+  animate(dt: number, ground: (x: number, z: number) => number, wind: THREE.Vector3, dark: number): void {
+    this.t += dt
+    const hs = this.climbing ? 0 : this.speed
+    this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
+    this.stride += (this.climbing ? this.climbMoving * 2.4 : hs * 1.35) * dt
+    const s = this.stride
+    const run = Math.max(0, this.gait - 1) / 0.6
+    const L = this.legs
+    const A = this.arms
+    if (this.climbing) {
+      // Hand over hand, legs pushing.
+      const reach = this.climbMoving > 0 ? Math.sin(s * 2) : 0
+      A[0].shoulder.rotation.set(-2.6 + reach * 0.4, 0, -0.25)
+      A[1].shoulder.rotation.set(-2.6 - reach * 0.4, 0, 0.25)
+      A[0].elbow.rotation.x = -0.5 - Math.max(0, reach) * 0.6
+      A[1].elbow.rotation.x = -0.5 - Math.max(0, -reach) * 0.6
+      L[0].hip.rotation.x = -0.5 - Math.max(0, -reach) * 0.5
+      L[1].hip.rotation.x = -0.5 - Math.max(0, reach) * 0.5
+      L[0].knee.rotation.x = 0.9
+      L[1].knee.rotation.x = 0.9
+      this.pelvis.position.y = 0.92
+      this.chest.rotation.x = 0
+      this.head.rotation.x = -0.3
+    } else if (!this.grounded && !this.sliding) {
+      // In the air: knees up, arms out.
+      L[0].hip.rotation.x = -0.5
+      L[1].hip.rotation.x = 0.2
+      L[0].knee.rotation.x = 0.8
+      L[1].knee.rotation.x = 0.5
+      A[0].shoulder.rotation.set(-0.3, 0, -0.7)
+      A[1].shoulder.rotation.set(-0.3, 0, 0.7)
+      A[0].elbow.rotation.x = -0.3
+      A[1].elbow.rotation.x = -0.3
+      this.chest.rotation.x = 0.1
+      this.head.rotation.x = 0
+    } else {
+      // Walking and running: legs swing from the hips, knees bend on the
+      // swing; arms counter-swing; the body leans in and bobs.
+      const g = this.gait
+      for (let i = 0; i < 2; i++) {
+        const ph = s + i * Math.PI
+        const swing = Math.sin(ph) * (0.45 + run * 0.35) * Math.min(1, g)
+        L[i].hip.rotation.x = -swing
+        L[i].knee.rotation.x = Math.max(0, Math.cos(ph)) * (0.55 + run * 0.6) * Math.min(1, g) + 0.04
+        A[i].shoulder.rotation.set(swing * (0.8 + run * 0.3), 0, (i ? 1 : -1) * (0.12 + run * 0.08))
+        A[i].elbow.rotation.x = -0.2 - run * 0.9
+      }
+      if (this.sliding) {
+        A[0].shoulder.rotation.z = -1.0
+        A[1].shoulder.rotation.z = 1.0
+      }
+      const breathe = Math.sin(this.t * 1.6) * 0.008 * (1 - Math.min(1, g))
+      this.pelvis.position.y = 0.92 - Math.abs(Math.sin(s)) * 0.035 * Math.min(1, g) + breathe
+      this.chest.rotation.x = this.sliding ? -0.25 : 0.06 * g + run * 0.18
+      this.head.rotation.x = -this.chest.rotation.x * 0.6
+    }
+
+    // The cloth, in the world: pinned at the shoulders (with the chest's lean).
+    this.obj.updateMatrixWorld(true)
+    const m = this.obj.matrixWorld
+    const lean = this.chest.rotation.x
+    this.capeAnchors.forEach((a, i) => this.capePins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
+    this.scarfAnchors.forEach((a, i) => this.scarfPins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
+    this.hangDir.set(0, -1, -0.15).transformDirection(m)
+    // The body's capsule, pelvis to neck, a little fatter than the body.
+    this.axisA.set(0, 0.55, 0).applyMatrix4(m)
+    this.axisB.set(0, 1.42, -0.02).applyMatrix4(m)
+    // Moving makes wind of its own: the cloth streams behind; the weather's wind gusts.
+    const gust = wind.length()
+    this.windV.copy(wind).multiplyScalar(0.5 + 0.5 * Math.max(0, Math.sin(this.t * 0.7) * Math.sin(this.t * 1.9)))
+    this.windV.addScaledVector(this.vel, -1.1)
+    this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
+    this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.24, ground)
+    this.windV.multiplyScalar(1.25)
+    this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
+
+    // The lantern: brighter in the dark, a slow flicker.
+    const flicker = 0.9 + 0.1 * Math.sin(this.t * 11) * Math.sin(this.t * 7.3)
+    this.lantern.intensity = (0.25 + dark * 1.4) * flicker
+    ;(this.lanternGlow.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.77 * flicker, 0.48 * flicker)
   }
 
   get speed(): number {

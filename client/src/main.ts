@@ -190,7 +190,7 @@ const narration = new Narration()
 
 const wanderer = new Wanderer(0xa8291f)
 wanderer.place(0, terrain.heightAt(0, 0), 0)
-scene.add(wanderer.obj)
+scene.add(wanderer.obj, wanderer.world)
 
 /** The waking giants, by slot id ('t1', 't2'). Slot 1 stands a short walk from spawn (tools rely on it). */
 interface AwakeTitan {
@@ -627,6 +627,9 @@ function frame(now: number): void {
   } else {
     wanderer.sync(acc / STEP)
   }
+  // Limbs, cape and scarf; the weather's wind blows from the west-south-west.
+  clothWind.set(1, 0, 0.4).normalize().multiplyScalar(0.8 + weather.now.wind * weather.now.wind * 7)
+  wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
   water.sync(lakes.lakes)
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
@@ -681,6 +684,14 @@ function frame(now: number): void {
 }
 const birdSpots: Array<{ x: number; z: number }> = []
 const mapGiants: Array<{ x: number; z: number }> = []
+const clothWind = new THREE.Vector3()
+/** The ground the cloth must stay above: the land, or the rock you stand on. */
+const groundAt = (x: number, z: number) => {
+  const p = wanderer.pos
+  const t = terrain.heightAt(x, z)
+  // Standing on rock (a ledge, the plaza, a cave floor): the cloth rests on it too.
+  return p.y > t + 0.3 && Math.hypot(x - p.x, z - p.z) < 3 ? Math.max(t, p.y - 0.05) : t
+}
 /** How near something enormous is (0 … 1): the score swells under the colossi. */
 function awe(): number {
   const p = wanderer.pos

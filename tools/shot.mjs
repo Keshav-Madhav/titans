@@ -119,6 +119,46 @@ const scenes = {
     await page.evaluate(() => window.__g.worldMap.toggle())
     if (!(seen.high > seen.ground && seen.ground > seen.before)) throw new Error('map gate: exploring did not uncover the map')
   },
+  // The wanderer up close: standing, running (cape streaming), in a storm's wind, in the dark.
+  async hero() {
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const stand = async (name, weather, x, z, a, inDark = false) => {
+      await page.evaluate(async ([weather, x, z, a, inDark]) => {
+        const g = window.__g
+        g.weather.set(weather, true)
+        if (inDark) g.wanderer.place(x, g.terrain.base.hallTop - 69.2, z)
+        else g.teleport(x, z)
+        g.wanderer.yaw = 0.4
+        await new Promise((r) => setTimeout(r, 1500))
+        const p = g.player()
+        g.lookFrom([p.x + Math.sin(a) * 2.6, p.y + 1.5, p.z + Math.cos(a) * 2.6], [p.x, p.y + 1.05, p.z])
+      }, [weather, x, z, a, inDark])
+      await shot(`hero-${name}`)
+    }
+    await stand('front', 'breaking', 140, 90, 0.9)
+    await stand('back', 'breaking', 140, 90, 3.6)
+    await stand('storm', 'storm', 140, 90, 2.2)
+    const H = await page.evaluate(() => window.__g.shared.HALL)
+    await stand('dark', 'overcast', H.x + 60, H.z - 60, 1.2, true)
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // Running, seen from the side.
+    await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.teleport(100, 100)
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 4.8, focusHeight: 1.1, follow: 10 })
+      g.setCam(0, 0.12, 4.8)
+      g.input.press('KeyA')
+      g.input.press('ShiftLeft')
+      await new Promise((r) => setTimeout(r, 1800))
+    })
+    await shot('hero-running')
+    await page.evaluate(() => {
+      const g = window.__g
+      g.input.release('KeyA')
+      g.input.release('ShiftLeft')
+    })
+  },
   // The weather: the same views under each kind of sky.
   async weather() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })

@@ -32,7 +32,10 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
     float lit = 0.0;
     ${hall.skylights.map(([sx, sz]) => `{ vec2 d = abs(hq - vec2(${f(sx)}, ${f(sz)})); lit = max(lit, 1.0 - smoothstep(${f(hall.sky * 0.5)}, ${f(hall.sky * 2.8)}, max(d.x, d.y))); }`).join('\n    ')}
     lit = max(lit, (1.0 - smoothstep(-150.0, -40.0, hq.x)) * smoothstep(80.0, 105.0, hq.y) * 0.85);
-    gl_FragColor.rgb *= mix(1.0, 0.15 + 0.75 * lit, hin);
+    // Your lantern: a warm pool of light about you (the camera is never far).
+    float lamp = 1.0 - smoothstep(3.0, 15.0, distance(vFogWorld, cameraPosition));
+    vec3 dim = vec3(0.15 + 0.75 * lit) + vec3(1.0, 0.78, 0.5) * lamp * 0.45;
+    gl_FragColor.rgb *= mix(vec3(1.0), dim, hin);
   }`
     : ''
   const s = sunDir.clone().normalize()
