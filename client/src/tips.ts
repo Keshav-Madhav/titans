@@ -2,17 +2,21 @@
 // (walk, climb a giant, stand high on one). Shown once per browser; the ✕
 // dismisses them for good.
 
-const KEY = 'titans.adventure.tips'
+const KEY = 'titans.adventure.tips2'
 
 export interface TipState {
   moved: number // metres walked
   climbed: boolean // has taken hold of a giant
   high: number // highest climbed, metres above the ground
+  bag: boolean // has found the bag
+  looked: boolean // has opened it
 }
 
 const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
   { text: 'Click the world to look around. <kbd>W A S D</kbd> to walk, <kbd>Shift</kbd> to run.', done: (s) => s.moved > 25 },
-  { text: 'A giant walks the plain nearby. Go to it, and at its foot press <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
+  { text: 'A strip of red cloth is snapping in the wind, just ahead. Someone camped there.', done: (s) => s.bag },
+  { text: 'Small things you find go in the bag. <kbd>I</kbd> to look in it, <kbd>J</kbd> for what you have learned.', done: (s) => s.looked },
+  { text: 'A giant walks the Green. Go to it, and at its foot press <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
   { text: 'Climb with <kbd>W A S D</kbd>. Your grip tires: rest where you can stand. Reach its shoulders.', done: (s) => s.high > 150 },
 ]
 

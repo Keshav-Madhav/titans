@@ -58,6 +58,8 @@ import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
+import { Bag } from './bag'
+import { Camp } from './camp'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -262,6 +264,15 @@ const narration = new Narration()
 const finds = new Discoveries()
 const journal = new Journal(finds)
 journal.onToggle = () => input.releaseAll()
+// The bag: found at a camp just ahead of where you wake; everything small goes in it.
+const bag = new Bag(finds)
+bag.onToggle = (open) => {
+  input.releaseAll()
+  if (open) tipState.looked = true
+}
+bag.onNoBag = () => narration.say('You have nothing to carry things in. Not yet.')
+const camp = new Camp(terrain)
+scene.add(camp.group)
 finds.onFind = (f) => {
   journal.announce(f)
   sound.chime()
@@ -456,7 +467,7 @@ let wild = !toolMode || params.has('wild')
 let localSave = !toolMode
 const sound = new Sound(settings.sound)
 const tips = new Tips(!toolMode)
-const tipState = { moved: 0, climbed: false, high: 0 }
+const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false }
 let lastTip = 0
 
 // ---------------------------------------------------------------------------
@@ -516,6 +527,10 @@ function loadLocal(): boolean {
   if (d.seen) worldMap.load(d.seen)
   if (d.cairns) cairns.load(d.cairns)
   if (d.found) finds.load(d.found)
+  if (finds.has('bag')) {
+    camp.take()
+    tipState.bag = true
+  }
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -659,7 +674,11 @@ function simulate(dt: number): void {
     }
   } else {
     const cairn = cairns.near(wanderer.pos)
-    if (cairn && input.pressed('KeyE')) {
+    if (camp.near(wanderer.pos) && input.pressed('KeyE')) {
+      camp.take()
+      finds.find('bag')
+      tipState.bag = true
+    } else if (cairn && input.pressed('KeyE')) {
       // Light the cairn: the beam rises, the land round it is uncovered.
       cairns.light(cairn)
       worldMap.revealAround(cairn.x, cairn.z, 1400)
@@ -905,14 +924,15 @@ function frame(now: number): void {
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
   cairns.update(dt)
+  camp.update(dt, weather.now.wind)
   visitClock -= dt
   if (visitClock <= 0 && ready) {
     visitClock = 0.5
     visit(sites, finds, wanderer.pos.x, wanderer.pos.z)
   }
   // What E would do here.
-  const near = !climber.active && !cliff.active ? cairns.near(wanderer.pos) : null
-  const html = near ? `<kbd>E</kbd>Light the cairn` : ''
+  const free = !climber.active && !cliff.active
+  const html = free && camp.near(wanderer.pos) ? `<kbd>E</kbd>Take the bag` : free && cairns.near(wanderer.pos) ? `<kbd>E</kbd>Light the cairn` : ''
   if (html !== promptHtml) {
     promptHtml = html
     promptEl.innerHTML = html
@@ -1049,6 +1069,8 @@ const g = {
   herd,
   finds,
   journal,
+  bag,
+  camp,
   birds,
   vegetation,
   grass,

@@ -388,6 +388,44 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // The bag: the camp ahead of the start, taking it, looking in it.
+  async bag() {
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    // From the start, facing north: the red cloth should catch the eye.
+    await page.evaluate(() => {
+      const g = window.__g
+      g.teleport(0, 0)
+      g.setCam(0, 0.1, 7)
+    })
+    await shot('bag-from-start')
+    const before = await page.evaluate(() => {
+      const g = window.__g
+      g.bag.toggle() // no bag yet: nothing opens
+      return g.bag.open
+    })
+    // At the camp.
+    await page.evaluate(() => {
+      const g = window.__g
+      const c = g.camp
+      g.teleport(c.bagAt.x + 2.2, c.bagAt.z + 1.2)
+      g.setCam(Math.atan2(2.2, 1.2), 0.25, 5)
+    })
+    await page.waitForTimeout(800)
+    await shot('bag-camp')
+    await page.evaluate(() => window.__g.input.press('KeyE'))
+    await page.waitForTimeout(300)
+    await page.evaluate(() => window.__g.input.release('KeyE'))
+    await page.waitForFunction(() => window.__g.finds.has('bag'), null, { timeout: 5000 })
+    await page.waitForTimeout(1500)
+    await shot('bag-taken')
+    await page.keyboard.press('KeyI')
+    await page.waitForTimeout(300)
+    await shot('bag-open')
+    const open = await page.evaluate(() => window.__g.bag.open)
+    await page.keyboard.press('KeyI')
+    console.log(`before the bag, I opened: ${before}; took it: true; then I opened: ${open}`)
+    if (before || !open) throw new Error('bag gate: the bag should open only once found')
+  },
   // Discovery: walking up to places finds them; the card rises; the journal lists them.
   async discover() {
     await page.evaluate(() => window.__g.weather.set('breaking', true))

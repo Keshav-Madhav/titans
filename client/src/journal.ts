@@ -4,7 +4,8 @@
 
 import { CATALOGUE, KIND_TITLES, type Discoveries, type Find, type FindKind } from './discovery'
 
-const ORDER: FindKind[] = ['place', 'giant', 'lore', 'relic', 'trinket']
+// (Relics and trinkets are things, not knowledge: they are in the bag.)
+const ORDER: FindKind[] = ['place', 'giant', 'lore']
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
@@ -38,8 +39,8 @@ export class Journal {
   }
 
   private render(): void {
-    const total = CATALOGUE.length
-    this.count.textContent = `${this.finds.count} of ${total} found`
+    const known = CATALOGUE.filter((c) => ORDER.includes(c.kind))
+    this.count.textContent = `${known.filter((c) => this.finds.has(c.id)).length} of ${known.length} found`
     this.body.innerHTML = ORDER.map((kind) => {
       const all = CATALOGUE.filter((c) => c.kind === kind)
       if (!all.length) return ''

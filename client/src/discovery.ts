@@ -21,6 +21,9 @@ export interface Find {
   text: string
   /** Where to look, for the journal's empty line (before it is found). */
   hint: string
+  /** For things carried in the bag: its drawing (bag.ts drawIcon) and colour. */
+  icon?: string
+  tint?: string
 }
 
 export const KIND_TITLES: Record<FindKind, string> = {
@@ -31,9 +34,11 @@ export const KIND_TITLES: Record<FindKind, string> = {
   trinket: 'Trinkets',
 }
 
-const f = (kind: FindKind, id: string, name: string, hint: string, text: string): Find => ({ id, kind, name, hint, text })
+const f = (kind: FindKind, id: string, name: string, hint: string, text: string, icon?: string, tint?: string): Find => ({ id, kind, name, hint, text, icon, tint })
 
 export const CATALOGUE: Find[] = [
+  // The first thing to find: until you have it, small things stay where they lie.
+  f('trinket', 'bag', "The Traveller's Bag", 'Left at a camp on the Green, just ahead of where you woke.', 'Patched leather, deep, and somehow never full. Whoever left it here is not coming back for it.', 'bag', '#8a5a3c'),
   // Places
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),
   f('place', 'sentinel', 'The Sentinel', 'North, on the rim of the Green.', 'It kneels with its sword before it, and it has knelt so long that moss has climbed to its knees. Whatever it was waiting for, it is still waiting.'),

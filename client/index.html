@@ -112,6 +112,31 @@
       #journal-body li { margin: 0 0 9px; font: 13px/1.45 ui-serif, Georgia, serif; }
       #journal-body li b { display: block; font: italic 700 14px ui-serif, Georgia, serif; }
       #journal-body li.unfound { color: #8a7f6b; }
+      #bag {
+        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+        background: rgba(12, 12, 14, 0.62); z-index: 6;
+      }
+      #bag-frame {
+        width: min(760px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 22px 26px;
+        border-radius: 6px; background: #d6ccb4; color: #3a3226; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        display: grid; grid-template-columns: 1fr 240px; gap: 22px;
+      }
+      #bag-frame h1 {
+        grid-column: 1 / -1; margin: 0; font: italic 700 22px/1 ui-serif, Georgia, serif; letter-spacing: 0.06em;
+        display: flex; justify-content: space-between; align-items: baseline;
+      }
+      #bag-frame h1 small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
+      #bag-grid { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; min-height: 160px; }
+      .bag-cell {
+        width: 72px; height: 72px; padding: 4px; border: 1px solid rgba(58, 50, 38, 0.35); border-radius: 6px;
+        background: rgba(255, 250, 238, 0.35); cursor: pointer;
+      }
+      .bag-cell.on { background: rgba(255, 250, 238, 0.85); border-color: #3a3226; }
+      .bag-cell canvas { width: 62px; height: 62px; display: block; }
+      #bag-detail { font: 13px/1.5 ui-serif, Georgia, serif; border-left: 1px solid rgba(58, 50, 38, 0.3); padding-left: 18px; }
+      #bag-detail b { display: block; font: italic 700 16px ui-serif, Georgia, serif; margin-bottom: 6px; }
+      #bag-detail p { margin: 0; }
+      @media (max-width: 640px) { #bag-frame { grid-template-columns: 1fr; } #bag-detail { border: 0; padding: 0; } }
       #found {
         position: fixed; top: 16%; left: 50%; transform: translate(-50%, 6px); text-align: center;
         opacity: 0; transition: opacity 1.4s, transform 1.4s; pointer-events: none; color: #f4efe6;
@@ -168,6 +193,13 @@
     <div id="bars"></div>
     <div id="prompt"></div>
     <div id="found"></div>
+    <div id="bag">
+      <div id="bag-frame">
+        <h1><span>The Traveller's Bag</span><small id="bag-count"></small></h1>
+        <div id="bag-grid"></div>
+        <div id="bag-detail"></div>
+      </div>
+    </div>
     <div id="journal">
       <div id="journal-frame">
         <h1><span>What you have found</span><small id="journal-count"></small></h1>
