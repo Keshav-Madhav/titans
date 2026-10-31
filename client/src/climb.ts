@@ -12,7 +12,7 @@
 // head. Run out and you fall.
 
 import * as THREE from 'three'
-import type { LumpSurface, Titan, TitanPart } from './titan'
+import { BLOCK_P, type LumpSurface, type Titan, type TitanPart } from './titan'
 
 const GRAB_REACH = 1.8 // metres from the climber's chest to rock
 const CLIMB_SPEED = 3.0 // a 300 m giant: fast enough to reach the shoulders on one grip
@@ -50,10 +50,14 @@ function onLump(L: LumpSurface, q: THREE.Vector3, out: THREE.Vector3): number {
   return len / k
 }
 
-/** Outward normal (part-local) of lump L at surface point p — the ellipsoid's, ignoring bulge. */
+/** Outward normal (part-local) of lump L at surface point p — the block's (superellipsoid's), ignoring weathering. */
 export function lumpNormal(L: LumpSurface, p: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+  const P = BLOCK_P
+  const ux = (p.x - L.c.x) / L.r.x
+  const uy = (p.y - L.c.y) / L.r.y
+  const uz = (p.z - L.c.z) / L.r.z
   return out
-    .set((p.x - L.c.x) / (L.r.x * L.r.x), (p.y - L.c.y) / (L.r.y * L.r.y), (p.z - L.c.z) / (L.r.z * L.r.z))
+    .set((Math.sign(ux) * Math.pow(Math.abs(ux), P - 1)) / L.r.x, (Math.sign(uy) * Math.pow(Math.abs(uy), P - 1)) / L.r.y, (Math.sign(uz) * Math.pow(Math.abs(uz), P - 1)) / L.r.z)
     .normalize()
 }
 

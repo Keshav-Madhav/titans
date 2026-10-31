@@ -12,6 +12,7 @@ import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { makeDetailTexture } from './detail-texture'
 import { LAYER, type TerrainTextures } from './terrain-material'
+import { armorFor } from './armor'
 import { makeSimplex2, titanBody, TitanGait, type GaitEvent, type GaitInput, type Terrain, type TitanBody } from '@titans/shared'
 
 type V3 = THREE.Vector3
@@ -32,7 +33,7 @@ const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
   torso: {
     len: 0.32,
     lumps: [
-      { at: 0.06, r: [0.22, 0.12, 0.17], off: [0, -0.035] }, // the back's great hump
+      { at: 0.06, r: [0.22, 0.12, 0.15], off: [0, -0.06] }, // the back's great hump
       { at: 0.04, r: [0.12, 0.11, 0.12], off: [0.175, -0.01] }, // shoulder caps
       { at: 0.04, r: [0.12, 0.11, 0.12], off: [-0.175, -0.01] },
       { at: 0.26, r: [0.19, 0.13, 0.15], off: [0, 0.035] }, // chest
@@ -45,8 +46,8 @@ const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
   head: {
     len: 0.07,
     lumps: [
-      { at: 0.3, r: [0.058, 0.06, 0.062], off: [0, 0.02] },
-      { at: 0.15, r: [0.05, 0.03, 0.04], off: [0, 0.05] }, // brow
+      { at: 0.3, r: [0.066, 0.068, 0.066], off: [0, 0.02] },
+      { at: 0.12, r: [0.06, 0.022, 0.04], off: [0, 0.058] }, // brow
     ],
   },
   upperArm: {
@@ -98,8 +99,8 @@ const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
 }
 
 // Beige sandstone with olive moss (awake); red sandstone under snow (a mountain).
-const STONE = new THREE.Color(0xa59a84)
-const STONE_DARK = new THREE.Color(0x7b7163)
+const STONE = new THREE.Color(0x857d70)
+const STONE_DARK = new THREE.Color(0x5e584f)
 const MOSS = new THREE.Color(0x6a7340)
 const RED = new THREE.Color(0xb3684c)
 const RED_DARK = new THREE.Color(0x8a4834)
@@ -119,13 +120,13 @@ export function setGiantSkin(tex: TerrainTextures): void {
   hideTex = tex
 }
 
-function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
+function addStoneDetail(mat: THREE.MeshStandardMaterial, layer: number): void {
   stoneTex ??= makeDetailTexture(4242)
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.stoneMap = { value: stoneTex }
     shader.uniforms.tLayerColor = { value: hideTex?.color ?? null }
     shader.uniforms.tLayerNormal = { value: hideTex?.normal ?? null }
-    shader.defines = { ...(shader.defines ?? {}), ...(hideTex ? { HIDE: 1, HIDE_LAYER: `${LAYER.hide}.0` } : {}) }
+    shader.defines = { ...(shader.defines ?? {}), ...(hideTex ? { HIDE: 1, HIDE_LAYER: `${layer}.0` } : {}) }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStonePos;\nvarying vec3 vStoneNrm;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStonePos = position;\nvStoneNrm = normal;')
@@ -210,11 +211,22 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
 /** How far a boulder's surface reaches along a unit direction (×radius). */
 export type Bulge = (dx: number, dy: number, dz: number) => number
 
+/**
+ * Each lump is a block of dressed stone, not a boulder: a superellipsoid
+ * (|x|^P + |y|^P + |z|^P = 1, a cube with rounded edges), weathered a little.
+ * Climbing walks the same surface (it uses this bulge), so what you hold is
+ * what you see.
+ */
+export const BLOCK_P = 4
+
 function boulderNoise(seed: number): { bulge: Bulge; noise3: (x: number, y: number, z: number) => number } {
   const n1 = makeSimplex2(seed)
   const n2 = makeSimplex2(seed + 7)
   const noise3 = (x: number, y: number, z: number) => (n1(x, y) + n1(y + 3.1, z) + n2(z - 1.7, x)) / 3
-  const bulge: Bulge = (x, y, z) => 1 + 0.2 * noise3(x * 1.3, y * 1.3, z * 1.3) + 0.07 * noise3(x * 3.7 + 9, y * 3.7, z * 3.7)
+  const P = BLOCK_P
+  const bulge: Bulge = (x, y, z) =>
+    (1 / Math.pow(Math.pow(Math.abs(x), P) + Math.pow(Math.abs(y), P) + Math.pow(Math.abs(z), P), 1 / P)) *
+    (1 + 0.035 * noise3(x * 1.6, y * 1.6, z * 1.6) + 0.015 * noise3(x * 5 + 9, y * 5, z * 5))
   return { bulge, noise3 }
 }
 
@@ -371,12 +383,15 @@ export class Titan {
     this.H = height
     this.body = titanBody(height)
     this.gait = new TitanGait(this.body, x, z, heading)
-    addStoneDetail(this.material)
+    // Awake: dressed, carved stone. Asleep (a mountain): the weathered hide.
+    addStoneDetail(this.material, mossiness > 0 ? LAYER.hide : LAYER.carved)
     const add = (key: string, shape: string, s: number) => {
       const { lods, lumps } = segment(shape, height, seed + s, mossiness)
       const m = new THREE.Mesh(lods[0], this.material)
       m.castShadow = true
       m.receiveShadow = true
+      // Plating, fur and eyes: what makes it a colossus (armor.ts).
+      if (hideTex) m.add(armorFor(key, shape, lumps, height, seed + s, hideTex, mossiness > 0))
       this.meshes[key] = m
       this.group.add(m)
       const part = { key, mesh: m, lumps, lods }
@@ -499,8 +514,8 @@ export class Titan {
     this.chest.y += SHAPES.torso.len * H * 0.97 + breathe + Math.abs(heave) * 0.5
     this.chest.addScaledVector(this.fwd, -0.02 * H * rb)
     // The head sits low and forward, sunk between the shoulders.
-    this.head.copy(this.chest).addScaledVector(this.fwd, (0.085 + 0.01 * rb) * H)
-    this.head.y += (-0.005 - 0.02 * rb) * H
+    this.head.copy(this.chest).addScaledVector(this.fwd, (0.13 + 0.01 * rb) * H)
+    this.head.y += (0.035 - 0.02 * rb) * H
 
     // Arms swing opposite to the legs, by each foot's lead.
     for (const f of [0, 1] as const) {
@@ -530,9 +545,14 @@ export class Titan {
     // Place meshes.
     const M = this.meshes
     place(M.torso, this.chest, this.pelvis, this.fwd)
+    // The head stands upright, bowed a little to look down at what is before it.
+    // (It used to hang along the chest-to-head line, which points mostly
+    // forward: the face looked at the ground and the mask was never seen.)
     this.tmp.copy(this.head)
     this.tmp.y += SHAPES.head.len * H * 0.6
-    place(M.head, this.tmp, this.chest, this.fwd)
+    this.tmp2.copy(this.tmp).addScaledVector(this.fwd, -0.18)
+    this.tmp2.y -= 1
+    place(M.head, this.tmp, this.tmp2, this.fwd)
     for (const f of [0, 1] as const) {
       const s = f === 0 ? 'L' : 'R'
       place(M['upperArm' + s], J.shoulder[f], J.elbow[f], this.fwd)

@@ -298,6 +298,36 @@ const scenes = {
       await shot(`weather-${w}-sun`)
     }
   },
+  // A giant up close: from the front, the side, below, and its head.
+  async giant() {
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const views = [
+      ['front', 0, 520, 2.5, 0.55],
+      ['side', 1.6, 480, 2.5, 0.5],
+      ['back', 3.1, 460, 2.5, 0.55],
+      ['below', 0.6, 170, 2, 0.4],
+    ]
+    for (const [name, turn, dist, height, rise] of views) {
+      await page.evaluate(([turn, dist, height, rise]) => {
+        const g = window.__g
+        const t = g.titan
+        const h = g.heightAt(t.gait.x, t.gait.z)
+        g.frame([t.gait.x, h + t.H * rise, t.gait.z], dist, height, t.gait.heading + turn)
+      }, [turn, dist, height, rise])
+      await shot(`giant-${name}`)
+    }
+    // The head, close: from a camera just in front of the mask.
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titan
+      const head = t.head
+      const fx = Math.sin(t.gait.heading)
+      const fz = Math.cos(t.gait.heading)
+      g.lookFrom([head.x + fx * 70 + fz * 25, head.y + 10, head.z + fz * 70 - fx * 25], [head.x, head.y + 8, head.z])
+    })
+    await shot('giant-head')
+    await page.evaluate(() => window.__g.lookFrom(null))
+  },
   // The colossi, each from where a wanderer would stand, looking up.
   async colossi() {
     const t0 = Date.now()
