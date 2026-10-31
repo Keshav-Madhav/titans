@@ -663,6 +663,38 @@ const scenes = {
     console.log(`took the stone: ${took}; ${ends.join(' ')}`)
     if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
   },
+  // Small life: fireflies at dusk over the Green, butterflies by day, birds round a giant's head.
+  async life() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('clear', true)
+      g.sky.setTime(0.925)
+      g.teleport(600, 900)
+      g.setCam(0.6, 0.18, 6)
+    })
+    await page.waitForTimeout(1500)
+    await shot('life-fireflies')
+    await page.evaluate(() => {
+      const g = window.__g
+      g.sky.setTime(0.4)
+      g.teleport(600, 900)
+      g.setCam(0.6, 0.05, 4)
+    })
+    await page.waitForTimeout(1500)
+    await shot('life-butterflies')
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titan
+      g.teleport(t.gait.x + 500, t.gait.z + 300)
+      g.lookFrom([t.gait.x + 500, g.heightAt(t.gait.x + 500, t.gait.z + 300) + 2, t.gait.z + 300], [t.head.x, t.head.y, t.head.z])
+    })
+    await page.waitForTimeout(1500)
+    await shot('life-circlers')
+    await page.evaluate(() => {
+      window.__g.lookFrom(null)
+      window.__g.sky.setTime(0.36)
+    })
+  },
   // Flight, as physics: a hands-off glide, a dive-and-climb, a stall, and lift off a slope.
   async flight() {
     await page.evaluate(() => {

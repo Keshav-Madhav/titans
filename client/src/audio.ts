@@ -33,6 +33,10 @@ export class Sound {
   private rainGain: GainNode | null = null
   private windGain: GainNode | null = null
   private presenceGain: GainNode | null = null
+  private cricketGain: GainNode | null = null
+  private cicadaGain: GainNode | null = null
+  /** For the score: how the land sounds right now (ambience()). */
+  private life = { night: 0, day: 1, rain: 0, lush: 1, wet: 0 }
   private state = { dark: 0.5, rain: 0, wind: 0.5, awe: 0 }
   private chord = 0
   private nextChord = 0
@@ -79,6 +83,7 @@ export class Sound {
     this.pad()
     this.rainBed()
     this.presenceBed()
+    this.insectBeds()
     // Run the score on its own clock.
     setInterval(() => this.score(), 250)
   }
@@ -215,10 +220,114 @@ export class Sound {
     low.connect(breath).connect(gain).connect(this.master!)
   }
 
+  /**
+   * Insects: crickets at night (a high, pulsing chirp in groups), cicadas by
+   * day (a buzzing swell). Silent until ambience() turns them up.
+   */
+  private insectBeds(): void {
+    const ctx = this.ctx!
+    const bed = (freq: number, q: number, am: number, amType: OscillatorType, swell: number) => {
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      const band = ctx.createBiquadFilter()
+      band.type = 'bandpass'
+      band.frequency.value = freq
+      band.Q.value = q
+      const pulse = ctx.createGain()
+      pulse.gain.value = 0
+      const mod = ctx.createOscillator()
+      mod.type = amType
+      mod.frequency.value = am
+      const depth = ctx.createGain()
+      depth.gain.value = 0.5
+      mod.connect(depth).connect(pulse.gain)
+      // Groups of chirps / swells: a slower gate on top.
+      const gate = ctx.createGain()
+      gate.gain.value = 0.5
+      const slow = ctx.createOscillator()
+      slow.frequency.value = swell
+      const sd = ctx.createGain()
+      sd.gain.value = 0.5
+      slow.connect(sd).connect(gate.gain)
+      const out = ctx.createGain()
+      out.gain.value = 0
+      src.connect(band).connect(pulse).connect(gate).connect(out).connect(this.master!)
+      src.start()
+      mod.start()
+      slow.start()
+      return out
+    }
+    this.cricketGain = bed(4600, 14, 16, 'square', 0.55)
+    this.cicadaGain = bed(5400, 3, 95, 'sawtooth', 0.09)
+  }
+
+  /**
+   * The living land, for the beds and the score: night 0 … 1, day 0 … 1, rain,
+   * how lush the ground is (insects, birds), and water near (frogs).
+   */
+  ambience(night: number, day: number, rain: number, lush: number, wet: number): void {
+    this.life = { night, day, rain, lush, wet }
+    if (!this.ctx) return
+    const t = this.ctx.currentTime
+    const dry = 1 - Math.min(1, rain * 1.5)
+    this.cricketGain?.gain.setTargetAtTime(0.05 * night * dry * (0.3 + 0.7 * lush), t, 3)
+    this.cicadaGain?.gain.setTargetAtTime(0.018 * day * dry * (0.4 + 0.6 * lush), t, 4)
+  }
+
+  /** A bird, somewhere near: two or three quick rising notes. */
+  private birdsong(): void {
+    const ctx = this.ctx!
+    const t = ctx.currentTime
+    const base = 2400 + Math.random() * 1600
+    const n = 2 + Math.floor(Math.random() * 3)
+    for (let i = 0; i < n; i++) {
+      const o = ctx.createOscillator()
+      const at = t + i * (0.09 + Math.random() * 0.05)
+      o.frequency.setValueAtTime(base * (0.9 + Math.random() * 0.2), at)
+      o.frequency.exponentialRampToValueAtTime(base * (1.25 + Math.random() * 0.3), at + 0.07)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, at)
+      g.gain.exponentialRampToValueAtTime(0.025, at + 0.015)
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.09)
+      o.connect(g).connect(this.master!)
+      g.connect(this.space!)
+      o.start(at)
+      o.stop(at + 0.12)
+    }
+  }
+
+  /** A frog, near water, at night: a low double croak. */
+  private croak(): void {
+    const ctx = this.ctx!
+    const t = ctx.currentTime
+    for (let i = 0; i < 2; i++) {
+      const at = t + i * 0.22
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(190, at)
+      o.frequency.exponentialRampToValueAtTime(130, at + 0.16)
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 600
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, at)
+      g.gain.exponentialRampToValueAtTime(0.05, at + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.17)
+      o.connect(lp).connect(g).connect(this.master!)
+      o.start(at)
+      o.stop(at + 0.2)
+    }
+  }
+
   /** Every quarter second: chord changes, the odd high note, a far horn. */
   private score(): void {
     if (!this.ctx || !this.on) return
     const t = this.ctx.currentTime
+    // The living land: birds by day where it is green, frogs at night by water.
+    const L = this.life
+    if (L.rain < 0.3 && Math.random() < 0.02 * L.day * L.lush) this.birdsong()
+    if (L.rain < 0.6 && Math.random() < 0.04 * L.night * L.wet) this.croak()
     if (t > this.nextChord) {
       // A new chord every half-minute or so, gliding there over eight seconds.
       this.nextChord = t + 24 + Math.random() * 20

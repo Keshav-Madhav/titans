@@ -141,7 +141,8 @@ export function broadleafGeometry(seed: number, far = false): THREE.BufferGeomet
   const rand = mulberry32(seed)
   // A stout trunk standing clear under the crown: from across a field a tree
   // with no visible trunk reads as a dark blob hanging in the air.
-  const parts: THREE.BufferGeometry[] = [trunk(0.62, 0.32, 6.6, 0x6b5440, far ? 5 : 7)]
+  // (Far off, thicker than true: a trunk thinner than a pixel leaves the crown hanging in the air.)
+  const parts: THREE.BufferGeometry[] = [far ? trunk(1.15, 0.7, 6.9, 0x5c4836, 5) : trunk(0.62, 0.32, 6.6, 0x6b5440, 7)]
   // A few limbs reaching up into the crown.
   for (let i = 0; i < (far ? 2 : 5); i++) {
     const a = (i / 5) * Math.PI * 2 + rand()

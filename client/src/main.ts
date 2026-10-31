@@ -68,6 +68,7 @@ import { Bow, type ArrowHit, type Pick } from './bow'
 import { Glyphs } from './glyphs'
 import { hangingSteps } from './parkour'
 import { Toolbar } from './toolbar'
+import { Ambience } from './ambience'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -673,6 +674,10 @@ const narration = new Narration()
 const finds = new Discoveries()
 const journal = new Journal(finds)
 const toolbar = new Toolbar(finds)
+// Small life: fireflies, butterflies, big birds circling the giants' heads; insects and birdsong.
+const lush = (x: number, z: number) => 1 - biome.desert(x, z)
+const ambience = new Ambience(terrain, lush)
+scene.add(ambience.group)
 journal.onToggle = () => input.releaseAll()
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
@@ -1484,6 +1489,15 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind)
   spots.update(dt, camera)
+  {
+    const heads: Array<{ at: THREE.Vector3; H: number }> = []
+    for (const a of titans.values()) heads.push({ at: a.titan.head, H: a.titan.H })
+    heads.push({ at: herd.giants[0].head, H: herd.giants[0].H })
+    const dusk = Math.max(sky.dusk, sky.night)
+    ambience.update(dt, camera.position, dusk, 1 - dusk, weather.now.rain, heads)
+    const here = lush(wanderer.pos.x, wanderer.pos.z)
+    sound.ambience(Math.max(sky.night, sky.dusk * 0.7), 1 - sky.dusk, weather.now.rain, here, here * 0.6)
+  }
   wisps.update(dt, wanderer.pos)
   glyphs.update(dt, finds.has('sight') && input.held('KeyV') && !climber.active && !journal.open && !bag.open, wanderer.pos, crownWind.value)
   {

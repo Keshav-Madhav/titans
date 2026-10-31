@@ -266,6 +266,15 @@ Each phase ends playable. Phases are in PLAN.md §6.
       J / I keys in the hint bar glow until you do; the journal's entries carry a drawn icon of
       their kind (a peak, a giant, a carved tablet)
 
+## G — A fuller, living world (user: "fireflies and bug noises, small animals… distant birds… more plants… fuller, more real, within performance")
+- [x] `ambience.ts`: fireflies at dusk and night low over the Green and the Old Wood (none on sand),
+      each blinking its own slow pattern (one draw call); butterflies by day out of the rain; big
+      dark birds turning slow circles round the giants' heads (something to measure them by)
+- [x] Sounds of the living land (`audio.ts`): crickets at night, cicadas by day (both quieter in rain,
+      louder where it is green), birdsong now and then by day, frogs croaking at night
+- [x] Far trees keep a trunk you can see (a crown with a sub-pixel trunk hung in the air)
+- [ ] More plants (ferns, tall flowers, reeds by water); small animals on the ground
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,
