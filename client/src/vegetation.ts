@@ -489,7 +489,10 @@ export class Vegetation {
       const h = this.ground(x, z, 200)
       if (h === null) continue
       const flowers = this.biome.flowers(x, z)
-      if (rand() < flowers * 0.35) {
+      // The grass itself is grass.ts; here, wildflowers and the odd tall tuft.
+      const flower = rand() < flowers * 0.35
+      if (!flower && rand() < 0.8) continue
+      if (flower) {
         // A wildflower tuft: white, yellow or violet (sRGB).
         const pick = rand()
         if (pick < 0.4) this.col.setRGB(0.93, 0.92, 0.86, SRGB)

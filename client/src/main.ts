@@ -56,6 +56,7 @@ import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation } from './vegetation'
+import { Grass } from './grass'
 import { Sound } from './audio'
 import { Tips } from './tips'
 import { Quality } from './quality'
@@ -176,6 +177,9 @@ const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = () => input.releaseAll()
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6))
 scene.add(vegetation.group)
+// Dense grass round you, rolling in the wind.
+const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z))
+scene.add(grass.mesh)
 quality.vegetation = vegetation
 quality.refresh()
 terrainView.fresh = (x, z) => vegetation.isFresh(x, z)
@@ -246,6 +250,7 @@ function grow(b: Box): void {
   // (Replays and the First Ones' trails are old ground already.)
   if (!replaying) vegetation.trample(b.x0, b.z0, b.x1, b.z1)
   else vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
+  grass.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
 /** True while applying events that are not happening now (loading, ancient trails). */
 let replaying = false
@@ -649,6 +654,7 @@ function frame(now: number): void {
   clouds.tint(weather.now.dark)
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
+  grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
   crownWind.value += dt
   rocks.animate(crownWind.value)
@@ -756,6 +762,7 @@ const g = {
   farGiants,
   birds,
   vegetation,
+  grass,
   paint,
   biome,
   clouds,
