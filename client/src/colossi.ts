@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
+import { DROWNED_AT, mulberry32, SPREAD, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
@@ -124,11 +124,10 @@ export class Colossi {
     rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 22, tint: STONE, res: 195 })
     place('sentinel', sen.x, sen.z, sen.y)
 
-    // The Drowned One: at the Mire's heart, another of them, sunk to the chest
-    // in the black water — only its hooded head, shoulders and the sword's hilt
-    // above the mire, leaning, green with moss.
-    const dr = site(-0.866 * 8700, -0.5 * 8700, 150, 600)
-    rocks.addColossus({ kind: 'sentinel', x: dr.x, z: dr.z, y: dr.y - 120, rot: Math.atan2(-dr.x, -dr.z) + 0.5, seed: 8, layers: [LAYER.moss, LAYER.carved], scale: 18, tint: [0.6, 0.66, 0.56], res: 170 })
+    // The Drowned One: lying on its back in the biggest marsh, all but its
+    // face, chest, a raised knee and one lifted hand under the black water.
+    const dr = site(DROWNED_AT.x, DROWNED_AT.z, 200, 300)
+    rocks.addColossus({ kind: 'reclining', x: dr.x, z: dr.z, y: dr.y - 8, rot: 2.2, seed: 8, layers: [LAYER.moss, LAYER.hide], scale: 16, tint: [0.62, 0.66, 0.56], res: 210 })
     place('drowned', dr.x, dr.z, dr.y)
 
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
@@ -247,7 +246,8 @@ export class Colossi {
     ]
     stones.forEach(([x, z, alt, chained], i) => {
       const y = H(x, z) + alt
-      rocks.addColossus({ kind: 'monolith', x, z, y, rot: i * 1.3, seed: 300 + i, layers: [LAYER.basalt, LAYER.moss], scale: 14, tint: BASALT, float: chained ? undefined : { amp: 12, phase: i * 1.7, spin: 0.004 * (i % 2 ? 1 : -1) } })
+      // (The free ones bare dark stone: moss on a stone in the sky read as a tree floating.)
+      rocks.addColossus({ kind: 'monolith', x, z, y, rot: i * 1.3, seed: 300 + i, layers: chained ? [LAYER.basalt, LAYER.moss] : [LAYER.basalt, LAYER.basalt], scale: 14, tint: BASALT, float: chained ? undefined : { amp: 12, phase: i * 1.7, spin: 0.004 * (i % 2 ? 1 : -1) } })
       const f = rocks.formations[rocks.formations.length - 1]
       if (chained) {
         // Static: chains hold it. Three run down to anchors on the ground.

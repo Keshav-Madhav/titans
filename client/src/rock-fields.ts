@@ -7,7 +7,7 @@ import { makeSimplex2, mulberry32, type Noise2, type RegionName } from '@titans/
 
 export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 'boulders'
 /** The colossi: the First Ones' remains and works, hundreds of metres across. */
-export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk'
+export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining'
 export type ShapeKind = FormationKind | ColossusKind
 type THREE3 = [number, number, number]
 
@@ -370,7 +370,7 @@ export function meshShape(sh: Shape, res = 64): RockMesh {
 
 // --- the colossi ----------------------------------------------------------------
 
-const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk']
+const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining']
 export const isColossus = (k: ShapeKind): k is ColossusKind => (COLOSSI as string[]).includes(k)
 
 /** Capsule between two points. */
@@ -488,6 +488,54 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       hy: 140,
       hz: len / 2 + 60,
       cy: 120,
+    }
+  }
+  if (kind === 'reclining') {
+    // One lying on its back in the marsh, ~730 m from crown to heel, sunk so
+    // that only islands rise: the face turned to the sky (brow, nose, the
+    // closed eyes, chin), the chest, one knee drawn up, and one hand lifted out
+    // of the water, the fingers half curled — as if reaching, or about to.
+    // Head at +z, facing up +y; the water's surface is about y = 0.
+    return {
+      field: (x, y, z) => {
+        // The face and skull.
+        let d = ellipsoid(x, y - 6, z - 250, 62, 58, 76)
+        d = smin(d, ellipsoid(x, y - 50, z - 268, 54, 14, 26), 14) // brow
+        d = smin(d, capsule(x, y, z, 0, 58, 278, 0, 70, 300, 11), 8) // nose
+        d = smin(d, ellipsoid(x, y - 38, z - 316, 30, 18, 20), 12) // chin and mouth
+        d = ssub(d, ellipsoid(Math.abs(x) - 24, y - 56, z - 288, 14, 7, 11), 4) // the eyes' hollows, closed
+        d = smin(d, ellipsoid(Math.abs(x) - 24, y - 52, z - 289, 12, 5, 9), 3) // their lids
+        // Neck, chest, sternum, belly (sinking toward the feet).
+        d = smin(d, capsule(x, y, z, 0, -10, 180, 0, -14, 140, 42), 30)
+        d = smin(d, ellipsoid(x, y + 12, z - 70, 130, 52, 110), 36)
+        d = smin(d, capsule(x, y, z, 0, 34, 20, 0, 40, 130, 16), 14)
+        d = smin(d, ellipsoid(x, y + 40, z + 80, 110, 40, 100), 30)
+        // The right leg drawn up: thigh to the knee in the air, shin back down.
+        d = smin(d, capsule(x, y, z, 45, -30, -150, 60, 118, -235, 40), 22)
+        d = smin(d, capsule(x, y, z, 60, 118, -235, 66, -40, -340, 33), 16)
+        d = smin(d, ellipsoid(x - 60, y - 120, z + 236, 34, 22, 30), 10) // kneecap
+        // The left leg flat, under.
+        d = smin(d, capsule(x, y, z, -45, -36, -150, -55, -40, -390, 34), 20)
+        // The left arm along its side, under the water.
+        d = smin(d, capsule(x, y, z, -130, -16, 140, -205, -28, -10, 27), 20)
+        // The right arm: shoulder, elbow in the mud, forearm up, the hand.
+        d = smin(d, capsule(x, y, z, 128, -12, 140, 172, -26, 40, 28), 20)
+        d = smin(d, capsule(x, y, z, 172, -26, 40, 202, 92, -12, 24), 16)
+        d = smin(d, ellipsoid(x - 206, y - 128, z + 20, 30, 40, 13), 10) // palm
+        for (let f = 0; f < 4; f++) {
+          const fx = 188 + f * 12
+          const tip = 196 + (f === 1 || f === 2 ? 14 : 0)
+          d = smin(d, capsule(x, y, z, fx, 160, -20, fx + 2, tip, -6 - f * 2, 7.5 - f * 0.6), 5)
+          d = smin(d, capsule(x, y, z, fx + 2, tip, -6 - f * 2, fx + 1, tip + 16, 8 - f * 2, 6.2 - f * 0.5), 4) // curled tips
+        }
+        d = smin(d, capsule(x, y, z, 236, 128, -18, 252, 160, -2, 8), 6) // thumb
+        // Cut flat well under the marsh (nothing is meshed down there).
+        return Math.max(d, -(y + 70)) + wear(x, y, z, 2.2)
+      },
+      hx: 265,
+      hy: 150,
+      hz: 410,
+      cy: 75,
     }
   }
   if (kind === 'skull') {

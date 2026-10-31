@@ -127,11 +127,11 @@ export class BaseTerrain {
 
     const d = Math.sqrt(x * x + z * z)
     h += this.carve(x, z, wx, wz, d, r)
-    // The Mire: the land let down into a wide, nearly level basin — hummocks a
-    // metre or two high, and the pools sunk four metres into it.
+    // Marsh: where the Wood's hills give way (its weight is taken from the
+    // Wood's, so the hills fade out here) — a low hollow among them, hummocks a
+    // metre or two high, the pools sunk four metres into it.
     if (r.mire > 0.001) {
-      const level = 44 + 7 * fbm(this.hills, wx * 0.00025 + 1.3, wz * 0.00025 - 7.7, 2) + 1.4 * fbm(this.hills, wx * 0.006 + 9.9, wz * 0.006 - 4.1, 2)
-      h += (level - h) * Math.min(1, r.mire * 1.15)
+      h += r.mire * (1.6 * fbm(this.hills, wx * 0.006 + 9.9, wz * 0.006 - 4.1, 2) - 3)
       h -= r.mire * 4 * poolBowl(x, z)
     }
     if (!Number.isNaN(this.hallTop)) {

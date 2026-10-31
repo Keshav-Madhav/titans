@@ -668,8 +668,8 @@ const scenes = {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 240000 })
     await page.evaluate(() => window.__g.weather.set('overcast', true))
     const views = [
-      ['edge', -0.866 * 7600, -0.5 * 7600, -0.866, -0.5, 2],
-      ['pools', -0.866 * 8300 + 300, -0.5 * 8300 - 200, -0.866, -0.5, 2],
+      ['edge', -0.866 * 6900 + 900, -0.5 * 6900 + 500, -0.866, -0.5, 2],
+      ['pools', -0.866 * 6900 + 650, -0.5 * 6900 + 120, -0.866, -0.5, 2],
     ]
     for (const [name, x, z, dx, dz] of views) {
       await page.evaluate(([x, z, dx, dz]) => {
@@ -684,10 +684,10 @@ const scenes = {
       const g = window.__g
       const d = g.colossi.places.get('drowned')
       const back = Math.atan2(-d.x, -d.z)
-      const x = d.x + Math.sin(back) * 520
-      const z = d.z + Math.cos(back) * 520
+      const x = d.x + Math.sin(back) * 620
+      const z = d.z + Math.cos(back) * 620
       g.teleport(x, z)
-      g.lookFrom([x, g.heightAt(x, z) + 2, z], [d.x, d.y + 140, d.z])
+      g.lookFrom([x, g.heightAt(x, z) + 2, z], [d.x, d.y + 60, d.z])
     })
     await page.waitForTimeout(1500)
     await shot('mire-drowned')
@@ -703,7 +703,7 @@ const scenes = {
     await page.waitForTimeout(1500)
     await shot('mire-night')
     await page.evaluate(() => window.__g.sky.setTime(0.36))
-    const r = await page.evaluate(() => ({ region: window.__g.terrain.base.regions.name(-0.866 * 8300, -0.5 * 8300), pools: window.__g.mireView.water.count, snags: window.__g.mireView.snags.count }))
+    const r = await page.evaluate(() => ({ region: window.__g.terrain.base.regions.name(-0.866 * 6900, -0.5 * 6900), pools: window.__g.mireView.water.count, snags: window.__g.mireView.snags.count }))
     console.log('mire', JSON.stringify(r))
   },
   // Offerings: look at the carving (nothing yet), bring the thing, hold it over the bowl; it answers.

@@ -571,8 +571,9 @@ const spots = (() => {
   const dro = P('drowned')
   if (dro) {
     const back = Math.atan2(-dro.x, -dro.z)
-    placed.push({ id: 'lore-drowned', kind: 'stone', at: ground(dro.x + Math.sin(back) * 260, dro.z + Math.cos(back) * 260) })
-    const crown = topNear(dro.x, dro.z, 70)
+    placed.push({ id: 'lore-drowned', kind: 'stone', at: ground(dro.x + Math.sin(back) * 520, dro.z + Math.cos(back) * 520) })
+    // On its brow (the face is 270 m from its middle, toward its head: rot 2.2 in colossi.ts).
+    const crown = topNear(dro.x + Math.sin(2.2) * 268, dro.z + Math.cos(2.2) * 268, 30)
     if (crown) placed.push({ id: 'moss-crown', kind: 'trinket', at: crown })
   }
   placed.push({ id: 'buried-box', kind: 'trinket', at: ground(MOUND.x + 0.8, MOUND.z), hidden: true })
@@ -733,7 +734,11 @@ const placeAt = (name: string) => () => colossi.places.get(name) ?? null
 const sites: Site[] = [
   { id: 'green', r: 500, at: near(0, 0) },
   { id: 'steps', r: 160, at: near(STEPS_AT.x, STEPS_AT.z) },
-  { id: 'mire', r: 900, at: near(-0.866 * 8200, -0.5 * 8200) },
+  { id: 'mire', r: 500, at: () => {
+    // The nearest marsh: wherever you stand in one.
+    const p = wanderer.pos
+    return biome.mire(p.x, p.z) > 0.6 ? { x: p.x, z: p.z } : null
+  } },
   { id: 'drowned', r: 650, at: placeAt('drowned') },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },

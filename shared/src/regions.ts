@@ -4,8 +4,9 @@
 //   forest — the Old Wood, to the north-west
 //   desert — the Dune Sea, to the south
 //   ruins  — the Steps of the First Ones, to the north-east
-//   mire   — the Mire, beyond the Old Wood (north-west, from ~7.3 km): low,
-//            flooded, the trees drowned
+//   mire   — marsh: patches of the Old Wood's ground gone low and flooded,
+//            the trees drowned (user: "more patchy and not this big"); the
+//            biggest round the one who lies drowned in it
 //
 // Beyond about 7 km, all three rise into the mountains that ring the world.
 // Terrain shape, ground textures, plants and air all read these weights, so a
@@ -22,8 +23,8 @@ export interface RegionWeights {
   mire: number
 }
 
-/** Where the Mire begins and is full, beyond the Old Wood. */
-export const MIRE_RADIUS: [number, number] = [7300, 8400]
+/** The marsh round the one lying drowned (the biggest patch): its centre and radius. */
+export const DROWNED_AT = { x: -0.866 * 6900, z: -0.5 * 6900, r: 950 }
 
 export type RegionName = keyof RegionWeights
 
@@ -39,9 +40,11 @@ export const VALLEY_RADIUS: [number, number] = [800 * SPREAD, 1400 * SPREAD]
 
 export class Regions {
   private readonly warp: Noise2
+  private readonly marsh: Noise2
 
   constructor(seed: number) {
     this.warp = makeSimplex2(seed + 7070)
+    this.marsh = makeSimplex2(seed + 9191)
   }
 
   /** Weights at (x, z), written into `out`. */
@@ -69,8 +72,12 @@ export class Regions {
       sum += w
     }
     for (const [name] of AXES) out[name] = ((1 - valley) * out[name]) / sum
-    // The Mire: the Old Wood's outer reaches, gone low and wet.
-    const m = out.forest * smoothstep(MIRE_RADIUS[0], MIRE_RADIUS[1], d)
+    // Marsh: patches of the Old Wood (not its inner edge) gone low and wet,
+    // a few hundred metres across; and the one round the Drowned.
+    const pn = this.marsh(x * 0.00075, z * 0.00075) + 0.35 * this.marsh(x * 0.0021 + 5.1, z * 0.0021 - 2.7)
+    const patch = smoothstep(0.5, 0.66, pn) * smoothstep(3600, 4400, d)
+    const dd = Math.hypot(x - DROWNED_AT.x, z - DROWNED_AT.z)
+    const m = out.forest * Math.max(patch, 1 - smoothstep(DROWNED_AT.r * 0.7, DROWNED_AT.r, dd))
     out.mire = m
     out.forest -= m
     return out

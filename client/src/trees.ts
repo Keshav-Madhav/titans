@@ -222,6 +222,9 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
       '#include <begin_vertex>',
       `#include <begin_vertex>
       vec3 root = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+      // Far off, the ground's coarser mesh sags below the true hill under a tree
+      // (it would hang in the air): settle far trees a little into the ground.
+      transformed.y -= clamp((distance(root, cameraPosition) - 220.0) * 0.004, 0.0, 6.0);
       float phase = root.x * 0.07 + root.z * 0.05;
       float sway = sin(uTime * 1.3 + phase) * ${sway.toFixed(4)} * max(0.0, transformed.y);
       transformed.x += sway;

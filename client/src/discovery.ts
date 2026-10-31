@@ -56,8 +56,8 @@ export const CATALOGUE: Find[] = [
   f('place', 'stair', 'The Great Stair', 'The Steps, east.', 'Each step a cliff. It was made for feet much larger than yours, climbing to a door that has not opened in a very long time.'),
   f('place', 'chained', 'The Chained Stones', 'The far edge of the Steps.', 'Stones that would rather float, held down by chains. Someone went to great trouble to keep them here.'),
   f('place', 'steps', 'The Hanging Steps', 'Out on the western Green.', 'Slabs of stone hanging in the air in a rising spiral, held still the way the chained stones are. Someone meant them to be climbed.'),
-  f('place', 'mire', 'The Mire', 'Beyond the Old Wood, to the north-west.', 'The Old Wood goes down into water here. Black pools, drowned trees standing grey in them, and a mist that does not lift. Something breathes under it.'),
-  f('place', 'drowned', 'The Drowned One', 'At the heart of the Mire.', 'Another of the kneeling ones — sunk to the chest in the mire, leaning, its hood green with moss. Its sword is down there somewhere, still in its hands.'),
+  f('place', 'mire', 'The Marshes', 'Low places in the Old Wood, far out.', 'Here and there the Old Wood goes down into water. Black pools, drowned trees standing grey in them, and a mist that does not lift.'),
+  f('place', 'drowned', 'The Drowned One', 'In the biggest of the Old Wood\'s marshes.', 'One of them, lying on its back in the black water: a face turned to the sky, a knee drawn up, and one hand lifted out of the marsh, the fingers half curled, as if it had been reaching for something when it lay down.'),
   f('place', 'wall', 'The Wall', 'Look to the edge of the world on a clear day.', 'Mountains past the mountains, higher than anything should be. On a clear day you can see that something stands behind them.'),
   // Those who live here
   f('giant', 'walker', 'The Walker of the Green', 'It walks the Green, east of where you woke.', 'It walks the Green from one end to the other and back, and has worn paths doing it. It notices you the way you notice a bird.'),
@@ -92,7 +92,7 @@ export const CATALOGUE: Find[] = [
   f('lore', 'offer-bell', 'The shrine in the Colonnade answers', 'A shrine among the pillars of the Colonnade; it shows a small bell.', 'When the bell is held over the bowl, the carving warms, and words come up through the stone into your hand: "They rang for us, once, to say they were near. We rang back to say we were small. It was enough."'),
   f('lore', 'offer-figure', 'The shrine at the Fallen answers', 'A shrine under the ribs of the Fallen; it shows a small kneeling figure.', '"We carved them as we saw them: kneeling, so that we could look them in the eye. This one knelt for us, at the end. We have not forgotten."'),
   f('lore', 'offer-feather', 'The shrine at the Hanging Steps answers', 'A shrine at the foot of the Hanging Steps; it shows a feather.', '"Something flies above the cloud. We have only ever found its feathers. We built the Steps to see it. We never did."'),
-  f('lore', 'lore-drowned', 'A stone at the water\'s edge', 'On the bank before the Drowned One.', 'It knelt here when this was dry ground. The water came up around it a little each year. It did not move. We think it chose not to.'),
+  f('lore', 'lore-drowned', 'A stone at the water\'s edge', 'On the bank before the Drowned One.', 'It lay down here when this was dry ground, and the water came up around it a little each year. It has not moved. Its hand has not moved. We do not go near the hand.'),
   f('lore', 'lore-sleep', 'A stone under the arch', 'Under the stone arch out on the Green.', 'They sleep where the land is low and warm. When one sleeps long enough, the grass grows over it, and then there is a hill, and then you cannot tell.'),
   // Relics: in the shrines on the giants' backs. Taking one is raiding something alive.
   f('relic', 'relic-walker', "The Walker's relic", "In the shrine on the Walker's back.", "A disc of pale stone cut with the same mark that glows in the Walker's eyes. It is warm, like something alive, and a little heavier whenever the Walker is near.", 'coin', '#bcd2e6'),
@@ -124,7 +124,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'ember-ruins', 'An ember of the Steps', "Light both of the Steps' cairns.", 'A coal from the cairns of the Steps, cut square, as if someone had carved even the fire.', 'stone', '#b85a36'),
   // Uncovered: what was under the mound, broken open by a giant's foot.
   f('trinket', 'buried-box', 'A buried box', 'Under the mound on the eastern Green — too deep to dig.', 'A stone box the size of your two hands, split open by a giant\'s weight. Inside, wrapped in something that crumbled: a carving of a person, very small, looking up.', 'figure', '#7c776c'),
-  f('trinket', 'moss-crown', 'A crown of moss', "On the crown of the Drowned One's hood.", 'A ring of living moss, woven or grown into a circle. It is still damp, and something small lives in it.', 'ring', '#5c7a3c'),
+  f('trinket', 'moss-crown', 'A crown of moss', "On the Drowned One's brow, between its closed eyes.", 'A ring of living moss, woven or grown into a circle. It is still damp, and something small lives in it.', 'ring', '#5c7a3c'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

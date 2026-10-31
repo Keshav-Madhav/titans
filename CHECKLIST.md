@@ -303,6 +303,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
       no living trees, green-grey close air (fog ×3), mist, frogs, fireflies
 - [x] The Drowned One: a kneeling colossus sunk to the chest at the Mire's heart, mossy; a stone on
       the bank, a crown of moss on its hood. Gate: `shot.mjs mire`
+- [x] (user: "a giant repeated… marsh is supposed to be more patchy and not this big… terrain
+      simplified… trees floating") The marsh is patches now — low hollows among the Old Wood's hills
+      a few hundred metres across (its weight taken from the Wood's, so the hills fade out there,
+      not a flattened basin), the biggest round the Drowned One; the outer north-west is Old Wood
+      again. The Drowned One has its own form (`reclining`): lying on its back, only the face, the
+      chest, a drawn-up knee and one lifted hand, fingers half curled, above the black water. The
+      free-floating stones are bare dark rock (mossy, they read as floating trees); far trees settle
+      a little into the ground (the coarser far mesh sags under a hill's crest)
 - [ ] The Shore (beyond the Dune Sea), the High Places (beyond the Steps)
 
 ## Design drafts
