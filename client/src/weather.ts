@@ -106,6 +106,7 @@ export class Weather {
     uTime: { value: 0 },
     uCover: { value: 0.8 },
     uDark: { value: 0.5 },
+    uNight: { value: 0 },
     uSun: { value: new THREE.Vector3() },
     uFog: { value: new THREE.Color() },
     uFlash: { value: 0 },
@@ -151,7 +152,7 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * w;
           }`,
         fragmentShader: /* glsl */ `
-          uniform float uTime, uCover, uDark, uLayer, uFlash;
+          uniform float uTime, uCover, uDark, uLayer, uFlash, uNight;
           uniform vec3 uSun, uFog;
           uniform vec2 uFlashAt, uWind;
           uniform sampler2D uNoise;
@@ -176,7 +177,9 @@ export class Weather {
             c *= mix(1.15, 0.72, d * (1.0 - uLayer));
             vec3 toCam = normalize(vWorld - cameraPosition);
             float sunward = pow(max(dot(toCam, normalize(uSun)), 0.0), 8.0);
-            c += vec3(1.0, 0.93, 0.8) * sunward * (1.0 - d) * 0.9;
+            c += vec3(1.0, 0.93, 0.8) * sunward * (1.0 - d) * 0.9 * (1.0 - uNight);
+            // At night the deck is a dark mass, its thin edges silvered by the moon.
+            c = mix(c, vec3(0.05, 0.06, 0.09) + vec3(0.1, 0.12, 0.16) * (1.0 - d), uNight);
             // Lightning inside the cloud.
             c += vec3(0.75, 0.8, 1.0) * uFlash * exp(-distance(vWorld.xz, uFlashAt) / 1400.0) * 2.5;
             // Far away the deck melts into the haze.
@@ -300,19 +303,23 @@ export class Weather {
 
     // Light: the sun dims and greys under the cloud; the sky's diffuse light
     // takes over. Lightning lights everything for a moment.
+    // (The time of day sets the light first — sky.lightBase — and the weather dims that.)
     const sky = this.sky
     const b = this.base
-    sky.sun.intensity = b.sun * (1 - 0.82 * w.dark)
-    sky.fill.intensity = b.fill * (1 + 0.9 * w.dark) + flash * 2.2
-    sky.fill.color.copy(b.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark)
-    this.scene.environmentIntensity = b.env * (1 - 0.35 * w.dark)
+    const lb = sky.lightBase
+    const day = 1 - sky.night
+    sky.sun.intensity = lb.sun * (1 - 0.82 * w.dark)
+    sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
+    sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
+    this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
     sky.fog.density = b.fog * w.fog
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
     // In a flash the cloud goes thin for an instant: whatever stands in it
     // (and beyond the Wall) shows as a shape, then is gone again.
     sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
     sky.fog.base = w.base
-    sky.fog.color.copy(b.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43), w.dark)
+    sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(0.12 + 0.88 * day), w.dark)
+    u.uNight.value = Math.max(sky.night, sky.dusk * 0.75)
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms
     su.cloudCoverage.value = 0.32 + 0.6 * w.cover

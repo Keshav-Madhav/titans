@@ -121,6 +121,8 @@ const pave = new PaintField()
 terrainView.biome = biome
 
 const sky = new SkySystem(scene, renderer)
+// The day goes by in play; the tools hold it still (and set it) so shots are repeatable.
+sky.running = !toolMode
 installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop } })
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
@@ -1356,7 +1358,7 @@ function frame(now: number): void {
   }
   // Limbs, cape and scarf; the weather's wind blows from the west-south-west.
   clothWind.set(1, 0, 0.4).normalize().multiplyScalar(0.8 + weather.now.wind * weather.now.wind * 7)
-  wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
+  wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
   water.sync(lakes.lakes)
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
@@ -1368,13 +1370,16 @@ function frame(now: number): void {
   birds.step(dt, camera.position, birdSpots)
   birds.render()
   sky.tick(dt)
+  sky.advance(dt)
   weather.part = awakening.reveal
   weather.update(dt, camera)
+  // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
+  post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes)
-  clouds.tint(weather.now.dark)
+  clouds.tint(weather.now.dark, Math.max(sky.night, sky.dusk))
   mist.update(sky.fog.color, sky.sunDir, weather.now.dark)
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)

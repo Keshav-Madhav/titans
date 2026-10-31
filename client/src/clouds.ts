@@ -115,11 +115,11 @@ export class Clouds {
     this.mesh.renderOrder = 3
   }
 
-  /** Under the weather's cloud deck the puffs go grey too (0 clear … 1 storm). */
-  tint(dark: number): void {
+  /** Under the weather's cloud deck the puffs go grey too (0 clear … 1 storm); at night, moonlit and dim. */
+  tint(dark: number, night = 0): void {
     const u = (this.mesh.material as THREE.ShaderMaterial).uniforms
-    u.lit.value.setRGB(1, 1, 1).lerp(new THREE.Color(0.5, 0.53, 0.55), dark)
-    u.dark.value.set(0xa9b7c9).lerp(new THREE.Color(0.26, 0.29, 0.31), dark)
+    u.lit.value.setRGB(1, 1, 1).lerp(new THREE.Color(0.5, 0.53, 0.55), dark).lerp(new THREE.Color(0.2, 0.23, 0.3), night)
+    u.dark.value.set(0xa9b7c9).lerp(new THREE.Color(0.26, 0.29, 0.31), dark).lerp(new THREE.Color(0.04, 0.05, 0.08), night)
   }
 
   update(dt: number, camera: THREE.Vector3): void {

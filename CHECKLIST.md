@@ -236,6 +236,15 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
 
+## E — Day and night (user: "a day night cycle with a bright moon and starry sky"; "make the night much shorter")
+- [x] A 24-minute day (`sky.ts`): the sun rises east, crosses the south no higher than 40°, sets
+      west over four-fifths of it; a short night. Twilight (the physical sky goes black under the
+      horizon): deep blue-violet overhead, warm where the sun went; the air the same colour. Night:
+      the moon opposite (the key light then — moonlit shadows), 4 200 stars with a milky band, the
+      cloud deck and puffs moonlit and dark, the wanderer's lantern lit, the eye opened a little
+      (exposure). The weather dims whatever the time of day sets (`sky.lightBase`). Tools hold the
+      clock still (`sky.running`) and set it. Gate: `shot.mjs daynight`
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

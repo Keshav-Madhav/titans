@@ -145,7 +145,10 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   // less so high up, where the air is thin: the colossi's heads above the
   // far range stand out darker than its hazy flanks.
   fogFactor = max( fogFactor, smoothstep( 3000.0, 12000.0, fogDist ) * 0.66 * ( 1.0 - 0.5 * smoothstep( 1500.0, 6500.0, fogY1 ) ) );
-  float fogSun = pow( max( dot( fogRay / max( fogDist, 1e-3 ), ${sun} ), 0.0 ), 6.0 );
+  // (The glow toward the sun is a daytime thing: it fades with the air's own
+  // brightness, so at night — fog dark blue — there is none.)
+  float fogSun = pow( max( dot( fogRay / max( fogDist, 1e-3 ), ${sun} ), 0.0 ), 6.0 )
+    * smoothstep( 0.08, 0.3, dot( fogColor, vec3( 0.2126, 0.7152, 0.0722 ) ) );
   vec3 fogCol = mix( fogColor, fogColor * vec3( 1.22, 1.08, 0.88 ), fogSun * 0.7 );
   // Far away, the air goes cool and blue-grey (the paintings' distant mountains).
   fogCol = mix( fogCol, fogCol * vec3( 0.9, 0.98, 1.1 ), smoothstep( 700.0, 6000.0, fogDist ) * ( 1.0 - fogSun ) );

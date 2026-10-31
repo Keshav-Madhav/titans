@@ -474,6 +474,34 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // Day into night: the same view at morning, noon, sunset, dusk, night (moon, stars), dawn.
+  async daynight() {
+    await page.evaluate(() => window.__g.weather.set('clear', true))
+    for (const [name, t] of [['morning', 0.25], ['noon', 0.5], ['sunset', 0.87], ['dusk', 0.91], ['night', 0.96], ['midnight', 0.0], ['dawn', 0.09]]) {
+      await page.evaluate((t) => {
+        const g = window.__g
+        g.sky.setTime(t)
+        g.teleport(0, 0)
+        g.setCam(0, 0.05, 7) // north, toward the Sentinel
+      }, t)
+      await page.waitForTimeout(700)
+      await shot(`day-${name}`)
+    }
+    // Night, looking up at the moon and the stars over the Green.
+    await page.evaluate(() => {
+      const g = window.__g
+      g.sky.setTime(0.98)
+      const m = g.sky.moonDir
+      g.lookFrom([0, g.heightAt(0, 0) + 1.7, 0], [m.x * 100, g.heightAt(0, 0) + 1.7 + m.y * 100, m.z * 100])
+    })
+    await page.waitForTimeout(700)
+    await shot('day-moon')
+    await page.evaluate(() => {
+      const g = window.__g
+      g.lookFrom(null)
+      g.sky.setTime(0.36)
+    })
+  },
   // The Hanging Steps: every slab stood on in turn (a level top you land on), the view, the top.
   async steps() {
     await page.waitForFunction(() => window.__g.rocks.formations.every((f) => f.mesh || !f.always), null, { timeout: 180000 })
