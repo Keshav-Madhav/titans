@@ -388,6 +388,67 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Resonance: strike the stones in the carved order; the slab sinks; take what it kept.
+  async resonance() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      window.__g.finds.find('bag')
+    })
+    const ring = await page.evaluate(() => {
+      const r = window.__g.resonance.rings[0]
+      return { x: r.def.x, z: r.def.z, order: r.def.order }
+    })
+    await page.evaluate((r) => {
+      const g = window.__g
+      g.teleport(r.x + 14, r.z + 10)
+      g.lookFrom([r.x + 14, g.heightAt(r.x + 14, r.z + 10) + 2.2, r.z + 10], [r.x, g.heightAt(r.x, r.z) + 1.5, r.z])
+    }, ring)
+    await page.waitForTimeout(800)
+    await shot('resonance')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    const strike = (rank) => page.evaluate(async (rank) => {
+      const g = window.__g
+      const r = g.resonance.rings[0]
+      const s = r.stones.find((s) => s.rank === rank)
+      // Stand at it, on the slab's side, and press E.
+      const dx = r.def.x - s.at.x
+      const dz = r.def.z - s.at.z
+      const l = Math.hypot(dx, dz)
+      g.teleport(s.at.x + (dx / l) * 1.6, s.at.z + (dz / l) * 1.6)
+      await new Promise((res) => setTimeout(res, 150))
+      g.input.press('KeyE')
+      await new Promise((res) => setTimeout(res, 120))
+      g.input.release('KeyE')
+      await new Promise((res) => setTimeout(res, 300))
+      return r.progress
+    }, rank)
+    // A wrong first strike resets it; then the right order.
+    const wrong = ring.order[1]
+    const afterWrong = await strike(wrong)
+    const steps = []
+    for (const rank of ring.order) steps.push(await strike(rank))
+    await page.waitForTimeout(7000)
+    const solved = await page.evaluate(() => window.__g.resonance.rings[0].solved)
+    await page.evaluate((r) => {
+      const g = window.__g
+      g.lookFrom([r.x + 9, g.heightAt(r.x + 9, r.z + 7) + 3, r.z + 7], [r.x, g.heightAt(r.x, r.z), r.z])
+    }, ring)
+    await page.waitForTimeout(500)
+    await shot('resonance-solved')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    const took = await page.evaluate(async (r) => {
+      const g = window.__g
+      g.teleport(r.x + 0.5, r.z)
+      await new Promise((res) => setTimeout(res, 150))
+      g.input.press('KeyE')
+      await new Promise((res) => setTimeout(res, 120))
+      g.input.release('KeyE')
+      await new Promise((res) => setTimeout(res, 100))
+      return g.finds.has('res-steps')
+    }, ring)
+    console.log(`wrong strike → progress ${afterWrong}; the order → ${steps.join(',')}; solved: ${solved}; took what it kept: ${took}`)
+    if (afterWrong !== 0 || !solved || !took) throw new Error('resonance gate failed')
+  },
   // Chase the light: follow a wisp hop by hop to where it settles; take what it leaves.
   async wisp() {
     await page.evaluate(() => {

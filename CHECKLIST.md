@@ -203,6 +203,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D5 Chase the light (`wisps.ts`): three wisps (the western Green, the Grove, the Dune Sea's
       hoodoos); come near and it darts to its next place up the land and waits; at the end it sinks
       into the ground and leaves a trinket. Gate: `shot.mjs wisp`
+- [x] D6 Resonance stones (`resonance.ts`): two rings (the Steps, an Old Wood clearing) of four
+      stones of different heights; each hums its own note when struck (tall low, short high); the
+      slab's carving shows the order as bars of heights; wrong → silence, start again; right → they
+      answer each other and the slab sinks, leaving what it kept. Gate: `shot.mjs resonance`
+- [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
 

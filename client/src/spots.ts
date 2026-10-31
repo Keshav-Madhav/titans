@@ -6,6 +6,25 @@
 
 import * as THREE from 'three'
 
+/**
+ * Dressed, carved stone for the small made things (the stones with words,
+ * the ringing stones, the camp's fire ring): the colossi's generated
+ * texture, so they read as the same people's work (plain grey boxes read as
+ * placeholders). Loaded once, shared.
+ */
+let carved: THREE.MeshStandardMaterial | null = null
+export function carvedStone(): THREE.MeshStandardMaterial {
+  if (carved) return carved
+  const load = new THREE.TextureLoader()
+  const map = load.load(`${import.meta.env.BASE_URL}tex/carved_c.jpg`)
+  map.colorSpace = THREE.SRGBColorSpace
+  map.wrapS = map.wrapT = THREE.RepeatWrapping
+  map.repeat.set(0.6, 0.6)
+  map.anisotropy = 4
+  carved = new THREE.MeshStandardMaterial({ map, color: new THREE.Color(0.92, 0.9, 0.84), roughness: 0.95 })
+  return carved
+}
+
 export interface Spot {
   /** The catalogue id this gives (discovery.ts). */
   id: string
@@ -24,7 +43,7 @@ export class Spots {
   private time = 0
 
   constructor(readonly spots: Spot[]) {
-    const slab = new THREE.MeshStandardMaterial({ color: 0x7d786c, roughness: 0.95 })
+    const slab = carvedStone()
     const rune = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.95, 0.85, 0.6), transparent: true, opacity: 0.55 })
     const thing = new THREE.MeshStandardMaterial({ color: 0xc9b07a, roughness: 0.4, metalness: 0.6, emissive: new THREE.Color(0.25, 0.2, 0.1) })
     const glint = glintTexture()

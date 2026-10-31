@@ -5,6 +5,7 @@
 
 import * as THREE from 'three'
 import { mulberry32, type Terrain } from '@titans/shared'
+import { carvedStone } from './spots'
 
 /** Where it is: a little ahead of the start and off to the right, in plain sight (not behind a swell). */
 export const CAMP = { x: 38, z: -105 }
@@ -20,7 +21,7 @@ export class Camp {
   constructor(terrain: Terrain) {
     const rand = mulberry32(4711)
     const at = (dx: number, dz: number, lift = 0) => new THREE.Vector3(CAMP.x + dx, terrain.heightAt(CAMP.x + dx, CAMP.z + dz) + lift, CAMP.z + dz)
-    const stone = new THREE.MeshStandardMaterial({ color: 0x7a746a, roughness: 1 })
+    const stone = carvedStone()
     const char = new THREE.MeshStandardMaterial({ color: 0x1e1a17, roughness: 1 })
     const wood = new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 0.95 })
     const roll = new THREE.MeshStandardMaterial({ color: 0x5e4a3a, roughness: 1 })

@@ -81,6 +81,9 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'wisp-green', 'A seed of light', 'Follow the light that drifts on the western Green.', 'A smooth seed, pale as bone. In the dark of the bag it still glows, faintly, like the thing that led you to it.', 'stone', '#e8eec8'),
   f('trinket', 'wisp-wood', 'A charm of root', 'Follow the light that drifts among the giant trees.', 'A charm woven from fine root, knotted in a pattern you keep almost recognising.', 'figure', '#7a6044'),
   f('trinket', 'wisp-dunes', 'A bead of glass', 'Follow the light that drifts among the hoodoos of the Dune Sea.', 'A bead of clear glass with a single grain of sand inside it that never settles.', 'beads', '#cfe6e4'),
+  // What the resonance stones kept under their slabs.
+  f('trinket', 'res-steps', 'A humming stone', 'Under the slab of the ringing stones on the Steps.', 'A palm-sized stone that hums, very quietly, the note the tallest stone made. It is the only quiet thing you own.', 'stone', '#b7ad96'),
+  f('trinket', 'res-wood', 'A bone flute', 'Under the slab of the ringing stones in the Old Wood.', 'A flute of pale bone with four holes. Each plays one of the stones\' notes, and no other.', 'horn', '#e2d8c0'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

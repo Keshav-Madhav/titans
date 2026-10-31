@@ -62,6 +62,7 @@ import { Bag } from './bag'
 import { Camp } from './camp'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
+import { Resonance } from './resonance'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -249,6 +250,35 @@ const wisps = new Wisps(
 )
 scene.add(wisps.group)
 
+// Resonance stones: strike them in the order carved on the slab.
+/** The levellest ground within `r` of (x, z) for something `size` across. */
+function levelNear(x: number, z: number, r: number, size: number): { x: number; z: number } {
+  let best = { x, z, spread: Infinity }
+  for (let dz = -r; dz <= r; dz += 20) {
+    for (let dx = -r; dx <= r; dx += 20) {
+      let lo = Infinity
+      let hi = -Infinity
+      for (let k = 0; k < 8; k++) {
+        const h = terrain.heightAt(x + dx + Math.cos(k * 0.785) * size, z + dz + Math.sin(k * 0.785) * size)
+        lo = Math.min(lo, h)
+        hi = Math.max(hi, h)
+      }
+      const spread = hi - lo + Math.hypot(dx, dz) * 0.002
+      const clear = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([u, v]) => !rocks.occupies(x + dx + u * (size + 4), z + dz + v * (size + 4)))
+      if (spread < best.spread && clear) best = { x: x + dx, z: z + dz, spread }
+    }
+  }
+  return best
+}
+const resonance = new Resonance(
+  [
+    { id: 'res-steps', ...levelNear(3900, -900, 300, 10), order: [1, 3, 0, 2] },
+    { id: 'res-wood', ...levelNear(-2800, -3200, 300, 10), order: [2, 0, 3, 1] },
+  ],
+  terrain,
+)
+scene.add(resonance.group)
+
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
@@ -367,8 +397,15 @@ const spots = (() => {
   if (pillar) list.push(['beads-pillar', 'trinket', new THREE.Vector3(pillar.x + 1.5, (rocks.topAt(pillar.x + 1.5, pillar.z) ?? pillar.y), pillar.z)])
   const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at }))
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
+  for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   return new Spots(placed)
 })()
+resonance.onStrike = (pitch, wrong) => sound.stone(pitch, wrong)
+resonance.onSolve = (id, pitches) => {
+  sound.resolve(pitches)
+  narration.say('The stones answer each other. The slab sinks slowly into the earth.')
+  setTimeout(() => spots.reveal(id), 6000)
+}
 wisps.onSettle = (id) => {
   spots.reveal(id)
   sound.chime()
@@ -673,6 +710,7 @@ function loadLocal(): boolean {
   }
   for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
+  for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -826,6 +864,9 @@ function simulate(dt: number): void {
       camp.take()
       finds.find('bag')
       tipState.bag = true
+    } else if (resonance.near(wanderer.pos) && input.pressed('KeyE')) {
+      const r = resonance.near(wanderer.pos)!
+      resonance.strike(r.ring, r.stone)
     } else if (spot && input.pressed('KeyE')) {
       if (spot.kind === 'stone') {
         // Read it (again, if you like).
@@ -1123,6 +1164,7 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   spots.update(dt, camera)
   wisps.update(dt, wanderer.pos)
+  resonance.update(dt)
   visitClock -= dt
   if (visitClock <= 0 && ready) {
     visitClock = 0.5
@@ -1134,8 +1176,10 @@ function frame(now: number): void {
   const html =
     free && camp.near(wanderer.pos)
       ? `<kbd>E</kbd>Take the bag`
-      : spotNear
-        ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : 'Pick it up'}`
+      : free && resonance.near(wanderer.pos)
+        ? `<kbd>E</kbd>Strike the stone`
+        : spotNear
+          ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
           : ''
@@ -1279,6 +1323,7 @@ const g = {
   camp,
   spots,
   wisps,
+  resonance,
   birds,
   vegetation,
   grass,

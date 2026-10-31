@@ -267,6 +267,38 @@ export class Sound {
     ;[0, 0.45, 0.95].forEach((d, i) => setTimeout(() => this.glass([c[0], c[1 + i], c[1 + i], c[1 + i]]), d * 1000))
   }
 
+  /**
+   * A struck standing stone: a deep hum with stone-bell overtones, long
+   * decay into the hall. `pitch` in Hz.
+   */
+  stone(pitch: number, wrong = false): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    for (const [mul, amp, len] of [
+      [1, 0.22, 4.5],
+      [2.76, 0.07, 2.2],
+      [5.4, 0.035, 1.1],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.frequency.value = pitch * mul * (wrong ? 0.94 : 1)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (wrong ? len * 0.3 : len))
+      o.connect(g).connect(this.master!)
+      g.connect(this.space!)
+      o.start(t)
+      o.stop(t + len + 0.1)
+    }
+  }
+
+  /** Stones answering each other: the four struck together, rising. */
+  resolve(pitches: number[]): void {
+    pitches.forEach((p, i) => setTimeout(() => this.stone(p), i * 160))
+    setTimeout(() => this.chime(), 900)
+  }
+
   /** Something enormous, very far away, groaning: a deep horn sliding down, mostly reverb. */
   farHorn(): void {
     if (!this.ctx || !this.on) return
