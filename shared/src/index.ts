@@ -1,5 +1,6 @@
 export * from './constants'
 export * from './noise'
+export * from './regions'
 export * from './terrain'
 export * from './gait'
 export * from './deform'

@@ -5,6 +5,7 @@
 // deterministic: noise from ./noise, polynomials only, no transcendental math.
 
 import { makeSimplex2, smoothstep, type Noise2 } from './noise'
+import { Regions, type RegionWeights } from './regions'
 import { DELTA_TILE } from './constants'
 
 // fBm octave rotation (scaled rotation, as in Inigo Quilez's terrain work):
@@ -47,51 +48,80 @@ function ridged(n: Noise2, x: number, y: number, octaves: number): number {
 }
 
 /**
- * The world as it was before anyone walked on it: open plains around spawn,
- * patches of rolling hills, and a ridged, snow-capped mountain belt that rises
- * with distance — the horizon in the reel.
+ * The world as it was before the giants walked it. Each land has its own
+ * shape (see ./regions): a quiet valley of low swells at the centre; the Old
+ * Wood's rolling hills; the Dune Sea's long crests; the Steps, broad hills
+ * the First Ones cut into terraces. All of it rises, from about 2.7 km out,
+ * into the ridged, snow-capped mountains that ring the world.
  */
 export class BaseTerrain {
+  readonly regions: Regions
   private readonly warp: Noise2
   private readonly plains: Noise2
   private readonly hills: Noise2
   private readonly peaks: Noise2
   private readonly mask: Noise2
+  private readonly dunes: Noise2
+  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
 
   constructor(seed: number) {
+    this.regions = new Regions(seed)
     this.warp = makeSimplex2(seed)
     this.plains = makeSimplex2(seed + 101)
     this.hills = makeSimplex2(seed + 202)
     this.peaks = makeSimplex2(seed + 303)
     this.mask = makeSimplex2(seed + 404)
+    this.dunes = makeSimplex2(seed + 505)
   }
 
   height(x: number, z: number): number {
     // Domain warp: bends every later feature so nothing reads as a circle.
     const wx = x + 140 * this.warp(x * 0.0011, z * 0.0011)
     const wz = z + 140 * this.warp(x * 0.0011 + 31.7, z * 0.0011 - 17.3)
+    const r = this.regions.at(x, z, this.w)
 
-    // Plains: long, low swells plus a little close-range undulation.
+    // Plains: long, low swells plus a little close-range undulation — the
+    // valley, and the floor every land is built on.
     let h = 7 * fbm(this.plains, wx * 0.0015, wz * 0.0015, 4)
     h += 0.9 * this.plains(x * 0.018 + 7.1, z * 0.018 - 3.3)
 
-    // Hills, in patches.
-    const hillMask = smoothstep(0.05, 0.55, this.mask(wx * 0.00045, wz * 0.00045))
-    if (hillMask > 0) h += hillMask * 48 * (0.5 + 0.5 * fbm(this.hills, wx * 0.0022, wz * 0.0022, 4))
+    // The Old Wood: rolling hills.
+    if (r.forest > 0.001) h += r.forest * 58 * (0.5 + 0.5 * fbm(this.hills, wx * 0.0021, wz * 0.0021, 4))
 
-    // Mountain belt: rises from ~1.9 km, irregular via its own noise. A broad
-    // massif lifts the range; ridges are carved into it at a long wavelength
-    // so the skyline reads as ranges, not needles.
+    // The Dune Sea: long crests across a wind from the west, on broad swells.
+    if (r.desert > 0.001) {
+      const u = wx * 0.94 + wz * 0.34
+      const v = -wx * 0.34 + wz * 0.94
+      const crest = ridged(this.dunes, u * 0.0042, v * 0.0013, 3)
+      const swell = 0.5 + 0.5 * fbm(this.dunes, wx * 0.0008 + 9.1, wz * 0.0008 - 4.4, 3)
+      h += r.desert * (36 * crest * crest + 22 * swell)
+    }
+
+    // The Steps: broad hills, cut by the First Ones into 16 m terraces.
+    if (r.ruins > 0.001) {
+      const hill = 110 * (0.5 + 0.5 * fbm(this.hills, wx * 0.0011 + 17.3, wz * 0.0011 - 5.2, 4))
+      const t = hill / TERRACE
+      const f = t - Math.floor(t)
+      h += r.ruins * (Math.floor(t) + smoothstep(0.84, 1, f)) * TERRACE
+    }
+
+    // Mountains ring the world from ~2.7 km, irregular via their own noise. A
+    // broad massif lifts the range; ridges are carved into it at a long
+    // wavelength so the skyline reads as ranges, not needles.
     const d = Math.sqrt(x * x + z * z)
-    const belt = smoothstep(1900, 4600, d + 700 * this.mask(x * 0.0006 - 9.1, z * 0.0006 + 4.4))
+    const belt = smoothstep(2700, 5200, d + 700 * this.mask(x * 0.0006 - 9.1, z * 0.0006 + 4.4))
     if (belt > 0) {
       const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.00032 + 3.3, wz * 0.00032 - 8.8, 3)
-      const r = ridged(this.peaks, wx * 0.00042, wz * 0.00042, 6)
-      h += belt * (massif * 380 + r * r * 620 * (0.4 + massif))
+      const rr = ridged(this.peaks, wx * 0.00042, wz * 0.00042, 6)
+      h += belt * (massif * 380 + rr * rr * 620 * (0.4 + massif))
     }
     return h
   }
 }
+
+/** Height of one of the Steps' terraces (metres). */
+export const TERRACE = 16
+
 
 /**
  * Sparse, 1 m-resolution record of terrain changes. Tiles are DELTA_TILE

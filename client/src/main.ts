@@ -27,6 +27,7 @@ import {
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
+import { loadTerrainTextures } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input } from './input'
 import { Wanderer } from './wanderer'
@@ -50,6 +51,7 @@ import { Sound } from './audio'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
+import { Post } from './post'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
 const STEP = 1 / 60
@@ -72,23 +74,32 @@ renderer.toneMapping = THREE.CustomToneMapping
 renderer.toneMappingExposure = 0.84
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap
+// Counted across every pass of a frame (post.ts renders several), reset per frame.
+renderer.info.autoReset = false
 
 const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.15, 90000)
 
 const terrain = new Terrain(WORLD_SEED)
-const terrainView = new TerrainView(terrain, WORLD_SEED)
+// The ground's textures load under the loading screen, before anything is built.
+const terrainView = new TerrainView(terrain, WORLD_SEED, await loadTerrainTextures(renderer))
 scene.add(terrainView.group)
-const biome = new Biome(WORLD_SEED)
+const biome = new Biome(WORLD_SEED, terrain.base.regions)
 const paint = new PaintField()
 const pave = new PaintField()
 terrainView.biome = biome
-terrainView.paint = paint
-terrainView.pave = pave
 
 const sky = new SkySystem(scene, renderer)
 installAtmosphere(sky.sunDir)
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
+// Bloom, god rays and the grade (?post=0 renders straight to the screen).
+const post = new Post(renderer, scene, camera)
+const LOWEST = 2
+quality.onApply = (level) => {
+  post.enabled = params.get('post') !== '0' && level < LOWEST
+  post.resize()
+}
+quality.onApply(quality.level)
 
 // New pools only in hollows a giant dug (natural hollows stay dry).
 const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
@@ -320,6 +331,7 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
   camera.updateProjectionMatrix()
   renderer.setSize(innerWidth, innerHeight, false)
+  post.resize()
 })
 
 // ---------------------------------------------------------------------------
@@ -504,7 +516,8 @@ function frame(now: number): void {
   rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
   terrainView.update(camera.position, ready ? 5 : 40)
   sky.follow(focus, camera)
-  renderer.render(scene, camera)
+  renderer.info.reset()
+  post.render(dt, sky.sunDir)
 
   if (!ready && terrainView.settled()) {
     ready = true
@@ -587,6 +600,7 @@ const g = {
   lakes,
   sky,
   quality,
+  post,
   autopilot,
   clock,
   falls,

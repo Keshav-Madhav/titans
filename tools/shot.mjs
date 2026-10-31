@@ -44,6 +44,33 @@ async function shot(name) {
 }
 
 const scenes = {
+  // The four lands, each from the ground and from above.
+  async lands() {
+    const places = [
+      ['valley', 120, 60],
+      ['forest', -1300, -750],
+      ['desert', 0, 1500],
+      ['ruins', 1300, -750],
+    ]
+    for (const [name, x, z] of places) {
+      const info = await page.evaluate(([x, z]) => {
+        const g = window.__g
+        g.teleport(x, z)
+        // Look outward, away from the centre, a little down.
+        g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 7, focusHeight: 1.5, follow: 10 })
+        g.setCam(Math.atan2(-x, -z), 0.05, 7)
+        return { region: g.terrain.base.regions.name(x, z), h: g.heightAt(x, z) }
+      }, [x, z])
+      console.log(name, JSON.stringify(info))
+      await shot(`land-${name}`)
+      await page.evaluate(([x, z]) => {
+        const g = window.__g
+        g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 420, focusHeight: 1.5, follow: 10 })
+        g.setCam(Math.atan2(-x, -z), 0.38)
+      }, [x, z])
+      await shot(`land-${name}-above`)
+    }
+  },
   async ground() {
     await page.evaluate(() => window.__g.setCam(Math.PI * 0.85, 0.12, 6))
     await shot('p1-ground')

@@ -414,7 +414,8 @@ export class Vegetation {
         const z = z0 + gz + rand() * 7
         const f = this.biome.forest(x, z)
         const cp = this.biome.copse(x, z)
-        const p = f > 0.45 ? 0.2 + f * 0.62 : f * 0.06 + 0.011 + cp * 0.42
+        // No trees in the Dune Sea.
+        const p = (f > 0.45 ? 0.2 + f * 0.62 : f * 0.06 + 0.011 + cp * 0.42) * (1 - this.biome.desert(x, z))
         if (rand() > p) continue
         const h = this.ground(x, z, 240)
         if (h === null) continue
@@ -442,7 +443,7 @@ export class Vegetation {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
-      const edge = f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4
+      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - 0.85 * this.biome.desert(x, z))
       const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 : 0
       if (rand() > edge + waterSide) continue
       const h = this.ground(x, z)
@@ -461,8 +462,10 @@ export class Vegetation {
       if (h === null) continue
       const sc = 0.55 + rand() * 1.1
       const t = 0.75 + rand() * 0.45
-      this.col.setRGB(t, t * (0.95 + rand() * 0.1), t * 0.85)
-      this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc, sc * (0.7 + rand() * 0.6), this.col)
+      // Dry, grey-brown scrub in the Dune Sea; green elsewhere.
+      const d = this.biome.desert(x, z)
+      this.col.setRGB(t * (1 + 0.75 * d), t * (0.95 + rand() * 0.1) * (1 + 0.35 * d), t * 0.85 * (1 + 0.45 * d))
+      this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc * (1 - 0.35 * d), sc * (0.7 + rand() * 0.6) * (1 - 0.35 * d), this.col)
     }
     // Reeds in the shallows of the Titans' lakes.
     for (const l of this.lakes.lakes) {
@@ -496,7 +499,8 @@ export class Vegetation {
       const z = z0 + rand() * GCELL
       const meadow = this.biome.meadow(x, z)
       const forest = this.biome.forest(x, z)
-      if (rand() > 0.35 + meadow * 0.5 - forest * 0.3) continue
+      const desert = this.biome.desert(x, z)
+      if (rand() > (0.35 + meadow * 0.5 - forest * 0.3) * (1 - 0.8 * desert)) continue
       const h = this.ground(x, z, 200)
       if (h === null) continue
       const flowers = this.biome.flowers(x, z)
@@ -507,9 +511,10 @@ export class Vegetation {
         else if (pick < 0.75) this.col.setRGB(0.95, 0.8, 0.25, SRGB)
         else this.col.setRGB(0.66, 0.5, 0.86, SRGB)
       } else {
-        // Grass, from dry gold to green with the meadow, a touch darker than the ground (sRGB).
+        // Grass, from dry straw to a muted green with the meadow (sRGB).
         const v = 0.88 + rand() * 0.2
-        this.col.setRGB((0.6 + (1 - meadow) * 0.12) * v, (0.58 + meadow * 0.04) * v, (0.3 + (1 - meadow) * 0.04) * v, SRGB)
+        const green = meadow * (1 - desert)
+        this.col.setRGB((0.68 - green * 0.24) * v, (0.6 - green * 0.04) * v, (0.33 - green * 0.08) * v, SRGB)
       }
       const sc = 0.55 + rand() * 0.55
       this.add(b, x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.6), this.col)

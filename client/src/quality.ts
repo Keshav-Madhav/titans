@@ -41,6 +41,9 @@ export class Quality {
     this.apply(this.pinned ? Number(pin) : 0)
   }
 
+  /** Told after every change of level (the post pipeline follows the size; the lowest level drops it). */
+  onApply: (level: number) => void = () => {}
+
   /** Re-apply the current level (after late-built parts attach). */
   refresh(): void {
     this.apply(this.level)
@@ -54,6 +57,7 @@ export class Quality {
     this.terrain.setResolution(L.res)
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, L.maxDpr))
     this.renderer.setSize(innerWidth, innerHeight, false)
+    this.onApply(level)
     if (this.sun.shadow.mapSize.x !== L.shadow) {
       this.sun.shadow.mapSize.set(L.shadow, L.shadow)
       this.sun.shadow.map?.dispose()

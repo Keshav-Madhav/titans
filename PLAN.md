@@ -38,6 +38,23 @@ git at the tag `pre-adventure`; nothing in it binds this one.
 4. **The world is the puzzle.** Puzzles are made of the world's own big pieces (giants, water,
    bells, braziers, stairs, wind), not of menus or inventories.
 
+## 2b. Art direction (user, 2026-10-31)
+
+"Very good looking graphics — not realistic, but good. See Shadow of the Colossus." Not
+photorealism: a soft, bright, hazy world where light blooms off stone and sky and pours through
+whatever stands in front of the sun; colours muted and warm; detailed (textured) ground and stone
+under a painterly air. The look comes from light, air and grading as much as from assets:
+
+- **Post pipeline** (`client/src/post.ts`): HDR scene → wide soft bloom → screen-space god rays →
+  grade (ACES, gentle desaturation, warm highlights / cool shadows, lifted blacks, soft shoulder,
+  film grain, vignette, faint lens fringing).
+- **Aerial perspective** (`client/src/atmosphere.ts`): height haze with a warm glow toward the sun;
+  distance melts into milky light, but a giant must always read as a silhouette.
+- **Textured, art-directed ground**: CC0 PBR layers, each tinted toward the palette (muted greens,
+  pale warm sand, grey stone).
+- Next: richer trees and giant trees, stone with real texture on the giants and ruins, wind in the
+  grass, dust and pollen in the light, soft ambient occlusion.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

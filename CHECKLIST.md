@@ -17,11 +17,18 @@ Each phase ends playable. Phases are in PLAN.md §6.
       rest, ruins, sky, titanlook, wildlife, trail, lakes (now waits for merged lakes to fill)
 
 ## A1 — The land
-- [ ] Regions (`shared/src/regions.ts`): valley, Old Wood, Dune Sea, Steps, ringed by mountains
-- [ ] Terrain shaped per region: rolling woods, dunes, terraces
-- [ ] CC0 textured ground (Poly Haven, `tools/pack-textures.py`): splatting by region, slope and
-      height; height-blended; tri-planar cliffs; anti-tiling
-- [ ] Plants per region; air per region
+- [x] Regions (`shared/src/regions.ts`): valley, Old Wood, Dune Sea, Steps, ringed by mountains
+      from ~2.7 km; weights shared by terrain, ground, plants
+- [x] Terrain shaped per region: rolling woods, dune crests across the wind, 16 m terraces
+- [x] CC0 textured ground (8 Poly Haven layers, 6.8 MB, `tools/pack-textures.py`): texture arrays,
+      splat weights per vertex by land, slope, height and giants' digging; height-blended;
+      tri-planar cliffs; far sample + detail noise against tiling; per-layer art-directed tints;
+      canopy colour from afar in the Old Wood
+- [x] The look (user, 2026-10-31: "very good looking… see Shadow of the Colossus"): post pipeline
+      — bloom, god rays, grade, grain, vignette (`client/src/post.ts`); off at the lowest quality
+- [x] No trees in the Dune Sea; dry scrub there; greener tufts in the meadows
+- [ ] Better trees; giant trees in the Old Wood
+- [ ] Air per region (dust in the Dune Sea, mist in the Wood)
 
 # Archive: the multiplayer world (tag `pre-adventure`)
 
