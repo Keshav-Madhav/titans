@@ -230,8 +230,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D11 Parkour: the Hanging Steps (`parkour.ts`) on the western Green — 26 slabs and blocks held
       still in a rising spiral: hop the short gaps, climb every third, a trinket at the top (50 m).
       Gate: `shot.mjs steps` (every slab stood on)
-- [ ] Still to come from the roster: uncover (a giant stamps something open), watching the giants,
-      offerings, a land's cairns all lit → an artifact
+- [x] D12 Uncover: a grassy mound on the eastern Green with a carved corner poking out (a stone beside
+      it: "we could not dig it… they could"); a giant's foot on it breaks it open — lead the Walker
+      across it with the horn — and the stone box inside is yours. Gate: `shot.mjs uncover`
+- [x] D12 Watching: stand still near the Walker, the Grey One or the Herd for 18 s ("Watching… ●●●○○")
+      and you learn something of how it lives
+- [x] D12 A land's cairns all lit → an ember from them (the Old Wood, the Dune Sea, the Steps)
+- [ ] Still to come: offerings (a shrine that takes a trinket and gives back words)
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)

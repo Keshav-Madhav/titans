@@ -474,6 +474,46 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // Uncover: call the Walker across the mound with the horn; its foot breaks it open. And watching.
+  async uncover() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      for (const id of ['bag', 'horn']) g.finds.find(id)
+    })
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const t = g.titan
+      const M = { x: 950, z: 620 }
+      // Stand beyond the mound from the Walker, so its way to you crosses it.
+      const dx = M.x - t.gait.x
+      const dz = M.z - t.gait.z
+      const l = Math.hypot(dx, dz)
+      g.teleport(M.x + (dx / l) * 70, M.z + (dz / l) * 70)
+      g.input.press('KeyH')
+      await new Promise((res) => setTimeout(res, 150))
+      g.input.release('KeyH')
+      g.clock.scale = 6
+      const until = Date.now() + 45000
+      while (Date.now() < until && !g.spots.spots.find((s) => s.id === 'buried-box').hidden === false) await new Promise((res) => setTimeout(res, 250))
+      while (Date.now() < until && g.spots.spots.find((s) => s.id === 'buried-box').hidden) await new Promise((res) => setTimeout(res, 250))
+      g.clock.scale = 1
+      const open = !g.spots.spots.find((s) => s.id === 'buried-box').hidden
+      // Watch it, standing still.
+      const w0 = g.finds.has('watch-walker')
+      await new Promise((res) => setTimeout(res, 19500))
+      return { open, watched: g.finds.has('watch-walker'), w0, d: Math.round(Math.hypot(t.gait.x - M.x, t.gait.z - M.z)) }
+    })
+    await page.evaluate(() => {
+      const g = window.__g
+      g.lookFrom([950 + 14, g.heightAt(964, 632) + 6, 620 + 12], [950, g.heightAt(950, 620), 620])
+    })
+    await page.waitForTimeout(700)
+    await shot('uncover')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    console.log(`the mound opened: ${r.open} (walker ${r.d} m off); watched the Walker: ${r.watched}`)
+    if (!r.open) throw new Error('uncover gate: the mound did not open')
+  },
   // In hand: the wanderer holding each tool in its pose, close; the toolbar with them all.
   async hands() {
     await page.evaluate(() => {

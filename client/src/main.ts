@@ -247,6 +247,37 @@ const cairnPlaces: CairnPlace[] = []
 }
 const cairns = new Cairns(cairnPlaces)
 
+// The mound (uncover): something buried on the eastern Green, too deep to dig; a giant's foot can open it.
+const MOUND = { x: 950, z: 620 }
+const mound = (() => {
+  const g = new THREE.Group()
+  const y = terrain.heightAt(MOUND.x, MOUND.z)
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(10, 3.2, 9), new THREE.MeshStandardMaterial({ color: 0x5f6b3c, roughness: 1 }))
+  earth.position.set(MOUND.x, y - 0.4, MOUND.z)
+  earth.receiveShadow = true
+  // A corner of carved stone pokes out of it: the hint.
+  const corner = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 1.1), carvedStone())
+  corner.position.set(MOUND.x + 4.5, y + 1.2, MOUND.z - 2)
+  corner.rotation.set(0.3, 0.6, 0.2)
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.0), carvedStone())
+  box.position.set(MOUND.x, y - 0.6, MOUND.z)
+  box.visible = false
+  g.add(earth, corner, box)
+  scene.add(g)
+  return { group: g, earth, corner, box, open: false }
+})()
+function uncover(instant = false): void {
+  mound.open = true
+  mound.earth.visible = false
+  mound.corner.visible = false
+  mound.box.visible = true
+  mound.box.position.y = terrain.heightAt(MOUND.x, MOUND.z) + 0.3
+  if (instant) return
+  spots.reveal('buried-box')
+  sound.rubble(Math.hypot(camera.position.x - MOUND.x, camera.position.z - MOUND.z))
+  setTimeout(() => narration.say('The mound is gone, trodden flat. In the broken ground, a stone box.'), 1200)
+}
+
 // The Hanging Steps: a parkour line on the western Green (hop, climb, up to the top).
 const STEPS_AT = { x: -1700, z: 300 }
 const stepsTop = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
@@ -519,6 +550,8 @@ const spots = (() => {
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  placed.push({ id: 'buried-box', kind: 'trinket', at: ground(MOUND.x + 0.8, MOUND.z), hidden: true })
+  placed.push({ id: 'lore-mound', kind: 'stone', at: ground(MOUND.x - 16, MOUND.z + 12) })
   for (const t of glyphs.trails) placed.push({ id: t.def.id, kind: 'trinket', at: t.end.clone(), hidden: true })
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
@@ -577,6 +610,43 @@ scene.add(spots.group)
 scene.add(cairns.group)
 const promptEl = document.getElementById('prompt')!
 let promptHtml = ''
+/** The cairns of each land (all of one land's lit → an ember: discovery.ts). */
+const CAIRN_LANDS: Record<string, string[]> = {
+  forest: ['Moss Crown', 'Rootwatch'],
+  desert: ['The Red Tooth', 'Dune Watch'],
+  ruins: ['The High Terrace', 'The Last Step'],
+}
+/**
+ * Watching: stand still near one of them long enough and you learn something
+ * of how it lives. Returns how far along (0 … 1) for the prompt.
+ */
+const watch = { id: '', t: 0 }
+const WATCH_FOR = 18
+function watching(dt: number): number {
+  const p = wanderer.pos
+  let id = ''
+  if (!climber.active && !cliff.active && wanderer.speed < 0.3) {
+    const t1 = titans.get('t1')?.titan
+    const t2 = titans.get('t2')?.titan
+    const c = herd.centre()
+    if (t1 && Math.hypot(t1.gait.x - p.x, t1.gait.z - p.z) < t1.H * 2.5 && !finds.has('watch-walker')) id = 'watch-walker'
+    else if (t2 && Math.hypot(t2.gait.x - p.x, t2.gait.z - p.z) < t2.H * 2.5 && !finds.has('watch-grey')) id = 'watch-grey'
+    else if (Math.hypot(c.x - p.x, c.y - p.z) < 700 && !finds.has('watch-herd')) id = 'watch-herd'
+  }
+  if (id !== watch.id) {
+    watch.id = id
+    watch.t = 0
+  }
+  if (!id) return 0
+  watch.t += dt
+  if (watch.t >= WATCH_FOR) {
+    finds.find(id)
+    watch.id = ''
+    return 0
+  }
+  return watch.t / WATCH_FOR
+}
+let watchProgress = 0
 const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a long way.', 'The flame catches. The wind takes the smoke.', 'Someone stood here once, and looked out as you do.']
 /** Keep a clearing round each cairn (they are placed further down; plants grow later, lazily). */
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
@@ -780,6 +850,8 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   sound.footfall(Math.hypot(camera.position.x - ev.x, camera.position.y - terrain.heightAt(ev.x, ev.z), camera.position.z - ev.z), !!ev.stomp)
   // Herds within earshot bolt.
   wildlife.alarm(ev.x, ev.z, ev.stomp ? 650 : 280)
+  // A giant's foot on the mound breaks open what we could not dig.
+  if (!ancient && !mound.open && Math.hypot(ev.x - MOUND.x, ev.z - MOUND.z) < 34) uncover()
   // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
   if (climber.active) climber.stamina = Math.max(0, climber.stamina - (ev.stomp ? 0.35 : 0.03))
   const gy = terrain.heightAt(ev.x, ev.z)
@@ -877,6 +949,7 @@ function loadLocal(): boolean {
   for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
   for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
   for (const t of glyphs.trails) if (finds.has(t.def.id)) glyphs.finish(t.def.id)
+  if (finds.has('buried-box')) uncover(true)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -1035,8 +1108,8 @@ function hornInput(id: string, t: Titan): GaitInput | null {
   if (order.kind === 'come') {
     tx = wanderer.pos.x
     tz = wanderer.pos.z
-    // Close enough to see you: it stops and stands there, looking.
-    if (Math.hypot(tx - t.gait.x, tz - t.gait.z) < t.H * 0.5) f = 0
+    // Close enough to see you: it stops and stands there, looking (near: lead it over something and it walks over it).
+    if (Math.hypot(tx - t.gait.x, tz - t.gait.z) < t.H * 0.32) f = 0
   } else {
     camera.getWorldDirection(aimFwd)
     tx = t.gait.x + aimFwd.x * 600
@@ -1050,6 +1123,7 @@ function hornInput(id: string, t: Titan): GaitInput | null {
 
 function simulate(dt: number): void {
   wanderer.canGlide = finds.has('cloak')
+  watchProgress = watching(dt)
   watchFalls(dt)
   if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
   if (awakening.active) {
@@ -1111,6 +1185,9 @@ function simulate(dt: number): void {
       if (cairns.litCount === 1) setTimeout(() => awakening.begin(camera), 6000)
       // From up here, on a clear enough day, the edge of the world.
       setTimeout(() => finds.find('wall'), 2500)
+      // A land's cairns all lit: an ember from them.
+      const lit = cairns.save()
+      for (const [land, names] of Object.entries(CAIRN_LANDS)) if (names.includes(cairn.name) && names.every((n) => lit.includes(n))) setTimeout(() => finds.find(`ember-${land}`), 4000)
       saveDirty = true
     } else if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
@@ -1424,7 +1501,9 @@ function frame(now: number): void {
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
-          : ''
+          : watchProgress > 0.08
+            ? `Watching… <span class="dots">${'●'.repeat(Math.ceil(watchProgress * 5))}${'○'.repeat(5 - Math.ceil(watchProgress * 5))}</span>`
+            : ''
   if (html !== promptHtml) {
     promptHtml = html
     promptEl.innerHTML = html
@@ -1578,6 +1657,7 @@ const g = {
   bow,
   pick,
   hornOrders,
+  uncover,
   get glyphs() {
     return glyphs
   },
