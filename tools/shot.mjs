@@ -474,6 +474,45 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // In hand: the wanderer holding each tool in its pose, close; the toolbar with them all.
+  async hands() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      for (const id of ['bag', 'bow', 'horn', 'cloak', 'sight']) g.finds.find(id)
+      g.teleport(300, 400)
+    })
+    const pose = async (name, act) => {
+      await page.evaluate((act) => {
+        const g = window.__g
+        if (act === 'bow') g.input.press('KeyQ')
+        if (act === 'horn') g.input.press('KeyH')
+        if (act === 'sight') g.input.press('KeyV')
+      }, act)
+      await page.waitForTimeout(700)
+      // From the front and a little to the side, close.
+      await page.evaluate(() => {
+        const g = window.__g
+        const p = g.player()
+        const y = g.wanderer.yaw
+        g.lookFrom([p.x - Math.sin(y + 0.7) * 2.6, p.y + 1.6, p.z - Math.cos(y + 0.7) * 2.6], [p.x, p.y + 1.25, p.z])
+      })
+      await page.waitForTimeout(300)
+      await shot(`hands-${name}`)
+      await page.evaluate(() => {
+        const g = window.__g
+        g.lookFrom(null)
+        g.input.release('KeyQ')
+        g.input.release('KeyH')
+        g.input.release('KeyV')
+      })
+      await page.waitForTimeout(2800)
+    }
+    await pose('bow', 'bow')
+    await pose('horn', 'horn')
+    await pose('sight', 'sight')
+    await pose('idle', null)
+  },
   // Day into night: the same view at morning, noon, sunset, dusk, night (moon, stars), dawn.
   async daynight() {
     await page.evaluate(() => window.__g.weather.set('clear', true))

@@ -137,6 +137,17 @@
       #bag-detail b { display: block; font: italic 700 16px ui-serif, Georgia, serif; margin-bottom: 6px; }
       #bag-detail p { margin: 0; }
       @media (max-width: 640px) { #bag-frame { grid-template-columns: 1fr; } #bag-detail { border: 0; padding: 0; } }
+      #tools { position: fixed; left: 14px; top: 14px; display: flex; gap: 8px; pointer-events: none; }
+      .tool {
+        position: relative; width: 52px; height: 52px; border-radius: 10px; padding: 2px;
+        background: rgba(214, 204, 180, 0.82); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); transition: transform 0.2s, background 0.2s;
+      }
+      .tool canvas { width: 48px; height: 48px; display: block; }
+      .tool kbd {
+        position: absolute; right: -4px; bottom: -6px; padding: 0 5px; border-radius: 4px;
+        font: 700 10px ui-monospace, Menlo, monospace; background: #2a2620; color: #f4efe6;
+      }
+      .tool.on { background: rgba(255, 236, 196, 0.98); transform: translateY(-2px) scale(1.06); }
       #sight {
         position: fixed; inset: 0; pointer-events: none; opacity: 0;
         background: radial-gradient(ellipse at center, rgba(40, 90, 100, 0.06) 35%, rgba(6, 22, 28, 0.62) 100%);
@@ -205,6 +216,7 @@
     <div id="prompt"></div>
     <div id="found"></div>
     <div id="aim"></div>
+    <div id="tools"></div>
     <div id="sight"></div>
     <div id="bag">
       <div id="bag-frame">

@@ -67,6 +67,7 @@ import { Eyes, type EyeSet } from './eyes'
 import { Bow, type ArrowHit, type Pick } from './bow'
 import { Glyphs } from './glyphs'
 import { hangingSteps } from './parkour'
+import { Toolbar } from './toolbar'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -601,6 +602,7 @@ const narration = new Narration()
 // Discovery: places, the ones who live here, words on stone, relics, trinkets.
 const finds = new Discoveries()
 const journal = new Journal(finds)
+const toolbar = new Toolbar(finds)
 journal.onToggle = () => input.releaseAll()
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
@@ -995,8 +997,11 @@ const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darknes
  * the noise; blown from one's back, it walks the way you are looking.
  */
 const hornOrders = new Map<string, { kind: 'come' | 'ride'; until: number }>()
+/** The horn stays at your mouth this long after a blow (for the pose). */
+let hornHeldUntil = 0
 function blowHorn(): void {
   sound.horn()
+  hornHeldUntil = performance.now() + 2600
   const now = performance.now()
   const held = climber.active ? climber.target?.id : undefined
   if (held && titans.has(held)) {
@@ -1358,6 +1363,9 @@ function frame(now: number): void {
   }
   // Limbs, cape and scarf; the weather's wind blows from the west-south-west.
   clothWind.set(1, 0, 0.4).normalize().multiplyScalar(0.8 + weather.now.wind * weather.now.wind * 7)
+  // What is in your hands: the tool in use (the pose and the prop follow), and the toolbar.
+  wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 ? 'sight' : null
+  toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : null))
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
   water.sync(lakes.lakes)
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))

@@ -290,6 +290,9 @@ export class Wanderer {
   private readonly head = new THREE.Group()
   private readonly legs: Leg[] = []
   private readonly arms: Arm[] = []
+  /** What is in your hands (main.ts sets it while a tool is in use): its prop shows, the arms take its pose. */
+  holding: 'bow' | 'horn' | 'sight' | null = null
+  private readonly props: Record<'bow' | 'horn' | 'sight', THREE.Object3D>
   private readonly cape: Cloth
   private readonly scarf: Cloth
   private readonly lantern: THREE.PointLight
@@ -381,11 +384,43 @@ export class Wanderer {
       shoulder.position.set(side * 0.22, 0.52, 0)
       const elbow = limb(0.27, 0.056, 0.048, tunic)
       elbow.position.y = -0.29
-      elbow.add(new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 6).translate(0, -0.3, 0), skin))
+      // A hand, not a ball: a mitten of palm and fingers, and a thumb.
+      const hand = new THREE.Group()
+      hand.position.y = -0.3
+      hand.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8).scale(0.85, 1.35, 0.6).translate(0, -0.035, 0), skin))
+      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.035, 3, 6), skin)
+      thumb.position.set(-side * 0.035, -0.015, 0.02)
+      thumb.rotation.z = side * 0.6
+      hand.add(thumb)
+      elbow.add(hand)
       shoulder.add(elbow)
       this.chest.add(shoulder)
       this.arms.push({ shoulder, elbow })
     }
+    // The tools, held when in use (hidden otherwise). Right hand A[0], left A[1]
+    // (the body faces +z: its right is −x).
+    const wood = new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 0.7 })
+    const hornMat = new THREE.MeshStandardMaterial({ color: 0x9b8a6c, roughness: 0.6 })
+    const bow = new THREE.Group()
+    // Limbs bowed forward (along the arm, −y in the hand) from the grip at the hand.
+    const limbCurve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, -0.12, -0.72), new THREE.Vector3(0, -0.44, 0), new THREE.Vector3(0, -0.12, 0.72))
+    bow.add(new THREE.Mesh(new THREE.TubeGeometry(limbCurve, 20, 0.018, 6), wood))
+    const stringMat = new THREE.MeshBasicMaterial({ color: 0xd8d0bc })
+    bow.add(new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.44, 4).rotateX(Math.PI / 2).translate(0, -0.12, 0), stringMat))
+    const horn = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, -0.04, 0.02), new THREE.Vector3(0, -0.22, 0.14), new THREE.Vector3(0.02, -0.3, 0.38)), 12, 0.03, 8),
+      hornMat,
+    )
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.03, 0.09, 12, 1, true).rotateX(Math.PI / 2).translate(0.02, -0.3, 0.42), hornMat)
+    const hornGroup = new THREE.Group()
+    hornGroup.add(horn, bell)
+    const sight = new THREE.Group()
+    sight.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 18).rotateX(Math.PI / 2).translate(0, -0.1, 0.03), new THREE.MeshStandardMaterial({ color: 0x9fc6c8, roughness: 0.15, transparent: true, opacity: 0.8, emissive: new THREE.Color(0.1, 0.3, 0.32) })))
+    this.props = { bow, horn: hornGroup, sight }
+    this.arms[1].elbow.children[0].add(bow)
+    this.arms[0].elbow.children[0].add(hornGroup, sight)
+    for (const k of ['bow', 'horn', 'sight'] as const) this.props[k].visible = false
+
     // The lantern at the left hip: a small warm light.
     this.pelvis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.11, 8).translate(-0.19, -0.12, 0.05), leather))
     this.lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8).translate(-0.19, -0.12, 0.1), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
@@ -610,6 +645,27 @@ export class Wanderer {
       this.pelvis.position.y = 0.92 - Math.abs(Math.sin(s)) * 0.035 * Math.min(1, g) + breathe
       this.chest.rotation.x = this.sliding ? -0.25 : 0.06 * g + run * 0.18
       this.head.rotation.x = -this.chest.rotation.x * 0.6
+    }
+
+    // A tool in hand: its pose over whatever the legs are doing.
+    for (const k of ['bow', 'horn', 'sight'] as const) this.props[k].visible = this.holding === k
+    if (this.holding === 'bow') {
+      // The bow arm straight out ahead, the string hand drawn back to the cheek.
+      A[1].shoulder.rotation.set(-1.52, 0, 0.12)
+      A[1].elbow.rotation.x = 0
+      A[0].shoulder.rotation.set(-1.45, 0.2, -0.35)
+      A[0].elbow.rotation.x = -2.1
+    } else if (this.holding === 'horn') {
+      // The horn to the mouth, the other hand steadying it.
+      A[0].shoulder.rotation.set(-1.4, 0, -0.32)
+      A[0].elbow.rotation.x = -2.05
+      A[1].shoulder.rotation.set(-1.4, 0, 0.5)
+      A[1].elbow.rotation.x = -1.2
+      this.head.rotation.x = -0.25
+    } else if (this.holding === 'sight') {
+      // The stone held up before the eye: upper arm out level, forearm up to the face.
+      A[0].shoulder.rotation.set(-1.55, 0, -0.38)
+      A[0].elbow.rotation.x = -1.75
     }
 
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).

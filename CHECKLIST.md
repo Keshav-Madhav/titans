@@ -245,6 +245,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
       (exposure). The weather dims whatever the time of day sets (`sky.lightBase`). Tools hold the
       clock still (`sky.running`) and set it. Gate: `shot.mjs daynight`
 
+## F — In hand, and the toolbar (user: "work on ui and icons… even hand models")
+- [x] Hands: a mitten of palm and fingers and a thumb (they were balls)
+- [x] Tools held in use, each with its pose: the bow in the left hand, arm straight out, the string
+      hand drawn to the cheek; the horn to the mouth; the sight-stone before the eye
+- [x] The toolbar (top left): the tools you have found, drawn, with their keys; the one in use lifts
+      and lights. Gate: `shot.mjs hands`
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,
