@@ -330,11 +330,45 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     fm.castShadow = true
     group.add(fm)
   }
+  // A shrine on its back: a slab on the hump, stumps of columns, and a glyph
+  // that glows — where a climb is going (Shadow of the Colossus's sigils).
+  if (shape === 'torso' && lumps[0]) {
+    const L = lumps[0]
+    _d.set(0, 1, -0.25).normalize()
+    const top = surface(L, _d, new THREE.Vector3())
+    const parts: THREE.BufferGeometry[] = []
+    const rand = mulberry32(seed + 31)
+    const S = H / 300
+    parts.push(new THREE.BoxGeometry(46 * S, 4 * S, 34 * S, 4, 1, 3).translate(top.x, top.y + 1.5 * S, top.z))
+    for (const [cx, cz] of [[-17, -12], [17, -12], [-17, 12], [17, 12], [0, -14]]) {
+      const h = (5 + rand() * 13) * S
+      const g = new THREE.CylinderGeometry(2.6 * S, 3 * S, h, 14, 2).translate(top.x + cx * S, top.y + 3.5 * S + h / 2, top.z + cz * S)
+      parts.push(g.toNonIndexed())
+      if (rand() < 0.5) parts.push(new THREE.BoxGeometry(7 * S, 2.4 * S, 5 * S).rotateY(rand() * 3).translate(top.x + (cx + (rand() - 0.5) * 12) * S, top.y + 4.7 * S, top.z + (cz + (rand() - 0.5) * 8) * S))
+    }
+    const shrine = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))!
+    shrine.deleteAttribute('uv')
+    shrine.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(shrine.getAttribute('position').count * 3).fill(0.9), 3))
+    const sm = new THREE.Mesh(shrine, materials.get(mk))
+    sm.castShadow = true
+    sm.receiveShadow = true
+    group.add(sm)
+    if (!petrified) {
+      if (!materials.has('glyph')) materials.set('glyph', new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 1.5, 1.9), fog: false, transparent: true, opacity: 0.85 }))
+      const glyph = new THREE.Mesh(new THREE.TorusGeometry(5.5 * S, 0.7 * S, 8, 40), materials.get('glyph'))
+      glyph.rotation.x = Math.PI / 2
+      glyph.position.set(top.x, top.y + 3.7 * S, top.z)
+      const inner = new THREE.Mesh(new THREE.TorusGeometry(2.6 * S, 0.45 * S, 6, 6), materials.get('glyph'))
+      inner.rotation.x = Math.PI / 2
+      inner.position.copy(glyph.position)
+      group.add(glyph, inner)
+    }
+  }
   // The eyes, in the mask: deep sockets, a pale glow far inside.
   if (shape === 'head' && lumps[0]) {
     const L = lumps[0]
     const ek = petrified ? 'eye-dead' : 'eye'
-    if (!materials.has(ek)) materials.set(ek, new THREE.MeshBasicMaterial({ color: petrified ? new THREE.Color(0.05, 0.05, 0.05) : new THREE.Color(1.6, 1.9, 2.2), fog: false }))
+    if (!materials.has(ek)) materials.set(ek, new THREE.MeshBasicMaterial({ color: petrified ? new THREE.Color(0.05, 0.05, 0.05) : new THREE.Color(1.15, 1.4, 1.65), fog: false }))
     if (!materials.has('socket')) materials.set('socket', new THREE.MeshBasicMaterial({ color: 0x050505 }))
     for (const sx of [-1, 1]) {
       _d.set(sx * 0.36, 0.12, 1).normalize()
@@ -343,21 +377,24 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
       const socket = new THREE.Mesh(new THREE.SphereGeometry(r * 1.5, 16, 10).scale(1.3, 0.75, 0.6), materials.get('socket'))
       socket.position.copy(at).addScaledVector(_d, 0.004 * H)
       // The glow sits just proud of the socket's dark, so it is never swallowed by it.
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.62, 14, 10).scale(1.25, 0.72, 0.5), materials.get(ek))
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.44, 14, 10).scale(1.3, 0.6, 0.5), materials.get(ek))
       eye.position.copy(at).addScaledVector(_d, 0.0125 * H)
       group.add(socket, eye)
     }
-    // A crown of stone spikes swept back from the brow.
+    // Horns of stone swept far back from the brow: uneven, some broken off short.
     const crown: THREE.BufferGeometry[] = []
     const rand = mulberry32(seed + 77)
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 6 - 0.5) * 1.6
-      _d.set(Math.sin(a) * 0.6, 0.8, -0.2 + Math.cos(a) * 0.2).normalize()
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 4 - 0.5) * 1.9 + (rand() - 0.5) * 0.25
+      _d.set(Math.sin(a) * 0.7, 0.62, -0.35 + Math.cos(a) * 0.15).normalize()
       const at = surface(L, _d, new THREE.Vector3())
-      const h = (0.025 + 0.02 * (1 - Math.abs(i / 6 - 0.5) * 2) + rand() * 0.01) * H
-      const g = new THREE.ConeGeometry(0.008 * H, h, 6).translate(0, h / 2, 0)
-      g.rotateX(-0.6 - rand() * 0.2)
-      g.rotateZ(-Math.sin(a) * 0.5)
+      const broken = rand() < 0.35
+      const h = (broken ? 0.012 + rand() * 0.008 : 0.03 + 0.025 * (1 - Math.abs(i / 4 - 0.5) * 2) + rand() * 0.012) * H
+      const base = (0.011 + rand() * 0.004) * H
+      // A broken horn ends in a flat stump, not a point.
+      const g = new THREE.CylinderGeometry(broken ? base * 0.55 : 0, base, h, 5).translate(0, h / 2, 0)
+      g.rotateX(-1.05 - rand() * 0.3)
+      g.rotateZ(-Math.sin(a) * 0.7)
       g.translate(at.x, at.y, at.z)
       crown.push(g.toNonIndexed())
     }

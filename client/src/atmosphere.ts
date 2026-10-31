@@ -104,23 +104,36 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   ${darkHall}
   vec3 fogRay = vFogWorld - cameraPosition;
   float fogDist = length( fogRay );
-  float fogH = 0.5 * ( max( cameraPosition.y, 0.0 ) + max( vFogWorld.y, 0.0 ) );
+  // The air's thickness averaged along the ray (exact for density falling
+  // off exponentially with height), so a long climb up to a tall far thing
+  // passes through the thick low air as well as the thin high air.
+  float fogY0 = max( cameraPosition.y, 0.0 );
+  float fogY1 = max( vFogWorld.y, 0.0 );
+  float fogDy = fogY1 - fogY0;
+  float fogFall = abs( fogDy ) > 1.0
+    ? ${H} * ( exp( - fogY0 / ${H} ) - exp( - fogY1 / ${H} ) ) / fogDy
+    : exp( - 0.5 * ( fogY0 + fogY1 ) / ${H} );
   #ifdef FOG_EXP2
-    float fogDens = fogDensity * exp( - fogH / ${H} );
+    float fogDens = fogDensity * fogFall;
     float cloudCover = 0.0;
   #else
     // AirFog: near is the density, far the cloud deck's weight.
-    float fogDens = fogNear * exp( - fogH / ${H} );
+    float fogDens = fogNear * fogFall;
     float cloudCover = fogFar;
   #endif
   float fogFactor = 1.0 - exp( - fogDens * fogDist );
+  // However clear the day, kilometres of air between: the far mountains,
+  // and what stands beyond them, go pale and blue (aerial perspective).
+  fogFactor = max( fogFactor, smoothstep( 3000.0, 12000.0, fogDist ) * 0.66 );
   float fogSun = pow( max( dot( fogRay / max( fogDist, 1e-3 ), ${sun} ), 0.0 ), 6.0 );
   vec3 fogCol = mix( fogColor, fogColor * vec3( 1.22, 1.08, 0.88 ), fogSun * 0.7 );
   // Far away, the air goes cool and blue-grey (the paintings' distant mountains).
   fogCol = mix( fogCol, fogCol * vec3( 0.9, 0.98, 1.1 ), smoothstep( 700.0, 6000.0, fogDist ) * ( 1.0 - fogSun ) );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogCol, fogFactor );
   // Up into the cloud deck, a tall thing fades into it (no hard band where a cloud layer cuts it).
-  float cloudIn = smoothstep( ${cloudBase} - 15.0, ${cloudBase} + 110.0, vFogWorld.y ) * cloudCover;
+  // Never quite all the way, and over a deep band: a flat fog-coloured
+  // cut-out reads as a hole in the picture, a faint form inside reads as cloud.
+  float cloudIn = smoothstep( ${cloudBase} - 15.0, ${cloudBase} + 220.0, vFogWorld.y ) * cloudCover * 0.86;
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor * vec3( 0.92, 0.95, 0.97 ), cloudIn );
 #endif`
 

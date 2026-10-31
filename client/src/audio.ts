@@ -247,6 +247,37 @@ export class Sound {
     }
   }
 
+  /**
+   * Something kilometres tall setting its foot down very far away: a long,
+   * low rumble that you feel more than hear, rising and dying away.
+   */
+  colossal(): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    const o = ctx.createOscillator()
+    o.frequency.setValueAtTime(34, t)
+    o.frequency.exponentialRampToValueAtTime(19, t + 7)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.5, t + 1.6)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 8)
+    o.connect(g).connect(this.master!)
+    g.connect(this.space!)
+    o.start(t)
+    o.stop(t + 8.2)
+    for (let i = 0; i < 5; i++) this.burst(t + 0.4 + i * 0.9, 0.18 - i * 0.025, 90 + Math.random() * 60, 3)
+  }
+
+  /** The wind and the score fall away (an awakening), and come back. */
+  hush(on: boolean): void {
+    if (!this.ctx) return
+    const t = this.ctx.currentTime
+    this.windGain?.gain.setTargetAtTime(on ? 0.005 : 0.045, t, on ? 1.2 : 3)
+    this.padGain?.gain.setTargetAtTime(on ? 0.16 : 0.07, t, 2)
+    this.padFilter?.frequency.setTargetAtTime(on ? 220 : 600, t, 2)
+  }
+
   /** Thunder, `d` metres away: it arrives late, rolling. */
   thunder(d: number): void {
     if (!this.ctx || !this.on) return

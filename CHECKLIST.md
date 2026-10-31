@@ -119,6 +119,19 @@ Each phase ends playable. Phases are in PLAN.md §6.
       bits); `% seen`
 - [x] Gate: `shot.mjs map` (wandering uncovers it; climbing high uncovers far more)
 
+## A2b — Impossibly far (user, 2026-10-31: "a rare event which causes that thing to animate and
+## the game snatches the camera… to smooth pan to it and see it move with a kind of dread")
+- [x] `awakening.ts`: rarely (25–60 min), and once after the first cairn is lit, a colossus beyond
+      the mountains moves — never one standing in the sun's glare. Bars close in, the wind and
+      score fall away, a far horn; the camera turns to it on a longer lens that keeps the land in
+      front; the cloud parts (`weather.part`); it turns toward you and takes one step; the sound
+      of it arrives seconds later with a long low rumble (`audio.colossal`); control comes back
+- [x] Aerial perspective: haze averaged exactly along the ray (thick low air counts on a climb up
+      to a tall far thing), and a floor of haze over kilometres; the cloud fade never a flat cut-out
+- [x] The block giants: a ruined shrine on the back's hump, a glowing glyph unless petrified;
+      smaller eyes; uneven stone horns, some broken. Colossi meshed on a pool of up to 3 workers
+- [x] Gate: `shot.mjs awakening` (stepped: true), `giant` (giant-shrine), single, climb, rocks
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

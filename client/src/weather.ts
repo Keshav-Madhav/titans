@@ -48,6 +48,9 @@ const CYCLE: Array<[WeatherName, number]> = [
   ['clear', 150],
 ]
 
+/** The sky an awakening opens: the deck thinned to rags, the air clear, the sun through. */
+const PARTED: State = { cover: 0.3, dark: 0.2, rain: 0, fog: 1, wind: 0.2, rays: 0.8 }
+
 /** The cloud deck: its base, and how thick it is. */
 export const CLOUD_BASE = 255
 const CLOUD_LAYERS = 7
@@ -237,6 +240,11 @@ export class Weather {
     this.rainUniforms.uRoof.value = y
   }
 
+  /** 0 … 1: how far the cloud is drawn back from something you must see. */
+  part = 0
+  /** What the sky shows this frame: the weather, parted by `part`. */
+  private readonly seen: State = { ...PRESETS.clear }
+
   /** Change the weather (instantly for tools, else eased in over a minute). */
   set(name: WeatherName, instant = false): void {
     this.name = name
@@ -254,7 +262,9 @@ export class Weather {
     }
     const k = Math.min(1, dt / 45)
     for (const key of Object.keys(this.now) as Array<keyof State>) this.now[key] += (this.target[key] - this.now[key]) * k
-    const w = this.now
+    // The cloud drawn back (an awakening), whatever the weather was doing.
+    const w = this.seen
+    for (const key of Object.keys(this.now) as Array<keyof State>) w[key] = this.now[key] + (PARTED[key] - this.now[key]) * this.part
 
     // Lightning, in storms: a flicker in the cloud, thunder after.
     this.nextFlash -= dt

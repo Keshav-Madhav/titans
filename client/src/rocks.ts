@@ -132,9 +132,9 @@ export class Rocks {
   readonly group = new THREE.Group()
   readonly formations: Formation[] = []
   private readonly material: THREE.MeshStandardMaterial
-  private readonly worker: Worker
-  /** Formations being meshed (by id): one at a time in the worker. */
-  private busy = false
+  /** A small pool of meshing workers; each takes one formation at a time. */
+  private readonly workers: Worker[] = []
+  private readonly idle: Worker[] = []
   private readonly waiting: Formation[] = []
   /** Meshes built so far (tools wait on it). */
   built = 0
@@ -147,8 +147,16 @@ export class Rocks {
     keepClear: (x: number, z: number, r: number) => boolean,
   ) {
     this.material = rockMaterial(textures)
-    this.worker = new Worker(new URL('./rocks-worker.ts', import.meta.url), { type: 'module' })
-    this.worker.onmessage = (e: MessageEvent<{ id: number; mesh: RockMesh }>) => this.receive(e.data.id, e.data.mesh)
+    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1))
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(new URL('./rocks-worker.ts', import.meta.url), { type: 'module' })
+      w.onmessage = (e: MessageEvent<{ id: number; mesh: RockMesh }>) => {
+        this.idle.push(w)
+        this.receive(e.data.id, e.data.mesh)
+      }
+      this.workers.push(w)
+      this.idle.push(w)
+    }
     const rand = mulberry32(seed ^ 0x40c45)
     const regions = terrain.base.regions
     for (const land of Object.keys(PLAN) as RegionName[]) {
@@ -293,22 +301,22 @@ export class Rocks {
         f.mesh = null
       }
     }
-    if (this.busy || !this.waiting.length) return
+    if (!this.idle.length || !this.waiting.length) return
     // The colossi first (they are seen from everywhere), then the nearest rock.
     const key = (f: Formation) => (f.always ? -1e9 : 0) + Math.hypot(f.x - cam.x, f.z - cam.z)
     this.waiting.sort((a, b) => key(b) - key(a))
-    const f = this.waiting.pop()!
-    this.busy = true
-    this.worker.postMessage({ id: f.id, kind: f.kind, seed: f.seed, worldSeed: this.seed, res: f.res })
+    while (this.idle.length && this.waiting.length) {
+      const f = this.waiting.pop()!
+      this.idle.pop()!.postMessage({ id: f.id, kind: f.kind, seed: f.seed, worldSeed: this.seed, res: f.res })
+    }
   }
 
   /** Nothing left to mesh near the camera. */
   get settled(): boolean {
-    return !this.busy && this.waiting.length === 0
+    return this.idle.length === this.workers.length && this.waiting.length === 0
   }
 
   private receive(id: number, m: RockMesh): void {
-    this.busy = false
     const f = this.formations[id]
     f.queued = false
     const g = new THREE.BufferGeometry()

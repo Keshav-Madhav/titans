@@ -326,7 +326,41 @@ const scenes = {
       g.lookFrom([head.x + fx * 70 + fz * 25, head.y + 10, head.z + fz * 70 - fx * 25], [head.x, head.y + 8, head.z])
     })
     await shot('giant-head')
+    // The shrine on its back, from above and behind.
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titan
+      const c = t.chest
+      const fx = Math.sin(t.gait.heading)
+      const fz = Math.cos(t.gait.heading)
+      g.lookFrom([c.x - fx * t.H * 0.32 + fz * 30, c.y + t.H * 0.16, c.z - fz * t.H * 0.32 - fx * 30], [c.x - fx * t.H * 0.06, c.y + t.H * 0.04, c.z - fz * t.H * 0.06])
+    })
+    await shot('giant-shrine')
     await page.evaluate(() => window.__g.lookFrom(null))
+  },
+  // An awakening: a colossus beyond the mountains moves, and the camera is taken to watch it.
+  async awakening() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      const t = g.farGiants[0].gait
+      // Standing on open ground in the valley, looking roughly toward it.
+      const x = -t.x * 0.04
+      const z = -t.z * 0.04
+      g.teleport(x, z)
+      g.rig.yaw = Math.atan2(t.x - x, t.z - z) + Math.PI
+    })
+    await settle(60)
+    await shot('awakening-0-before')
+    await page.evaluate(() => window.__g.awakening.begin(window.__g.camera))
+    for (const at of [2.5, 6, 12, 18, 24, 31]) {
+      await page.waitForFunction((at) => (window.__g.awakening.t ?? 99) >= at, at, { timeout: 120000 })
+      await shot(`awakening-${String(at).replace('.', '_')}`)
+    }
+    console.log('stepped:', await page.evaluate(() => window.__g.awakening.stepped))
+    await page.waitForFunction(() => !window.__g.awakening.active, null, { timeout: 60000 })
+    await settle(20)
+    await shot('awakening-after')
   },
   // The colossi, each from where a wanderer would stand, looking up.
   async colossi() {

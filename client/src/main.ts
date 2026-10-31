@@ -53,6 +53,7 @@ import { Cairns, type CairnPlace } from './cairns'
 import { Striders } from './striders'
 import { Watchers } from './watchers'
 import { Mist } from './mist'
+import { Awakening } from './awakening'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -290,6 +291,25 @@ for (const a of [0.45, 2.55, 4.4]) {
   scene.add(t.group)
   farGiants.push(t)
 }
+// Awakenings: rarely, a colossus beyond the mountains moves, and the camera turns to watch it.
+const awakening = new Awakening(farGiants, sky.sunDir)
+awakening.on = (what) => {
+  if (what === 'begin') {
+    input.releaseAll()
+    sound.hush(true)
+    setTimeout(() => sound.farHorn(), 1800)
+  } else if (what === 'step') {
+    // The sound of it, long after (it is kilometres away).
+    setTimeout(() => {
+      sound.colossal()
+      rig.shake(0.35)
+    }, 6500)
+  } else {
+    sound.hush(false)
+    narration.say(AWAKE_LINES[Math.floor(Math.random() * AWAKE_LINES.length)])
+  }
+}
+const AWAKE_LINES = ['Something very far away moved.', 'It turned toward you. You are almost sure of it.', 'The ground remembers it for a long time after.']
 const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
 /** Climbing the land itself: cliffs, canyon walls, the escarpment. */
 const cliff = new CliffClimb()
@@ -545,6 +565,11 @@ const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darknes
 
 function simulate(dt: number): void {
   watchFalls(dt)
+  if (awakening.active) {
+    // Held: you watch. (Gravity and the world go on.)
+    wanderer.step(dt, { x: 0, y: 0 }, false, false, rig.yaw, terrain)
+    return
+  }
   if (climber.active) {
     if (input.pressed('KeyE')) letGo(0.6)
     else if (input.pressed('Space')) letGo(4.5)
@@ -577,6 +602,8 @@ function simulate(dt: number): void {
       worldMap.revealAround(cairn.x, cairn.z, 1400)
       sound.chime()
       narration.say(`${cairn.name}. ${CAIRN_LINES[cairns.litCount % CAIRN_LINES.length]}`)
+      // The first time you look out from a high place, something answers.
+      if (cairns.litCount === 1) setTimeout(() => awakening.begin(camera), 6000)
       saveDirty = true
     } else if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
@@ -773,6 +800,7 @@ function frame(now: number): void {
   birds.step(dt, camera.position, birdSpots)
   birds.render()
   sky.tick(dt)
+  weather.part = awakening.reveal
   weather.update(dt, camera)
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
@@ -804,7 +832,11 @@ function frame(now: number): void {
   if (freeCam) {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
-  } else rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
+  } else {
+    rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, 0, focus, terrain)
+    // An awakening takes the camera's gaze (the rig still keeps its place).
+    awakening.update(dt, camera)
+  }
   // The camera pressed right up to you (a wall behind): see past yourself, not into your hood.
   const tooClose = camera.position.distanceTo(_head.copy(wanderer.obj.position).setY(wanderer.obj.position.y + 1.2)) < 1.6
   foliageFocus.value.copy(_head)
@@ -904,6 +936,7 @@ const g = {
   striders,
   watchers,
   mist,
+  awakening,
   farGiants,
   birds,
   vegetation,

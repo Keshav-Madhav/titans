@@ -97,6 +97,14 @@
         font: 700 11px ui-monospace, Menlo, monospace; padding: 1px 6px; margin-right: 8px; border-radius: 4px;
         background: var(--ink); color: #1b1b1b;
       }
+      #bars::before, #bars::after {
+        content: ''; position: fixed; left: 0; right: 0; height: 0; background: #050505;
+        transition: height 2.2s ease-in-out; z-index: 5; pointer-events: none;
+      }
+      #bars::before { top: 0; }
+      #bars::after { bottom: 0; }
+      #bars.on::before, #bars.on::after { height: 11vh; }
+      body:has(#bars.on) #hint, body:has(#bars.on) #minimap, body:has(#bars.on) #role, body:has(#bars.on) #prompt { opacity: 0; transition: opacity 1s; }
       #fade {
         position: fixed; inset: 0; background: #07080a; opacity: 0; pointer-events: none;
         transition: opacity 0.9s ease-in;
@@ -125,6 +133,7 @@
     <div id="narration"></div>
     <canvas id="minimap" width="168" height="168"></canvas>
     <div id="fade"></div>
+    <div id="bars"></div>
     <div id="prompt"></div>
     <div id="map">
       <div id="map-frame">
