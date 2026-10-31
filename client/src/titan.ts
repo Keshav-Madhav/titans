@@ -182,7 +182,8 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial, layer: number): void {
           vec3 hide = mix(h2, h1, 0.4 + 0.6 * stoneNear);
           float hl = dot(hide, vec3(0.299, 0.587, 0.114));
           // Keep the body's hue (sandstone, moss), take the hide's light and dark and its moss.
-          diffuseColor.rgb = mix(diffuseColor.rgb * hl * 2.1, hide * 1.15, 0.45);
+          // (× diffuse: the material's colour still darkens it — see silhouette().)
+          diffuseColor.rgb = mix(diffuseColor.rgb * hl * 2.1, hide * 1.15 * diffuse, 0.45);
           hideN = mix(hn2, hn1, stoneNear) * 0.8;
         }
         #endif`,
@@ -435,6 +436,26 @@ export class Titan {
   }
 
   /** Heave the shoulders to throw off climbers. */
+  /**
+   * Darken it toward a silhouette (the colossi beyond the Wall): against
+   * kilometres of bright haze a lit stone shape vanishes, a dark one reads.
+   */
+  silhouette(k: number): void {
+    this.material.color.multiplyScalar(k)
+    const done = new Map<THREE.Material, THREE.Material>()
+    this.group.traverse((o) => {
+      const mesh = o as THREE.Mesh
+      if (!mesh.isMesh || mesh.material === this.material || Array.isArray(mesh.material)) return
+      let dark = done.get(mesh.material)
+      if (!dark) {
+        dark = mesh.material.clone()
+        ;(dark as THREE.MeshStandardMaterial).color?.multiplyScalar(k)
+        done.set(mesh.material, dark)
+      }
+      mesh.material = dark
+    })
+  }
+
   shrug(seconds = 1.4): void {
     this.shrugT = seconds
   }

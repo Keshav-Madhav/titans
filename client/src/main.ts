@@ -55,6 +55,7 @@ import { Striders } from './striders'
 import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Awakening } from './awakening'
+import { Herd } from './herd'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -286,10 +287,13 @@ scene.add(mountains.group)
  * always there.
  */
 const farGiants: Titan[] = []
+// Beyond the Wall (the outer range, 1.5–3 km high): they stand two or three
+// times its height, chest and head clear above its crest.
 for (const a of [0.45, 2.55, 4.4]) {
-  const r = 21000
-  const t = new Titan(4800, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
+  const r = 24500
+  const t = new Titan(8000, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
   t.restBlend = 0
+  t.silhouette(0.12)
   scene.add(t.group)
   farGiants.push(t)
 }
@@ -312,7 +316,14 @@ awakening.on = (what) => {
   }
 }
 const AWAKE_LINES = ['Something very far away moved.', 'It turned toward you. You are almost sure of it.', 'The ground remembers it for a long time after.']
-const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
+/** A herd of smaller giants roaming the eastern Dune Sea together. */
+const herd = new Herd(terrain, WORLD_SEED)
+for (const t of herd.giants) scene.add(t.group)
+const climber = new Climber(() => [
+  ...[...titans].map(([id, a]) => ({ id, titan: a.titan })),
+  ...herd.giants.map((titan, i) => ({ id: `h${i + 1}`, titan })),
+  ...mountains.targets(),
+])
 /** Climbing the land itself: cliffs, canyon walls, the escarpment. */
 const cliff = new CliffClimb()
 
@@ -628,6 +639,7 @@ function simulate(dt: number): void {
     }
   }
 
+  if (wild) herd.step(dt)
   for (const [id, a] of titans) {
     const t = a.titan
     const driven = id === 't1' && autopilot.forward !== 0
@@ -685,7 +697,9 @@ function simulate(dt: number): void {
 
 /** The waking giant the climber holds, if any (sleeping giants do not walk or shrug). */
 function heldAwake(): Titan | undefined {
-  return climber.target ? titans.get(climber.target.id)?.titan : undefined
+  const id = climber.target?.id
+  if (!id) return undefined
+  return id.startsWith('h') ? herd.giants[Number(id.slice(1)) - 1] : titans.get(id)?.titan
 }
 
 /** Let go of the giant: fall with its motion plus a push off the rock. */
@@ -771,7 +785,7 @@ function frame(now: number): void {
     a.titan.setLodFor(camera.position)
   }
   mountains.update(terrain, camera)
-  for (const t of farGiants) {
+  for (const t of [...farGiants, ...herd.giants]) {
     t.pose(terrain, dt)
     t.group.updateMatrixWorld(true)
     t.setLodFor(camera.position)
@@ -940,6 +954,7 @@ const g = {
   mist,
   awakening,
   farGiants,
+  herd,
   birds,
   vegetation,
   grass,

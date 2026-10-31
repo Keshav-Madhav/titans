@@ -17,8 +17,11 @@ import type { Titan } from './titan'
 import type { GaitEvent } from '@titans/shared'
 
 const LENGTH = 32 // seconds the camera is taken
-/** Its time runs faster than ours while we watch: a real step of a thing this size takes most of a minute. */
-const HASTE = 2.6
+/**
+ * Its time runs faster than ours while we watch (a real step of a thing this
+ * size takes most of a minute): one step in about ten of our seconds.
+ */
+const haste = (g: Titan) => g.body.stepTime / 7
 const TURN_IN = 5 // seconds to turn to it
 const TURN_OUT = 3.5
 
@@ -121,7 +124,7 @@ export class Awakening {
       dh = Math.atan2(Math.sin(dh), Math.cos(dh))
       const steps = g.gait.steps
       this.discard.length = 0
-      g.step(dt * HASTE, { forward: t > 9 && !this.stepped ? 1 : 0, turn: THREE.MathUtils.clamp(dh * 2, -1, 1) * 0.5 }, this.discard)
+      g.step(dt * haste(g), { forward: t > 9 && !this.stepped ? 1 : 0, turn: THREE.MathUtils.clamp(dh * 2, -1, 1) * 0.5 }, this.discard)
       if (g.gait.steps > steps) this.stepped = true
       if (this.stepped && !this.boomed) {
         this.boomed = true
@@ -130,7 +133,7 @@ export class Awakening {
     } else if (t >= 25) {
       // Let it come to rest.
       this.discard.length = 0
-      g.step(dt * HASTE, { forward: 0, turn: 0 }, this.discard)
+      g.step(dt * haste(g), { forward: 0, turn: 0 }, this.discard)
     }
     if (t >= LENGTH - 2.5) this.bars?.classList.remove('on')
     if (t >= LENGTH) {

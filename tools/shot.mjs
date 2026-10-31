@@ -368,6 +368,62 @@ const scenes = {
     await shot('vista-from-the-sentinel')
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // The Wall: the outer range, and the colossi beyond it, from the Green.
+  async wall() {
+    for (const [w, dirs] of [['clear', [0.45, 1.5, 2.55, 3.5, 4.4]], ['breaking', [0.45, 4.4]], ['overcast', [2.55]]]) {
+      await page.evaluate((w) => window.__g.weather.set(w, true), w)
+      for (const a of dirs) {
+        await page.evaluate((a) => {
+          const g = window.__g
+          // A crest of the Green, looking out toward the edge of the world.
+          // (2.2 km out: 1.5 km toward 1.5 rad is the Undercroft.)
+          const x = Math.cos(a) * 2200
+          const z = Math.sin(a) * 2200
+          g.teleport(x, z)
+          const h = g.heightAt(x, z)
+          g.lookFrom([x, h + 3, z], [Math.cos(a) * 20000, 2400, Math.sin(a) * 20000])
+        }, a)
+        await shot(`wall-${w}-${a}`)
+      }
+    }
+    await page.evaluate(() => window.__g.lookFrom(null))
+  },
+  // The herd: smaller giants roaming the eastern Dune Sea together.
+  async herd() {
+    await page.evaluate(() => {
+      window.__g.setWild(true)
+      window.__g.weather.set('clear', true)
+    })
+    // [name, distance, camera height above the ground, aim height up them (×H of the biggest)]
+    const views = [
+      ['far', 1700, 140, 0.4],
+      ['near', 480, 20, 0.6],
+    ]
+    const start = await page.evaluate(() => window.__g.herd.centre().toArray())
+    for (const [name, dist, high, up] of views) {
+      await page.evaluate(([dist, high, up]) => {
+        const g = window.__g
+        const c = g.herd.centre()
+        // From the west, looking east across them.
+        const x = c.x - dist
+        const z = c.y + dist * 0.3
+        g.teleport(x, z)
+        const h = g.heightAt(x, z)
+        g.lookFrom([x, h + high, z], [c.x, g.heightAt(c.x, c.y) + 190 * up, c.y])
+      }, [dist, high, up])
+      await shot(`herd-${name}`)
+    }
+    await page.evaluate(() => window.__g.lookFrom(null))
+    await new Promise((r) => setTimeout(r, 25000))
+    const end = await page.evaluate(() => window.__g.herd.centre().toArray())
+    const spread = await page.evaluate(() => {
+      const gs = window.__g.herd.giants
+      let min = Infinity
+      for (const a of gs) for (const b of gs) if (a !== b) min = Math.min(min, Math.hypot(a.gait.x - b.gait.x, a.gait.z - b.gait.z))
+      return Math.round(min)
+    })
+    console.log(`herd moved ${Math.round(Math.hypot(end[0] - start[0], end[1] - start[1]))} m in 25 s; closest pair ${spread} m apart`)
+  },
   // An awakening: a colossus beyond the mountains moves, and the camera is taken to watch it.
   async awakening() {
     await page.evaluate(() => {

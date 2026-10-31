@@ -145,6 +145,19 @@ export class BaseTerrain {
       const rr = ridged(this.peaks, wx * 0.00026, wz * 0.00026, 6)
       h += belt * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
     }
+
+    // The Wall (user, 2026-10-31: "very very far edge mountains, very tall…
+    // unreachable… silhouettes in the fog's background, still smaller than
+    // giants"): a range 1.5–3 km high from ~13 km out, seen whole only on a
+    // clear day. You are small beside it; the colossi beyond it stand two or
+    // three times its height, their chests and heads clear above its crest.
+    const wk = 0.00009
+    const wallD = d + 2600 * this.mask(x * wk + 5.5, z * wk - 2.2)
+    const wall = smoothstep(12500, 16500, wallD) * (1 - smoothstep(19500, 22500, wallD))
+    if (wall > 0) {
+      const crest = ridged(this.peaks, wx * 0.00011 + 7.7, wz * 0.00011 - 3.3, 5)
+      h += wall * (1300 + crest * crest * 1900)
+    }
     return h
   }
 

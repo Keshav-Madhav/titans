@@ -147,7 +147,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
       floating over the grass)
 - [x] Gate: `shot.mjs vistas` (from spawn toward each land), lands, fill-bench, single, climb,
       undercroft, cairns, rocks, fall
-- [ ] A herd: several smaller giants roaming together
+- [x] A herd (`herd.ts`): five giants of 120–190 m roaming the eastern Dune Sea together — the
+      biggest leads, two flank, the young keep to the middle; they drift to a far open point,
+      graze a while, move on, keeping room between them; climbable (`h1`…`h5`). Gate: `shot.mjs herd`
+- [x] The Wall (user: "very very far edge mountains… very tall… unreachable… silhouettes in the
+      fog's background, still smaller than giants"): a range 1.5–3 km high from ~13 km out; the
+      colossi stand beyond it, 8 km tall at 24.5 km, darkened to silhouettes, chest and head clear
+      above its crest; aerial haze thins with height. Gate: `shot.mjs wall`, awakening (stepped)
 - [ ] Travel at this scale: a faster run on open ground; riding a walking giant across a land
 
 ## Design drafts
