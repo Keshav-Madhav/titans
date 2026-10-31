@@ -18,7 +18,9 @@ export class Camp {
   readonly bagAt = new THREE.Vector3()
   private time = 0
 
-  constructor(terrain: Terrain) {
+  /** At `where` (the first, with the bag, by default); `withBag` false for the traveller's later camps. */
+  constructor(terrain: Terrain, where: { x: number; z: number } = CAMP, withBag = true) {
+    const CAMP = where
     const rand = mulberry32(4711)
     const at = (dx: number, dz: number, lift = 0) => new THREE.Vector3(CAMP.x + dx, terrain.heightAt(CAMP.x + dx, CAMP.z + dz) + lift, CAMP.z + dz)
     const stone = carvedStone()
@@ -68,6 +70,7 @@ export class Camp {
     this.bag.position.copy(this.bagAt)
     this.bag.rotation.y = 0.7
     this.group.add(this.bag)
+    this.bag.visible = withBag
     this.group.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
     })

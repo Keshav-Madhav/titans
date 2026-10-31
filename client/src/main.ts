@@ -59,7 +59,7 @@ import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
 import { Bag } from './bag'
-import { Camp } from './camp'
+import { Camp, CAMP } from './camp'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -284,6 +284,8 @@ scene.add(resonance.group)
 
 // The bow's targets: sets of stone eyes (placed with the spots, below).
 const eyeSets: EyeSet[] = []
+// The traveller's later camps (the first, with the bag, is `camp`): each with a page; the second with the horn.
+const travellerCamps: Camp[] = []
 
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
@@ -458,8 +460,28 @@ const spots = (() => {
       ground(mesa.x + Math.cos(0.5) * 120, mesa.z + Math.sin(0.5) * 120),
     )
   }
+  // The traveller's trail: the first camp's page, then three more camps across the lands.
+  list.push(['page-1', 'page', ground(CAMP.x + 1.1, CAMP.z + 1.4)])
+  const stairAt = P('stair')
+  const trail: Array<{ page: string; x: number; z: number }> = [
+    { page: 'page-2', x: 2350, z: 3000 },
+    { page: 'page-3', x: -3000, z: -1700 },
+  ]
+  if (stairAt) {
+    const l = Math.hypot(stairAt.x, stairAt.z)
+    trail.push({ page: 'page-4', x: stairAt.x - (stairAt.x / l) * 330, z: stairAt.z - (stairAt.z / l) * 330 })
+  }
+  for (const c of trail) {
+    const camp = new Camp(terrain, { x: c.x, z: c.z }, false)
+    scene.add(camp.group)
+    travellerCamps.push(camp)
+    list.push([c.page, 'page', ground(c.x + 1.1, c.z + 1.4)])
+  }
+  const hornModel = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 6, 14, Math.PI * 0.8), new THREE.MeshStandardMaterial({ color: 0x9b8a6c, roughness: 0.6 }))
+  hornModel.rotation.set(Math.PI / 2, 0, 0.6)
   const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at, hidden: id.startsWith('eyes-') }))
   placed.push({ id: 'bow', kind: 'trinket', at: new THREE.Vector3(altarAt.x, altarAt.y + 1.12, altarAt.z), model: bowModel })
+  placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   return new Spots(placed)
@@ -922,8 +944,62 @@ function watchFalls(dt: number): void {
 }
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
 
+/**
+ * The horn: blown on the ground, the nearest walker comes to see what made
+ * the noise; blown from one's back, it walks the way you are looking.
+ */
+const hornOrders = new Map<string, { kind: 'come' | 'ride'; until: number }>()
+function blowHorn(): void {
+  sound.horn()
+  const now = performance.now()
+  const held = climber.active ? climber.target?.id : undefined
+  if (held && titans.has(held)) {
+    hornOrders.set(held, { kind: 'ride', until: now + 30000 })
+    setTimeout(() => narration.say('It feels the note through its bones, and turns the way you are looking.'), 900)
+    return
+  }
+  let best: string | null = null
+  let bd = 3500
+  for (const [id, a] of titans) {
+    const d = Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z)
+    if (d < bd && !a.titan.gait.resting) {
+      bd = d
+      best = id
+    }
+  }
+  if (!best) return void setTimeout(() => narration.say('The note rolls out over the land. Nothing answers.'), 1500)
+  hornOrders.set(best, { kind: 'come', until: now + 150000 })
+  setTimeout(() => narration.say('Far off, a head turns. It is coming to see what made the noise.'), 1500)
+}
+function hornInput(id: string, t: Titan): GaitInput | null {
+  const order = hornOrders.get(id)
+  if (!order) return null
+  if (order.until < performance.now()) {
+    hornOrders.delete(id)
+    return null
+  }
+  let tx: number
+  let tz: number
+  let f = 0.72
+  if (order.kind === 'come') {
+    tx = wanderer.pos.x
+    tz = wanderer.pos.z
+    // Close enough to see you: it stops and stands there, looking.
+    if (Math.hypot(tx - t.gait.x, tz - t.gait.z) < t.H * 0.5) f = 0
+  } else {
+    camera.getWorldDirection(aimFwd)
+    tx = t.gait.x + aimFwd.x * 600
+    tz = t.gait.z + aimFwd.z * 600
+  }
+  let dh = Math.atan2(tx - t.gait.x, tz - t.gait.z) - t.gait.heading
+  dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+  t.gait.plough = false
+  return { forward: Math.cos(dh) > 0.25 ? f : 0, turn: THREE.MathUtils.clamp(dh * 1.4, -1, 1) }
+}
+
 function simulate(dt: number): void {
   watchFalls(dt)
+  if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
   if (awakening.active) {
     // Held: you watch. (Gravity and the world go on.)
     wanderer.step(dt, { x: 0, y: 0 }, false, false, rig.yaw, terrain)
@@ -965,7 +1041,7 @@ function simulate(dt: number): void {
       const r = resonance.near(wanderer.pos)!
       resonance.strike(r.ring, r.stone)
     } else if (spot && input.pressed('KeyE')) {
-      if (spot.kind === 'stone') {
+      if (spot.kind !== 'trinket') {
         // Read it (again, if you like).
         if (!finds.find(spot.id)) narration.say(CATALOGUE.find((c) => c.id === spot.id)?.text ?? '')
       } else if (!bag.have) narration.say('You have nothing to carry it in. Not yet.')
@@ -1024,6 +1100,8 @@ function simulate(dt: number): void {
       if (o.stomp) t.gait.stompArmed = true
       if (o.call) sound.call(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z))
     }
+    // A horn's call overrides its own wandering for a while.
+    inp = hornInput(id, t) ?? inp
     gaitEvents.length = 0
     t.step(dt, inp, gaitEvents)
     for (const ev of gaitEvents) {
@@ -1259,6 +1337,7 @@ function frame(now: number): void {
   rocks.update(camera.position)
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
+  for (const c of travellerCamps) c.update(dt, weather.now.wind)
   spots.update(dt, camera)
   wisps.update(dt, wanderer.pos)
   {
@@ -1283,7 +1362,7 @@ function frame(now: number): void {
       : free && resonance.near(wanderer.pos)
         ? `<kbd>E</kbd>Strike the stone`
         : spotNear
-          ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : 'Pick it up'}`
+          ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
           : ''
@@ -1439,6 +1518,7 @@ const g = {
   eyes,
   bow,
   pick,
+  hornOrders,
   birds,
   vegetation,
   grass,

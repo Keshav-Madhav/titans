@@ -41,6 +41,7 @@ export const CATALOGUE: Find[] = [
   // The first thing to find: until you have it, small things stay where they lie.
   f('trinket', 'bag', "The Traveller's Bag", 'Left at a camp on the Green, just ahead of where you woke.', 'Patched leather, deep, and somehow never full. Whoever left it here is not coming back for it.', 'bag', '#8a5a3c'),
   // Tools: things that are used, and open new ways into the land.
+  f('tool', 'horn', "The Traveller's Horn", 'At a camp near the Herd, in the Dune Sea.', 'A horn made from a shell found in the sand. Blow it (H) and the nearest walker comes to see what is making the noise. Blow it from one\'s back and it walks the way you are looking.', 'horn', '#9b8a6c'),
   f('tool', 'bow', 'The Old Bow', 'On an altar at the far end of the Undercroft.', 'A bow of dark wood and horn, strung with something that is not gut, and a quiver that is never empty. Hold the right mouse button (or Q) to draw; click (or F) to loose. Somewhere, stone eyes are watching.', 'bow', '#5a3e2a'),
   // Places
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),
@@ -72,6 +73,11 @@ export const CATALOGUE: Find[] = [
   f('lore', 'lore-herd', 'A stone near the Herd', "On the edge of the Herd's grazing.", 'The herd eats the stone that grows under the sand. Keep downwind. Keep low. The big one will chase you off if it thinks you are too near the young.'),
   f('lore', 'lore-walker', 'A stone on the western Green', 'Far out on the western Green.', 'The Walker has crossed the Green ten thousand times. It has never once stepped on our camp. It knows we are here. It simply does not mind.'),
   f('lore', 'lore-bow', 'A stone by the altar', 'At the far end of the Undercroft.', 'We leave the bow for whoever comes after. The eyes in the stone have watched over their things long enough. Close them.'),
+  // The traveller's pages: one at each of their camps (the first is where the bag was).
+  f('lore', 'page-1', "The traveller's first page", 'At the camp just ahead of where you woke.', "First night on the Green. Something the size of a hill walked past the fire and did not even look. I have never felt so small, or so welcome. I will leave the bag here when I go on — I won't need two."),
+  f('lore', 'page-2', "The traveller's second page", 'At a camp near the Herd, in the Dune Sea.', "The herd lets me near if I stay low and downwind. I made a horn from a shell in the sand; when I blow it, the walkers come. I don't think they come because they are called. I think they come to see what is making the noise."),
+  f('lore', 'page-3', "The traveller's third page", 'At a camp on the edge of the Old Wood.', "The trees are older than they are. There are marks on the roots that only show when you stop looking straight at them. I left the sight-stone in the Grove. Hold it up and you'll see."),
+  f('lore', 'page-4', "The traveller's last page", 'At a camp at the foot of the Great Stair.', "I am going up the Stair in the morning. The door at the top has been shut a long time. If I don't come back down, the cloak I made is yours — it is waiting at the top. You'll know what it is for. Jump."),
   f('lore', 'lore-sleep', 'A stone under the arch', 'Under the stone arch out on the Green.', 'They sleep where the land is low and warm. When one sleeps long enough, the grass grows over it, and then there is a hill, and then you cannot tell.'),
   // Relics: in the shrines on the giants' backs. Taking one is raiding something alive.
   f('relic', 'relic-walker', "The Walker's relic", "In the shrine on the Walker's back.", "A disc of pale stone cut with the same mark that glows in the Walker's eyes. It is warm, like something alive, and a little heavier whenever the Walker is near.", 'coin', '#bcd2e6'),

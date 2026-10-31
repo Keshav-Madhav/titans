@@ -474,6 +474,87 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // The traveller's trail and the Horn: read the page, take the horn, call the Walker, ride it.
+  async horn() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      window.__g.finds.find('bag')
+    })
+    const got = await page.evaluate(async () => {
+      const g = window.__g
+      const press = async (code) => {
+        g.input.press(code)
+        await new Promise((r) => setTimeout(r, 150))
+        g.input.release(code)
+        await new Promise((r) => setTimeout(r, 120))
+      }
+      const pageSpot = g.spots.spots.find((s) => s.id === 'page-2')
+      g.teleport(pageSpot.at.x + 0.6, pageSpot.at.z)
+      await new Promise((r) => setTimeout(r, 200))
+      await press('KeyE')
+      const horn = g.spots.spots.find((s) => s.id === 'horn')
+      g.teleport(horn.at.x + 0.6, horn.at.z)
+      await new Promise((r) => setTimeout(r, 200))
+      await press('KeyE')
+      return { page: g.finds.has('page-2'), horn: g.finds.has('horn') }
+    })
+    await page.evaluate(() => {
+      const g = window.__g
+      const c = g.travellerCamps?.[0]
+      const sp = g.spots.spots.find((s) => s.id === 'page-2')
+      g.teleport(sp.at.x + 6, sp.at.z + 5)
+      g.setCam(Math.atan2(6, 5), 0.2, 6)
+    })
+    await page.waitForTimeout(500)
+    await shot('horn-camp')
+    // Call the Walker from 1.4 km off.
+    const call = await page.evaluate(async () => {
+      const g = window.__g
+      const t = g.titan
+      const x = t.gait.x + 1400
+      const z = t.gait.z + 300
+      g.teleport(x, z)
+      const d0 = Math.hypot(t.gait.x - x, t.gait.z - z)
+      g.input.press('KeyH')
+      await new Promise((r) => setTimeout(r, 150))
+      g.input.release('KeyH')
+      g.clock.scale = 6
+      const until = Date.now() + 40000
+      let d = d0
+      while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 250))
+        d = Math.hypot(t.gait.x - g.player().x, t.gait.z - g.player().z)
+        if (d < t.H * 0.55 && t.gait.speed < 0.5) break
+      }
+      g.clock.scale = 1
+      g.setCam(Math.atan2(g.player().x - t.gait.x, g.player().z - t.gait.z), -0.3, 8)
+      return { d0: Math.round(d0), d: Math.round(d), order: g.hornOrders.get('t1')?.kind ?? 'none' }
+    })
+    await page.waitForTimeout(800)
+    await shot('horn-came')
+    // Ride it: hold on, blow the horn from its back, look east.
+    const ride = await page.evaluate(async () => {
+      const g = window.__g
+      if (!g.grabTitan()) return { grabbed: false }
+      const t = g.titan
+      g.setCam(-Math.PI / 2, 0.2, 9) // looking toward +x
+      await new Promise((r) => setTimeout(r, 300))
+      const x0 = t.gait.x
+      const z0 = t.gait.z
+      g.input.press('KeyH')
+      await new Promise((r) => setTimeout(r, 150))
+      g.input.release('KeyH')
+      g.clock.scale = 4
+      await new Promise((r) => setTimeout(r, 9000))
+      g.clock.scale = 1
+      return { grabbed: true, moved: [Math.round(t.gait.x - x0), Math.round(t.gait.z - z0)], holding: g.climbState().active }
+    })
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.35, 14))
+    await page.waitForTimeout(600)
+    await shot('horn-ride')
+    console.log(`page: ${got.page}, horn: ${got.horn}; called from ${call.d0} m → ${call.d} m (order ${call.order}); ride: ${JSON.stringify(ride)}`)
+    if (!got.horn || call.d > 300 || !ride.grabbed || ride.moved[0] < 60) throw new Error('horn gate failed')
+  },
   // More of play, as a player sees it: aiming from far off (you in the frame), an arrow in the
   // grass, a wisp darting away, the bag and the journal full.
   async play() {

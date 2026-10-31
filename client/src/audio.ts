@@ -293,6 +293,36 @@ export class Sound {
     }
   }
 
+  /** The traveller's horn: a low, hoarse note that swells and falls, ringing off the land. */
+  horn(): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    for (const [f, a] of [
+      [92, 0.16],
+      [138, 0.07],
+      [184, 0.04],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(f * 0.94, t)
+      o.frequency.linearRampToValueAtTime(f, t + 0.5)
+      o.frequency.linearRampToValueAtTime(f * 0.97, t + 2.4)
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 700
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(a, t + 0.4)
+      g.gain.setValueAtTime(a, t + 1.8)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8)
+      o.connect(lp).connect(g).connect(this.master!)
+      g.connect(this.space!)
+      o.start(t)
+      o.stop(t + 3)
+    }
+  }
+
   /** A bowstring: a dry snap and a low thrum. */
   loose(): void {
     if (!this.ctx || !this.on) return

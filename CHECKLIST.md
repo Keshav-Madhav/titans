@@ -213,8 +213,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
       arrows fly a solved arc to whatever is under the mark. Stone eyes (`eyes.ts`): three sets of
       three (the Undercroft's pillars, the Sentinel, a mesa's cliff); close a set and what it watched
       over is let go. Tools sit first in the bag. Gate: `shot.mjs bow` (every set closed, all taken)
-- [ ] D7 More tools: the Horn (call a giant / ride), the Wing-cloak (glide), the Sight-stone (glyph
-      trails) — PLAN.md §2f
+- [x] D8 The traveller's trail: four camps (the bag's, the Dune Sea near the Herd, the Old Wood's
+      edge, the foot of the Great Stair), a page at each (E to read) — one visitor's journey, and
+      where they left their things
+- [x] D8 The Horn (camp 2): H blown on the ground — the nearest walker comes to see what made the
+      noise and stands looking; blown from its back — it walks the way you look (30 s): riding.
+      Gate: `shot.mjs horn` (came 1.4 km → 130 m; rode 279 m east)
+- [ ] D7 More tools: the Wing-cloak (top of the Great Stair: glide), the Sight-stone (the Grove:
+      glyph trails) — PLAN.md §2f
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)

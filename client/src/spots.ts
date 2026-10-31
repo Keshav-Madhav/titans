@@ -28,7 +28,8 @@ export function carvedStone(): THREE.MeshStandardMaterial {
 export interface Spot {
   /** The catalogue id this gives (discovery.ts). */
   id: string
-  kind: 'stone' | 'trinket'
+  /** A stone with words; a page (words too, held down under a pebble at a camp); a trinket. */
+  kind: 'stone' | 'page' | 'trinket'
   at: THREE.Vector3
   /** Not there until something reveals it (a wisp settling: wisps.ts). */
   hidden?: boolean
@@ -50,7 +51,21 @@ export class Spots {
     const thing = new THREE.MeshStandardMaterial({ color: 0xc9b07a, roughness: 0.4, metalness: 0.6, emissive: new THREE.Color(0.25, 0.2, 0.1) })
     const glint = glintTexture()
     for (const s of this.spots) {
-      if (s.kind === 'stone') {
+      if (s.kind === 'page') {
+        // A page weighted down with a pebble, curling at the corners.
+        const g = new THREE.Group()
+        const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.56, 3, 3).rotateX(-Math.PI / 2), paperMaterial())
+        const pa = sheet.geometry.getAttribute('position') as THREE.BufferAttribute
+        for (let i = 0; i < pa.count; i++) pa.setY(i, 0.02 + 0.03 * Math.abs(pa.getX(i) * pa.getZ(i)) * 10)
+        sheet.geometry.computeVertexNormals()
+        const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07, 0), slab)
+        pebble.position.set(0.05, 0.06, -0.08)
+        g.add(sheet, pebble)
+        g.position.copy(s.at)
+        g.rotation.y = Math.random() * 6.28
+        this.group.add(g)
+        this.marks.set(s.id, g)
+      } else if (s.kind === 'stone') {
         // A standing slab, leaning a little, a carved line catching the light,
         // and a few pebbles stacked at its foot.
         const g = new THREE.Group()
@@ -173,4 +188,27 @@ function glintTexture(): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   return t
+}
+
+let paper: THREE.MeshStandardMaterial | null = null
+/** Old paper: pale, warm, a few lines of faded writing. */
+function paperMaterial(): THREE.MeshStandardMaterial {
+  if (paper) return paper
+  const c = document.createElement('canvas')
+  c.width = 64
+  c.height = 84
+  const g = c.getContext('2d')!
+  g.fillStyle = '#ddd2b8'
+  g.fillRect(0, 0, 64, 84)
+  g.strokeStyle = 'rgba(70, 55, 40, 0.55)'
+  for (let y = 12; y < 76; y += 7) {
+    g.beginPath()
+    g.moveTo(8, y)
+    g.lineTo(20 + Math.random() * 36, y)
+    g.stroke()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  paper = new THREE.MeshStandardMaterial({ map: t, roughness: 1, side: THREE.DoubleSide })
+  return paper
 }
