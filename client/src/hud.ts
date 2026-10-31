@@ -1,15 +1,11 @@
-// DOM HUD over the canvas: perf readout, role chip, control hints.
+// DOM HUD over the canvas: perf readout, what you are doing, control hints, grip.
 
 import type * as THREE from 'three'
 import type { TerrainView } from './terrain-view'
 
 const HINTS = {
-  wanderer:
-    'Click to look · <kbd>W A S D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> grab a Titan · <kbd>T</kbd> become a Titan · <kbd>B</kbd> build · <kbd>M</kbd> world',
+  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
-  building: 'Look where it goes · click to build · <kbd>Q</kbd> <kbd>E</kbd> turn · <kbd>1</kbd>–<kbd>9</kbd> choose · <kbd>B</kbd> done',
-  titan:
-    '<kbd>W</kbd> walk · <kbd>A</kbd> <kbd>D</kbd> turn · <kbd>R</kbd> plough/stride · <kbd>F</kbd> stomp · <kbd>Q</kbd> shrug · <kbd>C</kbd> call · <kbd>X</kbd> rest · <kbd>T</kbd> step out',
 }
 
 export class Hud {
@@ -20,65 +16,17 @@ export class Hud {
   private since = performance.now()
   last = { fps: 0, calls: 0, tris: 0 }
 
-  setRole(role: 'wanderer' | 'titan' | 'climbing' | 'building', steps: number, climbers = 0, titan?: { plough: boolean; stompReady: boolean }): void {
-    const html =
-      role === 'titan'
-        ? `<b>Titan</b> · ${steps.toLocaleString()} steps · ${titan?.plough ? 'ploughing' : 'striding'}${titan?.stompReady ? '' : ' · stomp recharging'}${climbers ? ` · ${climbers} climbing you` : ''}`
-        : role === 'climbing'
-          ? '<b>Climbing</b>'
-          : role === 'building'
-            ? '<b>Building</b>'
-            : '<b>Wanderer</b>'
-    if (html !== this.roleHtml) this.role.innerHTML = this.roleHtml = html
-    if (role !== this.hintRole) {
-      this.hint.innerHTML = HINTS[role]
-      this.hintRole = role
-    }
+  /** What you are doing now: the chip at the top right and the hint line. */
+  setMode(mode: 'wanderer' | 'climbing'): void {
+    if (mode === this.mode) return
+    this.mode = mode
+    this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : '<b>Wanderer</b>'
+    this.hint.innerHTML = HINTS[mode]
   }
 
-  private roleHtml = ''
-  private hintRole = ''
+  private mode = ''
   private readonly grip = document.getElementById('grip')!
   private readonly gripBar = this.grip.firstElementChild as HTMLElement
-
-  private readonly beaconEl = document.getElementById('beacon')!
-  private beacon: { name: string; x: number; z: number; until: number } | null = null
-
-  /** A Titan called out: point everyone at it for a while. */
-  showCall(name: string, x: number, z: number): void {
-    this.beacon = { name, x, z, until: performance.now() + 25000 }
-  }
-
-  /** Keep the call marker pointing at the Titan from where we stand. */
-  updateBeacon(now: number, from: THREE.Vector3, camYaw: number): void {
-    const b = this.beacon
-    if (!b || now > b.until) {
-      this.beaconEl.style.display = 'none'
-      this.beacon = null
-      return
-    }
-    const dx = b.x - from.x
-    const dz = b.z - from.z
-    // Bearing relative to where the camera looks (yaw 0 looks along -Z).
-    const rel = Math.atan2(dx, dz) - (camYaw + Math.PI)
-    const km = Math.hypot(dx, dz) / 1000
-    this.beaconEl.style.display = 'flex'
-    ;(this.beaconEl.firstElementChild as HTMLElement).style.transform = `rotate(${-rel}rad)`
-    this.beaconEl.lastElementChild!.textContent = `${b.name} calls · ${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}`
-  }
-
-  private readonly buildEl = document.getElementById('build')!
-  private readonly crosshair = document.getElementById('crosshair')!
-  private buildHtml = ''
-
-  /** The build palette (null hides it), with the chosen piece lit. */
-  setBuild(kinds: Array<{ name: string; on: boolean }> | null): void {
-    this.buildEl.style.display = kinds ? 'flex' : 'none'
-    this.crosshair.style.display = kinds ? 'block' : 'none'
-    if (!kinds) return
-    const html = kinds.map((k, i) => `<div class="${k.on ? 'on' : ''}"><kbd>${i + 1}</kbd>${k.name}</div>`).join('')
-    if (html !== this.buildHtml) this.buildEl.innerHTML = this.buildHtml = html
-  }
 
   /** Grip stamina bar, shown only while climbing. */
   setGrip(stamina: number | null): void {
@@ -86,16 +34,6 @@ export class Hud {
     if (stamina === null) return
     this.gripBar.style.width = `${Math.round(stamina * 100)}%`
     this.grip.classList.toggle('low', stamina < 0.25)
-  }
-
-  private readonly netEl = document.getElementById('net')!
-  private netText = ''
-
-  /** The mode chip (click it, or press M, for the world panel). */
-  net(mode: 'connecting' | 'online' | 'offline', players: number, single: boolean): void {
-    const t =
-      mode === 'online' ? `<b>●</b> online · ${players} here` : mode === 'connecting' ? 'connecting…' : single ? 'single player ⚙' : 'offline'
-    if (t !== this.netText) this.netEl.innerHTML = this.netText = t
   }
 
   loaded(): void {

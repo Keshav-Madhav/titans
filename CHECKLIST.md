@@ -1,7 +1,29 @@
 # TITANS — phase ledger
 
 Tick a box only when it is proven (`npm run build` clean + the phase gate passes) and committed.
-Each phase ends playable. Phase details are in PLAN.md §9.
+Each phase ends playable. Phases are in PLAN.md §6.
+
+# The adventure (user, 2026-10-31: "scrap the plan… a full game made around Megalophobia")
+
+## A0 — Wanderer only
+- [x] Checkpoint of the old world committed and tagged `pre-adventure`
+- [x] Removed: towns, townsfolk, caravans, sheep, smoke, boats, settlers, build mode, playing as a
+      giant, multiplayer (client net code, the Colyseus server workspace and its gates)
+- [x] The giants walk by their own AI; footprints, lakes, sleeping giants and climbing unchanged
+- [x] Narration log replaces chat; hints rewritten for the wanderer (walk, take hold, climb high)
+- [x] Fresh save key (`titans.adventure.v1`): the new land will not match old worlds' ground
+- [x] Gates: `single.mjs` rewritten (hints, sound, giants wander, exact reload, a resting giant falls
+      asleep while you are away, new adventure); shots ground, aerial, closeup, walk, titan, climb,
+      rest, ruins, sky, titanlook, wildlife, trail, lakes (now waits for merged lakes to fill)
+
+## A1 — The land
+- [ ] Regions (`shared/src/regions.ts`): valley, Old Wood, Dune Sea, Steps, ringed by mountains
+- [ ] Terrain shaped per region: rolling woods, dunes, terraces
+- [ ] CC0 textured ground (Poly Haven, `tools/pack-textures.py`): splatting by region, slope and
+      height; height-blended; tri-planar cliffs; anti-tiling
+- [ ] Plants per region; air per region
+
+# Archive: the multiplayer world (tag `pre-adventure`)
 
 ## P0 — Bootstrap
 - [x] npm workspaces (`shared`, `client`), strict TS, Vite, `npm run build` clean

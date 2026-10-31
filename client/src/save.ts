@@ -1,16 +1,13 @@
-// Single-player memory: the world you made survives a reload. Saved in
-// localStorage — the ordered terrain events (rounded to the millimetre,
-// compact arrays), every Titan's gait, the mountains, the lakes, and where
-// you stood.
-// Loading replays the events exactly as joining a server does.
+// The adventure, saved in this browser: the ordered terrain events the giants
+// made (rounded to the millimetre, compact arrays), every giant's gait, the
+// sleeping giants, the lakes, and where you stood. Loading replays the events.
 //
-// Settings (single player vs multiplayer, server address) live here too.
+// Settings live here too.
 
 import type { LakesSave, MountainInfo, TitanSnapshot } from '@titans/shared'
-import type { SettlementSave } from './settlement'
 
-const SAVE_KEY = 'titans.world.v1'
-const SETTINGS_KEY = 'titans.settings'
+const SAVE_KEY = 'titans.adventure.v1'
+const SETTINGS_KEY = 'titans.adventure.settings'
 
 export type SavedEvent =
   | ['d', number, number, number, number] // drag: ax, az, bx, bz
@@ -19,30 +16,22 @@ export type SavedEvent =
 
 export interface SavedTitan {
   pose: TitanSnapshot
-  /** You were walking it when you left (it sits down; long enough away, it sleeps). */
-  yours: boolean
-  /** Since when it has rested with nobody walking it (0 = not). */
+  /** Since when it has rested (0 = not); long enough, it sleeps. */
   aloneSince?: number
-  /** Whoever last walked it: its mountain will carry the name. */
-  lastDriver?: string
 }
 
 export interface SaveData {
   v: 1
   savedAt: number
-  name: string
   events: SavedEvent[]
   titans: Record<string, SavedTitan>
   mountains: Record<string, MountainInfo>
   player: { x: number; y: number; z: number }
-  settlement?: SettlementSave | null
   /** The lakes as they stood (rebuilding them from the events alone means re-running all the rain). */
   lakes?: LakesSave
 }
 
 export interface Settings {
-  multiplayer: boolean
-  server: string
   sound: boolean
 }
 
@@ -92,12 +81,12 @@ export function clearWorld(): void {
   }
 }
 
-export function loadSettings(defaultServer: string): Settings {
+export function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>
-    return { multiplayer: s.multiplayer === true, server: s.server || defaultServer, sound: s.sound !== false }
+    return { sound: s.sound !== false }
   } catch {
-    return { multiplayer: false, server: defaultServer, sound: true }
+    return { sound: true }
   }
 }
 

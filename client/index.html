@@ -45,45 +45,12 @@
         padding: 1px 5px; border: 1px solid rgba(244, 239, 230, 0.35); border-radius: 4px;
       }
 
-      #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-      .label {
-        position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 4px; white-space: nowrap;
-        background: rgba(18, 20, 26, 0.5); color: var(--ink); font-size: 11px; font-weight: 600; display: none;
-      }
-      .label.climbing { background: rgba(242, 193, 78, 0.85); color: #1b1b1b; }
-      /* The reel's name tag: a short leader line from the giant up to the name. */
-      .label.mountain::before, .label.titan-name::before {
-        content: ''; position: absolute; left: -14px; bottom: -12px; width: 22px; height: 1.5px;
-        background: rgba(255, 255, 255, 0.9); transform: rotate(-52deg); transform-origin: left center;
-        box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-      }
-      .label.mountain, .label.titan-name { background: none; text-align: left; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); font-size: 13px; }
-      .label.mountain b, .label.titan-name b { display: block; font-size: 15px; }
-      .label.mountain small, .label.titan-name small { display: block; font-size: 10px; letter-spacing: 0.14em; opacity: 0.85; }
-      .label.climbing::before { content: '▲ '; }
       #grip {
         position: fixed; left: 50%; bottom: 62px; width: 160px; height: 6px; margin-left: -80px; border-radius: 3px;
         background: rgba(18, 20, 26, 0.45); display: none; overflow: hidden;
       }
       #grip i { display: block; height: 100%; width: 100%; background: #f2c14e; transition: background 0.3s; }
       #grip.low i { background: #e0573f; }
-      #beacon {
-        position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 8px;
-        padding: 5px 12px; border-radius: 999px; background: rgba(242, 193, 78, 0.9); color: #1b1b1b; font-weight: 700;
-        font-size: 12px; pointer-events: none;
-      }
-      #beacon i { display: inline-block; font-style: normal; transition: transform 0.15s linear; }
-      #build {
-        position: fixed; left: 50%; bottom: 62px; transform: translateX(-50%); display: none; gap: 6px;
-        padding: 6px; border-radius: 10px; background: var(--panel);
-      }
-      #build div { padding: 6px 10px; border-radius: 7px; color: var(--ink-dim); font-size: 12px; white-space: nowrap; }
-      #build div.on { background: var(--accent); color: #1b1b1b; font-weight: 700; }
-      #build div kbd { font: 600 10px ui-monospace, Menlo, monospace; opacity: 0.8; margin-right: 4px; }
-      #crosshair {
-        position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
-        background: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25); display: none; pointer-events: none;
-      }
       #tips {
         position: fixed; top: 92px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
         max-width: min(560px, calc(100vw - 32px)); padding: 9px 12px 9px 14px; border-radius: 10px;
@@ -94,46 +61,16 @@
         border: 1px solid rgba(244, 239, 230, 0.35);
       }
       #tips button { flex: none; border: 0; background: none; color: var(--ink-dim); cursor: pointer; font-size: 14px; }
-      #chat { position: fixed; left: 14px; bottom: 64px; width: min(380px, calc(100vw - 28px)); }
-      #chat-log { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
-      #chat-log .line {
-        align-self: flex-start; max-width: 100%; padding: 3px 8px; border-radius: 6px;
+      #narration {
+        position: fixed; left: 14px; bottom: 64px; width: min(420px, calc(100vw - 28px));
+        display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+      }
+      #narration .line {
+        align-self: flex-start; max-width: 100%; padding: 4px 10px; border-radius: 6px;
         background: var(--panel); color: var(--ink); transition: opacity 1.2s; overflow-wrap: anywhere;
       }
-      #chat-log .line.old { opacity: 0; }
-      /* Names keep their cloak colour, lifted so dark cloaks stay readable on the dark panel. */
-      #chat-log .line b { filter: brightness(1.55) saturate(1.15); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
-      #chat-log.open .line.old { opacity: 0.85; }
-      #chat-input {
-        display: none; width: 100%; margin-top: 6px; padding: 7px 10px; border-radius: 7px; outline: none;
-        border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(18, 20, 26, 0.72); color: var(--ink); font: inherit;
-      }
-      #net {
-        position: fixed; top: 44px; right: 14px; padding: 3px 9px; border-radius: 999px;
-        background: var(--panel); color: var(--ink-dim); font-size: 11px; cursor: pointer;
-      }
-      #net:hover { color: var(--ink); }
-      #menu {
-        position: fixed; top: 74px; right: 14px; width: 290px; padding: 14px 16px; border-radius: 10px; display: none;
-        background: rgba(18, 20, 26, 0.86); color: var(--ink); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-      }
-      #menu h2 { margin: 0 0 10px; font: 700 13px/1 ui-sans-serif, system-ui; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
-      #menu label { display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer; }
-      #menu small { display: block; margin: -2px 0 8px 24px; color: var(--ink-dim); }
-      #menu-server-row { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px 24px; }
-      #menu input[type=text] {
-        padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(244, 239, 230, 0.25);
-        background: rgba(0, 0, 0, 0.3); color: var(--ink); font: 12px ui-monospace, Menlo, monospace;
-      }
-      #menu .row { display: flex; gap: 8px; margin-top: 12px; }
-      #menu button {
-        flex: 1; padding: 7px 10px; border-radius: 7px; border: 0; cursor: pointer; font: 600 12px ui-sans-serif, system-ui;
-        background: rgba(244, 239, 230, 0.12); color: var(--ink);
-      }
-      #menu button.primary { background: var(--accent); color: #1b1b1b; }
-      #menu button.danger { color: #f0a090; }
-      #menu-close { position: absolute; top: 8px; right: 10px; flex: none !important; width: auto; padding: 2px 8px !important; background: none !important; }
-      #net b { color: #8fd18f; font-weight: 700; }
+      #narration .line.old { opacity: 0; }
+      #narration .line b { color: var(--accent); }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
         background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
@@ -152,25 +89,9 @@
     <div id="perf"></div>
     <div id="role"></div>
     <div id="hint"></div>
-    <div id="labels"></div>
     <div id="grip"><i></i></div>
-    <div id="beacon"><i>▲</i><span></span></div>
-    <div id="build"></div>
     <div id="tips"><span></span><button aria-label="Dismiss hints">✕</button></div>
-    <div id="crosshair"></div>
-    <div id="net" title="World settings (M)"></div>
-    <div id="menu">
-      <button id="menu-close" aria-label="Close">✕</button>
-      <h2>World</h2>
-      <label><input type="radio" name="mode" id="menu-sp" /> Single player</label>
-      <small>Your world, saved in this browser. The default.</small>
-      <label><input type="radio" name="mode" id="menu-mp" /> Multiplayer</label>
-      <small>Join a shared world on a server.</small>
-      <div id="menu-server-row"><span style="font-size:11px;color:var(--ink-dim)">Server</span><input type="text" id="menu-server" spellcheck="false" /></div>
-      <label style="margin-top:10px"><input type="checkbox" id="menu-sound" /> Sound</label>
-      <div class="row"><button class="primary" id="menu-apply">Apply</button><button class="danger" id="menu-new">New world</button></div>
-    </div>
-    <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="240" placeholder="Say something…" autocomplete="off" /></div>
+    <div id="narration"></div>
     <div id="loading">
       <div>
         <h1>TITANS</h1>

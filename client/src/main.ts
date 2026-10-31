@@ -1,3 +1,7 @@
+// TITANS — a single-player adventure among giants. You are a wanderer; the
+// giants walk on their own, reshaping the land (footprints become lakes,
+// sleeping giants become mountains), and you explore, follow and climb them.
+
 import * as THREE from 'three'
 import {
   applyDrag,
@@ -10,8 +14,6 @@ import {
   impactFor,
   DORMANT_AFTER_MS,
   LakeSystem,
-  MOVE_SEND_MS,
-  STOMP_COOLDOWN_S,
   Terrain,
   TITAN_HEIGHT,
   WORLD_SEED,
@@ -19,7 +21,6 @@ import {
   type GaitEvent,
   type GaitInput,
   type MountainRise,
-  type Role,
   TitanBrain,
   TITAN_SPAWNS,
   type TitanSnapshot as Snap,
@@ -32,47 +33,41 @@ import { Wanderer } from './wanderer'
 import { Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
-import { CameraRig, WANDERER_CAM, type CameraProfile } from './camera-rig'
+import { CameraRig, WANDERER_CAM } from './camera-rig'
 import { Hud } from './hud'
-import { Net } from './net'
-import { Remotes } from './remotes'
-import { Chat } from './chat'
-import { loadIdentity } from './identity'
+import { Narration } from './narration'
 import { Climber } from './climb'
 import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
-import { KIND_NAME, KINDS, Settlement, TOWN_RADIUS, type BuildingKind } from './settlement'
-import { Townsfolk } from './townsfolk'
-import { Caravan } from './caravan'
 import { ancientTrails } from './ancient'
 import { Ruins } from './ruins'
-import { Birds, Boats, Livestock, Smoke } from './life'
+import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation } from './vegetation'
 import { Sound } from './audio'
 import { Tips } from './tips'
-import { toScreen } from './screen'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
-import { Menu } from './menu'
-import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
+import { clearWorld, loadSettings, loadWorld, packEvent, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
 const STEP = 1 / 60
 const params = new URLSearchParams(location.search)
+/** Tools open ?offline: a fresh, unsaved world whose giants stand still unless ?wild. */
+const toolMode = params.has('offline')
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   powerPreference: 'high-performance',
-  // A 1.8 m Wanderer and a 180 m Titan under a 45 km sky: reversed depth keeps
+  // A 1.8 m wanderer and a 300 m giant under a 45 km sky: reversed depth keeps
   // precision at both ends. Falls back to the standard buffer without EXT_clip_control.
   reversedDepthBuffer: params.get('rdb') !== '0',
 })
 renderer.setSize(innerWidth, innerHeight, false)
-// ACES plus the reel's grade (atmosphere.ts patches CustomToneMapping).
+// ACES plus a warm grade (atmosphere.ts patches CustomToneMapping).
 renderer.toneMapping = THREE.CustomToneMapping
 renderer.toneMappingExposure = 0.84
 renderer.shadowMap.enabled = true
@@ -95,7 +90,7 @@ const sky = new SkySystem(scene, renderer)
 installAtmosphere(sky.sunDir)
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 
-// New pools only in hollows a Titan dug (natural hollows stay dry).
+// New pools only in hollows a giant dug (natural hollows stay dry).
 const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
 const water = new WaterView()
 scene.add(water.group)
@@ -103,109 +98,39 @@ const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
 const wildlife = new Wildlife(terrain, lakes)
 scene.add(wildlife.group)
-const settlement = new Settlement(terrain, lakes, paint, pave)
-scene.add(settlement.group)
-const townsfolk = new Townsfolk(terrain, settlement)
-scene.add(townsfolk.group)
-let lastGrowNote = -Infinity
-settlement.onSettle = (t, why) => {
-  townsfolk.sync()
-  populate()
-  saveDirty = true
-  chat.system(
-    why === 'mountain'
-      ? `Settlers have come to the sleeping giant's feet: ${t.name} is founded.`
-      : why === 'caravan'
-        ? `The caravan has settled for good: ${t.name} is founded by the water.`
-        : `Settlers have found the giant's lake: ${t.name} is founded on its shore.`,
-  )
-}
-settlement.onGrow = (t, b) => {
-  townsfolk.sync()
-  saveDirty = true
-  // Word of your own towns growing — now and then, not every roof.
-  const now = performance.now()
-  if (t.player && now - lastGrowNote > 180000) {
-    lastGrowNote = now
-    chat.system(`${t.name} is growing: a new ${KIND_NAME[b.kind].toLowerCase()} went up.`)
-  }
-}
 const clouds = new Clouds()
 scene.add(clouds.mesh)
 const birds = new Birds(terrain)
 scene.add(birds.mesh)
-const smoke = new Smoke()
-scene.add(smoke.mesh)
-const livestock = new Livestock(terrain)
-scene.add(livestock.group)
-const boats = new Boats(terrain)
-scene.add(boats.group)
-/** Towns that already have their sheep and travellers (by id). */
-const peopled = new Set<number>()
-/** Sheep by every town's fields, travellers on the roads: once per town. */
-function populate(): void {
-  for (const t of settlement.towns) {
-    if (peopled.has(t.id)) continue
-    peopled.add(t.id)
-    const fields = settlement.buildings.filter((b) => b.town === t.id && b.kind === 'field')
-    for (const f of fields.slice(0, 2)) livestock.addFlock(f.x + Math.sin(f.rot) * 26, f.z + Math.cos(f.rot) * 26, 7 + Math.floor(Math.random() * 7))
-    townsfolk.addTravellers(t.player ? 0 : 2)
-  }
-}
-/** A caravan that follows the giants (made with the old villages; single player). */
-let caravan: Caravan | null = null
 // The First Ones' trails and ruins come from the seed alone, so they are the
 // same in every session: ruins stand clear of the trails' lakes and rivers.
 const trails = ancientTrails(WORLD_SEED, TITAN_HEIGHT, (x, z) => terrain.heightAt(x, z))
 const trailPoints = trails.flatMap((t) => t.events.map((e) => (e.type === 'drag' ? { x: e.bx, z: e.bz } : { x: e.x, z: e.z })))
 const ruins = new Ruins(terrain, WORLD_SEED, (x, z) => Math.hypot(x, z) > 300 && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < 140))
 scene.add(ruins.mesh)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => settlement.occupies(x, z) || ruins.occupies(x, z))
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
 quality.refresh()
 terrainView.fresh = (x, z) => vegetation.isFresh(x, z)
 vegetation.onRegrow = (x0, z0, x1, z1) => terrainView.markDirty(x0, z0, x1, z1)
-paint.onPaint = pave.onPaint = (x0, z0, x1, z1) => {
-  terrainView.markDirty(x0, z0, x1, z1)
-  vegetation.markDirty(x0, z0, x1, z1)
-}
-/** Build mode: the chosen piece (null = not building) and its turn. */
-let building: BuildingKind | null = null
-let buildRot = 0
-/** Villages that have taken in something you built (said once each). */
-const welcomed = new Set<number>()
-const buildAt = { x: 0, z: 0, ok: false }
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
+rig.setProfile(WANDERER_CAM)
+sky.setShadowRadius(260)
 const hud = new Hud()
-const chat = new Chat()
-const identity = loadIdentity()
-const net = new Net()
-const remotes = new Remotes()
-scene.add(remotes.group)
+const narration = new Narration()
 
-// The reel's adventurer wears red; in multiplayer each player keeps their own colour.
-const wanderer = new Wanderer(params.has('mp') || params.has('server') || loadSettings(Net.defaultUrl()).multiplayer ? identity.color : 0xa8291f)
+const wanderer = new Wanderer(0xa8291f)
 wanderer.place(0, terrain.heightAt(0, 0), 0)
 scene.add(wanderer.obj)
 
-/**
- * The awake Titans, by slot id ('t1', 't2', …). Some players are giants: the
- * world keeps a few awake at once. Slot 1 stands a short walk from spawn
- * (tools rely on it); the server's TITAN_SPAWNS place them all.
- */
+/** The waking giants, by slot id ('t1', 't2'). Slot 1 stands a short walk from spawn (tools rely on it). */
 interface AwakeTitan {
   titan: Titan
-  label: HTMLDivElement
-  /** Since when it has rested with nobody walking it (0 = not). Offline dormancy. */
+  /** Since when it has rested (0 = not): long enough, it sleeps and becomes a mountain. */
   aloneSince: number
-  /** Whoever last walked it: its mountain will carry the name. */
-  lastDriver: string
-  /** Who walks it: a player's name, 'A wild Titan' or 'A waiting Titan'. */
-  name: string
-  /** Offline, with no server to run it, its wild mind runs here. */
   brain: TitanBrain
 }
 const titans = new Map<string, AwakeTitan>()
@@ -213,68 +138,20 @@ function addTitan(id: string, x: number, z: number, heading: number): AwakeTitan
   const slot = Number(id.slice(1)) || 1
   const titan = new Titan(TITAN_HEIGHT, x, z, heading, 7 + (slot - 1) * 13)
   scene.add(titan.group)
-  const label = document.createElement('div')
-  label.className = 'label titan-name'
-  document.getElementById('labels')!.appendChild(label)
-  const a = { titan, label, name: 'A waiting Titan', brain: new TitanBrain(20261030 + slot * 7919), aloneSince: 0, lastDriver: '' }
+  const a = { titan, brain: new TitanBrain(20261030 + slot * 7919), aloneSince: 0 }
   titans.set(id, a)
   return a
 }
 for (let i = 0; i < 2; i++) addTitan(`t${i + 1}`, TITAN_SPAWNS[i].x, TITAN_SPAWNS[i].z, TITAN_SPAWNS[i].heading)
-/** Slot 1: the Titan near spawn. Tools address it as `g.titan`. */
+/** Slot 1: the giant near spawn. Tools address it as `g.titan`. */
 const first = () => titans.get('t1')!.titan
-/** Which Titan this player walks ('' = none). */
-let driving = ''
-/** The Titan we walk, or the first one (for HUD and tools when we walk none). */
-const mine = () => titans.get(driving)?.titan ?? first()
 const mountains = new Mountains()
 scene.add(mountains.group)
-/** Any Titan by id: an awake slot or a mountain. */
-const titanOf = (id: string) => titans.get(id)?.titan ?? mountains.get(id)
 const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
 
-const TITAN_CAM: CameraProfile = {
-  minDist: 0.9 * TITAN_HEIGHT,
-  maxDist: 14 * TITAN_HEIGHT,
-  dist: 3.1 * TITAN_HEIGHT,
-  focusHeight: 0.62 * TITAN_HEIGHT,
-  follow: 3,
-}
-
-let role: Role = 'wanderer'
-/** Tools can walk the Titan while the player stays a Wanderer (offline only). */
-const autopilot = { forward: 0, turn: 0 }
-
-function setRole(next: Role, titanId = driving): void {
-  if (next === 'wanderer' && role === 'titan') {
-    // Step out beside the left foot of the Titan we were walking.
-    const t = mine()
-    const a = t.ankle(0)
-    const ox = a.x + Math.cos(t.gait.heading) * 0.12 * TITAN_HEIGHT
-    const oz = a.z - Math.sin(t.gait.heading) * 0.12 * TITAN_HEIGHT
-    wanderer.place(ox, terrain.heightAt(ox, oz), oz)
-  }
-  role = next
-  driving = next === 'titan' ? titanId : ''
-  const taken = titans.get(driving)
-  if (taken) taken.lastDriver = identity.name
-  if (role === 'titan') {
-    if (climber.active) climber.release(0)
-    wanderer.obj.visible = false
-    rig.setProfile(TITAN_CAM)
-    rig.yaw = mine().gait.heading + Math.PI
-    rig.pitch = 0.32
-    sky.setShadowRadius(4.3 * TITAN_HEIGHT)
-  } else {
-    wanderer.obj.visible = true
-    rig.setProfile(WANDERER_CAM)
-    sky.setShadowRadius(260)
-  }
-  hud.setRole(role, mine().gait.steps)
-}
-
 // ---------------------------------------------------------------------------
-// Terrain events: from the local Titan offline, from the server online.
+// Terrain events: the giants' footfalls, drags, and the hills that rise under
+// a giant gone to sleep.
 
 // Everything one stride did to the ground, so lakes re-flood once per footfall.
 const strideBox: Box = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }
@@ -284,7 +161,7 @@ function grow(b: Box): void {
   strideBox.x1 = Math.max(strideBox.x1, b.x1)
   strideBox.z1 = Math.max(strideBox.z1, b.z1)
   terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
-  // A Titan's foot flattens whatever grew there; it greens over again later.
+  // A giant's foot flattens whatever grew there; it greens over again later.
   // (Replays and the First Ones' trails are old ground already.)
   if (!replaying) vegetation.trample(b.x0, b.z0, b.x1, b.z1)
   else vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
@@ -294,42 +171,26 @@ let replaying = false
 /** True while laying down the First Ones' trails (their footfalls are not "steps" anyone saw). */
 let ancient = false
 
-/** Buildings a Titan just crushed: rubble, and word of it. */
-function crushed(gone: ReturnType<Settlement['crush']>, replay: boolean): void {
-  if (gone.length === 0) return
-  townsfolk.sync()
-  saveDirty = true
-  if (replay) return
-  for (const b of gone) effects.impact(b.x, terrain.heightAt(b.x, b.z), b.z, 24)
-  sound.rubble(Math.hypot(camera.position.x - gone[0].x, camera.position.z - gone[0].z))
-  const names = gone.map((b) => KIND_NAME[b.kind].toLowerCase())
-  const where = settlement.townById(gone[0].town)?.name ?? 'the town'
-  chat.system(`A Titan crushed ${names.length === 1 ? `the ${names[0]}` : `${names.length} buildings`} in ${where}.`)
-}
-
 /** Every footfall so far (tools read it to measure prints and canals). */
 const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
-/** Apply one terrain event. `replay` = catching up on join: no dust, no shake. */
+/** Apply one terrain event. `replay` = catching up on load: no dust, no shake. */
 function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   replaying = replay
   const H = TITAN_HEIGHT
   if (ev.type === 'mountain') {
-    // A Titan fell asleep: the hill rising under it.
+    // A giant fell asleep: the hill rising under it.
     const box = applyMountain(terrain.delta, mountainFor(H, ev.x, ev.z))
     terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
     lakes.onDeform(box)
-    settlement.reseat()
     if (!replay) rig.shake(Math.max(0, 1 - Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) / (8 * H)) * 0.01 * H)
     return
   }
   if (ev.type === 'drag') {
     grow(applyDrag(terrain.delta, dragFor(H, ev.ax, ev.az, ev.bx, ev.bz)))
-    crushed(settlement.crushAlong(ev.ax, ev.az, ev.bx, ev.bz, 0.045 * H), replay)
     if (!replay) effects.drag(ev.bx, terrain.heightAt(ev.bx, ev.bz), ev.bz, H)
     return
   }
-  crushed(settlement.crush(ev.x, ev.z, (ev.stomp ? 0.2 : 0.11) * H), replay)
   if (!ancient) falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
   grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
@@ -345,114 +206,36 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   const gy = terrain.heightAt(ev.x, ev.z)
   if (ev.stomp) {
     effects.shockwave(ev.x, gy, ev.z, H)
-    // The shockwave throws Wanderers on the ground off their feet.
+    // The shockwave throws a wanderer on the ground off their feet.
     const dx = wanderer.pos.x - ev.x
     const dz = wanderer.pos.z - ev.z
     const dw = Math.hypot(dx, dz)
-    if (role === 'wanderer' && !climber.active && dw < 0.6 * H) {
+    if (!climber.active && dw < 0.6 * H) {
       const k = 1 - dw / (0.6 * H)
       wanderer.knock(new THREE.Vector3((dx / (dw || 1)) * 14 * k, 5 + 5 * k, (dz / (dw || 1)) * 14 * k), 0.8 + 1.2 * k)
     }
   } else {
     effects.impact(ev.x, gy, ev.z, H)
   }
-  // The ground shakes for anyone near the footfall.
+  // The ground shakes near the footfall.
   const d = Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z)
-  rig.shake(Math.max(0, 1 - d / (6 * H)) * (role === 'titan' ? 0.006 : 0.012) * H * (ev.stomp ? 2.5 : 1))
+  rig.shake(Math.max(0, 1 - d / (6 * H)) * 0.012 * H * (ev.stomp ? 2.5 : 1))
 }
 
-// ---------------------------------------------------------------------------
-// Network. Online, the server owns the Titan: each patch the local Titan
-// adopts the server's gait, then extrapolates until the next one.
-
-net.onTerrain = (e, replay) => onGait(e, replay)
-net.onChat = (m) => chat.add(m)
-net.onShrug = (id) => titans.get(id)?.titan.shrug()
-net.onCall = (c) => {
-  hud.showCall(c.name, c.x, c.z)
-  sound.call(Math.hypot(camera.position.x - c.x, camera.position.z - c.z))
-  chat.system(`${c.name}, the Titan, calls out.`)
-}
-// A world you come back to has had its rain: its lakes are already full.
-net.onSynced = (n) => {
-  if (n > 0) lakes.fillAll()
-}
-net.onPatch = () => {
-  const s = net.state
-  if (!s) return
-  let mineNow = ''
-  s.titans.forEach((st, id) => {
-    const a = titans.get(id) ?? addTitan(id, st.x, st.z, st.heading)
-    a.titan.gait.restore(st)
-    // Who walks it: a player's name, or nobody (it walks itself).
-    const driver = st.driver ? s.players.get(st.driver) : undefined
-    a.name = driver ? driver.name : st.wild ? 'A wild Titan' : 'A waiting Titan'
-    if (st.driver === net.sessionId) mineNow = id
-  })
-  for (const id of mountains.sync(s.mountains)) holdOnAsItSleeps(id)
-  remotes.ingest(s.players, net.sessionId)
-  const me = net.me()
-  if (me && (me.role !== role || (role === 'titan' && mineNow !== driving))) setRole(me.role as Role, mineNow)
-  // The server refused a move (too fast, or flying): go back to where it has us.
-  if (me && role === 'wanderer' && Math.hypot(me.x - wanderer.pos.x, me.z - wanderer.pos.z) > 12) {
-    wanderer.place(me.x, me.y, me.z)
-  }
-}
-chat.onOpen = () => input.releaseAll()
-chat.onSend = (text) => {
-  if (net.online) net.sendChat(text)
-  else chat.add({ from: identity.name, color: identity.color, text })
-}
-
-// Single player is the default. Multiplayer only when switched on (the world
-// panel, ?mp, or ?server=…). Tools open ?offline: a fresh, unsaved world
-// whose Titans stand still unless ?wild.
-const settings = loadSettings(Net.defaultUrl())
-const toolMode = params.has('offline')
-const wantsMp = !toolMode && (params.has('mp') || params.has('server') || settings.multiplayer)
-let mode: 'connecting' | 'online' | 'offline' = wantsMp ? 'connecting' : 'offline'
-let wildOffline = !toolMode || params.has('wild')
-/** Single player keeps its world in this browser. */
-let localSave = !toolMode && !wantsMp
-if (mode === 'connecting') {
-  net.connect(params.get('server') ?? settings.server, identity).then((ok) => {
-    mode = ok ? 'online' : 'offline'
-    if (!ok) {
-      wildOffline = true
-      localSave = true
-      loadLocal()
-      ensureVillages()
-    }
-    chat.system(ok ? `You are ${identity.name}. Enter to talk, T to take the nearest Titan.` : 'Multiplayer server not reachable: playing single player.')
-  })
-}
-
+const settings = loadSettings()
+/** The giants wander by themselves (tools' fresh worlds keep them still unless ?wild). */
+let wild = !toolMode || params.has('wild')
+/** The adventure keeps itself in this browser (not in tool mode). */
+let localSave = !toolMode
 const sound = new Sound(settings.sound)
 const tips = new Tips(!toolMode)
-const tipState = { moved: 0, nearTitan: false, titanOrClimb: false, lakes: 0, town: false }
+const tipState = { moved: 0, climbed: false, high: 0 }
 let lastTip = 0
-const menu = new Menu(settings)
-menu.onSound = (on) => {
-  sound.enabled = on
-  saveSettings({ ...settings, sound: on })
-}
-menu.onOpen = () => input.releaseAll()
-menu.onApply = (next) => {
-  saveSettings(next)
-  saveLocal()
-  // Drop any ?mp/?server/?offline so the stored choice decides.
-  location.replace(location.pathname)
-}
-menu.onNewWorld = () => {
-  clearWorld()
-  localSave = false // do not write the old world back on the way out
-  location.replace(location.pathname)
-}
 
 // ---------------------------------------------------------------------------
-// Single-player memory. Every terrain event is recorded; the world, the
-// Titans, the mountains and where you stood are saved every few seconds and
-// when the page goes away; loading replays it all.
+// The save. Every terrain event is recorded; the world, the giants, the
+// sleeping giants and where you stood are saved every few seconds and when
+// the page goes away; loading replays it all.
 
 const localEvents: SavedEvent[] = []
 let lastSave = 0
@@ -468,34 +251,27 @@ function record(ev: GaitEvent | MountainRise): void {
 }
 
 function saveLocal(): void {
-  if (!localSave || mode !== 'offline') return
+  if (!localSave) return
   const data: SaveData = {
     v: 1,
     savedAt: Date.now(),
-    name: identity.name,
     events: localEvents,
-    titans: Object.fromEntries(
-      [...titans].map(([id, a]) => {
-        const yours = role === 'titan' && id === driving
-        return [id, { pose: { ...a.titan.gait.snapshot({} as Snap) }, yours, aloneSince: a.aloneSince, lastDriver: a.lastDriver }]
-      }),
-    ),
+    titans: Object.fromEntries([...titans].map(([id, a]) => [id, { pose: { ...a.titan.gait.snapshot({} as Snap) }, aloneSince: a.aloneSince }])),
     mountains: mountains.infos(),
     player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
-    settlement: settlement.save(),
     lakes: lakes.save(),
   }
-  if (!saveWorld(data)) chat.system('Could not save the world (browser storage is full or blocked).')
+  if (!saveWorld(data)) narration.say('Could not save (browser storage is full or blocked).')
   saveDirty = false
 }
 
-function loadLocal(): void {
+/** Back where you left off. False if there was nothing to load. */
+function loadLocal(): boolean {
   const d = loadWorld()
-  if (!d) return
+  if (!d) return false
   for (const e of d.events) {
-    const ev = unpackEvent(e)
     localEvents.push(e)
-    onGait(ev, true)
+    onGait(unpackEvent(e), true)
   }
   for (const [id, m] of Object.entries(d.mountains)) mountains.add(id, m)
   for (const [id, t] of Object.entries(d.titans)) {
@@ -503,93 +279,30 @@ function loadLocal(): void {
     a.titan.gait.restore(t.pose)
     a.titan.restBlend = t.pose.resting ? 1 : 0
     a.aloneSince = t.aloneSince ?? 0
-    a.lastDriver = t.lastDriver ?? ''
   }
   wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
-  if (d.settlement) {
-    settlement.load(d.settlement)
-    populate()
-    // Towns kept growing while you were away.
-    const grew = settlement.catchUp(Math.min(8, Math.floor((Date.now() - d.savedAt) / 120000)))
-    if (grew) chat.system(`While you were away, the towns built ${grew} new home${grew === 1 ? '' : 's'}.`)
-    townsfolk.sync()
-  }
-  // You left while walking a Titan: it sat down where it stood, alone from
-  // the moment you left. A Titan resting alone long enough slept, and is a
-  // mountain now.
-  for (const [id, t] of Object.entries(d.titans)) {
-    const a = titans.get(id)!
-    if (t.yours) {
-      a.titan.gait.resting = true
-      a.titan.restBlend = 1
-      a.aloneSince = d.savedAt
-      a.lastDriver = d.name
-    }
-    if (a.titan.gait.resting && a.aloneSince && Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
-  }
-  chat.system(`Welcome back, ${d.name}. Your world remembers ${d.events.length.toLocaleString()} footsteps and drags.`)
+  // A giant resting long enough while you were away fell asleep.
+  for (const [id, a] of titans) if (a.titan.gait.resting && a.aloneSince && Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
+  return true
 }
 
-/**
- * A fresh single-player world (and tool mode) starts with its old villages.
- * Multiplayer worlds do not have them yet (the server would have to own them).
- */
-function ensureVillages(): void {
-  if (settlement.towns.length === 0 && !params.has('novillages')) {
-    // The First Ones' trails: old lakes and rivers, grown over. Saved like any
-    // other ground (they are part of this world now).
-    ancient = true
-    for (const trail of trails) {
-      for (const ev of trail.events) {
-        const packed = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
-        const exact = packed ? (unpackEvent(packed) as GaitEvent) : ev
-        onGait(exact, true)
-        record(exact)
-      }
-    }
-    ancient = false
-    lakes.fillAll()
-    // The old villages stand on their shores.
-    const water = lakes.lakes
-      .filter((l) => l.basin.sorted.length >= 800)
-      .sort((a, b) => b.basin.sorted.length - a.basin.sorted.length)
-      .map((l) => ({ x: l.basin.bx, z: l.basin.bz }))
-    const avoid = [{ x: 0, z: 0, r: 380 }, ...TITAN_SPAWNS.map((p) => ({ x: p.x, z: p.z, r: 380 })), ...ruins.sites.map((r) => ({ x: r.x, z: r.z, r: 220 }))]
-    settlement.generate(WORLD_SEED, 3, avoid, (x, z) => biome.forest(x, z), water)
-    // Hamlets already stand by some of the other old lakes: the world is lived in.
-    let hamlets = 0
-    for (const w of water) {
-      if (hamlets >= 4) break
-      if (settlement.towns.some((t) => Math.hypot(t.cx - w.x, t.cz - w.z) < 450)) continue
-      if (ruins.sites.some((r) => Math.hypot(r.x - w.x, r.z - w.z) < 200)) continue
-      if (settlement.hamlet(w.x, w.z, 70, 150)) {
-        hamlets++
-        for (const t of settlement.towns.slice(-1)) for (let k = 0; k < 4; k++) settlement.growNow(t)
-      }
-    }
-    townsfolk.sync()
-    populate()
-  }
-  // A caravan camps on the plain between spawn and the first giant, ready to follow it.
-  if (!caravan && !params.has('novillages')) {
-    caravan = new Caravan(terrain, TITAN_SPAWNS[0].x * 0.45 - 60, TITAN_SPAWNS[0].z * 0.45 + 40)
-    scene.add(caravan.group)
-    // Camped long by water, the caravan's families settle; a new caravan sets out from a town.
-    caravan.onSettle = (x, z) => {
-      if (!lakes.lakes.some((l) => l.level > l.basin.bottom + 0.3 && Math.hypot(l.basin.bx - x, l.basin.bz - z) < 260)) return false
-      if (settlement.towns.some((t) => Math.hypot(t.cx - x, t.cz - z) < 380)) return false
-      const t = settlement.hamlet(x, z, 10, 90)
-      if (!t) return false
-      settlement.onSettle(t, 'caravan')
-      const from = settlement.towns[Math.floor(Math.random() * settlement.towns.length)]
-      caravan!.moveTo(from.cx + Math.sin(from.dir) * 160, from.cz + Math.cos(from.dir) * 160)
-      return true
+/** A new adventure: the First Ones' old trails, their lakes and rivers grown over. */
+function newWorld(): void {
+  ancient = true
+  for (const trail of trails) {
+    for (const ev of trail.events) {
+      const packed = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
+      const exact = packed ? (unpackEvent(packed) as GaitEvent) : ev
+      onGait(exact, true)
+      record(exact)
     }
   }
+  ancient = false
+  lakes.fillAll()
 }
 
 addEventListener('pagehide', () => saveLocal())
@@ -597,31 +310,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) saveLocal()
 })
 
-/** Take the nearest free Titan (or the one named), or step out of yours. */
-function toggleRole(want?: string): void {
-  const next: Role = role === 'titan' ? 'wanderer' : 'titan'
-  if (next === 'wanderer') {
-    if (mode === 'online') net.requestRole('wanderer')
-    else setRole('wanderer')
-    return
-  }
-  const taken = (id: string) => mode === 'online' && (net.state?.titans.get(id)?.driver ?? '') !== ''
-  const free = [...titans].filter(([id, a]) => !taken(id) && !a.titan.gait.resting)
-  const pick = want
-    ? free.find(([id]) => id === want)
-    : free.sort(([, a], [, b]) => Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z) - Math.hypot(b.titan.gait.x - wanderer.pos.x, b.titan.gait.z - wanderer.pos.z))[0]
-  if (!pick) {
-    chat.system('Every Titan has someone walking it.')
-    return
-  }
-  if (mode === 'online') net.requestRole('titan', pick[0]) // the role changes when the server's patch says so
-  else setRole('titan', pick[0])
-}
-
 // The debug readout is out of the way unless asked for: ` toggles it (or ?debug).
 if (params.has('debug')) document.body.classList.add('debug')
 addEventListener('keydown', (e) => {
-  if (e.code === 'Backquote' && (e.target as HTMLElement | null)?.tagName !== 'INPUT') document.body.classList.toggle('debug')
+  if (e.code === 'Backquote') document.body.classList.toggle('debug')
 })
 
 addEventListener('resize', () => {
@@ -636,83 +328,31 @@ addEventListener('resize', () => {
 let acc = 0
 let last = performance.now()
 let ready = false
-let lastMoveSent = 0
-/** Simulation speed multiplier — tools fast-forward the Titan with it (offline). */
+/** Simulation speed multiplier — tools fast-forward the giants with it. */
 const clock = { scale: 1 }
+/** Tools can walk giant 1 by hand. */
+const autopilot = { forward: 0, turn: 0 }
 const gaitEvents: GaitEvent[] = []
-const discard: GaitEvent[] = []
+const threats: Threat[] = []
+const chest = new THREE.Vector3()
+const still: GaitInput = { forward: 0, turn: 0 }
 
 function simulate(dt: number): void {
-  if (!chat.typing && input.pressed('KeyT')) toggleRole()
-
-  let gaitInput: GaitInput = autopilot
-  if (role === 'titan') {
-    const ax = input.axes()
-    gaitInput = { forward: Math.max(0, ax.y), turn: -ax.x }
-    if (!chat.typing) {
-      if (input.pressed('KeyQ')) shrug()
-      if (input.pressed('KeyR')) ploughMode = !ploughMode
-      if (input.pressed('KeyF')) stomp()
-      if (input.pressed('KeyC')) callOut()
-      if (input.pressed('KeyX')) {
-        if (mode === 'online') net.sendRest()
-        else mine().gait.resting = !mine().gait.resting
-      }
-    }
-    if (mode !== 'online') mine().gait.plough = ploughMode
-  } else if (building) {
-    // Build mode: look where it goes, click to build, Q/E to turn, 1–4 to choose.
-    if (!chat.typing) {
-      if (input.pressed('KeyB')) setBuilding(null)
-      for (let i = 0; i < KINDS.length; i++) if (input.pressed(`Digit${i + 1}`)) setBuilding(KINDS[i])
-      if (input.held('KeyQ')) buildRot += dt * 1.6
-      if (input.held('KeyE')) buildRot -= dt * 1.6
-      if (building && input.clicked()) {
-        if (!buildAt.ok) chat.system(settlement.preview(building, buildAt.x, buildAt.z, buildRot) ?? 'Look at the ground where it should go.')
-        else {
-          const towns = settlement.towns.length
-          const b = settlement.place(building, buildAt.x, buildAt.z, buildRot)
-          if (typeof b === 'string') chat.system(b)
-          else {
-            townsfolk.sync()
-            saveDirty = true
-            const town = settlement.towns.find((t) => t.id === b.town)!
-            if (settlement.towns.length > towns) chat.system(`You founded ${town.name}. Give it a well and a few homes, and it will grow.`)
-            else if (!town.player && !welcomed.has(town.id)) {
-              // Built onto an old village: it is theirs, and they are glad of it.
-              welcomed.add(town.id)
-              chat.system(`The people of ${town.name} take in your ${KIND_NAME[b.kind].toLowerCase()}.`)
-            }
-          }
-        }
-      }
-    }
-    wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
-    climber.pushOut(wanderer.pos)
-  } else if (climber.active) {
-    if (!chat.typing && input.pressed('KeyE')) letGo(0.6)
-    else if (!chat.typing && input.pressed('Space')) letGo(4.5)
-    else if (
-      !climber.step(
-        dt,
-        input.axes(),
-        rig.yaw,
-        heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0,
-        !!heldAwake()?.shrugging,
-      )
-    ) {
-      chat.system('You lost your grip.')
+  if (climber.active) {
+    if (input.pressed('KeyE')) letGo(0.6)
+    else if (input.pressed('Space')) letGo(4.5)
+    else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
+      narration.say('You lost your grip.')
       letGo(1.2)
     } else {
-      // The physics body rides along, for the camera, the server, and the moment we let go.
+      // The body rides along, for the camera and the moment we let go.
       wanderer.place(climber.world.x, climber.world.y, climber.world.z)
     }
   } else {
-    if (!chat.typing && input.pressed('KeyE')) {
+    if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
     }
-    if (!chat.typing && input.pressed('KeyB')) setBuilding(KINDS[0])
     if (!climber.active) {
       wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
       climber.pushOut(wanderer.pos)
@@ -721,23 +361,12 @@ function simulate(dt: number): void {
 
   for (const [id, a] of titans) {
     const t = a.titan
-    const ours = role === 'titan' && id === driving
-    if (mode === 'online') {
-      // Extrapolate the server's Titans between patches. Their events are
-      // the server's to make; ours are thrown away.
-      const predict = ours ? gaitInput : { forward: t.gait.speed > 0.05 ? 1 : 0, turn: 0 }
-      discard.length = 0
-      t.step(dt, predict, discard)
-      continue
-    }
-    // Offline: we walk ours; tools drive slot 1 by autopilot; with no server
-    // found (or ?wild) the rest wander by themselves.
-    let inp: GaitInput = ours ? gaitInput : id === 't1' ? autopilot : { forward: 0, turn: 0 }
-    if (!ours && wildOffline && !(id === 't1' && autopilot.forward !== 0) && !t.gait.resting) {
+    const driven = id === 't1' && autopilot.forward !== 0
+    let inp: GaitInput = driven ? autopilot : still
+    if (wild && !driven && !t.gait.resting) {
       const o = a.brain.think(dt, t.gait, {
         heightAt: (x, z) => terrain.heightAt(x, z),
         avoid: [
-          ...settlement.towns.map((tw) => ({ x: tw.cx, z: tw.cz, r: TOWN_RADIUS + TITAN_HEIGHT })),
           ...mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
           ...[...titans.values()].filter((b) => b !== a).map((b) => ({ x: b.titan.gait.x, z: b.titan.gait.z, r: TITAN_HEIGHT * 2.5 })),
         ],
@@ -745,11 +374,7 @@ function simulate(dt: number): void {
       inp = o
       t.gait.plough = o.plough
       if (o.stomp) t.gait.stompArmed = true
-      if (o.call) {
-        hud.showCall('A wild Titan', t.gait.x, t.gait.z)
-        chat.system('A wild Titan calls out.')
-        sound.call(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z))
-      }
+      if (o.call) sound.call(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z))
     }
     gaitEvents.length = 0
     t.step(dt, inp, gaitEvents)
@@ -761,8 +386,8 @@ function simulate(dt: number): void {
       onGait(exact)
       record(exact)
     }
-    // The server's rule, offline: resting with nobody walking it, it falls asleep.
-    if (t.gait.resting && !ours && !toolMode) {
+    // Resting long enough, a giant falls asleep.
+    if (t.gait.resting && !toolMode) {
       if (!a.aloneSince) a.aloneSince = Date.now()
       else if (Date.now() - a.aloneSince > DORMANT_AFTER_MS) goDormant(id)
     } else {
@@ -772,80 +397,28 @@ function simulate(dt: number): void {
   // A refill that ran out of loading time carries on a little each frame.
   if (lakes.settling) lakes.settle(4)
   else lakes.step(dt)
-  // Big things to keep clear of: every awake Titan (more so when it walks),
-  // and a Wanderer running right at them.
+  // Big things to keep clear of: every waking giant (more so when it walks),
+  // and a wanderer running right at them.
   threats.length = 0
   for (const a of titans.values()) {
     const g = a.titan.gait
     threats.push({ x: g.x, z: g.z, r: g.speed > 0.5 ? 0.9 * TITAN_HEIGHT : 0.45 * TITAN_HEIGHT })
   }
-  if (role === 'wanderer' && !climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
+  if (!climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
-  townsfolk.step(dt, threats, camera.position)
-  livestock.step(dt, camera.position, threats, (x, z) => settlement.wet(x, z))
-  boats.step(dt, lakes.lakes, settlement.towns)
-  caravan?.step(dt, [...titans.values()].map((a) => a.titan), (x, z) => settlement.wet(x, z))
-  if (!toolMode || params.has('grow')) {
-    settlement.grow(dt)
-    settlement.emerge(dt, lakes.lakes)
-  }
-  if (role === 'wanderer' && !climber.active) tipState.moved += wanderer.speed * dt
-  if (role === 'titan' || climber.active) tipState.titanOrClimb = true
-}
-const threats: Threat[] = []
-
-const chest = new THREE.Vector3()
-
-/** Enter build mode with a piece chosen, or leave it (null). */
-function setBuilding(kind: BuildingKind | null): void {
-  if (kind && (role !== 'wanderer' || climber.active)) return
-  building = kind
-  if (!kind) settlement.preview(null)
-}
-
-const _ray = new THREE.Vector3()
-/** Where the centre of the view meets the ground (within 60 m of the camera), for placing. */
-function aimAtGround(): void {
-  camera.getWorldDirection(_ray)
-  buildAt.ok = false
-  const o = camera.position
-  for (let t = 2; t < 60; t += 0.5) {
-    const x = o.x + _ray.x * t
-    const y = o.y + _ray.y * t
-    const z = o.z + _ray.z * t
-    if (y <= terrain.heightAt(x, z)) {
-      buildAt.x = x
-      buildAt.z = z
-      buildAt.ok = true
-      return
-    }
+  if (!climber.active) tipState.moved += wanderer.speed * dt
+  else {
+    tipState.climbed = true
+    tipState.high = Math.max(tipState.high, climber.world.y - terrain.heightAt(climber.world.x, climber.world.z))
   }
 }
 
-const labelPos = new THREE.Vector3()
-const labelPx = { x: 0, y: 0 }
-/** "Morag_77 · TITAN · 1,412 STEPS", over each awake Titan's head (the reel's label). */
-function placeTitanLabels(): void {
-  for (const [id, a] of titans) {
-    const t = a.titan
-    const name = mode === 'online' ? a.name : role === 'titan' && id === driving ? identity.name : wildOffline ? 'A wild Titan' : 'A waiting Titan'
-    labelPos.copy(t.head)
-    labelPos.y += 0.12 * TITAN_HEIGHT
-    const dist = labelPos.distanceTo(camera.position)
-    const show = !(role === 'titan' && id === driving) && dist < 5000 && !t.gait.resting && toScreen(labelPos, camera, labelPx)
-    a.label.style.display = show ? 'block' : 'none'
-    if (!show) continue
-    a.label.innerHTML = `<b>${name.replace(/[&<>]/g, '')}</b><small>TITAN · ${t.gait.steps.toLocaleString()} STEPS</small>`
-    a.label.style.transform = `translate(14px, -100%) translate(${labelPx.x}px, ${labelPx.y - 14}px)`
-  }
-}
-
-/** The awake Titan the climber holds, if any (mountains do not walk or shrug). */
+/** The waking giant the climber holds, if any (sleeping giants do not walk or shrug). */
 function heldAwake(): Titan | undefined {
   return climber.target ? titans.get(climber.target.id)?.titan : undefined
 }
 
-/** Let go of the Titan: fall with its motion plus a push off the rock. */
+/** Let go of the giant: fall with its motion plus a push off the rock. */
 function letGo(push: number): void {
   const v = climber.release(push)
   const w = climber.world
@@ -854,30 +427,10 @@ function letGo(push: number): void {
   wanderer.grounded = false
 }
 
-/** Drag the feet (canals) or stride clean (lakes only). */
-let ploughMode = true
-let stompRequest = false
-let lastStomp = -Infinity
-
-function stomp(): void {
-  const now = performance.now()
-  if (now - lastStomp < STOMP_COOLDOWN_S * 1000) return
-  lastStomp = now
-  if (mode === 'online') stompRequest = true // goes out with the next Titan input
-  else mine().gait.stompArmed = true
-}
-
-function callOut(): void {
-  if (mode === 'online') return net.sendCall()
-  hud.showCall(identity.name, mine().gait.x, mine().gait.z)
-  chat.system(`${identity.name}, the Titan, calls out.`)
-  sound.call(0)
-}
-
 /**
- * The awake Titan just became the mountain `id`. Anyone holding on stays on
- * the same rock — now a mountain — instead of being carried off by the new
- * Titan that wakes elsewhere.
+ * The waking giant just became the sleeping giant `id`. Anyone holding on
+ * stays on the same rock — now a mountain — instead of being carried off by
+ * the new giant that wakes elsewhere.
  */
 function holdOnAsItSleeps(id: string): void {
   const m = mountains.get(id)
@@ -885,17 +438,13 @@ function holdOnAsItSleeps(id: string): void {
   if (Math.hypot(m.gait.x - climber.world.x, m.gait.z - climber.world.z) < TITAN_HEIGHT) climber.retarget({ id, titan: m })
 }
 
-/** Offline stand-in for the server's dormancy: the Titan sleeps here, a new one wakes in its slot. */
-function goDormant(id = driving || 't1'): void {
+/** The giant sleeps here and becomes a mountain; a new one wakes in its slot. */
+function goDormant(id = 't1'): void {
   const t = titans.get(id)?.titan
   if (!t) return
   const mid = `local-${mountains.count + 1}`
-  const owner = titans.get(id)!
-  // In a while, settlers come to its feet (the reel's town round the mountain).
-  settlement.settleSoon(t.gait.x, t.gait.z, 1.0 * TITAN_HEIGHT, 120)
-  mountains.add(mid, { name: owner.lastDriver || 'A nameless Titan', since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
-  owner.aloneSince = 0
-  owner.lastDriver = ''
+  mountains.add(mid, { name: 'A sleeping giant', since: Date.now(), pose: { ...t.gait.snapshot({} as Snap), resting: true } })
+  titans.get(id)!.aloneSince = 0
   holdOnAsItSleeps(mid)
   const rise = { type: 'mountain' as const, x: t.gait.x, z: t.gait.z }
   onGait(rise)
@@ -903,12 +452,6 @@ function goDormant(id = driving || 't1'): void {
   const a = mountains.count * 2.4 + 0.7
   t.awaken(Math.cos(a) * 650, Math.sin(a) * 650, a + Math.PI)
   t.restBlend = 0
-  if (role === 'titan' && id === driving) setRole('wanderer')
-}
-
-function shrug(): void {
-  if (mode === 'online') net.sendShrug() // comes back to everyone, us included
-  else mine().shrug()
 }
 
 function frame(now: number): void {
@@ -919,34 +462,22 @@ function frame(now: number): void {
   }
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
-  acc += dt * (mode === 'online' ? 1 : clock.scale)
+  acc += dt * clock.scale
   while (acc >= STEP) {
     simulate(STEP)
     acc -= STEP
   }
 
-  if (mode === 'online' && now - lastMoveSent >= MOVE_SEND_MS) {
-    lastMoveSent = now
-    if (role === 'titan') {
-      const ax = input.axes()
-      net.sendTitan({ forward: Math.max(0, ax.y), turn: -ax.x, plough: ploughMode, stomp: stompRequest })
-      stompRequest = false
-    } else {
-      const hold = climber.hold()
-      net.sendMove({ x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z, yaw: wanderer.yaw, ...(hold ? { climb: hold } : {}) })
-    }
-  }
-
   // Render between the last two simulation states: on a 120 Hz display the
-  // 60 Hz simulation would otherwise move the Wanderer every other frame.
+  // 60 Hz simulation would otherwise move the wanderer every other frame.
   for (const a of titans.values()) {
     a.titan.pose(terrain, dt)
     a.titan.group.updateMatrixWorld(true)
     a.titan.setLodFor(camera.position)
   }
-  mountains.update(terrain, camera, Date.now())
+  mountains.update(terrain, camera)
   if (climber.active) {
-    // Glued to the hold through the Titan's pose of THIS frame.
+    // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
     wanderer.climbPose(dt, climber.world, climber.normal, climber.standing, rig.yaw + Math.PI, climber.moving)
   } else {
@@ -959,68 +490,44 @@ function frame(now: number): void {
   clouds.update(dt, camera.position)
   birdSpots.length = 0
   for (const l of lakes.lakes) if (l.basin.sorted.length > 400 && l.level > l.basin.bottom + 0.5) birdSpots.push({ x: l.basin.bx, z: l.basin.bz })
-  for (const t of settlement.towns) birdSpots.push({ x: t.cx, z: t.cz })
+  for (const s of ruins.sites) birdSpots.push({ x: s.x, z: s.z })
   birds.step(dt, camera.position, birdSpots)
   birds.render()
-  smoke.step(dt, settlement.chimneysNear(camera.position.x, camera.position.z, 380))
-  livestock.render(camera.position)
-  boats.render(lakes.lakes)
   sky.tick(dt)
   vegetation.update(dt, camera.position)
   wildlife.render()
-  townsfolk.render(dt)
-  caravan?.render()
-  settlement.update(dt)
-  if (building) {
-    aimAtGround()
-    // Green where it fits, red where it does not; the click says why.
-    if (buildAt.ok) settlement.preview(building, buildAt.x, buildAt.z, buildRot)
-    else settlement.preview(null)
-  }
-  hud.setBuild(building ? KINDS.map((k) => ({ name: KIND_NAME[k], on: k === building })) : null)
-  remotes.update(dt, camera, titanOf)
-  placeTitanLabels()
-  hud.setRole(role === 'wanderer' && climber.active ? 'climbing' : role === 'wanderer' && building ? 'building' : role, mine().gait.steps, remotes.climbers, {
-    plough: mine().gait.plough,
-    stompReady: now - lastStomp >= STOMP_COOLDOWN_S * 1000,
-  })
+  hud.setMode(climber.active ? 'climbing' : 'wanderer')
   hud.setGrip(climber.active ? climber.stamina : null)
 
   const look = input.consumeLook()
-  const t0 = mine()
-  const focusBase = role === 'titan' ? tmpFocus.set(t0.gait.x, t0.pelvis.y - t0.body.hipHeight, t0.gait.z) : wanderer.obj.position
-  rig.update(dt, look.dx, look.dy, look.wheel, focusBase, terrain)
+  const focus = wanderer.obj.position
+  rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
   terrainView.update(camera.position, ready ? 5 : 40)
-  sky.follow(focusBase, camera)
+  sky.follow(focus, camera)
   renderer.render(scene, camera)
 
   if (!ready && terrainView.settled()) {
     ready = true
     hud.loaded()
   }
-  hud.frame(now, renderer, terrainView, focusBase, camera, quality.level)
+  hud.frame(now, renderer, terrainView, focus, camera, quality.level)
   if (ready) quality.frame(now)
-  hud.net(mode, remotes.count + (mode === 'online' ? 1 : 0), !toolMode)
   if (saveDirty && now - lastSave > 5000) {
     lastSave = now
     saveLocal()
   }
-  hud.updateBeacon(now, focusBase, rig.yaw)
   if (now - lastTip > 500) {
     lastTip = now
-    tipState.lakes = lakes.lakes.filter((l) => l.level > l.basin.bottom + 0.3).length
-    tipState.town = settlement.name !== null
     tips.update(tipState)
   }
 }
-const tmpFocus = new THREE.Vector3()
 const birdSpots: Array<{ x: number; z: number }> = []
-// While the land wakes: the story, a line at a time (from the design's "The First World").
+// While the land wakes: the story, a line at a time.
 const LORE = [
-  'Before recorded history, the world was flat and silent.',
+  'Before memory, the world was flat and silent.',
   'Then came the First Ones.',
   'Where they walked, valleys formed. Where they slept, mountains rose.',
-  'Now the mountains are moving.',
+  'They are walking again.',
 ]
 let loreAt = 0
 const loreEl = document.getElementById('loading-text')!
@@ -1030,10 +537,9 @@ const lore = setInterval(() => {
   loreAt = (loreAt + 1) % LORE.length
   loreEl.textContent = LORE[loreAt]
 }, 2400)
-setRole('wanderer')
+hud.setMode('wanderer')
 rig.yaw = Math.PI * 0.85
-if (localSave) loadLocal()
-if (!wantsMp) ensureVillages()
+if (!(localSave && loadLocal()) && !params.has('noancient')) newWorld()
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
@@ -1042,12 +548,6 @@ requestAnimationFrame(frame)
 const g = {
   get ready() {
     return ready
-  },
-  get role() {
-    return role
-  },
-  get mode() {
-    return mode
   },
   THREE,
   shared,
@@ -1059,88 +559,54 @@ const g = {
   input,
   rig,
   wanderer,
-  /** Slot 1, the Titan near spawn. */
+  /** Slot 1, the giant near spawn. */
   get titan() {
     return first()
   },
   titans,
-  get driving() {
-    return driving
-  },
   mountains,
   wildlife,
   ruins,
   birds,
-  smoke,
-  livestock,
-  boats,
-  get caravan() {
-    return caravan
-  },
   vegetation,
   paint,
   biome,
   clouds,
   sound,
   tips,
-  settlement,
-  townsfolk,
-  setBuilding,
-  /** A Titan's foot coming down at (x, z), through the real event path (tools). */
+  narration,
+  /** A giant's foot coming down at (x, z), through the real event path (tools). */
   footfallAt(x: number, z: number, stomp = false) {
     onGait({ type: 'footfall', foot: 0, x, z, heading: 0, hx: 0, hz: 1, step: 0, ...(stomp ? { stomp } : {}) })
-  },
-  /** Somewhere `kind` can go within `r` metres of (x, z), searching outward; null if nowhere. */
-  findSpot(kind: BuildingKind, x: number, z: number, r = 120) {
-    for (let d = 0; d <= r; d += 3) {
-      for (let a = 0; a < 16; a++) {
-        const px = x + Math.cos((a / 16) * Math.PI * 2) * d
-        const pz = z + Math.sin((a / 16) * Math.PI * 2) * d
-        if (!settlement.whyNot(kind, px, pz)) return { x: px, z: pz }
-      }
-    }
-    return null
-  },
-  /** Place a building directly (tools). Returns a reason string if it cannot go there. */
-  build(kind: BuildingKind, x: number, z: number, rot = 0) {
-    const b = settlement.place(kind, x, z, rot)
-    if (typeof b === 'string') return b
-    townsfolk.sync()
-    saveDirty = true
-    return null
   },
   climber,
   goDormant,
   setWild(on: boolean) {
-    wildOffline = on
+    wild = on
   },
   lakes,
   sky,
   quality,
-  net,
-  remotes,
-  chat,
-  identity,
   autopilot,
   clock,
   falls,
-  setRole,
-  toggleRole,
   get localSave() {
     return localSave
   },
   saveLocal,
+  /** Forget the saved adventure (the next load starts fresh). */
+  newAdventure() {
+    clearWorld()
+    localSave = false
+  },
   savedEvents: () => localEvents.length,
-  stomp,
-  callOut,
   setPlough(on: boolean) {
-    ploughMode = on
-    if (mode !== 'online') for (const a of titans.values()) a.titan.gait.plough = on
+    for (const a of titans.values()) a.titan.gait.plough = on
   },
   teleport(x: number, z: number) {
     wanderer.place(x, terrain.heightAt(x, z), z)
   },
-  /** Walk up to the Titan's left foot from outside and grab it. */
+  /** Walk up to giant 1's left foot from outside and grab it. */
   grabTitan(): boolean {
     const titan = first()
     titan.group.updateMatrixWorld(true)

@@ -1,25 +1,19 @@
 // First steps: a short run of hints that advance as you actually do things
-// (walk, find a Titan, see a lake form, build). Shown once per browser;
-// the ✕ dismisses them for good.
+// (walk, climb a giant, stand high on one). Shown once per browser; the ✕
+// dismisses them for good.
 
-const KEY = 'titans.tips'
+const KEY = 'titans.adventure.tips'
 
 export interface TipState {
   moved: number // metres walked
-  nearTitan: boolean // within ~600 m of an awake Titan
-  titanOrClimb: boolean // has walked a Titan or climbed one
-  lakes: number
-  town: boolean
+  climbed: boolean // has taken hold of a giant
+  high: number // highest climbed, metres above the ground
 }
 
 const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
   { text: 'Click the world to look around. <kbd>W A S D</kbd> to walk, <kbd>Shift</kbd> to run.', done: (s) => s.moved > 25 },
-  {
-    text: 'A Titan stands on the plain nearby. Walk up to it — <kbd>T</kbd> to become it, or <kbd>E</kbd> at its foot to climb.',
-    done: (s) => s.titanOrClimb,
-  },
-  { text: 'Every step a Titan takes leaves a lake. Walk one with <kbd>W</kbd>, or watch one wander.', done: (s) => s.lakes >= 3 },
-  { text: 'Life follows the water. Build beside a lake: <kbd>B</kbd>.', done: (s) => s.town },
+  { text: 'A giant walks the plain nearby. Go to it, and at its foot press <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
+  { text: 'Climb with <kbd>W A S D</kbd>. Your grip tires: rest where you can stand. Reach its shoulders.', done: (s) => s.high > 150 },
 ]
 
 export class Tips {

@@ -8,7 +8,6 @@
     "preview": "vite preview --port 4317 --strictPort"
   },
   "dependencies": {
-    "@colyseus/sdk": "^0.18.8",
     "@titans/shared": "*",
     "three": "^0.187.0"
   },

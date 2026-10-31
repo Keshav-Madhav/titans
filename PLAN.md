@@ -1,248 +1,121 @@
 # TITANS — plan of record
 
-A persistent, browser-based 3D world where some players are the size of people and some are the
-size of mountains. Titans reshape the land by walking: every footprint becomes a lake, and a Titan
-that rests long enough becomes a mountain. Wanderers explore, follow and climb the Titans, and build
-settlements in the land they leave behind.
+**A single-player, open-world guided adventure about megalophobia.** You are a small wanderer in a
+land of colossal things: giants three hundred metres tall who walk the world as weather does, and
+the ruins of the First Ones, built at their scale. You do not fight them and you are not trying to
+survive. You explore, you climb, you solve the world, and you get things done — Shadow of the
+Colossus and The Last Guardian are the touchstones, minus the killing.
 
-Origin: a 24-second concept trailer ("making trailers for games i wish existed", by bonkbureau —
-no such game exists), expanded by the user into a full GDD + technical spec (2026-10-30). That spec
-is the design source. This file turns it into an engineering blueprint and records every decision
-that narrows or reorders it. **If this file and the spec disagree, this file wins** — it holds the
-constraints the spec was written without.
+Decided by the user, 2026-10-31 ("scrap the plan… a full game made around Megalophobia,
+singleplayer as a wanderer… an open-world guided adventure… not stressing about having to survive
+but instead accomplishing things… get rid of the towns… good textures… a lot more stuff"). The
+earlier plan (a multiplayer world where some players are Titans and others build towns) lives in
+git at the tag `pre-adventure`; nothing in it binds this one.
 
 ---
 
-## 1. Constraints on record (user, 2026-10-30)
+## 1. Constraints on record
 
-- **Free, for now.** Every library, asset, host and service must be free. Paid infrastructure is a
-  later conversation, not a design assumption. This is why the spec's Postgres + Redis + S3 +
-  managed hosting is replaced below by a single process with SQLite until real load says otherwise.
-- **AI means two different things here.**
-  - Townsfolk, wildlife, caravans and AI Titans that fill an empty world are **traditional game AI**
-    — state machines, steering, utility scoring. No LLM.
-  - An LLM is only ever for **storytelling** (a chronicler that turns world events into myths and
-    quests). It is **off for now** and will be revisited later. Nothing may depend on it.
-- **Small phases.** The spec's "first build" (enter a world, see another player, become a Titan,
-  deform the land, watch lakes form, be climbed, log out and come back) is the target for **Beta 1**.
-  Development reaches it through the small phases in §9, each one playable and gated.
-- **First slice: Titan + Wanderer.** City building lands after the Titan/Wanderer loop works.
+- **Free only.** Every library and asset is free: CC0 textures (Poly Haven, ambientCG), CC0
+  models (Kenney, Quaternius, Poly Haven), procedural everything else. (user, 2026-10-30)
+- **No LLM in gameplay.** Quests, dialogue and lore are written by hand; creatures and giants run
+  traditional game AI. (user, 2026-10-30)
+- **Single player, in the browser.** No server, no accounts. Progress saves in the browser.
+- **No survival.** No health bar, no hunger, no enemies. A long fall fades out and wakes you at the
+  last safe ground, with nothing lost. The only meter is grip, while climbing.
+- **Small phases**, each one playable, gated and committed (CHECKLIST.md is the ledger).
 
-## 2. Story (from the spec, adopted)
+## 2. Pillars
 
-The world was flat and silent until the First Ones — beings of impossible scale — walked it. Where
-they walked, valleys formed; where they slept, mountains rose; where they wept, oceans appeared.
-When they vanished, their bodies became the foundations of the world, and civilisations grew among
-their remains. Now the old mountains are moving, lakes are appearing where no water was, and new
-Titans are waking. Players are those Titans, and the people living around them.
+1. **Scale is the experience.** Every region is built so something enormous is always in view:
+   a giant walking through the haze, a statue whose head is a hill, stairs with ten-metre steps.
+   Camera, fog, sound (footfalls arriving late, at the speed of sound) and framing all serve the
+   feeling of being very small next to something very large.
+2. **Guided, never lost.** One clear next thing to do at any moment — the light of your lantern
+   points to it — but the world is open and rewards wandering off.
+3. **Accomplishment, not survival.** Progress comes from figuring things out and reaching places:
+   climbing a giant to the glyph on its brow, ringing a bell to call one, leading one with fire.
+4. **The world is the puzzle.** Puzzles are made of the world's own big pieces (giants, water,
+   bells, braziers, stairs, wind), not of menus or inventories.
 
-The central mystery: the First Ones did not just make the world — **they were trying to escape
-something.** It is told through the environment (ruins, monuments, carvings on dormant Titans,
-world changes), never through mandatory quest chains. Arc: The Awakening → The Shaping → The
-Civilisations → The Forgotten → The Return → The Beyond.
+## 3. The world
 
-## 3. Engine and stack decisions
+One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing
+CDLOD terrain, deformable, with lakes). Spawn is a quiet green valley at the centre; three regions
+open around it, each with its own ground, plants, sky tint, sound and giant.
 
-| Area | Decision | Why |
+| Region | Look | Megalophobia set pieces |
 | --- | --- | --- |
-| Rendering | **three.js** (WebGL2), strict TypeScript, Vite | The spec allowed three.js or Babylon. The user's game repos (jurassic-stack, minecraft-JS) are three.js; the hard parts here (deformable heightfield, lakes, a procedural giant) are custom code in either engine, so the familiar one wins. WebGPU stays a later option. |
-| UI | **Plain DOM HUD now, React later** | The early phases have about four HUD elements. React arrives with the first real UI (chat, building palette, inventory), mounted as an overlay, with the simulation kept outside its render cycle as the spec requires. |
-| Physics | **Rapier3D** (`@dimforge/rapier3d-compat`), from the climbing phase | The Wanderer walks on an analytic heightfield, so it needs no physics engine until climbing and buildings. |
-| Multiplayer | **Colyseus** (Node + TypeScript), authoritative | As in the spec. |
-| Persistence | **SQLite** (`node:sqlite`) in the game-server process | Free, zero-ops, and enough for 20–40 players on one world. The schema in §7 stays Postgres-compatible, so the spec's Postgres move is a driver swap when load requires it. **No Redis** until there is more than one server process. |
-| Hosting | **Undecided — free tier, chosen at the multiplayer phase** | Front end: any static host (Vercel / Cloudflare Pages). Game server: needs an always-on Node process with WebSockets. Leading free candidate: Oracle Cloud Always Free ARM VM. Render's free tier sleeps, and a sleeping server cannot simulate. |
-| Assets | CC0 only (Poly Haven, ambientCG, Kenney, Quaternius) + procedural | The Titan and the Wanderer start procedural (see §6), so the first phases need no downloads. |
-| Voice | LiveKit, much later | Spec item, out of scope until Beta 1 ships. |
+| **The Old Wood** | mossy forest floor, ferns, enormous trees (60–150 m) in drifting mist | a sleeping giant grown over with moss and trees; trunks like towers; a giant moving between them, seen only in pieces |
+| **The Dune Sea** | wind-shaped sand dunes, red rock arches, heat haze, dust | a giant walking a long loop over the dunes; a colossus buried to the chest; the ribs of a fallen First One |
+| **The Steps** | terraced ruins of the First Ones: stairs, colonnades, bridges, bell towers, all at giant scale | the Great Stair; three bell towers; the sealed Gate; the Eldest, the largest giant, waiting beyond it |
 
-### Repository layout (npm workspaces)
+Base terrain is shaped per region (`shared/src/terrain.ts`): rolling hills in the Wood, long dune
+ridges in the Dune Sea, stepped terraces in the Steps. Region weights are a deterministic function
+of position, shared by terrain height, texturing, vegetation and atmosphere.
 
-```
-titans/
-  shared/   @titans/shared — code that MUST give the same answer on client and server:
-            seeded noise, base terrain height, deformation kernels, lake basin fill,
-            titan gait planner, protocol types, world constants
-  client/   Vite + three.js app (the game)
-  server/   Colyseus game server + SQLite (arrives in the multiplayer phase)
-  tools/    playwright-core harness scripts (screenshots, gates, benches) -> shots/
-```
+## 4. What you do
 
-`@titans/shared` is consumed as TypeScript source, with no build step, by Vite (client) and tsx
-(server).
+**Verbs:** walk, sprint, jump; **climb** (giants, mossy and carved surfaces) with a grip meter;
+**interact** (touch glyphs, ring bells, light braziers, pull levers, read Echo stones); **ride**
+(stand on a walking giant and let it carry you); later **glide** (the First Ones' cloak, unlocked
+in the story) and **call** (a horn that turns giants' heads toward you).
 
-## 4. World and terrain
+**The main thread — "The Three Bells":**
+- *Prologue (the valley):* wake by a shrine; follow the lantern's light; learn to climb on a ruin;
+  touch the first glyph and see a giant stop walking and turn its head toward you.
+- *The Old Wood:* the bell tower is sealed by roots. The sleeping giant's body blocks the pass.
+  Climb it, touch the glyph on its brow; it wakes, stands (the ground shakes, birds explode out of
+  the trees), and walks — its footsteps become the lakes that drown the roots.
+- *The Dune Sea:* the bell hangs high in a ruin the walking giant passes under on its loop. Light
+  the braziers to bend its path, climb aboard as it goes by, ride it to the ruin and jump across.
+- *The Steps:* the three bells ring; the Gate opens; the Eldest rises. The final climb is the
+  largest thing in the game, to its crown, where the story ends (and what the First Ones were
+  running from is finally seen).
 
-- **Units:** 1 world unit = 1 metre. The world is a square centred on the origin. The playable core
-  is 8 km × 8 km. Terrain keeps generating past it, so mountains on the horizon are real.
-- **Height = base + delta.**
-  - `baseHeight(x, z)` is pure and seeded: domain-warped fBm plains, rolling hills, and a ridged
-    mountain belt whose mask grows with distance from spawn. It is never stored; anyone can compute it.
-  - `delta` is the record of what players did: sparse 64 m × 64 m tiles at 1 m resolution, created
-    only where something changed. Persisted, never generated.
-- **Deformation is events, not vertices** (spec §11). A Titan footstep is
-  `{ seq, kind: 'footprint', x, z, heading, size, depth }`. The server orders events, clients apply
-  them through the same shared kernel, and the server persists the event log plus periodic baked
-  delta snapshots per region. **Kernels use only + − × ÷ and polynomials** (no `sin`/`exp`), so they
-  are bit-exact across browser engines and the server.
-- **Rendering:** CDLOD-style quadtree of chunks, each 64 × 64 quads plus skirts, from 64 m leaves
-  (1 m/quad) up to a 16 km root. Splits use 3D camera distance, so a Titan's high camera
-  automatically sees coarser, wider terrain. Chunk builds are time-sliced per frame. A deformation
-  event dirties only the chunks it touches.
+**Everywhere else:** Echo stones (lore, ~30, the First Ones' story in fragments); viewpoints
+(climb a high place to light a cairn and reveal that part of the map); shrine puzzles (pressure
+plates, rotating rings, reflected light); giants to watch, follow and ride; places nobody points
+you to.
 
-## 5. Water: footprints become lakes, drag trenches become canals
+## 5. Systems
 
-Titans **drag** their feet (user, 2026-10-30): the swing foot barely lifts and ploughs a trench
-from its last print to its next, so each foot leaves a canal linking its prints. Each footfall
-also punches a wide, shallow **impact crater** with an ejecta rim, plus cosmetic dust and debris.
-Kernels: `applyDrag` (capsule trench, `lowerTo` so overlapping segments never double-dig, banks
-only beside the segment), `applyImpact` (parabolic bowl in squared distance), `applyFootprint`.
-
-Water is **fill–spill–merge** (Barnes, Callaghan & Wickert 2020), run incrementally:
-full lakes pass excess to the lake downhill of their exit; spill that runs into a hollow with no
-lake makes a pool there (≤ 8,000 cells; tiny pits fill at once and the water runs on); lakes whose
-surfaces meet merge, each flooded at its own level to the true combined outlet. A flood that grows
-past 40,000 cells (≈ 4 ha) is water spreading into natural lowland: it is runoff, not a lake (this
-world is dry until Titans bring water), and the river phase will route it.
-
-1. A footprint carves a foot-shaped depression with a raised rim of displaced soil.
-2. The server runs a **priority-flood** (Barnes et al. 2014) on a local window around the
-   depression. It finds the basin's **spill height** (the lowest rim point water would escape over)
-   and the cells that would hold water.
-3. A lake entity `{ id, cells/bbox, bottom, spill, level }` fills toward `spill` at a rain rate
-   (game-time configurable: seconds for the demo, longer in the live world).
-4. A new footprint that overlaps an existing lake re-runs the fill on the union, so lakes merge
-   into the reel's chained lakes.
-5. Clients render each lake as a flat mesh over its flooded cells, reflecting the sky. Rivers
-   (spill → downhill flow) come later.
-
-## 6. Titans and Wanderers
-
-- **Scale:** Wanderer 1.8 m. Titans start at **300 m** (120 → 180 at the user's request, then 300
-  to match the reel's giants, whose waists are among the clouds;
-  spec range: 30 m to kilometres; more scale is a progression axis). A 180 m Titan drags 50 m
-  strides about 5.4 s apart (≈ 9 m/s): dynamic similarity says time ∝ √size, and the extra factor
-  is weight. Slowness is part of how it reads as huge.
-- **The Titan is procedural:** a hierarchy of noise-displaced boulders (pelvis, spine, chest, head,
-  arms, legs) for the reel's mossy stone look. Locomotion is procedural, with analytic two-bone
-  leg IK: **the gait planner (shared) decides where each foot lands, and that exact point is where
-  the footprint event fires.** The animation solves to the planner, never the reverse.
-- **Representations by distance** (spec §11): near is the full boulder rig; medium uses merged,
-  reduced boulders; far is an impostor silhouette; a dormant Titan becomes terrain plus a static mesh.
-- **The Wanderer is procedural too:** a red-cloaked figure (cloak, hood, legs), so animation can stay
-  simple at first. It is replaceable later by a CC0 rigged character.
-- **Climbing (built in P8, without Rapier):** the Titan's boulders are analytic (centre, radii and
-  the same bulge function the mesh is built from), so a climber moves over the real surface
-  directly: step along the tangent plane, project back onto the boulder, and step onto any boulder
-  the point ends up inside (never straight back onto the one just left, or climbers wedge in the
-  crease where two boulders meet). The hold is stored **relative to a body part**
-  `(part, boulder, localPos)`, so the Titan carries the climber, and it replicates the same way:
-  every client re-reads the hold through its own pose of the Titan. Grip stamina drains on steep
-  rock (more while the Titan walks, a lot while it shrugs, a jolt per footfall) and recovers
-  standing on top. Rapier is still the plan for buildings and loose physics.
-- **Rest → mountain:** a resting Titan settles. After a timeout (or on logout) it becomes
-  **dormant**: its pose freezes, and its body becomes static terrain-like geometry with a delta
-  mound under it, named in the world ("afk_mountain · AFK · 4 YEARS").
-
-## 6b. What a Titan does (design, 2026-10-30)
-
-The Titan's purpose is to make the dry world liveable. A Titan's progress is the life it enables:
-water that Wanderers use or settle beside, climbers it carries, ruins it uncovers for others.
-
-| Verb | What it does | Status |
+| System | Module | Notes |
 | --- | --- | --- |
-| Walk / drag | Trenches between prints become canals; prints become lakes | built (P5b) |
-| Hold still / shrug (Q) | Climbers show as markers; hold still to help them, shrug to throw them off | built (P8) |
-| Plough or stride (R) | Toggle: drag the feet (draw rivers on purpose) or lift them (lakes only) | built (P8b) |
-| Stomp (F) | A deliberate heavy footfall: a deep lake, and a shockwave that knocks Wanderers down | built (P8b) |
-| Call out (C) | A deep call that shows every Wanderer where this Titan is | built (P8b) |
-| Scoop and heap | Hands dig earth and pile it: dams, hills, ramps, rerouted water | later |
-| Call the rain | Spend energy to rain on a region: lakes fill, land greens | later |
-| Carry | Hold Wanderers in a hand or on the shoulders: the Titan as transport | later |
-| Rest (X) | Sit; a long rest or logging off becomes a mountain landmark | built (P9) |
+| Regions | `shared/src/regions.ts` | region weights from (x, z), deterministic; used by terrain, textures, plants, air |
+| Terrain look | `client/src/terrain-view.ts` + `terrain-material` | CC0 PBR texture arrays splatted by region, slope and height; tri-planar on cliffs; two tiling scales against repetition |
+| Plants | `client/src/vegetation.ts` | per-region sets; giant trees in the Wood; desert scrub and rock arches |
+| Ruins and landmarks | `client/src/structures/*` | textured stone kit at giant scale; every landmark placed by hand in `world.ts` |
+| Giants | `client/src/titan.ts`, `shared/src/gait.ts` | AI only: wander, follow a route, sleep, wake, turn to look, follow fire |
+| Interaction | `client/src/interact.ts` | registry of things you can use: prompt, range, action |
+| Quests | `client/src/quests.ts` | data-driven steps: objective position, conditions on world events, journal text |
+| Guidance | `client/src/guide.ts` | the lantern beam to the objective, a compass on the HUD |
+| Journal and map | `client/src/journal.ts` | quest log, Echo stones read, map of discovered ground |
+| Save | `client/src/save.ts` | world deltas, lakes, quest state, discoveries, where you stand |
+| Safety | `client/src/wanderer.ts` | track last safe ground; a fatal fall fades and wakes you there |
 
-**The bond:** a Titan cannot see its own back. Cracks, blight and the First Ones' carvings on its
-body can only be tended or read by climbers. **Growth:** scale grows with the life a Titan enables.
-New verbs unlock from ruins: the Titan digs them out, Wanderers explore inside.
+Kept from before: CDLOD terrain, deformation kernels, lakes (fill–spill–merge, saved and restored),
+the giants' gait and IK, climbing, sky and atmosphere, clouds, birds, wildlife herds, sound.
+Removed: towns, townsfolk, caravans, sheep, smoke, boats, settlers, build mode, playing as a
+giant, multiplayer, the server.
 
-## 7. Multiplayer and persistence blueprint
+## 6. Phases
 
-**Server:** one Colyseus `WorldRoom` per world (20–40 players to start, per the spec), simulating
-at 60 Hz and patching state at 20 Hz. It keeps `TITANS_COUNT` Titan slots awake (default 2): some
-players are giants at once; each unwalked slot runs its own wild mind. Interest management uses region cells (512 m): clients receive entities in nearby cells, and
-Titans everywhere (they are landmarks), at reduced rate when far.
+- **A0 — Wanderer only.** Strip towns, building, playing as a giant, multiplayer and the server.
+  Giants run their own AI. Everything still walks, climbs, deforms and saves.
+- **A1 — The land.** Three regions with their own terrain shape; CC0 textured ground (splatting,
+  tri-planar cliffs); per-region plants and air.
+- **A2 — The adventure core.** Interaction, quests and journal, the lantern's guiding light,
+  narration lines, safe falls, progress in the save.
+- **A3 — The First Ones' ruins.** A textured stone kit at giant scale; the Great Stair, bell
+  towers, the Gate, the buried colossus, the ribs; Echo stones and viewpoints.
+- **A4 — Giants with purpose.** Sleeping giant that wakes and stands; route walker you can ride;
+  a giant that follows fire; heads that turn to look at you.
+- **A5 — The Three Bells.** The main questline from prologue to the Eldest.
+- **A6 — More to find.** Shrine puzzles, the gliding cloak, the horn, the map filling in.
+- **A7 — Polish.** Region soundscapes and music, title screen and settings, performance pass.
 
-**Authority:**
-- Wanderer movement is **predicted on the client and validated on the server** (speed caps, ground
-  height from shared terrain, teleport rejection). This is a co-op world, not a competitive shooter,
-  so full rollback is not worth its cost.
-- Titan movement is **fully server-simulated** from inputs, because it changes the world.
-- Deformation, lakes, buildings and ownership are server-only.
+## 7. Performance budget
 
-**Protocol** (Colyseus schema + messages):
-
-```
-client → server   input { seq, move: [x,z], yaw, jump, sprint }       20 Hz
-                  climb { titanId, part, local: [x,y,z] } / release
-                  become_titan / become_wanderer / rest
-                  chat { text }
-server → client   state: players{ id, name, color, role, x,y,z, yaw, climb? }
-                         titans{ id, owner, x,z, heading, gaitPhase, steps, state }
-                         lakes{ id, x,z, level, spill }
-                  terrain_event { seq, kind, params }   (ordered; client applies via shared kernel)
-                  terrain_sync { fromSeq, events[] }     (on join / reconnect / region enter)
-```
-
-**Schema** (SQLite now, Postgres-compatible):
-
-```
-players         id, name, color, token_hash, role, x, y, z, created_at, last_seen
-titans          id, owner_id, name, x, z, heading, scale, steps, state(walking|resting|dormant), pose_json, updated_at
-terrain_events  seq PK, region, kind, params_json, created_at          -- append-only log
-region_snaps    region PK, upto_seq, delta_blob, updated_at             -- baked delta tiles
-lakes           id, region, cx, cz, bottom, spill, level, cells_blob, updated_at
-settlements     id, owner_id, name, cx, cz, created_at                  -- settlement phase
-buildings       id, settlement_id, kind, x, y, z, rot, owner_id, created_at
-```
-
-**Identity:** a guest identity (name + colour + secret token in `localStorage`) to start, the same
-pattern as the portfolio's cursor identity. Real accounts come later; all of it is free.
-
-## 8. World AI (traditional, no LLM)
-
-- **AI Titan:** while no human Titan is online, an AI walks a Titan along long, wandering routes, so
-  lakes keep forming and there is always something to follow and climb.
-- **Wildlife:** herds driven by steering and a finite-state machine (graze, drift, flee from Titan
-  footfalls).
-- **Caravans and townsfolk:** utility-scored routines (follow the Titan, make camp, trade), added
-  with settlements.
-
-## 9. Phases → Beta 1
-
-Each phase ends playable, is gated (build + scripted check + screenshot), and is committed.
-`CHECKLIST.md` is the ledger.
-
-| # | Phase | Playable result |
-| --- | --- | --- |
-| P0 | Bootstrap | Repo, workspaces, build gate, harness, `window.__g` test hooks |
-| P1 | The land | Procedural terrain with LOD, sky, sun, fog, shadows: a world worth standing in |
-| P2 | The Wanderer | Red-cloaked third-person character: walk, sprint, jump, orbit camera |
-| P3 | The Titan | Procedural stone giant with IK walk and a scale-aware camera; switch roles with a key |
-| P4 | Footprints | Deterministic footprint events deform terrain; chunks rebuild locally |
-| P5 | Lakes | Basin fill + rain: chained lakes form in the footprints (the reel shot) |
-| P6 | Together | Colyseus server: guests see each other move, Titan replicated, events synced, chat |
-| P7 | Memory | SQLite persistence: leave, restart the server, come back to the same lakes |
-| P8 | Climbing | Rapier colliders on the Titan; grab, climb and ride it, replicated |
-| P9 | Rest | Resting Titan → dormant mountain on rest or logout |
-| P10 | A living world | AI Titan when no human holds one; wildlife herds |
-| P11 | Settlement | One small buildable settlement beside a lake, persistent, with ownership |
-| P12 | Beta polish | Clouds, water shading, audio, onboarding, perf pass, free hosting → **Beta 1** |
-
-**Beta 1 acceptance** (the spec's key demonstration): three players enter the same world. One
-becomes a Titan and walks; another follows it; the third climbs onto its body. The footsteps leave
-depressions that rain fills into a chain of lakes. The players build a settlement beside one lake,
-then all disconnect. The next day, the lakes and the settlement are exactly where they left them.
-
-## 10. Performance budget (from the spec)
-
-60 FPS target, 30 minimum, on a mainstream desktop. Server at 20 Hz; movement replication target
-50–100 ms. The initial load is under 15 s. Never load the whole world. Every phase keeps a live perf
-readout (fps, draw calls, triangles, chunk count), and the gates record it.
+60 fps on a recent laptop at 1080p; quality governor keeps it there. Draw calls < 600, triangles
+< 3 M, texture memory < 256 MB. Nothing in the frame loop allocates per frame.
