@@ -248,7 +248,9 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gRough += LROUGH[i] * b;
           gSum += b;
         }
-        gAlb /= max(gSum, 1e-4);
+        // (Nothing to blend — every layer's weight gone at a ledge's seam:
+        // a mid stone, not black and mirror-smooth.)
+        gAlb = gSum > 1e-4 ? gAlb / gSum : vec3(0.3, 0.29, 0.27);
         // Cliffs in strata: bands lighter and darker, thick and thin together,
         // dipping and wandering across a wall (evenly ruled stripes read as a
         // layer cake, not as rock laid down over ages).
@@ -259,7 +261,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gBand = mix(gBandThin, gBandThick, 0.55);
         gAlb *= mix(1.0, 0.74 + 0.46 * gBand, gRockW * 0.8);
         gNorm = normalize(gNorm + gN * 1e-3);
-        gRough /= max(gSum, 1e-4);
+        gRough = gSum > 1e-4 ? gRough / gSum : 0.9;
         // Far away, the normal detail would only shimmer.
         gNorm = normalize(mix(gNorm, gN, smoothstep(120.0, 600.0, gDist)));
 

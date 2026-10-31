@@ -35,7 +35,7 @@ for (const land of lands) {
       const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
       for (let tries = 0; tries < 400; tries++) {
         const a = rand() * Math.PI * 2
-        const d = land === 'valley' ? 100 + rand() * 800 : 700 + rand() * 1900
+        const d = (land === 'valley' ? 100 + rand() * 800 : 700 + rand() * 1900) * 2.6 // × SPREAD
         const x = Math.cos(a) * d
         const z = Math.sin(a) * d
         if (g.terrain.base.regions.name(x, z) !== land) continue

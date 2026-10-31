@@ -207,8 +207,10 @@ export class BaseTerrain {
     if (stone > 0.01) {
       // Ragged edges (bays, spurs, fallen corners) so a side is never one plane.
       const m = fbm(this.rock, wx * 0.00085 + 4.4, wz * 0.00085 - 9.9, 3) + 0.045 * this.rock(x * 0.011, z * 0.011) + 0.02 * this.rock(x * 0.04, z * 0.04)
-      // (Rarer than they were: a mesa should stand alone on its plain.) Sheer sides.
-      const top = smoothstep(0.4, 0.414, m)
+      // (Rarer than they were: a mesa should stand alone on its plain.) Sheer
+      // sides, and a narrow band: where the noise only just reaches the top, a
+      // wide band raised a smooth stepped cone (pale pyramids on the skyline).
+      const top = smoothstep(0.4, 0.405, m)
       if (top > 0) h += stone * strata(top, 4) * (70 + 80 * (0.5 + 0.5 * this.rock(wx * 0.0006 + 3.1, wz * 0.0006 - 5.3)))
     }
 

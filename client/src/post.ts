@@ -107,8 +107,15 @@ class ClampPass extends Pass {
           varying vec2 vUv;
           void main() {
             vec3 c = texture2D(tScene, vUv).rgb;
+            // A bad pixel (NaN, infinity, a mirror-sharp highlight) must not
+            // become a glowing blot: scrub it, and cap each channel as well as
+            // the brightness (a huge red+blue with no green passed the
+            // brightness cap and bloomed magenta on the cliffs).
+            if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
+            c = max(c, vec3(0.0));
             float l = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-            gl_FragColor = vec4(c * min(1.0, limit / l), 1.0);
+            c *= min(1.0, limit / l);
+            gl_FragColor = vec4(min(c, vec3(limit * 1.5)), 1.0);
           }`,
         depthTest: false,
         depthWrite: false,
