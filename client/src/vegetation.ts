@@ -72,25 +72,15 @@ function lumpy(g: THREE.BufferGeometry, seed: number, amt: number): THREE.Buffer
   return g
 }
 
-/** Weld and smooth a blob (icosahedra come unwelded). */
-function smooth(g: THREE.BufferGeometry): THREE.BufferGeometry {
-  g.deleteAttribute('normal')
-  g.deleteAttribute('uv')
-  const w = mergeVertices(g, 1e-4)
-  w.computeVertexNormals()
-  return w
-}
 
-const PINE = 0x34432b
-const LEAF = 0x58602f
 const SRGB = THREE.SRGBColorSpace
 
 const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   // Up close: leaf-card trees (trees.ts). Farther: simple shapes in the same colours.
   coniferNear: () => coniferGeometry(41),
-  coniferMid: () => colored(new THREE.ConeGeometry(2.9, 10.5, 8).translate(0, 6.6, 0), PINE),
+  coniferMid: () => coniferGeometry(41, true),
   broadNear: () => broadleafGeometry(11),
-  broadMid: () => colored(smooth(new THREE.IcosahedronGeometry(1, 1)).scale(4.0, 3.2, 4.0).translate(0, 7.6, 0), LEAF),
+  broadMid: () => broadleafGeometry(11, true),
   rock: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 21, 0.26).scale(1, 0.7, 1), 0x8f877b),
   bush: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 31, 0.22).scale(1.3, 0.85, 1.3).translate(0, 0.55, 0), 0x55702f),
   // Low scrub: a few triangles each, thousands of them — the savanna's dark speckle.
@@ -187,7 +177,7 @@ export class Vegetation {
     const foliage = foliageTexture()
     for (const k of Object.keys(GEOMS) as Kind[]) {
       let mat: THREE.MeshStandardMaterial
-      if (k === 'coniferNear' || k === 'broadNear') mat = foliageMaterial(foliage, this.time, SWAY[k])
+      if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid') mat = foliageMaterial(foliage, this.time, SWAY[k])
       else {
         mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
         if (SWAY[k] > 0) this.sway(mat, SWAY[k])

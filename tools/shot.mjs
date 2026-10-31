@@ -9,7 +9,9 @@ import { mkdirSync } from 'node:fs'
 
 const scene = process.argv[2] ?? 'ground'
 const url = process.argv[3] ?? 'http://localhost:4317/?offline'
-mkdirSync('shots', { recursive: true })
+// SHOTS=<dir> writes elsewhere (before/after comparisons).
+const OUT = process.env.SHOTS ?? 'shots'
+mkdirSync(OUT, { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
@@ -39,8 +41,8 @@ async function settle(extraFrames = 30) {
 async function shot(name) {
   await settle()
   const stats = await page.evaluate(() => window.__g.stats())
-  await page.screenshot({ path: `shots/${name}.png` })
-  console.log(`shots/${name}.png`, JSON.stringify(stats))
+  await page.screenshot({ path: `${OUT}/${name}.png` })
+  console.log(`${OUT}/${name}.png`, JSON.stringify(stats))
 }
 
 const scenes = {

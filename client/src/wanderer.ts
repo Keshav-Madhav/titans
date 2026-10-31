@@ -559,16 +559,17 @@ export class Wanderer {
     this.capeAnchors.forEach((a, i) => this.capePins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
     this.scarfAnchors.forEach((a, i) => this.scarfPins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
     this.hangDir.set(0, -1, -0.15).transformDirection(m)
-    // The body's capsule, pelvis to neck, a little fatter than the body.
+    // The body's capsule, pelvis to chest, a little fatter than the body. (It must end below
+    // the pins: a cap above them pushed the scarf's first links upward and it stood on end.)
     this.axisA.set(0, 0.55, 0).applyMatrix4(m)
-    this.axisB.set(0, 1.42, -0.02).applyMatrix4(m)
+    this.axisB.set(0, 1.26, -0.02).applyMatrix4(m)
     // Moving makes wind of its own: the cloth streams behind; the weather's wind gusts.
     const gust = wind.length()
     this.windV.copy(wind).multiplyScalar(0.5 + 0.5 * Math.max(0, Math.sin(this.t * 0.7) * Math.sin(this.t * 1.9)))
     this.windV.addScaledVector(this.vel, -1.1)
     this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
     this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.24, ground)
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
 

@@ -133,12 +133,15 @@ function finish(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
 }
 
-/** A broadleaf tree about 9–11 m tall (scaled per instance). */
-export function broadleafGeometry(seed: number): THREE.BufferGeometry {
+/**
+ * A broadleaf tree about 9–11 m tall (scaled per instance). `far`: the
+ * middle-distance version — the same crown in a few big cards, a plain trunk.
+ */
+export function broadleafGeometry(seed: number, far = false): THREE.BufferGeometry {
   const rand = mulberry32(seed)
-  const parts: THREE.BufferGeometry[] = [trunk(0.42, 0.24, 5.6, 0x5c4632)]
+  const parts: THREE.BufferGeometry[] = [trunk(0.42, 0.24, 5.6, 0x5c4632, far ? 4 : 7)]
   // A few limbs reaching up into the crown.
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < (far ? 0 : 4); i++) {
     const a = (i / 4) * Math.PI * 2 + rand()
     const limb = trunk(0.16, 0.07, 3.4, 0x5c4632, 5)
     limb.rotateZ(0.7).rotateY(a).translate(0, 4.2 + rand() * 0.8, 0)
@@ -147,16 +150,16 @@ export function broadleafGeometry(seed: number): THREE.BufferGeometry {
   const centre = new THREE.Vector3(0, 7.4, 0)
   const crown: THREE.BufferGeometry[] = []
   // Clusters on an egg-shaped shell; each a fan of crossed leaf cards.
-  const clusters = 13
+  const clusters = far ? 6 : 13
   for (let c = 0; c < clusters; c++) {
     const u = rand() * 2 - 1
     const t = rand() * Math.PI * 2
     const s = Math.sqrt(1 - u * u)
-    const px = Math.cos(t) * s * 3.1
+    const px = Math.cos(t) * s * (far ? 2.5 : 3.1)
     const py = u * 2.3 + 0.3
-    const pz = Math.sin(t) * s * 3.1
-    for (let k = 0; k < 9; k++) {
-      const q = card(3.0, 3.0, LEAVES)
+    const pz = Math.sin(t) * s * (far ? 2.5 : 3.1)
+    for (let k = 0; k < (far ? 3 : 9); k++) {
+      const q = card(far ? 4.6 : 3.0, far ? 4.6 : 3.0, LEAVES)
       q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2).rotateZ((rand() - 0.5) * 0.8)
       q.translate(centre.x + px + (rand() - 0.5) * 1.1, centre.y + py + (rand() - 0.5) * 1.0, centre.z + pz + (rand() - 0.5) * 1.1)
       crown.push(q)
@@ -169,20 +172,20 @@ export function broadleafGeometry(seed: number): THREE.BufferGeometry {
   return finish([...parts, leaves])
 }
 
-/** A fir about 11–13 m tall (scaled per instance). */
-export function coniferGeometry(seed: number): THREE.BufferGeometry {
+/** A fir about 11–13 m tall (scaled per instance). `far`: fewer, bigger branch cards. */
+export function coniferGeometry(seed: number, far = false): THREE.BufferGeometry {
   const rand = mulberry32(seed)
-  const parts: THREE.BufferGeometry[] = [trunk(0.3, 0.08, 12.5, 0x4a3828)]
+  const parts: THREE.BufferGeometry[] = [trunk(0.3, 0.08, 12.5, 0x4a3828, far ? 4 : 7)]
   const branches: THREE.BufferGeometry[] = []
-  const tiers = 9
+  const tiers = far ? 4 : 9
   for (let t = 0; t < tiers; t++) {
     const k = t / (tiers - 1)
     const y = 2.6 + k * 9.2
-    const reach = 3.1 * (1 - k) + 0.6
-    const n = Math.max(4, Math.round(8 - k * 4))
+    const reach = (3.1 * (1 - k) + 0.6) * (far ? 1.15 : 1)
+    const n = far ? 4 : Math.max(4, Math.round(8 - k * 4))
     for (let i = 0; i < n; i++) {
       // A branch card hanging from the trunk, tipped down at the end.
-      const b = card(reach * 0.9, reach * 1.25, NEEDLES, true)
+      const b = card(reach * (far ? 1.3 : 0.9), reach * (far ? 1.5 : 1.25), NEEDLES, true)
       b.rotateX(-Math.PI / 2 + 0.35 + rand() * 0.2) // lying out, drooping
       b.rotateY((i / n) * Math.PI * 2 + t * 0.6 + rand() * 0.3)
       b.translate(0, y + 0.2, 0)
