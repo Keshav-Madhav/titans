@@ -77,6 +77,10 @@ export const CATALOGUE: Find[] = [
   f('relic', 'relic-herd-3', 'A relic from the herd', "In the shrine on the herd's other flank.", "A flat stone scratched with five marks, the smallest scratched over and over.", 'stone', '#a3bccf'),
   f('relic', 'relic-herd-4', "A young one's relic", 'In the shrine on one of the young.', 'A pebble, still warm, that rattles as if something were inside it.', 'stone', '#b8c9d8'),
   f('relic', 'relic-herd-5', "The smallest one's relic", "In the shrine on the herd's smallest.", 'A sliver of glyph-stone. It still glows a little, and dims when you hold it, as if shy.', 'shard', '#cfe0ef'),
+  // What the wisps lead to (chase the light).
+  f('trinket', 'wisp-green', 'A seed of light', 'Follow the light that drifts on the western Green.', 'A smooth seed, pale as bone. In the dark of the bag it still glows, faintly, like the thing that led you to it.', 'stone', '#e8eec8'),
+  f('trinket', 'wisp-wood', 'A charm of root', 'Follow the light that drifts among the giant trees.', 'A charm woven from fine root, knotted in a pattern you keep almost recognising.', 'figure', '#7a6044'),
+  f('trinket', 'wisp-dunes', 'A bead of glass', 'Follow the light that drifts among the hoodoos of the Dune Sea.', 'A bead of clear glass with a single grain of sand inside it that never settles.', 'beads', '#cfe6e4'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

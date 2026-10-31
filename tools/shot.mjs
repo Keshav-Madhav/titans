@@ -388,6 +388,52 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Chase the light: follow a wisp hop by hop to where it settles; take what it leaves.
+  async wisp() {
+    await page.evaluate(() => {
+      window.__g.weather.set('overcast', true)
+      window.__g.finds.find('bag')
+    })
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const w = g.wisps.wisps.find((w) => w.def.id === 'wisp-green')
+      const hops = []
+      for (let k = 0; k < 40 && !w.done; k++) {
+        // Walk up to where it waits (stopping 10 m short), and let it go.
+        const p = w.pos
+        const back = p.clone().sub(g.player()).setY(0).normalize().multiplyScalar(-10)
+        g.teleport(p.x + back.x, p.z + back.z)
+        await new Promise((res) => setTimeout(res, 250))
+        hops.push(w.i)
+        while (w.flying) await new Promise((res) => setTimeout(res, 100))
+      }
+      return { hops: hops.length, seq: hops.join(","), done: w.done, revealed: !g.spots.spots.find((s) => s.id === 'wisp-green').hidden }
+    })
+    console.log(`followed the wisp: ${r.hops} approaches (${r.seq}); settled: ${r.done}; revealed: ${r.revealed}`)
+    // Look at a wisp waiting (the wood's), from a little way off.
+    await page.evaluate(() => {
+      const g = window.__g
+      const w = g.wisps.wisps.find((w) => w.def.id === 'wisp-wood')
+      g.teleport(w.pos.x + 24, w.pos.z + 18)
+      g.lookFrom([w.pos.x + 24, g.heightAt(w.pos.x + 24, w.pos.z + 18) + 1.7, w.pos.z + 18], [w.pos.x, w.pos.y, w.pos.z])
+    })
+    await page.waitForTimeout(800)
+    await shot('wisp')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    const took = await page.evaluate(async () => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'wisp-green')
+      g.teleport(s.at.x + 0.5, s.at.z)
+      await new Promise((res) => setTimeout(res, 150))
+      g.input.press('KeyE')
+      await new Promise((res) => setTimeout(res, 150))
+      g.input.release('KeyE')
+      await new Promise((res) => setTimeout(res, 100))
+      return g.finds.has('wisp-green')
+    })
+    console.log(`took what it left: ${took}`)
+    if (!r.done || !r.revealed || !took) throw new Error('wisp gate: could not follow it to the end and take what it left')
+  },
   // Raiding: climb the Walker to the shrine on its back and take its relic; it shrugs.
   async raid() {
     await page.evaluate(() => window.__g.finds.find('bag'))
@@ -465,7 +511,7 @@ const scenes = {
       const g = window.__g
       g.finds.find('bag')
       const out = []
-      for (const s of g.spots.spots.filter((s) => s.kind === 'trinket')) {
+      for (const s of g.spots.spots.filter((s) => s.kind === 'trinket' && !s.hidden)) {
         g.teleport(s.at.x + 0.6, s.at.z, s.at.y + 0.1)
         await new Promise((r) => setTimeout(r, 120))
         g.input.press('KeyE')

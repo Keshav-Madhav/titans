@@ -11,6 +11,8 @@ export interface Spot {
   id: string
   kind: 'stone' | 'trinket'
   at: THREE.Vector3
+  /** Not there until something reveals it (a wisp settling: wisps.ts). */
+  hidden?: boolean
 }
 
 const REACH = 2.8
@@ -63,8 +65,20 @@ export class Spots {
         sprite.renderOrder = 3
         this.group.add(sprite)
         this.glints.push({ id: s.id, sprite, phase: Math.random() * 10 })
+        m.visible = sprite.visible = !s.hidden
       }
     }
+  }
+
+  /** It is there now (and can be taken). */
+  reveal(id: string): void {
+    const s = this.spots.find((s) => s.id === id)
+    if (!s) return
+    s.hidden = false
+    const m = this.marks.get(id)
+    if (m) m.visible = true
+    const gl = this.glints.find((g) => g.id === id)
+    if (gl) gl.sprite.visible = true
   }
 
   /** The spot within reach of `p` (nearest), if any; `taken` filters out trinkets already in the bag. */
@@ -72,7 +86,7 @@ export class Spots {
     let best: Spot | null = null
     let bd = REACH
     for (const s of this.spots) {
-      if (s.kind === 'trinket' && taken(s.id)) continue
+      if (s.hidden || (s.kind === 'trinket' && taken(s.id))) continue
       const d = s.at.distanceTo(p)
       if (d < bd) {
         bd = d

@@ -61,6 +61,7 @@ import { Journal } from './journal'
 import { Bag } from './bag'
 import { Camp } from './camp'
 import { Spots, type Spot } from './spots'
+import { Wisps } from './wisps'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -237,6 +238,17 @@ const cairnPlaces: CairnPlace[] = []
 }
 const cairns = new Cairns(cairnPlaces)
 
+// Chase the light: wisps that lead you somewhere, and leave something there.
+const wisps = new Wisps(
+  [
+    { id: 'wisp-green', start: { x: -2150, z: 950 }, bearing: -Math.PI / 2, seed: 61 },
+    { id: 'wisp-wood', start: { x: -3500, z: -2400 }, bearing: -2.2, seed: 62 },
+    { id: 'wisp-dunes', start: { x: 1300, z: 3700 }, bearing: 0.3, seed: 63 },
+  ],
+  terrain,
+)
+scene.add(wisps.group)
+
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
@@ -353,8 +365,15 @@ const spots = (() => {
   if (hood) list.push(['ring-hood', 'trinket', new THREE.Vector3(hood.x + 2, (rocks.topAt(hood.x + 2, hood.z) ?? hood.y), hood.z)])
   const pillar = cairnAt('The Tallest Pillar')
   if (pillar) list.push(['beads-pillar', 'trinket', new THREE.Vector3(pillar.x + 1.5, (rocks.topAt(pillar.x + 1.5, pillar.z) ?? pillar.y), pillar.z)])
-  return new Spots(list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at })))
+  const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at }))
+  for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
+  return new Spots(placed)
 })()
+wisps.onSettle = (id) => {
+  spots.reveal(id)
+  sound.chime()
+  narration.say('The light sinks into the ground. Something is left where it went in.')
+}
 scene.add(spots.group)
 scene.add(cairns.group)
 const promptEl = document.getElementById('prompt')!
@@ -653,6 +672,7 @@ function loadLocal(): boolean {
     tipState.bag = true
   }
   for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
+  for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -1102,6 +1122,7 @@ function frame(now: number): void {
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
   spots.update(dt, camera)
+  wisps.update(dt, wanderer.pos)
   visitClock -= dt
   if (visitClock <= 0 && ready) {
     visitClock = 0.5
@@ -1257,6 +1278,7 @@ const g = {
   bag,
   camp,
   spots,
+  wisps,
   birds,
   vegetation,
   grass,

@@ -200,6 +200,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D4 Raiding: a relic in the glowing shrine on each walking giant's back (the Walker, the Grey
       One, the herd's five); climb to it and it is yours — the giant shrugs hard to shake you, the
       glyph goes dark (saved). Gate: `shot.mjs raid` (taken at 258 m, it shrugged)
+- [x] D5 Chase the light (`wisps.ts`): three wisps (the western Green, the Grove, the Dune Sea's
+      hoodoos); come near and it darts to its next place up the land and waits; at the end it sinks
+      into the ground and leaves a trinket. Gate: `shot.mjs wisp`
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
 
