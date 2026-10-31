@@ -36,16 +36,34 @@ export class Ambience {
   private readonly flyPos: Float32Array
   private readonly flyPhase: Float32Array
   private readonly flyMat: THREE.ShaderMaterial
+  /** A few of the fireflies carry a real light (the grass round them glows as they blink). */
+  private readonly flyLights: THREE.PointLight[] = []
   private readonly butter: THREE.InstancedMesh
   private readonly butterState: Array<{ x: number; y: number; z: number; a: number; ph: number; hue: number }> = []
   private readonly circlers: THREE.InstancedMesh
   private readonly flushed: THREE.InstancedMesh
   private readonly hares: THREE.InstancedMesh
   readonly hareState: Array<{ x: number; z: number; a: number; run: number; hop: number; zig: number }> = []
-  private readonly flushState: Array<{ p: THREE.Vector3; v: THREE.Vector3; age: number }> = []
+  private readonly flushState: Array<{ p: THREE.Vector3; v: THREE.Vector3; age: number; size: number }> = []
   private flushClock = 8
   private time = 0
   private readonly rand = mulberry32(8181)
+  /**
+   * A giant's foot comes down near you: a flock bursts up from the ground
+   * round it and scatters (specks beside the foot: its size).
+   */
+  flushAt(x: number, z: number, r: number): void {
+    for (const b of this.flushState) {
+      if (b.age < 3) continue
+      const a = this.rand() * Math.PI * 2
+      const d = r * (0.6 + this.rand() * 0.8)
+      b.p.set(x + Math.cos(a) * d, this.terrain.heightAt(x + Math.cos(a) * d, z + Math.sin(a) * d) + 0.5, z + Math.sin(a) * d)
+      b.v.set(Math.cos(a) * (7 + this.rand() * 5), 6 + this.rand() * 4, Math.sin(a) * (7 + this.rand() * 5))
+      b.age = 0
+      b.size = 0.32
+    }
+  }
+
   /** Birds burst up out of the grass (for their sound). */
   onFlush: () => void = () => {}
 
@@ -93,6 +111,12 @@ export class Ambience {
     this.fly = new THREE.Points(g, this.flyMat)
     this.fly.frustumCulled = false
     this.group.add(this.fly)
+    // (Always present, dark by day: a light that comes and goes would recompile every shader.)
+    for (let i = 0; i < 4; i++) {
+      const l = new THREE.PointLight(0xcfff70, 0, 7, 1.6)
+      this.flyLights.push(l)
+      this.group.add(l)
+    }
 
     // Butterflies: two wings that flap, pale and warm colours.
     const wing = new THREE.PlaneGeometry(0.11, 0.08).translate(0.055, 0, 0)
@@ -124,7 +148,7 @@ export class Ambience {
     this.flushed = new THREE.InstancedMesh(bird, new THREE.MeshBasicMaterial({ color: 0x4a3f33, side: THREE.DoubleSide }), FLUSH)
     this.flushed.frustumCulled = false
     this.flushed.count = 0
-    for (let i = 0; i < FLUSH; i++) this.flushState.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99 })
+    for (let i = 0; i < FLUSH; i++) this.flushState.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99, size: 0.12 })
     this.group.add(this.flushed)
     // A hare: a round body, a smaller head, two tall ears, a white scut.
     const hare = mergeHare()
@@ -153,6 +177,7 @@ export class Ambience {
           b.p.set(ax + (this.rand() - 0.5) * 4, this.terrain.heightAt(ax, az) + 0.3, az + (this.rand() - 0.5) * 4)
           b.v.set(Math.sin(a) * (6 + this.rand() * 4), 5 + this.rand() * 3, Math.cos(a) * (6 + this.rand() * 4))
           b.age = 0
+          b.size = 0.12
         }
         this.onFlush()
       }
@@ -202,7 +227,7 @@ export class Ambience {
       b.p.addScaledVector(b.v, dt)
       const flap = Math.sin(this.time * 30 + b.p.x) * 0.5
       _q.setFromEuler(new THREE.Euler(flap, Math.atan2(b.v.x, b.v.z), 0))
-      _m.compose(b.p, _q, _s.set(0.12, 0.12, 0.12))
+      _m.compose(b.p, _q, _s.set(b.size, b.size, b.size))
       this.flushed.setMatrixAt(fk++, _m)
     }
     this.flushed.count = fk
@@ -231,7 +256,15 @@ export class Ambience {
         p[i * 3 + 1] = live ? this.terrain.heightAt(x, z) + 0.4 + (0.5 + 0.5 * Math.sin(this.time * 0.5 + ph)) * 2.2 : -1e4
       }
       ;(this.fly.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
-    }
+      // The lit ones: the nearest few to you, glowing as they blink (the same blink as the shader's).
+      this.flyLights.forEach((l, k) => {
+        const i = k * 37 + 5
+        const b = Math.sin(this.time * (0.7 + ((this.flyPhase[i] * 0.37) % 1) * 0.8) + this.flyPhase[i])
+        const glow = THREE.MathUtils.smoothstep(b, 0.55, 1)
+        l.position.set(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
+        l.intensity = glow * on * 1.6
+      })
+    } else for (const l of this.flyLights) l.intensity = 0
     // Butterflies: by day, out of the rain, fluttering where the land is lush.
     const bOn = day * (1 - rain) > 0.3
     this.butter.visible = bOn

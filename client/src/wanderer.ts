@@ -314,6 +314,8 @@ export class Wanderer {
   private readonly cape: Cloth
   private readonly scarf: Cloth
   private readonly lantern: THREE.PointLight
+  /** 0 … 1: how far the lantern has come up (it follows the dark). */
+  private lanternOn = 0
   private readonly lanternGlow: THREE.Mesh
   private readonly capeAnchors: THREE.Vector3[] = []
   private readonly scarfAnchors = [new THREE.Vector3(-0.05, 1.47, -0.1), new THREE.Vector3(0.05, 1.47, -0.1)]
@@ -442,7 +444,8 @@ export class Wanderer {
     // The lantern at the left hip: a small warm light.
     this.pelvis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.11, 8).translate(-0.19, -0.12, 0.05), leather))
     this.lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8).translate(-0.19, -0.12, 0.1), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
-    this.lantern = new THREE.PointLight(0xffb066, 0.6, 9, 1.6)
+    // (Reaching ~26 m: in the dark you see the ground about you, not just your feet.)
+    this.lantern = new THREE.PointLight(0xffb066, 0.6, 26, 1.4)
     this.lantern.position.set(-0.19, -0.12, 0.12)
     this.pelvis.add(this.lanternGlow, this.lantern)
 
@@ -738,7 +741,10 @@ export class Wanderer {
 
     // The lantern: brighter in the dark, a slow flicker.
     const flicker = 0.9 + 0.1 * Math.sin(this.t * 11) * Math.sin(this.t * 7.3)
-    this.lantern.intensity = (0.25 + dark * 1.4) * flicker
+    // It comes up by itself as the dark comes on (and is all but out by day).
+    this.lanternOn += (Math.max(0, (dark - 0.25) / 0.75) - this.lanternOn) * Math.min(1, dt * 0.8)
+    this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
+    this.lantern.distance = 10 + this.lanternOn * 18
     ;(this.lanternGlow.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.77 * flicker, 0.48 * flicker)
   }
 

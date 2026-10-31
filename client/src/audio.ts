@@ -34,6 +34,8 @@ export class Sound {
   private windGain: GainNode | null = null
   private presenceGain: GainNode | null = null
   private cricketGain: GainNode | null = null
+  private moanGain: GainNode | null = null
+  private eerieNear = { pit: 0, hanged: 0 }
   private cicadaGain: GainNode | null = null
   /** For the score: how the land sounds right now (ambience()). */
   private life = { night: 0, day: 1, rain: 0, lush: 1, wet: 0 }
@@ -84,6 +86,7 @@ export class Sound {
     this.rainBed()
     this.presenceBed()
     this.insectBeds()
+    this.moanBed()
     // Run the score on its own clock.
     setInterval(() => this.score(), 250)
   }
@@ -268,11 +271,65 @@ export class Sound {
    */
   ambience(night: number, day: number, rain: number, lush: number, wet: number): void {
     this.life = { night, day, rain, lush, wet }
-    if (!this.ctx) return
+    if (!this.ctx || this.stillness) return
     const t = this.ctx.currentTime
     const dry = 1 - Math.min(1, rain * 1.5)
     this.cricketGain?.gain.setTargetAtTime(0.05 * night * dry * (0.3 + 0.7 * lush), t, 3)
     this.cicadaGain?.gain.setTargetAtTime(0.018 * day * dry * (0.4 + 0.6 * lush), t, 4)
+  }
+
+  /** The Pit's moan: wind across a deep hole — a low, slow, wavering note. Silent away from it. */
+  private moanBed(): void {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    const band = ctx.createBiquadFilter()
+    band.type = 'bandpass'
+    band.frequency.value = 110
+    band.Q.value = 9
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 0.06
+    const sweep = ctx.createGain()
+    sweep.gain.value = 35
+    lfo.connect(sweep).connect(band.frequency)
+    const g = ctx.createGain()
+    g.gain.value = 0
+    this.moanGain = g
+    src.connect(band).connect(g).connect(this.master!)
+    g.connect(this.space!)
+    src.start()
+    lfo.start()
+  }
+
+  /** How near the eerie places are (eerie.ts): the Pit's moan, the Hanged's creaks. */
+  eerie(pit: number, hanged: number): void {
+    this.eerieNear = { pit, hanged }
+    if (!this.ctx) return
+    this.moanGain?.gain.setTargetAtTime(pit * pit * 0.5, this.ctx.currentTime, 2)
+  }
+
+  /** A chain and a weight turning on it: a long creak. */
+  private creak(): void {
+    const ctx = this.ctx!
+    const t = ctx.currentTime
+    const o = ctx.createOscillator()
+    o.type = 'sawtooth'
+    const f = 70 + Math.random() * 40
+    o.frequency.setValueAtTime(f, t)
+    o.frequency.linearRampToValueAtTime(f * (0.8 + Math.random() * 0.5), t + 1.4)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 900
+    bp.Q.value = 6
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.05 * this.eerieNear.hanged, t + 0.3)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6)
+    o.connect(bp).connect(g).connect(this.master!)
+    g.connect(this.space!)
+    o.start(t)
+    o.stop(t + 1.7)
   }
 
   /** A bird, somewhere near: two or three quick rising notes. */
@@ -334,8 +391,9 @@ export class Sound {
     const t = this.ctx.currentTime
     // The living land: birds by day where it is green, frogs at night by water.
     const L = this.life
-    if (L.rain < 0.3 && Math.random() < 0.02 * L.day * L.lush) this.birdsong()
-    if (L.rain < 0.6 && Math.random() < 0.04 * L.night * L.wet) this.croak()
+    if (!this.stillness && L.rain < 0.3 && Math.random() < 0.02 * L.day * L.lush) this.birdsong()
+    if (this.eerieNear.hanged > 0.05 && Math.random() < 0.035) this.creak()
+    if (!this.stillness && L.rain < 0.6 && Math.random() < 0.04 * L.night * L.wet) this.croak()
     if (t > this.nextChord) {
       // A new chord every half-minute or so, gliding there over eight seconds.
       this.nextChord = t + 24 + Math.random() * 20
@@ -407,6 +465,36 @@ export class Sound {
       g.connect(this.space!)
       o.start(t)
       o.stop(t + len + 0.1)
+    }
+  }
+
+  /**
+   * The Great Bell: one long, deep stroke — a low fundamental and its bell
+   * partials, a slow beat between two of them, a minute of ringing out.
+   */
+  bell(d: number): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + Math.min(6, d / 343)
+    const base = 58
+    for (const [mul, amp, len] of [
+      [1, 0.3, 40],
+      [1.006, 0.18, 36],
+      [2.0, 0.14, 26],
+      [2.4, 0.1, 18],
+      [3.0, 0.07, 12],
+      [4.2, 0.04, 7],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.frequency.value = base * mul
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(amp * Math.max(0.25, 1 - d / 9000), t + 0.03)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len)
+      o.connect(g).connect(this.master!)
+      g.connect(this.space!)
+      o.start(t)
+      o.stop(t + len + 0.2)
     }
   }
 
@@ -515,6 +603,47 @@ export class Sound {
     o.start(t)
     o.stop(t + 8.2)
     for (let i = 0; i < 5; i++) this.burst(t + 0.4 + i * 0.9, 0.18 - i * 0.025, 90 + Math.random() * 60, 3)
+  }
+
+  /**
+   * The land goes silent (dread: stillness) — wind, insects, birdsong, the
+   * score — and, after, comes back slowly, the insects last.
+   */
+  still(on: boolean): void {
+    this.stillness = on
+    if (!this.ctx) return
+    const t = this.ctx.currentTime
+    this.hush(on)
+    this.cricketGain?.gain.setTargetAtTime(on ? 0 : 0.02, t, on ? 0.6 : 8)
+    this.cicadaGain?.gain.setTargetAtTime(on ? 0 : 0.008, t, on ? 0.6 : 8)
+    this.padGain?.gain.setTargetAtTime(on ? 0.0001 : 0.06, t, on ? 2 : 6)
+  }
+  private stillness = false
+
+  /**
+   * The deep note: a sound too low to hear well — a slow swell of 18–24 Hz
+   * and a rumble under the floor of hearing — as if the ground had spoken.
+   */
+  deep(): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    for (const [f, a] of [
+      [21, 0.6],
+      [23.5, 0.4],
+      [42, 0.12],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.frequency.setValueAtTime(f, t)
+      o.frequency.linearRampToValueAtTime(f * 0.92, t + 8)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(a, t + 3)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 9)
+      o.connect(g).connect(this.master!)
+      o.start(t)
+      o.stop(t + 9.2)
+    }
   }
 
   /** The wind and the score fall away (an awakening), and come back. */

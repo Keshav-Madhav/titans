@@ -107,6 +107,17 @@ export class Spots {
     }
   }
 
+  /** Move a spot (and what shows it) to `at` (where something is left only when it happens). */
+  place(id: string, at: THREE.Vector3): void {
+    const s = this.spots.find((s) => s.id === id)
+    if (!s) return
+    s.at.copy(at)
+    const m = this.marks.get(id)
+    if (m) m.position.copy(at).add(new THREE.Vector3(0, s.model ? 0 : 0.25, 0))
+    const gl = this.glints.find((g) => g.id === id)
+    if (gl) gl.sprite.position.copy(at).add(new THREE.Vector3(0, 0.25, 0))
+  }
+
   /** It is there now (and can be taken). */
   reveal(id: string): void {
     const s = this.spots.find((s) => s.id === id)

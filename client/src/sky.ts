@@ -223,6 +223,7 @@ export class SkySystem {
 
   /** Shadow frustum size around the focus (bigger for a Titan's view). */
   setShadowRadius(r: number): void {
+    if (Math.abs(r - this.shadowRadius) < 1) return
     this.shadowRadius = r
     const c = this.sun.shadow.camera
     c.left = -r

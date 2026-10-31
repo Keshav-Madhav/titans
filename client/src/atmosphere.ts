@@ -58,7 +58,7 @@ export class AirFog extends THREE.Fog {
   }
 }
 
-export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number } = {}): void {
+export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number; pit?: { x: number; z: number; r: number; top: number } } = {}): void {
   const cloudBase = (opts.cloudBase ?? 255).toFixed(1)
   const H = (opts.heightScale ?? 380).toFixed(1)
   const f = (v: number) => v.toFixed(2)
@@ -78,6 +78,15 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
     float lamp = 1.0 - smoothstep(3.0, 15.0, distance(vFogWorld, cameraPosition));
     vec3 dim = vec3(0.15 + 0.75 * lit) + vec3(1.0, 0.78, 0.5) * lamp * 0.45;
     gl_FragColor.rgb *= mix(vec3(1.0), dim, hin);
+  }`
+    : ''
+  // The Pit: the deeper into it, the darker, until the floor is lost.
+  const pit = opts.pit
+    ? `
+  {
+    float pin = (1.0 - smoothstep(${f(opts.pit.r * 1.3)}, ${f(opts.pit.r * 1.9)}, distance(vFogWorld.xz, vec2(${f(opts.pit.x)}, ${f(opts.pit.z)}))))
+              * smoothstep(${f(opts.pit.top - 12)}, ${f(opts.pit.top - 150)}, vFogWorld.y);
+    gl_FragColor.rgb *= 1.0 - 0.94 * pin;
   }`
     : ''
   const s = sunDir.clone().normalize()
@@ -118,6 +127,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   C.fog_fragment = /* glsl */ `
 #ifdef USE_FOG
   ${darkHall}
+  ${pit}
   vec3 fogRay = vFogWorld - cameraPosition;
   float fogDist = length( fogRay );
   // The air's thickness averaged along the ray (exact for density falling

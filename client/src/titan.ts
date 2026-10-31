@@ -364,6 +364,8 @@ export class Titan {
   gait: TitanGait
   /** 0 standing … 1 sitting. Eases toward the gait's `resting`. */
   restBlend = 0
+  /** 0 … 1: the head bowed forward (the Circle's stone giants). */
+  bow = 0
   readonly H: number
   readonly pelvis = new THREE.Vector3()
   readonly chest = new THREE.Vector3()
@@ -602,7 +604,7 @@ export class Titan {
     // forward: the face looked at the ground and the mask was never seen.)
     this.tmp.copy(this.head)
     this.tmp.y += SHAPES.head.len * H * 0.6
-    this.tmp2.copy(this.tmp).addScaledVector(this.fwd, -0.18)
+    this.tmp2.copy(this.tmp).addScaledVector(this.fwd, -0.18 + this.bow * 1.1)
     this.tmp2.y -= 1
     place(M.head, this.tmp, this.tmp2, this.fwd)
     for (const f of [0, 1] as const) {

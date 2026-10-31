@@ -57,6 +57,9 @@ export class CameraRig {
 
   /** The player has zoomed by hand (then the profile's distance no longer pulls). */
   private userDist = false
+  /** The scale director's hand (scale.ts): the focus lowered, the distance scaled. */
+  drop = 0
+  distMul = 1
 
   /** Signed distance to solid rock (negative inside), so the camera stays out of it. */
   occluder: ((x: number, y: number, z: number) => number) | null = null
@@ -80,7 +83,7 @@ export class CameraRig {
     }
 
     const p = this.profile
-    const fy = subject.y + p.focusHeight
+    const fy = subject.y + Math.max(0.6, p.focusHeight - this.drop)
     // A jump (a respawn, a teleport): cut, don't glide — gliding across the map
     // dragged the camera under hills on the way.
     if (this.snapped && Math.hypot(subject.x - this.focus.x, fy - this.focus.y, subject.z - this.focus.z) > 40) this.snapped = false
@@ -107,11 +110,12 @@ export class CameraRig {
     // Never through the world: march from the focus out to the camera and stop
     // short of rock (formations, colossi) or ground in between. Pull in at
     // once; ease back out.
-    const want = this.dist
+    // (The unit direction from the rig's own distance; then out to dist × distMul.)
+    const want = this.dist * this.distMul
     let clear = want
-    const ux = (cam.x - this.focus.x) / want
-    const uy = (cam.y - this.focus.y) / want
-    const uz = (cam.z - this.focus.z) / want
+    const ux = (cam.x - this.focus.x) / this.dist
+    const uy = (cam.y - this.focus.y) / this.dist
+    const uz = (cam.z - this.focus.z) / this.dist
     for (let t = 0.6; t <= want; t += Math.max(0.35, t * 0.08)) {
       const x = this.focus.x + ux * t
       const y = this.focus.y + uy * t

@@ -95,6 +95,13 @@ export async function loadTerrainTextures(renderer: THREE.WebGLRenderer, base = 
 
 const list = (a: number[]) => a.map((v) => v.toFixed(3)).join(', ')
 
+/**
+ * Cloud shadows on the ground (scale: shadows a kilometre across sliding over
+ * the plains): x, z the drift (metres), z of the vector the cover threshold,
+ * w the strength (0 under a full overcast — no sun to cast them). weather.ts sets it.
+ */
+export const groundShade = { value: new THREE.Vector4(0, 0, 0.6, 0) }
+
 /** The ground material: MeshStandardMaterial with the splat patched in. */
 export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })
@@ -102,6 +109,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
     shader.uniforms.tLayerColor = { value: tex.color }
     shader.uniforms.tLayerNormal = { value: tex.normal }
     shader.uniforms.tDetail = { value: detail }
+    shader.uniforms.groundShade = groundShade
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -128,6 +136,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         uniform highp sampler2DArray tLayerColor;
         uniform highp sampler2DArray tLayerNormal;
         uniform sampler2D tDetail;
+        uniform vec4 groundShade;
         varying vec4 vSplatA;
         varying vec4 vSplatB;
         varying vec3 vGroundPos;
@@ -286,6 +295,12 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
         // Ground a giant churned up, still bare (darkened in the vertex colour).
         gAlb *= vColor.g;
+        // Cloud shadows drifting over the land.
+        if (groundShade.w > 0.001) {
+          vec2 gq = gP.xz + groundShade.xy;
+          float gcs = texture2D(tDetail, gq * 0.00021).r * 0.65 + texture2D(tDetail, gq * 0.00069 + 0.37).r * 0.35;
+          gAlb *= 1.0 - groundShade.w * smoothstep(groundShade.z - 0.05, groundShade.z + 0.05, gcs);
+        }
         diffuseColor.rgb = gAlb;`,
       )
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = gRough;')

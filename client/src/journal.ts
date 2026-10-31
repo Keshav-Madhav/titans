@@ -9,7 +9,7 @@ import { drawIcon } from './bag'
 const KIND_ICON: Partial<Record<FindKind, [string, string]>> = { place: ['peak', '#8d9a78'], giant: ['giant', '#8a8478'], lore: ['tablet', '#a49a86'] }
 
 // (Relics and trinkets are things, not knowledge: they are in the bag.)
-const ORDER: FindKind[] = ['place', 'giant', 'lore']
+const ORDER: FindKind[] = ['place', 'giant', 'lore', 'strange']
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
@@ -65,7 +65,7 @@ export class Journal {
 
   /** The card that rises when something is found: what kind, and its name. */
   announce(find: Find): void {
-    const word = { place: 'Discovered', giant: 'Met', lore: 'Read', relic: 'Taken', trinket: 'Found', tool: 'A new way in' }[find.kind]
+    const word = { place: 'Discovered', giant: 'Met', lore: 'Read', relic: 'Taken', trinket: 'Found', tool: 'A new way in', strange: 'You saw it' }[find.kind]
     this.card.innerHTML = `<small>${word}</small><b>${esc(find.name)}</b>`
     this.card.classList.add('on')
     clearTimeout(this.cardTimer)

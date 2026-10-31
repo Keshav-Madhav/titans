@@ -79,10 +79,14 @@ export class BaseTerrain {
     this.canyon = makeSimplex2(seed + 707)
     // The ground level the Undercroft's roof sits at (measured with no pit yet).
     this.hallTop = this.height(HALL.x, HALL.z)
+    // (Measured before the Pit exists: NaN skips it in height().)
+    this.pitTop = this.height(PIT.x + PIT.r + 40, PIT.z)
   }
 
   /** Ground level at the Undercroft (its roof); the floor is HALL.depth below. */
   hallTop = NaN
+  /** Ground level round the Pit's lip. */
+  pitTop = NaN
 
   height(x: number, z: number): number {
     // Domain warp: bends every later feature so nothing reads as a circle.
@@ -141,6 +145,34 @@ export class BaseTerrain {
       if (out < 220) h += (this.hallTop - h) * (1 - smoothstep(10, 220, out))
       // The pit: sheer sides, a flat floor.
       if (inHall(x, z, 4)) h += (this.hallTop - HALL.depth - h) * (1 - smoothstep(-3, 3, out))
+    }
+    // The Pit: a sinkhole in the Green (user: "a perfectly round hole reads
+    // badly — a realistic sinkhole instead"). The ground slumps and cracks
+    // toward a ragged rim; below it, walls of broken rock in layers, going down
+    // a long way; on one side the wall has collapsed into a steep slope of
+    // rubble you can climb down into the dark.
+    const pdx = x - PIT.x
+    const pdz = z - PIT.z
+    const pd = Math.sqrt(pdx * pdx + pdz * pdz)
+    if (!Number.isNaN(this.pitTop) && pd < PIT.r * 2.2) {
+      const ux = pd > 1e-3 ? pdx / pd : 1
+      const uz = pd > 1e-3 ? pdz / pd : 0
+      // The rim wanders in and out round the hole.
+      const edge = PIT.r * (1 + 0.3 * this.rock(ux * 1.6 + 3.1, uz * 1.6 - 1.7) + 0.12 * this.rock(ux * 4.3 - 2.2, uz * 4.3 + 5.5))
+      const t = pd / edge + 0.04 * this.rock(x * 0.09, z * 0.09)
+      // The slump: the ground sags and breaks toward the rim.
+      if (t < 1.5) {
+        const sag = 1 - smoothstep(0.95, 1.5, t)
+        h += (this.pitTop - h) * 0.7 * (1 - smoothstep(1.0, 1.5, t)) - 7 * sag * sag
+      }
+      if (t < 1.02) {
+        // Walls of broken rock, in layers, down to a rubble floor far below.
+        const wall = PIT.depth * strata(smoothstep(1.02, 0.7, t), 6) + 9 * this.rock(x * 0.05 + 4, z * 0.05)
+        // The collapse: one side fallen in, a slope of rubble (~40°) down to about half the depth.
+        const side = smoothstep(0.25, 0.55, this.rock(ux * 1.1 - 6.3, uz * 1.1 + 2.9))
+        const slope = Math.min(PIT.depth * 0.55, (1.02 - t) * edge * 0.85) + 4 * this.rock(x * 0.12, z * 0.12)
+        h -= wall + (slope - wall) * side * smoothstep(0.15, 0.4, t)
+      }
     }
 
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
@@ -260,6 +292,9 @@ export const TERRACE = 16
  * level, open at the skylights (local x, z: square holes `sky` across) and
  * over the ramp's mouth at the west end.
  */
+/** The Pit on the Green: centre, radius, depth. */
+export const PIT = { x: 1700, z: 1950, r: 46, depth: 240 }
+
 export const HALL = {
   x: 60,
   z: 1400,

@@ -1,3 +1,7 @@
+> **Superseded in part (user, 2026-10-31):** no defined plot — environmental storytelling only
+> (PLAN.md §2f). The plot options below are kept for reference; §3 and §6 (things to find, the
+> lands to come) still apply.
+
 # TITANS — story, quests, progression, exploration (DRAFT for discussion)
 
 Status: thinking, not building (user, 2026-10-31: "don't work on it yet but start thinking story

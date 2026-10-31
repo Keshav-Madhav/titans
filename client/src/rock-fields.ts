@@ -7,7 +7,7 @@ import { makeSimplex2, mulberry32, type Noise2, type RegionName } from '@titans/
 
 export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 'boulders'
 /** The colossi: the First Ones' remains and works, hundreds of metres across. */
-export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining'
+export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining' | 'husk' | 'mourner'
 export type ShapeKind = FormationKind | ColossusKind
 type THREE3 = [number, number, number]
 
@@ -370,7 +370,7 @@ export function meshShape(sh: Shape, res = 64): RockMesh {
 
 // --- the colossi ----------------------------------------------------------------
 
-const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining']
+const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining', 'husk', 'mourner']
 export const isColossus = (k: ShapeKind): k is ColossusKind => (COLOSSI as string[]).includes(k)
 
 /** Capsule between two points. */
@@ -536,6 +536,66 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       hy: 150,
       hz: 410,
       cy: 75,
+    }
+  }
+  if (kind === 'mourner') {
+    // One of the Circle: a tall hooded figure in a long robe, ~120 m, standing
+    // with its head bowed far forward and its hands folded in its sleeves, the
+    // hood's opening dark. Each a little different (how low it bows, how it
+    // stands). Facing +z.
+    const bow = 0.5 + rand() * 0.35
+    const lean = (rand() - 0.5) * 0.12
+    const H = 112 + rand() * 18
+    return {
+      field: (x, y, z) => {
+        const lx = x - lean * y
+        // The robe: wide at the hem, narrowing to the shoulders, falling in folds.
+        const t = Math.max(0, Math.min(1, y / (H * 0.78)))
+        const rr = 24 - 12 * t + 1.6 * Math.sin(Math.atan2(z, lx) * 9) * (1 - t)
+        let d = Math.max(Math.hypot(lx, z * 1.15) - rr, -y, y - H * 0.8)
+        // Shoulders, rounded and hunched forward.
+        d = smin(d, ellipsoid(lx, y - H * 0.78, z - 4, 17, 10, 13), 8)
+        // The hood: bowed far forward over the chest, its opening dark and deep.
+        const hy = H * 0.86 - bow * 12
+        const hz = 6 + bow * 16
+        d = smin(d, ellipsoid(lx, y - hy, z - hz, 11, 14, 13), 8)
+        d = ssub(d, ellipsoid(lx, y - (hy - 5 - bow * 3), z - (hz + 9), 6, 8, 7), 3)
+        // The sleeves, folded across the front, the hands hidden in them.
+        d = smin(d, capsule(x, y, z, -14, H * 0.66, 8, 0, H * 0.58, 16, 6.5), 5)
+        d = smin(d, capsule(x, y, z, 14, H * 0.66, 8, 0, H * 0.58, 16, 6.5), 5)
+        return d + wear(x, y, z, 1.2)
+      },
+      hx: 34,
+      hy: H * 0.5 + 6,
+      hz: 34,
+      cy: H * 0.5,
+    }
+  }
+  if (kind === 'husk') {
+    // What one of them left behind when it grew: its whole skin, shed in one
+    // piece and lying face down in the sand — hollow, split along the back
+    // from neck to hip, so you can walk in. ~260 m long. Head at +z.
+    return {
+      field: (x, y, z) => {
+        let d = ellipsoid(x, y - 20, z - 10, 70, 46, 105) // the back and chest
+        d = smin(d, ellipsoid(x, y - 10, z + 95, 58, 36, 50), 30) // the hips (at −z)
+        d = smin(d, ellipsoid(x, y - 22, z - 128, 34, 32, 38), 18) // the head, face down
+        d = smin(d, capsule(x, y, z, 60, 10, 60, 112, -4, 172, 20), 16) // arms, flung out past the head
+        d = smin(d, capsule(x, y, z, -60, 10, 60, -116, -4, 166, 20), 16)
+        d = smin(d, capsule(x, y, z, 30, 0, -130, 46, -8, -230, 22), 14) // legs
+        d = smin(d, capsule(x, y, z, -30, 0, -130, -40, -8, -228, 22), 14)
+        // Hollow: a skin seven metres thick (thinner than the mesh's cells, it broke into shards).
+        let shell = Math.max(d, -d - 7)
+        // Split along the back, neck to hip; holes where the eyes were, at the sides of the head.
+        shell = Math.max(shell, -capsule(x, y, z, 0, 62, 92, 0, 44, -80, 15))
+        shell = Math.max(shell, -ellipsoid(Math.abs(x) - 30, y - 26, z - 140, 6, 7, 9))
+        // Ragged where it tore.
+        return Math.max(shell, -(y + 14)) + wear(x, y, z, 1.6)
+      },
+      hx: 160,
+      hy: 70,
+      hz: 260,
+      cy: 25,
     }
   }
   if (kind === 'skull') {

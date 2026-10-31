@@ -19,6 +19,7 @@ import {
   TITAN_HEIGHT,
   WORLD_SEED,
   HALL,
+  PIT,
   inHall,
   type Box,
   type GaitEvent,
@@ -30,7 +31,7 @@ import {
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
-import { loadTerrainTextures } from './terrain-material'
+import { loadTerrainTextures, LAYER } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input } from './input'
 import { Wanderer } from './wanderer'
@@ -71,6 +72,11 @@ import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView } from './mire'
+import { Dread } from './dread'
+import { Bell } from './bell'
+import { Eerie } from './eerie'
+import { ScaleDirector, type BigThing } from './scale'
+import { isColossus } from './rock-fields'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -127,7 +133,7 @@ terrainView.biome = biome
 const sky = new SkySystem(scene, renderer)
 // The day goes by in play; the tools hold it still (and set it) so shots are repeatable.
 sky.running = !toolMode
-installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop } })
+installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pit: { ...PIT, top: terrain.base.pitTop } })
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
 const post = new Post(renderer, scene, camera)
@@ -339,6 +345,27 @@ const resonance = new Resonance(
   terrain,
 )
 scene.add(resonance.group)
+
+// Eerie places: the Pit, the Circle of the Bowed, the Hanged (and the Husk, a colossus).
+const eerie = (() => {
+  const c = levelNear(7300, 1500, 500, 300)
+  const tree = colossi.places.get('tree-4') ?? colossi.places.get('tree-1')!
+  const hangY = terrain.heightAt(tree.x, tree.z) + 175
+  const e = new Eerie(terrain, c, { x: tree.x + 40, y: hangY, z: tree.z + 30 })
+  // The Circle: seven hooded figures, heads bowed, facing the middle.
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.3
+    const x = c.x + Math.cos(a) * e.circle.r
+    const z = c.z + Math.sin(a) * e.circle.r
+    rocks.addColossus({ kind: 'mourner', x, z, y: terrain.heightAt(x, z) - 3, rot: Math.atan2(c.x - x, c.z - z), seed: 900 + i, layers: [LAYER.carved, LAYER.moss], scale: 10, tint: [0.78, 0.76, 0.72], res: 110 })
+  }
+  // The black stone in the middle of the ring.
+  rocks.addColossus({ kind: 'monolith', x: c.x, z: c.z, y: terrain.heightAt(c.x, c.z) + 20, rot: 0.4, seed: 777, layers: [LAYER.basalt, LAYER.basalt], scale: 14, tint: [0.35, 0.35, 0.38] })
+  const f = rocks.formations[rocks.formations.length - 1]
+  f.float = { amp: 0, phase: 0, spin: 0 }
+  return e
+})()
+scene.add(eerie.group)
 
 // The bow's targets: sets of stone eyes (placed with the spots, below).
 const eyeSets: EyeSet[] = []
@@ -568,6 +595,40 @@ const spots = (() => {
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // The eerie places: a stone at each, and something to take.
+  {
+    // The Pit: find its fallen side (the highest ground part-way in); the coin
+    // lies at the foot of that rubble slope, down in the dark; the stone stands
+    // on the far lip.
+    let best = { a: 0, h: -Infinity }
+    for (let k = 0; k < 72; k++) {
+      const a = (k / 72) * Math.PI * 2
+      const hh = H(PIT.x + Math.cos(a) * PIT.r * 0.55, PIT.z + Math.sin(a) * PIT.r * 0.55)
+      if (hh > best.h) best = { a, h: hh }
+    }
+    let foot = ground(PIT.x, PIT.z)
+    for (let d = PIT.r * 0.6; d >= 0; d -= 2) {
+      const p = ground(PIT.x + Math.cos(best.a) * d, PIT.z + Math.sin(best.a) * d)
+      if (p.y < foot.y + 1 || d === PIT.r * 0.6) foot = p
+    }
+    placed.push({ id: 'pit-ledge', kind: 'trinket', at: foot })
+    placed.push({ id: 'lore-pit', kind: 'stone', at: ground(PIT.x - Math.cos(best.a) * PIT.r * 1.9, PIT.z - Math.sin(best.a) * PIT.r * 1.9) })
+    const c = eerie.circle
+    const out = Math.atan2(c.x, c.z)
+    placed.push({ id: 'lore-circle', kind: 'stone', at: ground(c.x - Math.sin(out) * (c.r + 70), c.z - Math.cos(out) * (c.r + 70)) })
+    placed.push({ id: 'circle-stone', kind: 'trinket', at: ground(c.x + 14, c.z + 10) })
+    const hk = P('husk')
+    if (hk) {
+      placed.push({ id: 'lore-husk', kind: 'stone', at: ground(hk.x + 150, hk.z - 40) })
+      // Inside, on the sand under its back.
+      placed.push({ id: 'husk-figure', kind: 'trinket', at: ground(hk.x + Math.sin(0.9) * 30, hk.z + Math.cos(0.9) * 30) })
+    }
+    const hg = eerie.hanged
+    placed.push({ id: 'lore-hanged', kind: 'stone', at: ground(hg.x - 30, hg.z - 25) })
+    placed.push({ id: 'hanged-ring', kind: 'trinket', at: ground(hg.x + 6, hg.z + 4) })
+  }
+  // Where the footprints in the morning end (placed when they appear: dread.ts).
+  placed.push({ id: 'print-gift', kind: 'trinket', at: new THREE.Vector3(0, -1000, 0), hidden: true })
   const dro = P('drowned')
   if (dro) {
     const back = Math.atan2(-dro.x, -dro.z)
@@ -584,6 +645,26 @@ const spots = (() => {
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   return new Spots(placed)
 })()
+// The Great Bell, by the Colonnade: ring it with an arrow and every giant turns to it.
+const bell = (() => {
+  const col = colossi.places.get('colonnade') ?? new THREE.Vector3(3068, 0, -2808)
+  // A little in front of the colonnade, toward the Green, on the axis of the row.
+  const bx = col.x - 0.866 * 260
+  const bz = col.z + 0.5 * 260
+  // (The frame faces the Green: its posts stand along the colonnade's row, not
+  // across the way you come — edge-on, a post hid the bell from the shot.)
+  return new Bell(rocks, terrain, bx, bz, -Math.PI / 3)
+})()
+scene.add(bell.group)
+bell.onStrike = () => {
+  sound.bell(camera.position.distanceTo(bell.at))
+  finds.find('bell')
+  const until = performance.now() + 50000
+  for (const id of titans.keys()) hornOrders.set(id, { kind: 'look', until, x: bell.at.x, z: bell.at.z })
+  herd.look(bell.at.x, bell.at.z, 50)
+  setTimeout(() => narration.say('The note rolls out over every land. Far off, something stops walking.'), 3000)
+}
+
 // The bow and its eyes.
 const eyes = new Eyes(eyeSets)
 scene.add(eyes.group)
@@ -600,20 +681,42 @@ bow.onLoose = () => sound.loose()
 const arrowHit: ArrowHit = (a, b) => {
   const e = eyes.hit(a, b)
   if (e) return { at: e, stop: true }
+  const rung = bell.hit(a, b)
+  if (rung) return { at: rung, stop: true }
   const h = terrain.heightAt(b.x, b.z)
   if (b.y < h) return { at: b.clone().setY(h), stop: false }
   if (rocks.sdfAt(b.x, b.y, b.z) < 0) return { at: a.clone(), stop: false }
   return null
 }
 const aimFwd = new THREE.Vector3()
-let loomK = 0
+const _eye = new THREE.Vector3()
+// The scale director: the lens, the camera's height and distance, a gaze that drifts up (scale.ts).
+const scaleDir = new ScaleDirector()
+const bigThings: BigThing[] = []
+let shadowR = 260
+function gatherBig(): BigThing[] {
+  bigThings.length = 0
+  const add = (x: number, z: number, H: number) => {
+    const base = terrain.heightAt(x, z)
+    bigThings.push({ x, z, base, top: base + H })
+  }
+  for (const a of titans.values()) add(a.titan.gait.x, a.titan.gait.z, a.titan.H)
+  for (const t of herd.giants) add(t.gait.x, t.gait.z, t.H)
+  for (const t of farGiants) add(t.gait.x, t.gait.z, t.H)
+  for (const f of rocks.formations) {
+    if (!isColossus(f.kind as never) || f.float) continue
+    bigThings.push({ x: f.x, z: f.z, base: f.y, top: f.y + f.cy + f.hy })
+  }
+  return bigThings
+}
+let circleSilent = false
 const pick: Pick = (from, dir, max) => {
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
   for (let t = 0; t < max; t += 2) {
     a.copy(from).addScaledVector(dir, t)
     b.copy(from).addScaledVector(dir, t + 2)
-    if (eyes.test(a, b) || b.y < terrain.heightAt(b.x, b.z) || rocks.sdfAt(b.x, b.y, b.z) < 0) return t + 2
+    if (eyes.test(a, b) || bell.test(a, b) || b.y < terrain.heightAt(b.x, b.z) || rocks.sdfAt(b.x, b.y, b.z) < 0) return t + 2
   }
   return max
 }
@@ -713,6 +816,52 @@ const wetland = (x: number, z: number) => biome.mire(x, z)
 const ambience = new Ambience(terrain, lush)
 scene.add(ambience.group)
 ambience.onFlush = () => sound.flush()
+
+// Dread (PLAN.md §2g): rare, slow, unexplained things. Never a jumpscare; none can hurt you.
+const STRANGE: Record<string, string> = { stillness: 'strange-stillness', walker: 'strange-walker', footprints: 'strange-footprints', eyes: 'strange-eyes', deep: 'strange-deep' }
+const dread = new Dread(
+  {
+    hush: (on) => sound.still(on),
+    farStep: (d) => sound.footfall(d, false),
+    deep: () => sound.deep(),
+    shake: (k) => rig.shake(k),
+    footprint: (x, z, hx, hz) => {
+      const ev: GaitEvent = { type: 'footfall', foot: 0, x, z, heading: Math.atan2(hx, hz), hx, hz, step: 0 }
+      onGait(ev, true)
+      record(ev)
+      // Fresh: bare earth, the grass trodden flat (a replayed print would read as old ground).
+      vegetation.trample(x - 24, z - 24, x + 24, z + 24)
+      terrainView.markDirty(x - 30, z - 30, x + 30, z + 30)
+    },
+    footprintsEnd: (x, z) => {
+      const s = spots.spots.find((p) => p.id === 'print-gift')
+      if (!s || finds.has('print-gift')) return
+      spots.place('print-gift', new THREE.Vector3(x, terrain.heightAt(x, z), z))
+      spots.reveal('print-gift')
+    },
+    say: (text) => setTimeout(() => narration.say(text), 2500),
+    witness: (kind) => {
+      if (STRANGE[kind]) finds.find(STRANGE[kind])
+    },
+  },
+  WORLD_SEED,
+)
+scene.add(dread.group)
+function dreadWorld() {
+  return {
+    player: wanderer.pos,
+    camera,
+    night: sky.night,
+    dusk: sky.dusk,
+    dark: weather.now.dark,
+    time: sky.time,
+    forest: biome.forest(wanderer.pos.x, wanderer.pos.z),
+    open: biome.open(wanderer.pos.x, wanderer.pos.z),
+    heightAt: (x: number, z: number) => terrain.heightAt(x, z),
+    // (Tools trigger them by hand: dreadBegin.)
+    busy: awakening.active || climber.active || toolMode,
+  }
+}
 journal.onToggle = () => input.releaseAll()
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
@@ -725,6 +874,8 @@ const camp = new Camp(terrain)
 scene.add(camp.group)
 finds.onFind = (f) => {
   journal.announce(f)
+  // Finding one of them (or a colossal place) from the ground: the dolly zoom.
+  if ((f.kind === 'giant' || f.kind === 'place') && wanderer.grounded && !climber.active) scaleDir.vertigo(camera.fov)
   sound.chime()
   setTimeout(() => narration.say(f.text), 1600)
   saveDirty = true
@@ -734,6 +885,10 @@ const placeAt = (name: string) => () => colossi.places.get(name) ?? null
 const sites: Site[] = [
   { id: 'green', r: 500, at: near(0, 0) },
   { id: 'steps', r: 160, at: near(STEPS_AT.x, STEPS_AT.z) },
+  { id: 'pit', r: 160, at: near(PIT.x, PIT.z) },
+  { id: 'circle', r: 480, at: () => ({ x: eerie.circle.x, z: eerie.circle.z }) },
+  { id: 'husk', r: 380, at: placeAt('husk') },
+  { id: 'hanged', r: 200, at: () => ({ x: eerie.hanged.x, z: eerie.hanged.z }) },
   { id: 'mire', r: 500, at: () => {
     // The nearest marsh: wherever you stand in one.
     const p = wanderer.pos
@@ -906,6 +1061,8 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   wildlife.alarm(ev.x, ev.z, ev.stomp ? 650 : 280)
   // A giant's foot on the mound breaks open what we could not dig.
   if (!ancient && !mound.open && Math.hypot(ev.x - MOUND.x, ev.z - MOUND.z) < 34) uncover()
+  // Birds burst up round the foot when it lands within sight on green ground.
+  if (Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) < 900 && biome.desert(ev.x, ev.z) < 0.5 && Math.random() < 0.6) ambience.flushAt(ev.x, ev.z, 40)
   // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
   if (climber.active) climber.stamina = Math.max(0, climber.stamina - (ev.stomp ? 0.35 : 0.03))
   const gy = terrain.heightAt(ev.x, ev.z)
@@ -1124,7 +1281,7 @@ const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darknes
  * The horn: blown on the ground, the nearest walker comes to see what made
  * the noise; blown from one's back, it walks the way you are looking.
  */
-const hornOrders = new Map<string, { kind: 'come' | 'ride'; until: number }>()
+const hornOrders = new Map<string, { kind: 'come' | 'ride' | 'look'; until: number; x?: number; z?: number }>()
 /** The horn stays at your mouth this long after a blow (for the pose). */
 let hornHeldUntil = 0
 function blowHorn(): void {
@@ -1160,6 +1317,12 @@ function hornInput(id: string, t: Titan): GaitInput | null {
   let tx: number
   let tz: number
   let f = 0.72
+  if (order.kind === 'look') {
+    // The bell: stand still, and turn to face it.
+    let dh = Math.atan2(order.x! - t.gait.x, order.z! - t.gait.z) - t.gait.heading
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+    return { forward: 0, turn: THREE.MathUtils.clamp(dh * 1.4, -1, 1) }
+  }
   if (order.kind === 'come') {
     tx = wanderer.pos.x
     tz = wanderer.pos.z
@@ -1213,7 +1376,8 @@ function simulate(dt: number): void {
     }
   } else {
     const cairn = cairns.near(wanderer.pos)
-    const spot = spots.near(wanderer.pos, (id) => finds.has(id))
+    // (An unlit cairn comes before anything lying beside it: on the tallest pillar both share the top.)
+    const spot = cairn ? null : spots.near(wanderer.pos, (id) => finds.has(id))
     if (camp.near(wanderer.pos) && input.pressed('KeyE')) {
       camp.take()
       finds.find('bag')
@@ -1513,7 +1677,7 @@ function frame(now: number): void {
     let b = false
     for (const id of finds.unseen) {
       const k = CATALOGUE.find((c) => c.id === id)?.kind
-      if (k === 'place' || k === 'giant' || k === 'lore') j = true
+      if (k === 'place' || k === 'giant' || k === 'lore' || k === 'strange') j = true
       else if (id !== 'bag') b = true
     }
     hud.news(j, b)
@@ -1554,6 +1718,7 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind)
   spots.update(dt, camera)
+  dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)
   {
     const heads: Array<{ at: THREE.Vector3; H: number }> = []
@@ -1566,6 +1731,18 @@ function frame(now: number): void {
     sound.ambience(Math.max(sky.night, sky.dusk * 0.7), 1 - sky.dusk, weather.now.rain, here, Math.min(1, here * 0.4 + wetland(wanderer.pos.x, wanderer.pos.z) * 1.6))
   }
   wisps.update(dt, wanderer.pos)
+  bell.update(dt)
+  eerie.update(dt)
+  {
+    // Their sounds; and near the Circle, the land falls silent.
+    const n = eerie.near(wanderer.pos.x, wanderer.pos.z)
+    sound.eerie(n.pit, n.hanged)
+    const silent = n.circle > 0.5
+    if (silent !== circleSilent && dread.now !== 'stillness') {
+      circleSilent = silent
+      sound.still(silent)
+    }
+  }
   glyphs.update(dt, finds.has('sight') && input.held('KeyV') && !climber.active && !journal.open && !bag.open, wanderer.pos, crownWind.value)
   {
     const has = finds.has('bow')
@@ -1582,7 +1759,7 @@ function frame(now: number): void {
   }
   // What E would do here.
   const free = !climber.active && !cliff.active
-  const spotNear = free ? spots.near(wanderer.pos, (id) => finds.has(id)) : null
+  const spotNear = free && !cairns.near(wanderer.pos) ? spots.near(wanderer.pos, (id) => finds.has(id)) : null
   const html =
     free && camp.near(wanderer.pos)
       ? `<kbd>E</kbd>Take the bag`
@@ -1642,17 +1819,29 @@ function frame(now: number): void {
       camera.position.lerp(shoulder, bow.draw * 0.9)
       wanderer.yaw = Math.atan2(aimFwd.x, aimFwd.z)
     }
-    // Looming: standing near one of them on the ground, the lens widens a little (a wide lens
-    // makes the near huge thing huger, the way it feels to stand under it).
-    let loom = 0
-    if (!climber.active && wanderer.grounded) {
-      for (const a of titans.values()) loom = Math.max(loom, 1 - Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z) / (a.titan.H * 1.3))
-      for (const t of herd.giants) loom = Math.max(loom, 1 - Math.hypot(t.gait.x - wanderer.pos.x, t.gait.z - wanderer.pos.z) / (t.H * 1.3))
-    }
-    loomK += (Math.max(0, loom) - loomK) * Math.min(1, dt * 0.8)
+    // The scale director: how big what fills your sky is, shown through the lens and the camera.
+    camera.getWorldDirection(aimFwd)
+    const sc = scaleDir.update(
+      dt,
+      gatherBig(),
+      _eye.copy(wanderer.pos).setY(wanderer.pos.y + 1.6),
+      aimFwd,
+      Math.abs(look.dx) + Math.abs(look.dy),
+      wanderer.speed < 0.4,
+      rig.pitch,
+      wanderer.grounded && !climber.active && !cliff.active && bow.draw < 0.05,
+    )
+    rig.drop = sc.drop
+    rig.distMul = sc.dist
+    if (sc.pitch !== null && !awakening.active) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
+    // A giant near you casts its shadow over you: the shadow map reaches out to it.
+    const dom = scaleDir.dominant
+    const wantR = dom && dom.dist < 1400 ? Math.min(1100, Math.max(260, dom.dist + (dom.thing.top - dom.thing.base) * 1.4)) : 260
+    shadowR += (wantR - shadowR) * Math.min(1, dt * 0.5)
+    sky.setShadowRadius(Math.round(shadowR / 20) * 20)
     // The long run widens the view a little: speed you feel at the edges.
     if (!awakening.active) {
-      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + 9 * loomK
+      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
@@ -1781,6 +1970,14 @@ const g = {
   offerings,
   mireView,
   ambience,
+  dread,
+  bell,
+  eerie,
+  scaleDir,
+  dreadBegin(kind: 'stillness' | 'walker' | 'footprints' | 'eyes' | 'deep') {
+    dread.stop(dreadWorld())
+    return dread.begin(kind, { ...dreadWorld(), busy: false })
+  },
   get glyphs() {
     return glyphs
   },

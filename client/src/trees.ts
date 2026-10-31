@@ -14,8 +14,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '@titans/shared'
 
 const SIZE = 512
-/** UV of the opaque white patch trunks use. */
-const TRUNK_UV: [number, number] = [0.02, 0.02]
+/** The bark strip trunks wrap round: u 0 … BARK_U, v BARK_V. (Below the leaves' u 0.05.) */
+const BARK_U = 0.036
+const BARK_V: [number, number] = [0.07, 0.93]
 /** UV rectangles (u0, v0, u1, v1) of the leaf and needle areas. */
 const LEAVES: [number, number, number, number] = [0.05, 0.0, 0.55, 1.0]
 const NEEDLES: [number, number, number, number] = [0.55, 0.0, 1.0, 1.0]
@@ -33,6 +34,34 @@ export function foliageTexture(): THREE.CanvasTexture {
   // the crowns hanging in the air.)
   g.fillRect(0, 0, 16, 16)
   g.fillRect(0, SIZE - 16, 16, 16)
+  // Bark: a strip down the left edge (u 0 … BARK_U, between the corners) that
+  // the trunks wrap round — pale (the vertex colour gives the hue), with long
+  // dark furrows and a few cross cracks.
+  {
+    const bw = Math.round(BARK_U * SIZE)
+    const y0 = Math.round(BARK_V[0] * SIZE)
+    const y1 = Math.round(BARK_V[1] * SIZE)
+    g.fillStyle = '#e4e0d8'
+    g.fillRect(0, y0, bw, y1 - y0)
+    const brand = mulberry32(5150)
+    for (let i = 0; i < 9; i++) {
+      let x = brand() * bw
+      g.strokeStyle = `rgba(70, 58, 46, ${0.45 + brand() * 0.35})`
+      g.lineWidth = 1 + brand() * 1.6
+      g.beginPath()
+      g.moveTo(x, y0)
+      for (let y = y0; y < y1; y += 12) {
+        x = Math.max(0, Math.min(bw, x + (brand() - 0.5) * 2.4))
+        g.lineTo(x, y)
+      }
+      g.stroke()
+    }
+    for (let i = 0; i < 26; i++) {
+      const y = y0 + brand() * (y1 - y0)
+      g.fillStyle = `rgba(90, 76, 60, ${0.3 + brand() * 0.3})`
+      g.fillRect(brand() * bw * 0.6, y, 3 + brand() * 6, 1.2)
+    }
+  }
   // Leaves: a dense clump of soft ovals, lighter toward the top.
   const lx0 = LEAVES[0] * SIZE
   const lw = (LEAVES[2] - LEAVES[0]) * SIZE
@@ -129,8 +158,9 @@ function crownNormals(g: THREE.BufferGeometry, centre: THREE.Vector3, squash = 1
 
 function trunk(r0: number, r1: number, h: number, hex: number, segs = 7): THREE.BufferGeometry {
   const g = new THREE.CylinderGeometry(r1, r0, h, segs, 2).translate(0, h / 2, 0)
+  // Round the trunk once, up its length once: the bark strip (inset a little from its edges).
   const a = g.getAttribute('uv')
-  for (let i = 0; i < a.count; i++) a.setXY(i, TRUNK_UV[0], TRUNK_UV[1])
+  for (let i = 0; i < a.count; i++) a.setXY(i, 0.002 + a.getX(i) * (BARK_U - 0.004), BARK_V[0] + 0.01 + a.getY(i) * (BARK_V[1] - BARK_V[0] - 0.02))
   return shade(g, hex)
 }
 
@@ -239,6 +269,22 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
       // Leaves flutter (not the trunk: it maps to the corner of the texture).
       float leaf = step(0.04, uv.x);
       transformed += leaf * 0.06 * vec3(sin(uTime * 4.1 + position.y * 3.0 + phase), sin(uTime * 3.3 + position.x * 2.7), cos(uTime * 3.7 + position.z * 3.1));`,
+    )
+    // Bark, drawn here rather than sampled (the strip is too few pixels to hold
+    // it): u round the trunk, v up it — deep furrows that wander, ridges between,
+    // a few cross cracks; and the light catches the ridges.
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>
+      if (vMapUv.x < ${BARK_U.toFixed(4)}) {
+        float ba = vMapUv.x / ${BARK_U.toFixed(4)};
+        float bh = vMapUv.y;
+        float wob = sin(bh * 41.0 + ba * 9.0) * 0.35 + sin(bh * 113.0) * 0.12;
+        float ridge = abs(sin((ba * 9.0 + wob) * 3.14159));
+        float furrow = smoothstep(0.0, 0.55, ridge);
+        float crack = step(0.93, fract(sin(floor(bh * 70.0) * 12.9898 + floor(ba * 9.0) * 78.233) * 43758.5)) * (1.0 - smoothstep(0.0, 0.25, ridge));
+        diffuseColor.rgb *= (0.42 + 0.68 * furrow) * (1.0 - 0.35 * crack) * (0.9 + 0.2 * fract(sin(floor(bh * 23.0) * 7.31) * 913.7));
+      }`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
     // And leaves right in front of the camera dissolve (dithered), so walking

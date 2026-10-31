@@ -377,13 +377,13 @@ const scenes = {
       for (const a of dirs) {
         await page.evaluate((a) => {
           const g = window.__g
-          // A crest of the Green, looking out toward the edge of the world.
-          // (2.2 km out: 1.5 km toward 1.5 rad is the Undercroft.)
+          // From a height over the Green (a cairn's view: the lands are ~10 km
+          // across now, and from the grass the near hills hide the edge).
           const x = Math.cos(a) * 2200
           const z = Math.sin(a) * 2200
           g.teleport(x, z)
           const h = g.heightAt(x, z)
-          g.lookFrom([x, h + 3, z], [Math.cos(a) * 20000, 2400, Math.sin(a) * 20000])
+          g.lookFrom([x, h + 260, z], [Math.cos(a) * 26000, 3200, Math.sin(a) * 26000])
         }, a)
         await shot(`wall-${w}-${a}`)
       }
@@ -705,6 +705,250 @@ const scenes = {
     await page.evaluate(() => window.__g.sky.setTime(0.36))
     const r = await page.evaluate(() => ({ region: window.__g.terrain.base.regions.name(-0.866 * 6900, -0.5 * 6900), pools: window.__g.mireView.water.count, snags: window.__g.mireView.snags.count }))
     console.log('mire', JSON.stringify(r))
+  },
+  // Scale: the same moments with the scale director off and on — at the Walker's feet, looking up,
+  // the gaze drifting up, staring at the Sentinel from afar, and the vertigo of first sight.
+  async scale() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.sky.setTime(0.36)
+    })
+    const atWalker = () =>
+      page.evaluate(() => {
+        const g = window.__g
+        const t = g.titan
+        const back = t.gait.heading + Math.PI
+        const x = t.gait.x + Math.sin(back) * 150 + Math.cos(back) * 60
+        const z = t.gait.z + Math.cos(back) * 150 - Math.sin(back) * 60
+        g.teleport(x, z)
+        g.setCam(Math.atan2(x - t.gait.x, z - t.gait.z), 0.15, 5.5)
+      })
+    for (const on of [false, true]) {
+      const tag = on ? 'on' : 'off'
+      await page.evaluate((on) => (window.__g.scaleDir.enabled = on), on)
+      await atWalker()
+      await page.waitForTimeout(4000)
+      await shot(`scale-${tag}-feet`)
+      await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, -0.5, 5.5))
+      await page.waitForTimeout(3000)
+      await shot(`scale-${tag}-lookup`)
+    }
+    // Hands off the mouse under it: the gaze drifts up.
+    await atWalker()
+    await page.waitForTimeout(9000)
+    await shot('scale-drift')
+    // Staring: the Sentinel from the far side of the Green, held still.
+    await page.evaluate(() => {
+      const g = window.__g
+      // From where you wake, 1.6 km off, across the Green.
+      const s = g.colossi.places.get('sentinel')
+      g.teleport(60, 120)
+      const p = g.player()
+      g.setCam(Math.atan2(p.x - s.x, p.z - s.z), 0.04, 5.5)
+    })
+    await page.waitForTimeout(1500)
+    await shot('scale-stare-0')
+    await page.waitForTimeout(12000)
+    await shot('scale-stare-12')
+    // Vertigo: begun by hand (as finding the Walker would), frames through it.
+    await atWalker()
+    await page.waitForTimeout(3000)
+    await page.evaluate(() => window.__g.scaleDir.vertigo(window.__g.camera.fov))
+    // (Straight screenshots: shot() waits for the world to settle, and the dolly is over by then.)
+    for (const at of [0, 1.3, 2.6]) {
+      await page.waitForTimeout(at === 0 ? 30 : 1300)
+      await page.screenshot({ path: `${OUT}/scale-vertigo-${String(at).replace('.', '_')}.png` })
+    }
+    const fov = await page.evaluate(() => window.__g.camera.fov)
+    console.log('scale fov at the end of the vertigo in', fov.toFixed(1))
+    // Cloud shadows over the Green on a fair day, from a height.
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('clear', true)
+      g.weather.now.cover = 0.5
+      g.lookFrom([0, g.heightAt(0, 0) + 200, 900], [0, g.heightAt(0, 0), -700])
+    })
+    await page.waitForTimeout(2000)
+    await shot('scale-cloud-shadows')
+    // Birds bursting up round a giant's foot.
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.titan
+      g.lookFrom([t.gait.x + 260, g.heightAt(t.gait.x + 260, t.gait.z + 120) + 3, t.gait.z + 120], [t.gait.x, g.heightAt(t.gait.x, t.gait.z) + 60, t.gait.z])
+      g.ambience.flushAt(t.gait.x + 20, t.gait.z + 10, 40)
+    })
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${OUT}/scale-birds.png` })
+    await page.evaluate(() => window.__g.lookFrom(null))
+  },
+  // The eerie places, each as you come upon it: the Pit, the Circle, the Husk (and inside), the Hanged.
+  async eerie() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 240000 })
+    await page.evaluate(() => window.__g.weather.set('overcast', true))
+    const view = async (name, fn) => {
+      await page.evaluate(fn)
+      await page.waitForTimeout(1500)
+      await shot(name)
+    }
+    await view('eerie-pit', () => {
+      const g = window.__g
+      const P = g.shared.PIT
+      g.teleport(P.x - P.r - 18, P.z + 10)
+      g.lookFrom([P.x - P.r - 10, g.heightAt(P.x - P.r - 18, P.z) + 3.5, P.z + 4], [P.x + 10, g.heightAt(P.x - P.r - 18, P.z) - 40, P.z])
+    })
+    await view('eerie-circle', () => {
+      const g = window.__g
+      const c = g.eerie.circle
+      const out = Math.atan2(c.x, c.z)
+      const x = c.x - Math.sin(out) * (c.r + 300)
+      const z = c.z - Math.cos(out) * (c.r + 300)
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 40, z], [c.x, g.heightAt(c.x, c.z) + 90, c.z])
+    })
+    await view('eerie-circle-inside', () => {
+      const g = window.__g
+      const c = g.eerie.circle
+      g.teleport(c.x + 60, c.z + 40)
+      g.lookFrom([c.x + 70, g.heightAt(c.x + 70, c.z + 50) + 1.7, c.z + 50], [c.x + 200, g.heightAt(c.x, c.z) + 120, c.z + 160])
+    })
+    await view('eerie-husk', () => {
+      const g = window.__g
+      const h = g.colossi.places.get('husk')
+      g.teleport(h.x + 360, h.z - 120)
+      g.lookFrom([h.x + 360, g.heightAt(h.x + 360, h.z - 120) + 3, h.z - 120], [h.x, h.y + 40, h.z])
+    })
+    await view('eerie-husk-inside', () => {
+      const g = window.__g
+      const h = g.colossi.places.get('husk')
+      const x = h.x + Math.sin(0.9) * 60
+      const z = h.z + Math.cos(0.9) * 60
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 1.7, z], [h.x + Math.sin(0.9) * 10, g.heightAt(x, z) + 6, h.z + Math.cos(0.9) * 10])
+    })
+    await view('eerie-hanged', () => {
+      const g = window.__g
+      const hg = g.eerie.hanged
+      g.teleport(hg.x - 60, hg.z - 50)
+      g.lookFrom([hg.x - 60, g.heightAt(hg.x - 60, hg.z - 50) + 1.7, hg.z - 50], [hg.x, g.heightAt(hg.x, hg.z) + 120, hg.z])
+    })
+    await page.evaluate(() => window.__g.lookFrom(null))
+    const found = await page.evaluate(() => ['pit', 'circle', 'husk', 'hanged'].map((id) => `${id}:${window.__g.finds.has(id)}`).join(' '))
+    console.log('eerie', found)
+  },
+  // The Great Bell: shoot it from below; every giant stops and turns toward it.
+  async bell() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.setWild(true)
+      for (const id of ['bag', 'bow']) g.finds.find(id)
+    })
+    const b = await page.evaluate(() => window.__g.bell.at.toArray())
+    // Stand 160 m off toward the Green, aim at it, loose.
+    await page.evaluate((b) => {
+      const g = window.__g
+      g.teleport(b[0] - 140, b[2] + 80)
+      g.input.press('KeyQ')
+    }, b)
+    await page.waitForTimeout(700)
+    await page.evaluate(async (b) => {
+      const g = window.__g
+      const T = new g.THREE.Vector3(b[0], b[1], b[2])
+      const dir = new g.THREE.Vector3()
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => requestAnimationFrame(r))
+        g.camera.getWorldDirection(dir)
+        const want = T.clone().sub(g.camera.position).normalize()
+        const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
+        g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
+        g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch - (Math.asin(want.y) - Math.asin(dir.y)) * 0.35))
+      }
+    }, b)
+    await shot('bell-aim')
+    await page.evaluate(() => window.__g.input.press('KeyF'))
+    await page.waitForTimeout(4000)
+    const r = await page.evaluate(() => {
+      const g = window.__g
+      g.input.release('KeyQ')
+      return { rang: g.finds.has('bell'), order: g.hornOrders.get('t1')?.kind ?? 'none' }
+    })
+    await page.evaluate((b) => {
+      const g = window.__g
+      g.lookFrom([b[0] - 260, g.heightAt(b[0] - 260, b[2] + 160) + 30, b[2] + 160], [b[0], b[1] - 30, b[2]])
+    }, b)
+    await page.waitForTimeout(800)
+    await shot('bell')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    console.log('bell', JSON.stringify(r))
+    if (!r.rang || r.order !== 'look') throw new Error('bell gate failed')
+  },
+  // Dread: each unexplained thing, begun by hand, seen as a player would.
+  async dread() {
+    const run = async (kind, setup, look, wait, name) => {
+      await page.evaluate(setup)
+      await page.waitForTimeout(400)
+      const ok = await page.evaluate((k) => window.__g.dreadBegin(k), kind)
+      if (look) await page.evaluate(look)
+      await page.waitForTimeout(wait)
+      await shot(name)
+      return ok
+    }
+    const out = {}
+    // The pale walker: at dusk in fog on the Green, looking a little off it (it is at the edge of sight).
+    out.walker = await run('walker', () => {
+      const g = window.__g
+      g.weather.set('overcast', true)
+      g.sky.setTime(0.9)
+      g.teleport(600, 900)
+      g.setCam(0, 0.06, 7)
+    }, null, 9000, 'dread-walker')
+    // Stare at it: it goes, and you have seen it.
+    await page.evaluate(() => {
+      const g = window.__g
+      const w = g.dread.walker
+      g.lookFrom([g.player().x, g.player().y + 1.7, g.player().z], [w.gait.x, w.chest.y, w.gait.z])
+    })
+    await page.waitForTimeout(6000)
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // The eyes in the Old Wood at night.
+    out.eyes = await run('eyes', () => {
+      const g = window.__g
+      g.sky.setTime(0.97)
+      g.weather.set('clear', true)
+      g.teleport(-3300, -1900)
+      g.setCam(1, 0.15, 6)
+    }, null, 7000, 'dread-eyes')
+    // Look at a pair: they close.
+    await page.evaluate(() => {
+      const g = window.__g
+      const e = g.dread.eyes[0]
+      g.lookFrom([g.player().x, g.player().y + 1.7, g.player().z], e.position.toArray())
+    })
+    await page.waitForTimeout(1500)
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // The footprints at dawn on the Green.
+    out.footprints = await run('footprints', () => {
+      const g = window.__g
+      g.sky.setTime(0.14)
+      g.weather.set('clear', true)
+      g.teleport(-600, 800)
+      g.setCam(0, 0.25, 9)
+    }, null, 3000, 'dread-footprints')
+    // Look at them from above.
+    await page.evaluate(() => {
+      const g = window.__g
+      const p = g.player()
+      g.lookFrom([p.x, p.y + 230, p.z + 260], [p.x, p.y, p.z - 120])
+    })
+    await page.waitForTimeout(1500)
+    await shot('dread-footprints-above')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    out.stillness = await page.evaluate(() => window.__g.dreadBegin('stillness'))
+    await page.waitForTimeout(500)
+    const found = await page.evaluate(() => ['strange-walker', 'strange-eyes', 'strange-footprints'].map((id) => `${id}:${window.__g.finds.has(id)}`).join(' '))
+    console.log('dread', JSON.stringify(out), found)
+    await page.evaluate(() => window.__g.sky.setTime(0.36))
   },
   // Offerings: look at the carving (nothing yet), bring the thing, hold it over the bowl; it answers.
   async offer() {
@@ -1414,10 +1658,13 @@ const scenes = {
       for (const s of g.spots.spots.filter((s) => s.kind === 'trinket' && !s.hidden)) {
         g.teleport(s.at.x + 0.6, s.at.z, s.at.y + 0.1)
         await new Promise((r) => setTimeout(r, 120))
-        g.input.press('KeyE')
-        await new Promise((r) => setTimeout(r, 120))
-        g.input.release('KeyE')
-        await new Promise((r) => setTimeout(r, 60))
+        // (Twice: where a cairn stands beside it, the first E lights the cairn.)
+        for (let k = 0; k < 2 && !g.finds.has(s.id); k++) {
+          g.input.press('KeyE')
+          await new Promise((r) => setTimeout(r, 120))
+          g.input.release('KeyE')
+          await new Promise((r) => setTimeout(r, 80))
+        }
         out.push(`${s.id}:${g.finds.has(s.id) ? 'taken' : 'MISSED'}`)
       }
       return out

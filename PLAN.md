@@ -149,93 +149,94 @@ kind of thing you could see before but not reach:
 - **The Sight-stone** (the Grove) → hold it up to see the glyph-trails the First Ones left: hidden
   paths to caches, doors that are only there when looked at.
 
+## 2g. Horror, never a jumpscare (user, 2026-10-31: "it still gets very scary often… bring in
+## more horrorful elements too, without jumpscares")
+Fear here is the slow kind: something is wrong and you notice it late. Nothing leaps, nothing
+screams, nothing can hurt you — the dread is that the land is bigger and older than you and some of
+it is paying attention. Rules: every unsettling thing **arrives slowly**, is **seen at the edge**
+or **heard before seen**, is **never explained**, and **leaves when looked at directly** or goes on
+as if you were not there. Rare: each is an event of minutes, not a feature of every walk.
+- **The Watchers** (exist): tall shapes at the edge of sight in heavy weather, gone when you turn.
+- **Footprints that were not there**: a line of giant footprints across the Green in the morning
+  — fresh, filled with water — though no giant walked there in the night.
+- **The pale walker**: in fog at dusk, a giant far off walks *toward* you, never closer, never
+  further, however you run; when the fog thins it is not there.
+- **Stillness**: now and then every sound in the land stops — wind, insects, birds — for half a
+  minute; something enormous passes beyond the hills; then the crickets start again, one at a time.
+- **The eyes in the wood**: at night in the Old Wood, pairs of pale lights between the trunks,
+  far too high above the ground, that close when you look.
+- **The hand moves**: the Drowned One's lifted hand is not always as you left it.
+- **The deep note**: under the score, very rarely, a sound too low to hear well, as if the ground
+  itself had spoken.
+
 ## 3. The world
 
-One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing
-CDLOD terrain, deformable, with lakes). Spawn is a quiet green valley at the centre; three regions
-open around it, each with its own ground, plants, sky tint, sound and giant.
+One continuous landscape ringed by mountains (CDLOD terrain, deformable, with lakes): the lands
+reach ~10.4 km from the centre (`LAND_EDGE`), the mountains rise fully by ~17 km, the Wall — a
+range 1.5–3 km high — stands at 18–28 km, and beyond it, 30 km out and 9.5 km tall, the Ones
+Beyond. A day is 24 minutes (four-fifths of it light); weather cycles overcast → storm → breaking
+→ clear, and the cloud comes down in storms.
 
-| Region | Look | Megalophobia set pieces |
+| Land | Look | Its enormous things |
 | --- | --- | --- |
-| **The Old Wood** | mossy forest floor, ferns, enormous trees (60–150 m) in drifting mist | a sleeping giant grown over with moss and trees; trunks like towers; a giant moving between them, seen only in pieces |
-| **The Dune Sea** | wind-shaped sand dunes, red rock arches, heat haze, dust | a giant walking a long loop over the dunes; a colossus buried to the chest; the ribs of a fallen First One |
-| **The Steps** | terraced ruins of the First Ones: stairs, colonnades, bridges, bell towers, all at giant scale | the Great Stair; three bell towers; the sealed Gate; the Eldest, the largest giant, waiting beyond it |
+| **The Green** (centre, where you wake) | vast smooth rolling grass, nearly empty; wildflowers, tall stems, hares | the Sentinel kneeling on its north rim; the Walker and the Grey One; the Undercroft beneath it; the Hanging Steps |
+| **The Old Wood** (north-west) | broadleaf and pine forest, ferns, giant trees; marsh patches in its low ground | the Grove of giant trees; the Drowned One lying in the biggest marsh, one hand lifted |
+| **The Dune Sea** (south) | rippled dunes, red rock mesas and hoodoos, canyons; sandstorms | the Fallen (ribs and skull); the Sword; the herd of five |
+| **The Steps** (north-east) | terraced ruins, dry grass, pines | the Colonnade; the Great Stair and the sealed Gate; the chained stones |
 
-Base terrain is shaped per region (`shared/src/terrain.ts`): rolling hills in the Wood, long dune
-ridges in the Dune Sea, stepped terraces in the Steps. Region weights are a deterministic function
-of position, shared by terrain height, texturing, vegetation and atmosphere.
+Still to come (`STORY.md` §6): **the Shore** beyond the Dune Sea, **the High Places** beyond the
+Steps.
 
-**More lands, eventually** (user, 2026-10-31: "distinct biome zones… very curvy smooth green
-rolling hills with dense grass, desert, mountains, swampy, forest, old forest, ocean/beachy…
-progressive, pick it eventually"). The roster and each land's enormous thing are drafted in
-`STORY.md` §6; they arrive one at a time.
-
-**Carved, not rolling** (user, 2026-10-31: "massive rock walls and cliffs and valleys and caverns…
-like Colossus or ARK"). The heightfield carries the big forms — an escarpment ringing the valley
-with three passes, fault walls, mesas, canyons, rock spines — and rock formations made as signed
-distance fields carry what a heightfield cannot: arches, caves, overhangs, hoodoos, spires. Rock is
-climbable (grip), and anything steeper than ~50° cannot be walked up.
+**Carved, not rolling.** The heightfield carries the big forms (an escarpment round the Green,
+fault walls, mesas, canyons, rock spines, marsh hollows); signed-distance rock formations carry
+arches, caves, overhangs, hoodoos, spires and the colossi. Rock is climbable; anything steeper
+than ~50° cannot be walked up.
 
 ## 4. What you do
 
-**Verbs:** walk, sprint, jump; **climb** (giants, mossy and carved surfaces) with a grip meter;
-**interact** (touch glyphs, ring bells, light braziers, pull levers, read Echo stones); **ride**
-(stand on a walking giant and let it carry you); later **glide** (the First Ones' cloak, unlocked
-in the story) and **call** (a horn that turns giants' heads toward you).
+No plot (§2f): you are a visitor, curious. **Verbs:** walk, sprint (a long run on open ground),
+jump; **climb** giants, colossi and rock (grip); **ride** a walking giant; **glide** with the
+wing-cloak (real flight: dive, pull up, bank, stall, ridge lift); **shoot** the bow; **call** with
+the horn; **look through** the sight-stone; **read**, **take**, **strike**, **offer**, **light**.
 
-**The main thread — "The Three Bells":**
-- *Prologue (the valley):* wake by a shrine; follow the lantern's light; learn to climb on a ruin;
-  touch the first glyph and see a giant stop walking and turn its head toward you.
-- *The Old Wood:* the bell tower is sealed by roots. The sleeping giant's body blocks the pass.
-  Climb it, touch the glyph on its brow; it wakes, stands (the ground shakes, birds explode out of
-  the trees), and walks — its footsteps become the lakes that drown the roots.
-- *The Dune Sea:* the bell hangs high in a ruin the walking giant passes under on its loop. Light
-  the braziers to bend its path, climb aboard as it goes by, ride it to the ruin and jump across.
-- *The Steps:* the three bells ring; the Gate opens; the Eldest rises. The final climb is the
-  largest thing in the game, to its crown, where the story ends (and what the First Ones were
-  running from is finally seen).
+**Controls:** WASD move · mouse look (click to capture; right-drag without) · Shift run (hold:
+long run) · Space jump / hold to glide · E climb, read, take, use · Q (or right mouse) draw the bow,
+F (or click) loose · H blow the horn · V look through the sight-stone · M map · J journal · I bag.
 
-**Everywhere else:** Echo stones (lore, ~30, the First Ones' story in fragments); viewpoints
-(climb a high place to light a cairn and reveal that part of the map); shrine puzzles (pressure
-plates, rotating rings, reflected light); giants to watch, follow and ride; places nobody points
-you to.
+**What there is to find** — the discovery roster (`discovery.ts`, journal and bag):
+places and those who live here (found by going there); words on stone; the traveller's camps and
+pages; trinkets on the high places; relics raided from the giants' backs; wisps to chase; ringing
+stones; stone eyes for the bow; glyph trails for the sight-stone; the Hanging Steps; the mound a
+giant must break; watching the giants; offering shrines; cairns (and their embers); the
+awakening of the Ones Beyond. Tools found in the world open new kinds of these: the bag, the horn,
+the bow, the wing-cloak, the sight-stone.
 
 ## 5. Systems
 
-| System | Module | Notes |
-| --- | --- | --- |
-| Regions | `shared/src/regions.ts` | region weights from (x, z), deterministic; used by terrain, textures, plants, air |
-| Terrain look | `client/src/terrain-view.ts` + `terrain-material` | CC0 PBR texture arrays splatted by region, slope and height; tri-planar on cliffs; two tiling scales against repetition |
-| Plants | `client/src/vegetation.ts` | per-region sets; giant trees in the Wood; desert scrub and rock arches |
-| Ruins and landmarks | `client/src/structures/*` | textured stone kit at giant scale; every landmark placed by hand in `world.ts` |
-| Giants | `client/src/titan.ts`, `shared/src/gait.ts` | AI only: wander, follow a route, sleep, wake, turn to look, follow fire |
-| Interaction | `client/src/interact.ts` | registry of things you can use: prompt, range, action |
-| Quests | `client/src/quests.ts` | data-driven steps: objective position, conditions on world events, journal text |
-| Guidance | `client/src/guide.ts` | the lantern beam to the objective, a compass on the HUD |
-| Journal and map | `client/src/journal.ts` | quest log, Echo stones read, map of discovered ground |
-| Save | `client/src/save.ts` | world deltas, lakes, quest state, discoveries, where you stand |
-| Safety | `client/src/wanderer.ts` | track last safe ground; a fatal fall fades and wakes you there |
-
-Kept from before: CDLOD terrain, deformation kernels, lakes (fill–spill–merge, saved and restored),
-the giants' gait and IK, climbing, sky and atmosphere, clouds, birds, wildlife herds, sound.
-Removed: towns, townsfolk, caravans, sheep, smoke, boats, settlers, build mode, playing as a
-giant, multiplayer, the server.
+| System | Module |
+| --- | --- |
+| Regions, terrain, marsh pools | `shared/src/regions.ts`, `terrain.ts`, `mire.ts` |
+| Ground look | `terrain-view.ts`, `terrain-material.ts` (texture arrays, splat, tri-planar cliffs) |
+| Plants, trees, grass | `vegetation.ts`, `trees.ts`, `grass.ts` |
+| Rock and colossi | `rock-fields.ts` (SDF shapes), `rocks.ts` (meshing on workers, collision), `colossi.ts` |
+| Giants | `titan.ts`, `armor.ts`, `herd.ts`, `shared/src/gait.ts`, `brain.ts` |
+| Sky, weather, air | `sky.ts` (day and night), `weather.ts`, `atmosphere.ts`, `clouds.ts`, `mist.ts`, `post.ts` |
+| Life | `ambience.ts` (fireflies, butterflies, birds, hares), `life.ts`, `wildlife.ts`, `striders.ts`, `leviathans.ts`, `watchers.ts` |
+| You | `wanderer.ts` (body, cloth, flight), `climb.ts`, `cliff.ts`, `camera-rig.ts` |
+| Discovery | `discovery.ts`, `journal.ts`, `bag.ts`, `toolbar.ts`, `spots.ts`, `camp.ts`, `wisps.ts`, `resonance.ts`, `eyes.ts`, `bow.ts`, `glyphs.ts`, `parkour.ts`, `offerings.ts`, `cairns.ts`, `awakening.ts` |
+| Map, save, sound | `map.ts`, `save.ts` (key v3), `audio.ts` (all synthesised) |
 
 ## 6. Phases
 
-- **A0 — Wanderer only.** Strip towns, building, playing as a giant, multiplayer and the server.
-  Giants run their own AI. Everything still walks, climbs, deforms and saves.
-- **A1 — The land.** Three regions with their own terrain shape; CC0 textured ground (splatting,
-  tri-planar cliffs); per-region plants and air.
-- **A2 — The adventure core.** Interaction, quests and journal, the lantern's guiding light,
-  narration lines, safe falls, progress in the save.
-- **A3 — The First Ones' ruins.** A textured stone kit at giant scale; the Great Stair, bell
-  towers, the Gate, the buried colossus, the ribs; Echo stones and viewpoints.
-- **A4 — Giants with purpose.** Sleeping giant that wakes and stands; route walker you can ride;
-  a giant that follows fire; heads that turn to look at you.
-- **A5 — The Three Bells.** The main questline from prologue to the Eldest.
-- **A6 — More to find.** Shrine puzzles, the gliding cloak, the horn, the map filling in.
-- **A7 — Polish.** Region soundscapes and music, title screen and settings, performance pass.
+Done (see `CHECKLIST.md`): A0 wanderer only · A1 the land, carved · A2 map, the long run ·
+A3 colossi, dread, eroded giants · D discovery (bag, journal, tools, the roster) · E day and night ·
+F hands and toolbar · G a living land · H a bigger world, marshes.
+
+Next, a little of each at a time:
+- **B1 — Dread.** §2g, one piece at a time, each rare and slow.
+- **B2 — More adventure.** New roster pieces and new tools; finds that connect across lands.
+- **B3 — The Shore**, then **B4 — the High Places.**
+- **B5 — Polish.** Title screen and settings, region soundscapes, performance pass.
 
 ## 7. Performance budget
 

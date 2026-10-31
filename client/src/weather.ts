@@ -13,6 +13,7 @@
 // the numbers; rain falls entirely on the GPU.
 
 import * as THREE from 'three'
+import { groundShade } from './terrain-material'
 import { HALL, mulberry32 } from '@titans/shared'
 import type { SkySystem } from './sky'
 import type { Post } from './post'
@@ -121,6 +122,7 @@ export class Weather {
    * storm brings no rain but sand — ochre air, grit driven flat by the wind.
    */
   desert = 0
+  private readonly shadeDrift = new THREE.Vector2()
   /** 0 … 1: how much of the storm is sand right now. */
   sand = 0
   /** How much of where you stand is the Mire (main.ts sets it): the air there is thick, low and green-grey. */
@@ -389,6 +391,10 @@ export class Weather {
     su.cloudCoverage.value = 0.32 + 0.6 * w.cover
     su.cloudDensity.value = 0.55 + 0.4 * w.dark
     su.uOvercast.value = w.dark
+    // Cloud shadows sliding over the land: with the sun out and scattered cloud (none under a full deck).
+    this.shadeDrift.x += dt * (6 + 14 * w.wind)
+    this.shadeDrift.y += dt * (2.5 + 6 * w.wind)
+    groundShade.value.set(this.shadeDrift.x, this.shadeDrift.y, 0.7 - w.cover * 0.32, 0.42 * (1 - THREE.MathUtils.smoothstep(w.dark, 0.3, 0.65)) * (1 - sky.dusk) * (1 - this.sand))
     // The grade and the sun's shafts.
     if (this.post) {
       const g = this.post.grade.uniforms

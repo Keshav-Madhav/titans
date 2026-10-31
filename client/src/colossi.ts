@@ -130,6 +130,11 @@ export class Colossi {
     rocks.addColossus({ kind: 'reclining', x: dr.x, z: dr.z, y: dr.y - 8, rot: 2.2, seed: 8, layers: [LAYER.moss, LAYER.hide], scale: 16, tint: [0.62, 0.66, 0.56], res: 210 })
     place('drowned', dr.x, dr.z, dr.y)
 
+    // The Husk: a shed skin lying face down in the Dune Sea, hollow, split along the back.
+    const hk = site(-1800, 6500, 140, 500)
+    rocks.addColossus({ kind: 'husk', x: hk.x, z: hk.z, y: hk.y - 6, rot: 0.9, seed: 9, layers: [LAYER.hide, LAYER.sand], scale: 14, tint: [0.92, 0.86, 0.76], res: 190 })
+    place('husk', hk.x, hk.z, hk.y)
+
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
     const ribRot = 0.35
     const rib = site(250 * SPREAD, 1950 * SPREAD, 220, 500)

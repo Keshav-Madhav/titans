@@ -316,6 +316,62 @@ Each phase ends playable. Phases are in PLAN.md §6.
       Conifers fuller (13 tiers of wide boughs); giant trees crown halfway along each limb too
 - [ ] The Shore (beyond the Dune Sea), the High Places (beyond the Steps)
 
+## W — Wrap-up (user: "wrap up everything so far first")
+- [x] `tools/gates.sh`: every gate in one run (lakes, save, and a scene per mechanic and look);
+      PLAN.md §3–6 rewritten to the game as it is (world, controls, roster, systems, phases);
+      README.md (run it, controls); STORY.md marked superseded by §2f
+- [x] Fixes found by the full run: an unlit cairn comes before a trinket lying beside it (the
+      tallest pillar's top holds both); the Wall's views look from a height (the lands are 10 km
+      across now)
+
+## B1 — Dread, and places to find that are frightening to find (user: "more horrorful elements,
+## without jumpscares… things to discover really which is scary to discover")
+- [x] `dread.ts`, a director of rare, slow, unexplained things (PLAN.md §2g), each witnessed going
+      in the journal under "Things you cannot explain": the stillness (every sound stops, something
+      walks past beyond the hills), the pale walker (in fog or at dusk, never any nearer; gone when
+      stared at), footprints in the morning (fresh, where nothing walked; a grey scale where they
+      end), eyes in the wood (pale, too high, closing when looked at), the deep note.
+      Gate: `shot.mjs dread`
+- [x] Eerie places (`eerie.ts`), each with a stone and something to take: the Pit — a sinkhole
+      (user: "a perfectly round hole reads badly, a realistic sinkhole"): a slumped, ragged rim,
+      layered broken walls, a collapsed side to climb down, the depths darkened, cold mist, a moan;
+      the Circle of the Bowed — seven hooded stone figures (`mourner`), heads bowed toward a black
+      stone, the land silent near them; the Husk — a giant's shed skin, hollow, a figure of you
+      inside; the Hanged — long bones on chains from a giant tree, creaking. Gate: `shot.mjs eerie`
+- [x] The Great Bell (`bell.ts`) by the Colonnade: ring it with an arrow and every giant stops and
+      turns toward it for a while. Gate: `shot.mjs bell`
+- [x] (user nitpicks) The lantern reaches ~26 m and comes up by itself as it gets dark; a few
+      fireflies carry real light; tree trunks have bark (drawn in the shader, furrows and cracks)
+
+## S — Scale (user: "more scale of bigness… tricks like fov and camera angles… dynamic fov… we control
+## the user's experience, we need them to feel a certain feeling")
+- [x] `scale.ts`, the scale director, from the thing filling most of your sky: loom (lens up to +17°,
+      the camera lower and nearer the ground), look up (tilting up widens it further), drift (still,
+      mouse idle 1.5 s, under one — the gaze rises to its upper body), stare (hold a huge far thing
+      near the centre: a slow dolly — you keep your size, it rises behind you), vertigo (finding a
+      giant or colossal place from the ground: a 5.5 s dolly zoom). The rig takes a focus drop and a
+      distance multiplier (the multiplier could only shorten the camera before — fixed)
+- [x] A near giant's shadow reaches you: the shadow map stretches to it (up to 1.1 km)
+- [x] Cloud shadows a kilometre across slide over the land with the wind (fair days, broken cloud)
+- [x] A giant's footfall within sight on green ground puts up a flock of birds round the foot
+- [x] Gate: `shot.mjs scale` (off/on, drift, stare, vertigo, cloud shadows, birds)
+
+## N — The new player (user, 2026-10-31: "a pass which is just yourself seeing the game and curating
+## it for a new player with typical normal gameplay progressions — how games reveal stuff as you play
+## more and more. A hint: we start in the middle already facing a giant, no surprise or awe of
+## discovery." Next, after the scale round.)
+- [ ] Play it from a fresh save as a newcomer would; note every moment the game shows too much too
+      soon, or leaves you lost
+- [ ] The opening: the first giant is found, not handed over (start where it is out of sight; let
+      the land reveal it)
+- [ ] Reveal in order: what the first minutes teach, what the first hour opens, what is saved for later
+
+## Known issues
+- [ ] The save gate failed once in three (2026-10-31): after a reload one footfall's crater came
+      back 1.2 m shallower (`differs at {foot:1, x:1324.6, z:775.8}`) and three lakes part-filled;
+      it passed on the next run. Intermittent — find the race (a footfall between the save and the
+      reload? a lake mid-settle?)
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

@@ -31,6 +31,13 @@ export class Herd {
   private readonly target = { x: HOME.x, z: HOME.z }
   private heading = 0
   private wait = 0
+  /** Something called them (the Great Bell): they stop and all turn toward it, until then. */
+  private gaze: { x: number; z: number; until: number } | null = null
+
+  /** Stop and turn toward (x, z) for `seconds`. */
+  look(x: number, z: number, seconds: number): void {
+    this.gaze = { x, z, until: this.time + seconds }
+  }
   private readonly rand: () => number
   private readonly discard: GaitEvent[] = []
   private time = 0
@@ -102,7 +109,8 @@ export class Herd {
       dh = Math.atan2(Math.sin(dh), Math.cos(dh))
       this.heading += THREE.MathUtils.clamp(dh, -0.02 * dt, 0.02 * dt)
     }
-    const moving = this.wait <= 0
+    if (this.gaze && this.time > this.gaze.until) this.gaze = null
+    const moving = this.wait <= 0 && !this.gaze
     const fx = Math.sin(this.heading)
     const fz = Math.cos(this.heading)
     this.giants.forEach((g, i) => {
@@ -136,6 +144,13 @@ export class Herd {
       } else if (!moving) {
         // Grazing: turn idly now and then.
         turn = Math.sin(this.time * 0.07 + i * 2.1) * 0.15
+      }
+      if (this.gaze) {
+        // Called: stand, and turn to face it.
+        let dh = Math.atan2(this.gaze.x - g.gait.x, this.gaze.z - g.gait.z) - g.gait.heading
+        dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+        forward = 0
+        turn = THREE.MathUtils.clamp(dh * 1.5, -1, 1)
       }
       this.discard.length = 0
       g.step(dt, { forward, turn }, this.discard)

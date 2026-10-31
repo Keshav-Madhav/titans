@@ -39,6 +39,7 @@ Titans, town building — is in git at the tag `pre-adventure`.)
 - Test hooks live on `window.__g` (`ready`, `teleport`, `setCam`, `player`, `stats`, …). Tools wait on
   `window.__g.ready`, never on `networkidle` or fixed sleeps.
 - `?offline` is tool mode: a fresh, unsaved world whose giants stand still unless `?wild`.
+- **All the gates at once:** `tools/gates.sh [out-dir]` (each scene throws if what it tests fails).
 - Verify before claiming done: `npm run build`, then the phase's gate against `npm run preview`
   (port 4317): `node tools/shot.mjs <scene>` (tool mode) and `node tools/single.mjs` (the real game,
   with its save). Anything touching `shared/src/water.ts`: `npx tsx tools/fill-bench.ts` (Node, no
