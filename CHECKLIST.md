@@ -55,6 +55,43 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Gates: `shot.mjs carved` (each land's tallest wall; climbs the desert's), `shot.mjs rocks`
       (one of each formation; walks into a cave); all earlier gates re-run green
 
+## A3a — The colossi (user, 2026-10-31: "again megalophobia, not just trees or giants, everything")
+- [x] The Sentinel: a First One ~380 m tall, kneeling on the valley floor's north edge, robed and
+      hooded (nothing but dark under the hood), hands on a planted sword — the first thing you see
+- [x] The Dune Sea: the ribs (11 arches along a buried spine) and skull of a fallen First One; a
+      stone sword 300 m long driven into the dunes
+- [x] The Steps: a colonnade of nine fluted pillars up to ~840 m, into the clouds, some broken with
+      their drums fallen; the Great Stair (12 m steps) up to a platform and the sealed Gate
+- [x] The Old Wood: eleven giant trees (150–240 m), root buttresses like ridges, crowns of leaf cards
+- [x] The sky: nine monoliths hanging in the air (the low ones held down by iron chains); three
+      leviathans (~560 m, finned) swimming a kilometre up, their shadows crossing the land
+- [x] Beyond the mountains: three colossi 2.6 km tall standing in the haze, facing the valley
+- [x] All of it solid (fields as collision) and climbable: climbing generalised from terrain to any
+      distance-field solid (`CliffClimb.startOn`), holds found by reaching out to the face you
+      look at; giants steer round the colossi
+- [x] Stonework textures (2 more CC0 layers: large sandstone blocks, dressed stone); bones in pale
+      stone; flat-ground site finder for every colossus; sun moved to the south-west so the view
+      north to the Sentinel is lit; free camera for tools (`g.lookFrom`)
+- [x] Gate: `shot.mjs colossi` (each colossus from where a wanderer stands; a leviathan; a far
+      giant; climbs a pillar)
+
+## A3b — Dread: weather, striders, sound (user, 2026-10-31, reference images: "scary… by
+## ambience, music, lighting, weather and general megalophobia")
+- [x] Weather (`weather.ts`): overcast / storm / breaking / clear, eased between on a cycle; a
+      7-layer noise cloud deck from ~255 m that giants' heads, the Sentinel's hood and the pillars
+      vanish into; GPU rain; lightning flickering inside the cloud; sky, sun, fill, fog, puffs
+      and the grade (mood: greyer, teal, dimmer) follow it; sun disk clamped under cloud
+- [x] Striders (`striders.ts`): three pale things on 4 legs ~800 m long, a spined body at ~470 m,
+      a neck rising higher, threads hanging; walking the far lands, one foot at a time
+- [x] Score and weather sound (`audio.ts`): long hall reverb; a slow generative pad through five
+      sad chords; sparse glass notes (fewer under storm); far horns groaning; rain; storm wind;
+      thunder arriving late; the drone swells under storm and near colossi (`awe`)
+- [x] Framing tool for screenshots (`g.frame`): clear line of sight over land and out of the
+      woods, camera low, the wanderer in frame for scale (shots were looking at hillsides)
+- [x] The First Ones' trails keep wide of the giants' starting places (a giant stood over an
+      old 17 m crater and could not be climbed)
+- [ ] Gaunt watchers in fog; the pillared hall in the dark; vertigo ledges
+
 # Archive: the multiplayer world (tag `pre-adventure`)
 
 ## P0 — Bootstrap

@@ -229,3 +229,34 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
   }
   return mat
 }
+
+/**
+ * A giant tree's crown, centred on the origin: `clusters` billows of leaf
+ * cards on an egg-shaped shell of radius `R` (the cards `card` metres across).
+ * The cards' UVs never touch the trunk corner, so the whole crown flutters.
+ */
+export function canopyGeometry(seed: number, R: number, card_: number, clusters: number, perCluster: number): THREE.BufferGeometry {
+  const rand = mulberry32(seed)
+  const parts: THREE.BufferGeometry[] = []
+  const centre = new THREE.Vector3()
+  for (let c = 0; c < clusters; c++) {
+    // Through the whole volume (denser toward the skin), more above the middle.
+    const u = rand() * 1.6 - 0.6
+    const t = rand() * Math.PI * 2
+    const s = Math.sqrt(1 - Math.min(1, u * u))
+    const k = Math.pow(rand(), 0.3)
+    const px = Math.cos(t) * s * R * k
+    const py = u * R * 0.62 * k
+    const pz = Math.sin(t) * s * R * k
+    for (let k = 0; k < perCluster; k++) {
+      const q = card(card_, card_, LEAVES)
+      q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2).rotateZ((rand() - 0.5) * 0.8)
+      q.translate(px + (rand() - 0.5) * card_ * 0.9, py + (rand() - 0.5) * card_ * 0.7, pz + (rand() - 0.5) * card_ * 0.9)
+      parts.push(q)
+    }
+  }
+  const g = finish(parts)
+  crownNormals(g, centre, 1.4)
+  shade(g, 0xffffff, centre, R)
+  return g
+}

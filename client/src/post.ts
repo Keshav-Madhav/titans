@@ -130,6 +130,10 @@ const GRADE = {
     rayColor: { value: new THREE.Color(1.0, 0.86, 0.66) },
     rayStrength: { value: 0.32 },
     exposure: { value: 0.84 },
+    /** The weather's mood: 0 a clear day … 1 a storm (greyer, cooler, dimmer). */
+    mood: { value: 0 },
+    /** Lightning, this instant. */
+    flash: { value: 0 },
     time: { value: 0 },
     aspect: { value: 1 },
   },
@@ -142,6 +146,8 @@ const GRADE = {
     uniform vec3 rayColor;
     uniform float rayStrength;
     uniform float exposure;
+    uniform float mood;
+    uniform float flash;
     uniform float time;
     uniform float aspect;
     varying vec2 vUv;
@@ -170,12 +176,14 @@ const GRADE = {
       c.g = texture2D(tDiffuse, vUv).g;
       c.b = texture2D(tDiffuse, vUv - off).b;
       c += texture2D(tRays, vUv).rgb * rayColor * rayStrength;
-      c = aces(c * exposure);
+      c = aces(c * exposure * (1.0 - 0.12 * mood) * (1.0 + flash * 0.8));
 
-      // Grade: a little less saturated, warm in the light, cool in the shade.
+      // Grade: less saturated (much less under storm), warm in the light and
+      // cool in the shade — and under cloud, grey-green-teal throughout.
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      c = mix(vec3(l), c, 0.86);
-      c *= mix(vec3(0.93, 0.97, 1.06), vec3(1.05, 1.0, 0.92), smoothstep(0.05, 0.75, l));
+      c = mix(vec3(l), c, mix(0.86, 0.55, mood));
+      c *= mix(vec3(0.93, 0.97, 1.06), vec3(1.05, 1.0, 0.92), smoothstep(0.05, 0.75, l) * (1.0 - 0.7 * mood));
+      c *= mix(vec3(1.0), vec3(0.9, 0.98, 0.97), mood);
       // Lifted blacks and a soft shoulder: the bright, milky SotC air.
       c = c * 0.94 + 0.035;
       c = mix(c, c * c * (3.0 - 2.0 * c), 0.35);

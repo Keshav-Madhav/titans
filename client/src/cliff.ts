@@ -2,6 +2,12 @@
 // the land itself, as you climb a giant — W/S up and down the wall, A/D
 // across it, your grip tiring as you go. Where the rock lays back enough to
 // stand on, you are up. If your grip gives out, you fall.
+//
+// Two kinds of rock: the terrain's cliffs (a heightfield: you move over the
+// ground plan and ride its height), and solids — rock formations and colossi,
+// anything with a distance field — where you move in the surface's own
+// tangent plane and are pulled back onto it every step: up a pillar, over an
+// arch, onto the Sentinel's shoulder.
 
 import * as THREE from 'three'
 import type { Terrain } from '@titans/shared'
@@ -14,8 +20,18 @@ const REGEN = 0.25 // per second, on your feet
 /** Gentler than this, you are standing again (rise over run). */
 const TOP = 0.85
 
+/** Anything climbable with a distance field (negative inside). */
+export interface Solid {
+  sdf(x: number, y: number, z: number): number
+}
+
+/** Standing again where a solid's surface faces this far up (normal.y). */
+const SOLID_TOP = 0.72
+
 export class CliffClimb {
   active = false
+  /** Holding a solid (a formation, a colossus) rather than the terrain. */
+  solid: Solid | null = null
   stamina = 1
   moving = false
   readonly world = new THREE.Vector3()
@@ -36,8 +52,72 @@ export class CliffClimb {
   /** Take hold of the rock at (x, z). */
   start(x: number, z: number, terrain: Terrain): void {
     this.active = true
+    this.solid = null
     this.world.set(x, terrain.heightAt(x, z), z)
     this.slope(x, z, terrain)
+  }
+
+  /** Take hold of a solid at the surface point nearest `p`. */
+  startOn(solid: Solid, p: THREE.Vector3): void {
+    this.active = true
+    this.solid = solid
+    this.world.copy(p)
+    this.project()
+  }
+
+  /** The solid's gradient at the hold → `normal`; then pull the hold onto the surface. */
+  private project(): void {
+    const f = this.solid!
+    for (let k = 0; k < 3; k++) {
+      const w = this.world
+      const e = 0.2
+      const d = f.sdf(w.x, w.y, w.z)
+      this.normal.set(f.sdf(w.x + e, w.y, w.z) - f.sdf(w.x - e, w.y, w.z), f.sdf(w.x, w.y + e, w.z) - f.sdf(w.x, w.y - e, w.z), f.sdf(w.x, w.y, w.z + e) - f.sdf(w.x, w.y, w.z - e))
+      if (this.normal.lengthSq() < 1e-10) this.normal.set(0, 1, 0)
+      this.normal.normalize()
+      w.addScaledVector(this.normal, -d)
+    }
+  }
+
+  private readonly up = new THREE.Vector3()
+  private readonly right = new THREE.Vector3()
+
+  /** One step on a solid. */
+  private stepSolid(dt: number, move: { x: number; y: number }, camYaw: number, terrain: Terrain): 'climbing' | 'top' | 'fell' {
+    const n = this.normal
+    // Up the surface: world up, flattened onto it (or, on a ceiling or a
+    // flat top, away from the camera).
+    this.up.set(0, 1, 0).addScaledVector(n, -n.y)
+    if (this.up.lengthSq() < 0.02) this.up.set(-Math.sin(camYaw), 0, -Math.cos(camYaw)).addScaledVector(n, -this.up.dot(n))
+    this.up.normalize()
+    this.right.crossVectors(this.up, n).normalize()
+    this.moving = move.x !== 0 || move.y !== 0
+    const both = move.x !== 0 && move.y !== 0 ? Math.SQRT1_2 : 1
+    const step = SPEED * dt * both
+    const before = this.world.clone()
+    this.world.addScaledVector(this.up, move.y * step).addScaledVector(this.right, move.x * step)
+    this.project()
+    // Never into the ground: climbing down meets the earth, and you stand on it.
+    if (this.world.y < terrain.heightAt(this.world.x, this.world.z) + 0.2) {
+      this.world.copy(before)
+      if (move.y < 0) {
+        this.active = false
+        this.solid = null
+        return 'top'
+      }
+    }
+    this.stamina = Math.max(0, this.stamina - (this.moving ? DRAIN_MOVE : DRAIN_HOLD) * dt)
+    if (n.y > SOLID_TOP) {
+      this.active = false
+      this.solid = null
+      return 'top'
+    }
+    if (this.stamina <= 0) {
+      this.active = false
+      this.solid = null
+      return 'fell'
+    }
+    return 'climbing'
   }
 
   /**
@@ -45,6 +125,7 @@ export class CliffClimb {
    * the camera sees it). Returns 'climbing', 'top' (standing again) or 'fell'.
    */
   step(dt: number, move: { x: number; y: number }, camYaw: number, terrain: Terrain): 'climbing' | 'top' | 'fell' {
+    if (this.solid) return this.stepSolid(dt, move, camYaw, terrain)
     const s = this.slope(this.world.x, this.world.z, terrain)
     // Up the wall (horizontal direction of steepest ascent) and across it.
     const ux = this.gx / (s || 1)

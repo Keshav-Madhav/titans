@@ -1,15 +1,42 @@
 // Sound, synthesised (no downloaded assets): wind over the plains, the boom
-// of a Titan's footfall (heard late from far away — sound travels 343 m/s),
-// a stomp's deeper crack, a Titan's horn-like call, and rubble. Starts on the
-// first click or key (browsers require a gesture). On/off in the world panel.
+// of a giant's footfall (heard late from far away — sound travels 343 m/s),
+// a stomp's deeper crack, a giant's horn-like call, and rubble. Starts on the
+// first click or key (browsers require a gesture).
+//
+// And the score, which is mostly not there: a slow pad drifting through a few
+// low, sad chords, a glassy note now and then, deep horns groaning far off;
+// rain, storm wind and thunder from the weather. It all goes into a long
+// reverb, so the world sounds as big as it is. `mood()` steers it: under a
+// storm, or near something huge, the drone swells and the melody thins.
 
 const SPEED_OF_SOUND = 343
+
+/** The pad's chords (Hz, low to high): D minor, B♭, F over A, G minor, A sus4 — slow and sad. */
+const CHORDS: number[][] = [
+  [73.42, 146.83, 174.61, 220.0],
+  [58.27, 116.54, 146.83, 174.61],
+  [55.0, 130.81, 174.61, 220.0],
+  [49.0, 116.54, 146.83, 196.0],
+  [55.0, 110.0, 146.83, 164.81],
+]
 
 export class Sound {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private noise: AudioBuffer | null = null
   private on: boolean
+  /** The hall: everything big goes through it. */
+  private space: ConvolverNode | null = null
+  private padGain: GainNode | null = null
+  private padFilter: BiquadFilterNode | null = null
+  private padVoices: OscillatorNode[] = []
+  private rainGain: GainNode | null = null
+  private windGain: GainNode | null = null
+  private state = { dark: 0.5, rain: 0, wind: 0.5, awe: 0 }
+  private chord = 0
+  private nextChord = 0
+  private nextNote = 6
+  private nextHorn = 25
 
   constructor(enabled: boolean) {
     this.on = enabled
@@ -46,7 +73,181 @@ export class Sound {
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
     const d = this.noise.getChannelData(0)
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    this.hall()
     this.wind()
+    this.pad()
+    this.rainBed()
+    // Run the score on its own clock.
+    setInterval(() => this.score(), 250)
+  }
+
+  /** A long, dark reverb: five seconds of decaying noise, wider in stereo. */
+  private hall(): void {
+    const ctx = this.ctx!
+    const len = ctx.sampleRate * 5
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate)
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch)
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * (i < 600 ? i / 600 : 1)
+    }
+    this.space = ctx.createConvolver()
+    this.space.buffer = ir
+    const wet = ctx.createGain()
+    wet.gain.value = 0.7
+    this.space.connect(wet).connect(this.master!)
+  }
+
+  /** The pad: four voices, each two detuned oscillators, through a breathing low-pass. */
+  private pad(): void {
+    const ctx = this.ctx!
+    this.padFilter = ctx.createBiquadFilter()
+    this.padFilter.type = 'lowpass'
+    this.padFilter.frequency.value = 600
+    this.padFilter.Q.value = 0.4
+    this.padGain = ctx.createGain()
+    this.padGain.gain.value = 0
+    this.padFilter.connect(this.padGain)
+    this.padGain.connect(this.master!)
+    this.padGain.connect(this.space!)
+    const breath = ctx.createOscillator()
+    breath.frequency.value = 0.045
+    const depth = ctx.createGain()
+    depth.gain.value = 260
+    breath.connect(depth).connect(this.padFilter.frequency)
+    breath.start()
+    const chord = CHORDS[0]
+    for (let v = 0; v < 4; v++) {
+      for (const det of [-6, 5]) {
+        const o = ctx.createOscillator()
+        o.type = v === 0 ? 'sine' : 'triangle'
+        o.frequency.value = chord[v]
+        o.detune.value = det
+        const g = ctx.createGain()
+        g.gain.value = v === 0 ? 0.14 : 0.07
+        o.connect(g).connect(this.padFilter)
+        o.start()
+        this.padVoices.push(o)
+      }
+    }
+  }
+
+  /** Rain: hissing noise, high-passed; silent until the weather says otherwise. */
+  private rainBed(): void {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 1200
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 7000
+    this.rainGain = ctx.createGain()
+    this.rainGain.gain.value = 0
+    src.connect(hp).connect(lp).connect(this.rainGain).connect(this.master!)
+    src.start()
+  }
+
+  /**
+   * The weather and the world, for the score: how dark (0 … 1), how hard it
+   * rains, how windy, and how close something enormous is (awe, 0 … 1).
+   */
+  mood(dark: number, rain: number, wind: number, awe: number): void {
+    this.state = { dark, rain, wind, awe }
+    if (!this.ctx) return
+    const t = this.ctx.currentTime
+    this.rainGain?.gain.setTargetAtTime(rain * 0.11, t, 2)
+    this.windGain?.gain.setTargetAtTime(0.03 + wind * 0.07, t, 3)
+    // The drone swells under storm and near the colossi.
+    this.padGain?.gain.setTargetAtTime(0.05 + dark * 0.05 + awe * 0.09, t, 4)
+    this.padFilter?.frequency.setTargetAtTime(380 + (1 - dark) * 420 + awe * 300, t, 4)
+  }
+
+  /** Every quarter second: chord changes, the odd high note, a far horn. */
+  private score(): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    if (t > this.nextChord) {
+      // A new chord every half-minute or so, gliding there over eight seconds.
+      this.nextChord = t + 24 + Math.random() * 20
+      this.chord = (this.chord + 1 + Math.floor(Math.random() * 2)) % CHORDS.length
+      const c = CHORDS[this.chord]
+      this.padVoices.forEach((o, i) => o.frequency.linearRampToValueAtTime(c[Math.floor(i / 2)], t + 8))
+    }
+    if (t > this.nextNote) {
+      // Sparse: fewer notes the darker it is.
+      this.nextNote = t + 7 + Math.random() * 14 + this.state.dark * 10
+      if (Math.random() > this.state.dark * 0.6) this.glass(CHORDS[this.chord])
+    }
+    if (t > this.nextHorn) {
+      this.nextHorn = t + 45 + Math.random() * 70
+      this.farHorn()
+    }
+  }
+
+  /** A glassy note from the chord, high up, fading into the hall. */
+  private glass(chord: number[]): void {
+    const ctx = this.ctx!
+    const t = ctx.currentTime
+    const f = chord[1 + Math.floor(Math.random() * 3)] * (Math.random() < 0.5 ? 4 : 8)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.035, t + 0.8)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 7)
+    g.connect(this.space!)
+    g.connect(this.master!)
+    for (const [type, mul] of [['sine', 1], ['triangle', 2.001]] as const) {
+      const o = ctx.createOscillator()
+      o.type = type
+      o.frequency.value = f * mul
+      const og = ctx.createGain()
+      og.gain.value = mul === 1 ? 1 : 0.15
+      o.connect(og).connect(g)
+      o.start(t)
+      o.stop(t + 7.2)
+    }
+  }
+
+  /** Something enormous, very far away, groaning: a deep horn sliding down, mostly reverb. */
+  farHorn(): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(260, t)
+    lp.frequency.linearRampToValueAtTime(140, t + 7)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.09, t + 2.2)
+    g.gain.setValueAtTime(0.09, t + 4.5)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 8)
+    lp.connect(g)
+    g.connect(this.space!)
+    const dry = ctx.createGain()
+    dry.gain.value = 0.25
+    g.connect(dry).connect(this.master!)
+    const base = 41 + Math.random() * 8
+    for (const [mul, type] of [[1, 'sawtooth'], [1.498, 'sawtooth'], [0.5, 'sine']] as const) {
+      const o = ctx.createOscillator()
+      o.type = type
+      o.frequency.setValueAtTime(base * mul, t)
+      o.frequency.exponentialRampToValueAtTime(base * mul * 0.82, t + 7.5)
+      o.connect(lp)
+      o.start(t)
+      o.stop(t + 8.2)
+    }
+  }
+
+  /** Thunder, `d` metres away: it arrives late, rolling. */
+  thunder(d: number): void {
+    if (!this.ctx || !this.on) return
+    const when = this.ctx.currentTime + d / SPEED_OF_SOUND
+    const vol = 0.5 / (1 + d / 1500)
+    // A crack (if near), then the long roll: low-passed noise in a few swells.
+    if (d < 1500) this.burst(when, vol * 0.5, 2400, 0.4)
+    for (let i = 0; i < 4; i++) this.burst(when + 0.2 + i * (0.5 + Math.random() * 0.6), vol * (0.9 - i * 0.18), 160 + Math.random() * 120, 2.6)
   }
 
   /** Wind: band-passed noise, breathing slowly. */
@@ -61,6 +262,7 @@ export class Sound {
     band.Q.value = 0.6
     const gain = ctx.createGain()
     gain.gain.value = 0.045
+    this.windGain = gain
     const lfo = ctx.createOscillator()
     lfo.frequency.value = 0.07
     const depth = ctx.createGain()

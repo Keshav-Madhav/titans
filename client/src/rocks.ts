@@ -8,11 +8,12 @@
 import * as THREE from 'three'
 import { mulberry32, type RegionName, type Terrain } from '@titans/shared'
 import { LAYER, type TerrainTextures } from './terrain-material'
-import { make, PLAN, type FormationKind, type RockMesh, type Shape } from './rock-fields'
+import { make, PLAN, type RockMesh, type Shape, type ShapeKind } from './rock-fields'
 
 interface Formation extends Shape {
   id: number
-  kind: FormationKind
+  /** 'built': architecture with its own geometry (see `addBuilt`). */
+  kind: ShapeKind | 'built'
   seed: number
   x: number
   y: number
@@ -23,6 +24,33 @@ interface Formation extends Shape {
   land: RegionName
   mesh: THREE.Mesh | null
   queued: boolean
+  /** Mesh resolution (cells across its longest side). */
+  res: number
+  /** Built at once and kept, however far away (the colossi). */
+  always: boolean
+  /** Texture layers (sides, tops), metres per side texture tile, and a tint. */
+  layers: [number, number]
+  scale: number
+  tint: [number, number, number]
+  /** Hanging in the air, bobbing and turning slowly (no collision). */
+  float: { amp: number; phase: number; spin: number } | null
+}
+
+/** How a colossus looks and where it stands (see `Rocks.addColossus`). */
+export interface ColossusPlacement {
+  kind: ShapeKind
+  x: number
+  z: number
+  /** Ground level under it; default: the lowest ground under its footprint, minus `sink`. */
+  y?: number
+  sink?: number
+  rot: number
+  seed: number
+  layers: [number, number]
+  scale?: number
+  tint?: [number, number, number]
+  res?: number
+  float?: { amp: number; phase: number; spin: number }
 }
 
 // --- material -------------------------------------------------------------------
@@ -34,7 +62,7 @@ function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 aLayer;\nvarying vec2 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;')
+      .replace('#include <common>', '#include <common>\nattribute vec3 aLayer;\nvarying vec3 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvLayer = aLayer;\nvRockPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvRockN = normalize(mat3(modelMatrix) * objectNormal);')
     sh.fragmentShader = sh.fragmentShader
       .replace(
@@ -42,7 +70,7 @@ function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
         `#include <common>
         uniform highp sampler2DArray tLayerColor;
         uniform highp sampler2DArray tLayerNormal;
-        varying vec2 vLayer;
+        varying vec3 vLayer;
         varying vec3 vRockPos;
         varying vec3 vRockN;
         vec3 rockN;
@@ -67,7 +95,7 @@ function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
         '#include <color_fragment>',
         `vec3 rN = normalize(vRockN);
         vec3 nA; vec3 nB;
-        vec3 cA = triTex(vLayer.x, 1.0 / 9.0, vRockPos, rN, nA) * vec3(1.15, 1.25, 1.4);
+        vec3 cA = triTex(vLayer.x, 1.0 / vLayer.z, vRockPos, rN, nA);
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);
         // Moss, leaf litter or sand on the faces that look up.
         float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3));
@@ -96,7 +124,7 @@ export class Rocks {
   built = 0
 
   constructor(
-    terrain: Terrain,
+    private readonly terrain: Terrain,
     private readonly seed: number,
     textures: TerrainTextures,
     /** Somewhere a formation must not stand (lakes, the start). */
@@ -130,7 +158,8 @@ export class Rocks {
           }
           if (hi - lo > Math.max(6, r * 0.35)) continue
           const rot = rand() * Math.PI * 2
-          this.formations.push({ id: this.formations.length, kind, seed: fseed, x, y: lo, z, rot, cos: Math.cos(rot), sin: Math.sin(rot), ...made, land, mesh: null, queued: false })
+          const layers: [number, number] = [land === 'desert' ? LAYER.redrock : LAYER.rock, land === 'desert' ? LAYER.sand : land === 'forest' ? LAYER.forest : LAYER.grass]
+          this.formations.push({ id: this.formations.length, kind, seed: fseed, x, y: lo, z, rot, cos: Math.cos(rot), sin: Math.sin(rot), ...made, land, mesh: null, queued: false, res: 64, always: false, layers, scale: 9, tint: [1.15, 1.25, 1.4], float: null })
           placed++
         }
       }
@@ -144,24 +173,117 @@ export class Rocks {
     return f.field(dx * f.cos - dz * f.sin, y - f.y, dx * f.sin + dz * f.cos)
   }
 
+  /**
+   * Add one of the colossi (hand-placed). It is meshed at once (before any
+   * rock) and kept whatever the distance; unless it floats, it is solid.
+   */
+  addColossus(p: ColossusPlacement): void {
+    const made = make(p.kind, p.seed, this.seed)
+    let y = p.y
+    if (y === undefined) {
+      const r = Math.min(Math.max(made.hx, made.hz), 160)
+      let lo = this.terrain.heightAt(p.x, p.z)
+      for (let k = 0; k < 12; k++) lo = Math.min(lo, this.terrain.heightAt(p.x + Math.cos(k * 0.524) * r * 0.6, p.z + Math.sin(k * 0.524) * r * 0.6))
+      y = lo - (p.sink ?? 0)
+    }
+    this.formations.push({
+      id: this.formations.length,
+      kind: p.kind,
+      seed: p.seed,
+      x: p.x,
+      y,
+      z: p.z,
+      rot: p.rot,
+      cos: Math.cos(p.rot),
+      sin: Math.sin(p.rot),
+      ...made,
+      land: this.terrain.base.regions.name(p.x, p.z),
+      mesh: null,
+      queued: false,
+      res: p.res ?? 110,
+      always: true,
+      layers: p.layers,
+      scale: p.scale ?? 12,
+      tint: p.tint ?? [1, 1, 1],
+      float: p.float ?? null,
+    })
+  }
+
+  /**
+   * A built colossus (architecture: pillars, stairs, gates): its own crisp
+   * geometry (local, y up from `y`), and an exact field for collision.
+   */
+  addBuilt(shape: Shape, geometry: THREE.BufferGeometry, p: { x: number; y: number; z: number; rot: number; layers: [number, number]; scale: number; tint?: [number, number, number] }): void {
+    const n = geometry.getAttribute('position').count
+    const tint = p.tint ?? [1, 1, 1]
+    const col = new Float32Array(n * 3)
+    const layer = new Float32Array(n * 3)
+    for (let i = 0; i < n; i++) {
+      col.set(tint, i * 3)
+      layer.set([p.layers[0], p.layers[1], p.scale], i * 3)
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    geometry.setAttribute('aLayer', new THREE.BufferAttribute(layer, 3))
+    geometry.computeBoundingSphere()
+    const mesh = new THREE.Mesh(geometry, this.material)
+    mesh.position.set(p.x, p.y, p.z)
+    mesh.rotation.y = p.rot
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    mesh.name = 'colossus-built'
+    this.group.add(mesh)
+    this.formations.push({
+      id: this.formations.length,
+      kind: 'built',
+      seed: 0,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      rot: p.rot,
+      cos: Math.cos(p.rot),
+      sin: Math.sin(p.rot),
+      ...shape,
+      land: this.terrain.base.regions.name(p.x, p.z),
+      mesh,
+      queued: false,
+      res: 0,
+      always: true,
+      layers: p.layers,
+      scale: p.scale,
+      tint,
+      float: null,
+    })
+  }
+
+  /** Floating colossi bob and turn. */
+  animate(t: number): void {
+    for (const f of this.formations) {
+      if (!f.float || !f.mesh) continue
+      f.mesh.position.y = f.y + Math.sin(t * 0.13 + f.float.phase) * f.float.amp
+      f.mesh.rotation.y = f.rot + t * f.float.spin
+    }
+  }
+
   /** Mesh formations coming near (in the worker, nearest first); drop far ones. */
   update(cam: THREE.Vector3): void {
     for (const f of this.formations) {
       const d = Math.hypot(f.x - cam.x, f.z - cam.z)
-      if (d < BUILD_R && !f.mesh && !f.queued) {
+      if ((d < BUILD_R || f.always) && !f.mesh && !f.queued) {
         f.queued = true
         this.waiting.push(f)
-      } else if (d > DROP_R && f.mesh) {
+      } else if (d > DROP_R && f.mesh && !f.always) {
         this.group.remove(f.mesh)
         f.mesh.geometry.dispose()
         f.mesh = null
       }
     }
     if (this.busy || !this.waiting.length) return
-    this.waiting.sort((a, b) => Math.hypot(b.x - cam.x, b.z - cam.z) - Math.hypot(a.x - cam.x, a.z - cam.z))
+    // The colossi first (they are seen from everywhere), then the nearest rock.
+    const key = (f: Formation) => (f.always ? -1e9 : 0) + Math.hypot(f.x - cam.x, f.z - cam.z)
+    this.waiting.sort((a, b) => key(b) - key(a))
     const f = this.waiting.pop()!
     this.busy = true
-    this.worker.postMessage({ id: f.id, kind: f.kind, seed: f.seed, worldSeed: this.seed })
+    this.worker.postMessage({ id: f.id, kind: f.kind, seed: f.seed, worldSeed: this.seed, res: f.res })
   }
 
   /** Nothing left to mesh near the camera. */
@@ -177,15 +299,14 @@ export class Rocks {
     g.setAttribute('position', new THREE.BufferAttribute(m.position, 3))
     g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3))
     const col = new Float32Array(m.ao.length * 3)
-    const layer = new Float32Array(m.ao.length * 2)
-    const rockL = f.land === 'desert' ? LAYER.redrock : LAYER.rock
-    const topL = f.land === 'desert' ? LAYER.sand : f.land === 'forest' ? LAYER.forest : LAYER.grass
+    const layer = new Float32Array(m.ao.length * 3)
+    const [tr, tg, tb] = f.tint
     for (let i = 0; i < m.ao.length; i++) {
-      col.set([m.ao[i], m.ao[i], m.ao[i]], i * 3)
-      layer.set([rockL, topL], i * 2)
+      col.set([m.ao[i] * tr, m.ao[i] * tg, m.ao[i] * tb], i * 3)
+      layer.set([f.layers[0], f.layers[1], f.scale], i * 3)
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-    g.setAttribute('aLayer', new THREE.BufferAttribute(layer, 2))
+    g.setAttribute('aLayer', new THREE.BufferAttribute(layer, 3))
     g.setIndex(new THREE.BufferAttribute(m.index, 1))
     g.computeBoundingSphere()
     const mesh = new THREE.Mesh(g, this.material)
@@ -201,7 +322,7 @@ export class Rocks {
 
   /** Formations near (x, z) within `r`. */
   private near(x: number, z: number, r: number): Formation[] {
-    return this.formations.filter((f) => Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
+    return this.formations.filter((f) => !f.float && Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
   }
 
   /**
@@ -224,6 +345,26 @@ export class Rocks {
           }
           return hi
         }
+      }
+    }
+    return null
+  }
+
+  /**
+   * A climbable solid just ahead of `p` (facing `yaw`): the formation and the
+   * point where reaching out meets it, or null.
+   */
+  solidAhead(p: THREE.Vector3, yaw: number): { solid: { sdf(x: number, y: number, z: number): number }; at: THREE.Vector3 } | null {
+    const fx = Math.sin(yaw)
+    const fz = Math.cos(yaw)
+    // Reach out from the chest (outside the rock) until the hand meets the
+    // surface: the hold is on the face you are looking at, never inside.
+    for (const f of this.near(p.x, p.z, 3)) {
+      if (this.sdf(f, p.x, p.y, p.z) <= 0) continue
+      for (let t = 0; t <= 2.2; t += 0.1) {
+        const x = p.x + fx * t
+        const z = p.z + fz * t
+        if (this.sdf(f, x, p.y, z) < 0.05) return { solid: { sdf: (a, b, c) => this.sdf(f, a, b, c) }, at: new THREE.Vector3(x, p.y, z) }
       }
     }
     return null
@@ -253,7 +394,13 @@ export class Rocks {
 
   /** Is (x, z) under or inside a formation's footprint (plants keep off)? */
   occupies(x: number, z: number): boolean {
-    for (const f of this.formations) if (Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) * 0.75) return true
+    for (const f of this.formations) {
+      if (f.float) continue
+      // Cheap reject, then the field itself near the ground.
+      if (Math.abs(f.x - x) > f.hx + f.hz || Math.abs(f.z - z) > f.hx + f.hz) continue
+      if (!f.always && Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) * 0.75) return true
+      if (f.always && this.sdf(f, x, this.terrain.heightAt(x, z) + 2, z) < 3) return true
+    }
     return false
   }
 }

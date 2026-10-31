@@ -14,3 +14,5 @@ CC0 (public domain) textures from [Poly Haven](https://polyhaven.com), packed by
 | redrock | cliff_side |
 | rock | rock_face_03 |
 | snow | snow_02 |
+| blocks | large_sandstone_blocks_01 (stonework, not ground) |
+| dressed | japanese_stone_wall (stonework, not ground) |

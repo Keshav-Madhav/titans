@@ -55,6 +55,27 @@ under a painterly air. The look comes from light, air and grading as much as fro
 - Next: richer trees and giant trees, stone with real texture on the giants and ruins, wind in the
   grass, dust and pollen in the light, soft ambient occlusion.
 
+## 2c. Dread, not jumpscares (user, 2026-10-31, with reference images)
+
+"Scary, but not by jumpscare — by ambience, music, lighting, weather and the general megalophobia
+of seeing hugeness." The references: a pale, spindly many-legged thing towering over hills under
+a winter sky; a robed figure in grey-green fog beside a gaunt stick giant; wind-turbine bases on a
+green field (mundane hugeness); a long-necked creature whose head is lost in storm cloud while
+shafts of sun come down ("the idea of getting cut off by storm clouds"); the Tokyo flood tunnels'
+pillared hall; someone sitting on a ledge of a giant clock tower (vertigo).
+
+So:
+- **Weather is the main instrument** (`client/src/weather.ts`): a low cloud deck (base ~255 m)
+  that tall things vanish into; overcast as the resting mood; storms with rain and lightning
+  flickering in the cloud; breaks with sun shafts. The grade, sky, light and fog follow it.
+- **Things too big to understand, at a distance**: striders on 500 m legs whose bodies are lost
+  in cloud (`client/src/striders.ts`), leviathans, colossi beyond the mountains. They never chase
+  you. Nothing jumps out.
+- **Sound carries it** (`client/src/audio.ts`): a slow, sad generative pad, sparse glass notes,
+  far horns groaning, rain, wind, thunder arriving late; a long hall reverb; the drone swells
+  under storm and near colossi.
+- **Vast, dim spaces and vertigo**: pillared halls in the dark; ledges high on the colossi.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

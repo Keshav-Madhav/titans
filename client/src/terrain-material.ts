@@ -13,13 +13,16 @@
 
 import * as THREE from 'three'
 
-/** Layer order: matches tools/pack-textures.py and the weights TerrainView writes. */
-export const LAYERS = ['grass', 'drygrass', 'forest', 'mud', 'sand', 'redrock', 'rock', 'snow'] as const
+/**
+ * Layer order: matches tools/pack-textures.py. The first eight are splatted on
+ * the ground (TerrainView writes their weights); the last are stonework.
+ */
+export const LAYERS = ['grass', 'drygrass', 'forest', 'mud', 'sand', 'redrock', 'rock', 'snow', 'blocks', 'dressed'] as const
 export type Layer = (typeof LAYERS)[number]
 export const LAYER = Object.fromEntries(LAYERS.map((l, i) => [l, i])) as Record<Layer, number>
 
 /** Metres per texture tile, up close. */
-const SCALE = [3.2, 3.4, 2.8, 3.0, 4.5, 14.0, 9.0, 7.0]
+const SCALE = [3.2, 3.4, 2.8, 3.0, 4.5, 14.0, 9.0, 7.0, 6.0, 4.0]
 /**
  * Art direction per layer: each texture's colour pulled toward the palette
  * (muted greens, pale warm sand, grey stone), as linear multipliers.
@@ -33,9 +36,11 @@ const TINT = [
   [1.45, 1.369, 1.496], // red rock
   [1.12, 1.38, 1.65], // rock: toward grey
   [2.139, 2.205, 2.246], // snow: brighter
+  [1.05, 1.05, 1.0], // stone blocks
+  [1.15, 1.12, 1.05], // dressed stone
 ]
 /** Roughness per layer. */
-const ROUGH = [0.92, 0.95, 0.95, 0.9, 0.97, 0.88, 0.86, 0.7]
+const ROUGH = [0.92, 0.95, 0.95, 0.9, 0.97, 0.88, 0.86, 0.7, 0.9, 0.88]
 const SIZE = 1024
 
 export interface TerrainTextures {
@@ -120,9 +125,9 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         varying vec4 vSplatB;
         varying vec3 vGroundPos;
         varying vec3 vGroundN;
-        const float LSCALE[8] = float[8](${list(SCALE)});
-        const float LROUGH[8] = float[8](${list(ROUGH)});
-        const vec3 LTINT[8] = vec3[8](${TINT.map((t) => `vec3(${list(t)})`).join(', ')});
+        const float LSCALE[10] = float[10](${list(SCALE)});
+        const float LROUGH[10] = float[10](${list(ROUGH)});
+        const vec3 LTINT[10] = vec3[10](${TINT.map((t) => `vec3(${list(t)})`).join(', ')});
 
         // A tangent-space normal from the packed texel (Y flipped: the arrays are
         // uploaded top row first, so the image's "up" is -v).

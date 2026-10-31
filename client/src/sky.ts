@@ -19,12 +19,18 @@ export class SkySystem {
     // The reel's sky is a muted, greyish blue (about rgb 62, 84, 109 high
     // up), not the physical model's saturated cobalt: pull what we see of it
     // toward grey. (The environment bake keeps the full colour for lighting.)
-    this.sky.material.fragmentShader = this.sky.material.fragmentShader.replace(
+    this.sky.material.uniforms.uOvercast = { value: 0 }
+    this.sky.material.fragmentShader = 'uniform float uOvercast;\n' + this.sky.material.fragmentShader.replace(
       'gl_FragColor = vec4( texColor, 1.0 );',
       `float skyL = dot( texColor, vec3( 0.2126, 0.7152, 0.0722 ) );
       vec3 skyC = mix( vec3( skyL ), texColor, 0.55 );
       // Pale only in a band at the horizon; deep, muted blue above it.
       skyC *= mix( 1.0, 0.42, smoothstep( 0.02, 0.38, max( direction.y, 0.0 ) ) );
+      // Under cloud (weather.ts): a flat, heavy grey, darker overhead.
+      vec3 grey = vec3( 0.36, 0.40, 0.42 ) * mix( 1.15, 0.75, smoothstep( 0.0, 0.6, max( direction.y, 0.0 ) ) );
+      // (The sun's disk is thousands of times brighter: clamp it, or it burns through the deck.)
+      skyC = mix( skyC, grey, uOvercast * 0.9 );
+      skyC = mix( skyC, min( skyC, vec3( 1.2 ) ), uOvercast );
       gl_FragColor = vec4( skyC, 1.0 );`,
     )
     const u = this.sky.material.uniforms
@@ -71,7 +77,8 @@ export class SkySystem {
     scene.add(this.counter)
     scene.add(this.counter.target)
 
-    this.setSun(24, 215)
+    // Low in the south-west: the valley and the Sentinel to its north are lit from behind you.
+    this.setSun(24, 322)
   }
 
   /** Sun elevation and azimuth in degrees; rebuilds the environment light. */

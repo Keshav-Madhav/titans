@@ -44,6 +44,9 @@ import { Wildlife, type Threat } from './wildlife'
 import { ancientTrails } from './ancient'
 import { Ruins } from './ruins'
 import { Rocks } from './rocks'
+import { Colossi } from './colossi'
+import { Leviathans } from './leviathans'
+import { Striders } from './striders'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -54,6 +57,7 @@ import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
 import { Post } from './post'
+import { Weather } from './weather'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
 const STEP = 1 / 60
@@ -103,6 +107,11 @@ quality.onApply = (level) => {
   post.resize()
 }
 quality.onApply(quality.level)
+// The weather: a low cloud deck the tall things vanish into, storms, breaks of sun.
+const weather = new Weather(sky, post, scene, WORLD_SEED)
+scene.add(weather.group)
+weather.onLightning = (d) => sound.thunder(d)
+if (params.get('weather')) weather.set(params.get('weather') as Parameters<Weather['set']>[0], true)
 
 // New pools only in hollows a giant dug (natural hollows stay dry).
 const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
@@ -125,6 +134,19 @@ scene.add(ruins.mesh)
 // Arches, caves, hoodoos, overhangs, spires and boulders, clear of the start and the ruins.
 const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 260 + r && !ruins.sites.some((s) => Math.hypot(s.x - x, s.z - z) < s.r + r + 20))
 scene.add(rocks.group)
+// The colossi: the Sentinel, the fallen First One's bones, the colonnade, the
+// Great Stair and the Gate, the giant trees, the stones hanging in the sky.
+const crownWind = { value: 0 }
+const colossi = new Colossi(terrain, rocks, WORLD_SEED, crownWind)
+scene.add(colossi.group)
+// Striders: pale things on legs five hundred metres long, walking the far lands.
+const striders = new Striders(terrain, WORLD_SEED)
+scene.add(striders.group)
+// Leviathans swimming through the sky a kilometre up.
+const leviathans = new Leviathans(WORLD_SEED)
+scene.add(leviathans.group)
+/** Where the giants must not walk: through a colossus. */
+const colossusAvoid = rocks.formations.filter((f) => f.always && !f.float).map((f) => ({ x: f.x, z: f.z, r: Math.max(f.hx, f.hz) + 160 }))
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
@@ -164,6 +186,19 @@ for (let i = 0; i < 2; i++) addTitan(`t${i + 1}`, TITAN_SPAWNS[i].x, TITAN_SPAWN
 const first = () => titans.get('t1')!.titan
 const mountains = new Mountains()
 scene.add(mountains.group)
+/**
+ * Beyond the mountains, far bigger than any giant you can reach: colossi
+ * kilometres tall, standing in the haze, facing the valley. Never reached;
+ * always there.
+ */
+const farGiants: Titan[] = []
+for (const a of [0.45, 2.55, 4.4]) {
+  const r = 8600
+  const t = new Titan(2600, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
+  t.restBlend = 0
+  scene.add(t.group)
+  farGiants.push(t)
+}
 const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
 /** Climbing the land itself: cliffs, canyon walls, the escarpment. */
 const cliff = new CliffClimb()
@@ -376,15 +411,25 @@ function simulate(dt: number): void {
       if (r === 'fell') {
         narration.say('Your grip gave out.')
         letGoCliff(1)
-      } else wanderer.place(cliff.world.x, cliff.world.y, cliff.world.z)
+      } else {
+        wanderer.place(cliff.world.x, cliff.world.y, cliff.world.z)
+        // Up on top of a solid: stand on it.
+        if (r === 'top') onRock()
+      }
     }
   } else {
     if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
-      // No giant within reach: the rock, if there is a wall to hand.
-      const wall = climber.active ? null : cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain)
-      if (wall) cliff.start(wall.x, wall.z, terrain)
+      // No giant within reach: a rock formation or colossus; else the land, if there is a wall to hand.
+      if (!climber.active) {
+        const solid = rocks.solidAhead(chest, wanderer.yaw)
+        if (solid) cliff.startOn(solid.solid, solid.at)
+        else {
+          const wall = cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain)
+          if (wall) cliff.start(wall.x, wall.z, terrain)
+        }
+      }
     }
     if (!climber.active && !cliff.active) {
       wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
@@ -402,6 +447,7 @@ function simulate(dt: number): void {
       const o = a.brain.think(dt, t.gait, {
         heightAt: (x, z) => terrain.heightAt(x, z),
         avoid: [
+          ...colossusAvoid,
           ...mountains.targets().map((m) => ({ x: m.titan.gait.x, z: m.titan.gait.z, r: TITAN_HEIGHT * 2 })),
           ...[...titans.values()].filter((b) => b !== a).map((b) => ({ x: b.titan.gait.x, z: b.titan.gait.z, r: TITAN_HEIGHT * 2.5 })),
         ],
@@ -480,6 +526,7 @@ function onRock(): void {
 /** Let go of the rock: pushed off it, falling. */
 function letGoCliff(push: number): void {
   cliff.active = false
+  cliff.solid = null
   const n = cliff.normal
   wanderer.place(cliff.world.x + n.x * 0.6, cliff.world.y + n.y * 0.6, cliff.world.z + n.z * 0.6)
   wanderer.vel.set(n.x * push, Math.max(0, n.y) * push, n.z * push)
@@ -535,6 +582,13 @@ function frame(now: number): void {
     a.titan.setLodFor(camera.position)
   }
   mountains.update(terrain, camera)
+  for (const t of farGiants) {
+    t.pose(terrain, dt)
+    t.group.updateMatrixWorld(true)
+    t.setLodFor(camera.position)
+  }
+  leviathans.update(dt)
+  striders.update(dt)
   if (climber.active) {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
@@ -555,15 +609,23 @@ function frame(now: number): void {
   birds.step(dt, camera.position, birdSpots)
   birds.render()
   sky.tick(dt)
+  weather.update(dt, camera)
+  clouds.tint(weather.now.dark)
+  sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
   rocks.update(camera.position)
+  crownWind.value += dt
+  rocks.animate(crownWind.value)
   wildlife.render()
   hud.setMode(climber.active || cliff.active ? 'climbing' : 'wanderer')
   hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
   const focus = wanderer.obj.position
-  rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
+  if (freeCam) {
+    camera.position.copy(freeCam.from)
+    camera.lookAt(freeCam.at)
+  } else rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
   terrainView.update(camera.position, ready ? 5 : 40)
   sky.follow(focus, camera)
   renderer.info.reset()
@@ -585,6 +647,16 @@ function frame(now: number): void {
   }
 }
 const birdSpots: Array<{ x: number; z: number }> = []
+/** How near something enormous is (0 … 1): the score swells under the colossi. */
+function awe(): number {
+  const p = wanderer.pos
+  let a = 0
+  for (const f of colossusAvoid) a = Math.max(a, 1 - Math.hypot(f.x - p.x, f.z - p.z) / (f.r * 3))
+  for (const t of titans.values()) a = Math.max(a, 1 - Math.hypot(t.titan.gait.x - p.x, t.titan.gait.z - p.z) / 900)
+  return Math.max(0, a)
+}
+/** Tools: a camera placed anywhere, looking at anything (null: the rig follows the wanderer). */
+let freeCam: { from: THREE.Vector3; at: THREE.Vector3 } | null = null
 // While the land wakes: the story, a line at a time.
 const LORE = [
   'Before memory, the world was flat and silent.',
@@ -631,6 +703,10 @@ const g = {
   wildlife,
   ruins,
   rocks,
+  colossi,
+  leviathans,
+  striders,
+  farGiants,
   birds,
   vegetation,
   paint,
@@ -651,6 +727,7 @@ const g = {
   },
   lakes,
   sky,
+  weather,
   quality,
   post,
   autopilot,
@@ -702,6 +779,48 @@ const g = {
       z: climber.world.z,
       height: climber.world.y - terrain.heightAt(first().gait.x, first().gait.z),
     }
+  },
+  /**
+   * Tools: frame `at` from about `dist` away, the camera `height` above the
+   * ground, from the first direction (searching out from `yaw`, which points
+   * from the subject toward the camera) with a clear line of sight over the
+   * land; the wanderer stands a few metres ahead of the camera, in frame, for
+   * scale. Returns false if no clear view was found.
+   */
+  frame(at: [number, number, number], dist: number, height = 2.5, yaw = 0): boolean {
+    const T = new THREE.Vector3(...at)
+    for (let k = 0; k < 40; k++) {
+      const a = yaw + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.16
+      for (const dd of [dist, dist * 0.75, dist * 1.35]) {
+        const x = T.x + Math.sin(a) * dd
+        const z = T.z + Math.cos(a) * dd
+        const y = terrain.heightAt(x, z) + height
+        // Not among trees (they would fill the frame), nor in rock.
+        let clear = biome.forest(x, z) < 0.2 && !rocks.occupies(x, z)
+        for (let t = 0.03; t < 0.97 && clear; t += 0.015) {
+          const px = x + (T.x - x) * t
+          const pz = z + (T.z - z) * t
+          if (terrain.heightAt(px, pz) > y + (T.y - y) * t - 1.5) clear = false
+          // Woods across the first stretch of the view would hide everything behind.
+          if (t * dd < 120 && biome.forest(px, pz) > 0.3) clear = false
+        }
+        if (!clear) continue
+        // The wanderer a few metres toward the subject, on the ground.
+        const ux = (T.x - x) / dd
+        const uz = (T.z - z) / dd
+        const wx = x + ux * 9
+        const wz = z + uz * 9
+        wanderer.place(wx, terrain.heightAt(wx, wz), wz)
+        wanderer.yaw = Math.atan2(ux, uz)
+        freeCam = { from: new THREE.Vector3(x, y, z), at: T }
+        return true
+      }
+    }
+    return false
+  },
+  /** Put the camera at `from`, looking at `at` (tools); `lookFrom(null)` hands it back to the rig. */
+  lookFrom(from: [number, number, number] | null, at?: [number, number, number]) {
+    freeCam = from && at ? { from: new THREE.Vector3(...from), at: new THREE.Vector3(...at) } : null
   },
   setCam(yaw: number, pitch: number, dist?: number) {
     rig.yaw = yaw

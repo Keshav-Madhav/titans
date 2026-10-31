@@ -44,6 +44,149 @@ async function shot(name) {
 }
 
 const scenes = {
+  // The weather: the same views under each kind of sky.
+  async weather() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })
+    for (const w of ['overcast', 'storm', 'breaking', 'clear']) {
+      await page.evaluate((w) => window.__g.weather.set(w, true), w)
+      await page.evaluate(() => {
+        const g = window.__g
+        const c = g.colossi.places.get('sentinel')
+        g.frame([c.x, c.y + 220, c.z], 700, 2.5, Math.atan2(-c.x, -c.z))
+      })
+      await shot(`weather-${w}-sentinel`)
+      await page.evaluate(() => {
+        const g = window.__g
+        const t = g.titan.gait
+        g.frame([t.x, g.heightAt(t.x, t.z) + 200, t.z], 420, 2.5, 2.2)
+      })
+      await shot(`weather-${w}-giant`)
+      // Toward the sun, over the colonnade: shafts through the gaps when it breaks.
+      await page.evaluate(() => {
+        const g = window.__g
+        const c = g.colossi.places.get('colonnade')
+        const s = g.sky.sunDir
+        g.frame([c.x, c.y + 380, c.z], 1300, 3, Math.atan2(-s.x, -s.z))
+      })
+      await shot(`weather-${w}-sun`)
+    }
+  },
+  // The colossi, each from where a wanderer would stand, looking up.
+  async colossi() {
+    const t0 = Date.now()
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })
+    const info = await page.evaluate(() => {
+      const g = window.__g
+      const all = g.rocks.formations.filter((f) => f.always)
+      return { count: all.length, tris: all.reduce((n, f) => n + (f.mesh.geometry.index ? f.mesh.geometry.index.count : f.mesh.geometry.getAttribute("position").count) / 3, 0), places: Object.fromEntries([...g.colossi.places].map(([k, v]) => [k, [Math.round(v.x), Math.round(v.y), Math.round(v.z)]])) }
+    })
+    console.log(`${info.count} colossi meshed in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${Math.round(info.tris / 1000)}k tris`, JSON.stringify(info.places))
+    // Each view: the subject (its place, raised to look at its middle) from a
+    // clear vantage at a distance, camera low, the wanderer in frame for scale.
+    const views = [
+      ['sentinel-from-spawn', 'sentinel', 190, 900, 3],
+      ['sentinel-feet', 'sentinel', 230, 300, 2],
+      ['ribcage', 'ribcage', 70, 420, 2.5],
+      ['skull', 'skull', 50, 260, 2.5],
+      ['sword', 'sword', 140, 420, 2.5],
+      ['colonnade', 'colonnade', 300, 650, 3],
+      ['stair', 'stair', 140, 520, 3],
+      ['gate', 'gate', 150, 260, 3],
+      ['giant-tree', 'tree-1', 120, 260, 2.5],
+      ['stones', 'stone-1', 0, 520, 3],
+    ]
+    for (const [name, place, rise, dist, height] of views) {
+      const ok = await page.evaluate(([place, rise, dist, height]) => {
+        const g = window.__g
+        const c = g.colossi.places.get(place)
+        if (!c) return false
+        // Prefer looking from the valley's side.
+        return g.frame([c.x, c.y + rise, c.z], dist, height, Math.atan2(-c.x, -c.z))
+      }, [place, rise, dist, height])
+      if (!ok) console.log(`  no clear view of ${name}`)
+      await shot(`colossus-${name}`)
+    }
+    // The sky: a leviathan passing over; the far colossi beyond the mountains.
+    await page.evaluate(async () => {
+      const g = window.__g
+      const b = g.leviathans.beasts[0].mesh.position
+      // Above the trees a little off its path, looking up at it.
+      const x = b.x + 600
+      const z = b.z - 400
+      g.teleport(x, z)
+      const y = g.heightAt(x, z) + 90
+      g.lookFrom([x, y, z], [b.x, b.y, b.z])
+    })
+    await shot('colossus-leviathan')
+    await page.evaluate(async () => {
+      const g = window.__g
+      const t = g.farGiants[0].gait
+      // From high over the valley's edge, toward the giant beyond the mountains.
+      const x = -t.x * 0.05
+      const z = -t.z * 0.05
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 420, z], [t.x, 1600, t.z])
+    })
+    await shot('colossus-far-giant')
+    // A strider, from the ground: legs coming down out of the sky.
+    for (const w of ['breaking', 'overcast']) {
+      await page.evaluate((w) => {
+        const g = window.__g
+        g.weather.set(w, true)
+        const s = g.striders.striders[0]
+        g.frame([s.x, g.heightAt(s.x, s.z) + 300, s.z], 1100, 2.5, Math.atan2(-s.x, -s.z))
+      }, w)
+      await shot(`colossus-strider-${w}`)
+    }
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // Climb a pillar of the colonnade: walk at it, take hold, climb.
+    const climb = await page.evaluate(async () => {
+      const g = window.__g
+      const f = g.rocks.formations.find((q) => q.kind === 'built' && q.hy > 200)
+      const a = 0.7
+      const r = f.hx / 1.6
+      // Outside the plinth (1.45 r), facing it.
+      g.teleport(f.x + Math.cos(a) * (r * 1.45 + 4), f.z + Math.sin(a) * (r * 1.45 + 4))
+      g.wanderer.yaw = Math.atan2(-Math.cos(a), -Math.sin(a))
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 10, focusHeight: 1.5, follow: 10 })
+      g.setCam(Math.atan2(Math.cos(a), Math.sin(a)), 0.15, 10)
+      let held = false
+      for (let i = 0; i < 300 && !held; i++) {
+        g.input.press('KeyW')
+        await new Promise((r) => requestAnimationFrame(r))
+        g.input.release('KeyW')
+        g.input.press('KeyE')
+        await new Promise((r) => requestAnimationFrame(r))
+        g.input.release('KeyE')
+        held = g.cliff.active && !!g.cliff.solid
+      }
+      const y0 = g.player().y
+      g.input.press('KeyW')
+      const t0 = performance.now()
+      while (performance.now() - t0 < 8000 && g.cliff.active) await new Promise((r) => setTimeout(r, 50))
+      g.input.release('KeyW')
+      const p = g.player()
+      return { held, rose: p.y - y0, still: g.cliff.active, grip: +g.cliff.stamina.toFixed(2), inside: g.rocks.sdf(f, p.x, p.y + 0.5, p.z) < -0.5 }
+    })
+    console.log('pillar climb', JSON.stringify(climb))
+    await shot('colossus-climbing')
+    if (!climb.held || climb.rose < 6 || climb.inside) throw new Error('colossi gate: could not climb a pillar')
+    for (const [name, place, angle, dist, pitch] of views) {
+      await page.evaluate(([place, angle, dist, pitch]) => {
+        const g = window.__g
+        const c = g.colossi.places.get(place)
+        if (!c) return
+        // From the place toward the valley's centre, turned by `angle`.
+        const base = Math.atan2(-c.x, -c.z) + angle
+        const x = c.x + Math.sin(base) * dist
+        const z = c.z + Math.cos(base) * dist
+        g.teleport(x, z)
+        g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 8, focusHeight: 1.6, follow: 10 })
+        g.setCam(Math.atan2(x - c.x, z - c.z), -pitch, 8)
+      }, [place, angle, dist, pitch])
+      await shot(`colossus-${name}`)
+    }
+  },
   // Rock formations: one of each kind, from a little way off; then into a cave.
   async rocks() {
     const kinds = await page.evaluate(() => {

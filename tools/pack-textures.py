@@ -29,6 +29,9 @@ LAYERS = [
     ('redrock', 'cliff_side'),
     ('rock', 'rock_face_03'),
     ('snow', 'snow_02'),
+    # Not splatted on the ground: the First Ones' stonework (monuments, colossi).
+    ('blocks', 'large_sandstone_blocks_01'),
+    ('dressed', 'japanese_stone_wall'),
 ]
 SIZE = 1024
 # Poly Haven refuses Python's default user agent.

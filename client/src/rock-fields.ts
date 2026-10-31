@@ -6,6 +6,9 @@
 import { makeSimplex2, mulberry32, type Noise2, type RegionName } from '@titans/shared'
 
 export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 'boulders'
+/** The colossi: the First Ones' remains and works, hundreds of metres across. */
+export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk'
+export type ShapeKind = FormationKind | ColossusKind
 
 /** Signed distance (negative inside) at a local point. */
 export type Field = (x: number, y: number, z: number) => number
@@ -55,9 +58,10 @@ export interface Shape {
 }
 
 /** Build a formation's shape from its kind and own seed (the same on any thread). */
-export function make(kind: FormationKind, seed: number, worldSeed: number): Shape {
+export function make(kind: ShapeKind, seed: number, worldSeed: number): Shape {
   const rand = mulberry32(seed)
   const n = noiseFor(worldSeed)
+  if (isColossus(kind)) return colossus(kind, rand, n)
   // Rock grain: noise on three planes, at two scales.
   const grain = (x: number, y: number, z: number, amp: number) =>
     amp * (0.6 * (n(x * 0.06, y * 0.06) + n(y * 0.06 + 3.3, z * 0.06) + n(z * 0.06 - 5.1, x * 0.06)) / 3 + 0.4 * (n(x * 0.21, z * 0.21 + y * 0.1) + n(y * 0.23, x * 0.19)) / 2)
@@ -304,10 +308,10 @@ export interface RockMesh {
  * gradient (smooth, always outward), each triangle wound to face along them;
  * occlusion from how much rock lies just outside each vertex.
  */
-export function meshShape(sh: Shape): RockMesh {
+export function meshShape(sh: Shape, res = 64): RockMesh {
   const f = sh.field
   const span = Math.max(sh.hx, sh.hy, sh.hz) * 2
-  const s = Math.max(0.9, span / 64)
+  const s = Math.max(0.9, span / res)
   const nx = Math.ceil((sh.hx * 2) / s) + 2
   const ny = Math.ceil((sh.hy * 2) / s) + 2
   const nz = Math.ceil((sh.hz * 2) / s) + 2
@@ -328,7 +332,7 @@ export function meshShape(sh: Shape): RockMesh {
     normal[i * 3 + 1] = gy / gl
     normal[i * 3 + 2] = gz / gl
     let occ = 0
-    for (const t of [1.5, 4, 9]) occ += Math.max(0, t - f(x + (gx / gl) * t, y + (gy / gl) * t, z + (gz / gl) * t)) / t
+    for (const t of [1.5 * s, 4 * s, 9 * s]) occ += Math.max(0, t - f(x + (gx / gl) * t, y + (gy / gl) * t, z + (gz / gl) * t)) / t
     ao[i] = Math.max(0.25, 1 - occ * 0.42)
   }
   // Wind every triangle to face the way its corners' normals do.
@@ -357,3 +361,187 @@ export function meshShape(sh: Shape): RockMesh {
   return { position: Float32Array.from(pos), normal, ao, index: Uint32Array.from(index) }
 }
 
+
+// --- the colossi ----------------------------------------------------------------
+
+const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk']
+export const isColossus = (k: ShapeKind): k is ColossusKind => (COLOSSI as string[]).includes(k)
+
+/** Capsule between two points. */
+function capsule(x: number, y: number, z: number, ax: number, ay: number, az: number, bx: number, by: number, bz: number, r: number): number {
+  const px = x - ax
+  const py = y - ay
+  const pz = z - az
+  const dx = bx - ax
+  const dy = by - ay
+  const dz = bz - az
+  const h = Math.max(0, Math.min(1, (px * dx + py * dy + pz * dz) / (dx * dx + dy * dy + dz * dz)))
+  return len3(px - dx * h, py - dy * h, pz - dz * h) - r
+}
+
+function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
+  // Weathering at colossal scale: broad dents and finer pitting.
+  const wear = (x: number, y: number, z: number, amp: number) =>
+    amp * ((n(x * 0.012, y * 0.012 + z * 0.006) + n(y * 0.011 - 4.1, z * 0.013)) * 0.35 + (n(x * 0.05 + z * 0.02, y * 0.05) + n(z * 0.047, x * 0.05 - y * 0.02)) * 0.15)
+  if (kind === 'sentinel') {
+    // A First One, kneeling, robed and hooded, both hands on the pommel of a
+    // sword planted before it. Under the hood: nothing but dark. ~380 m tall.
+    return {
+      field: (x, y, z) => {
+        // The robe: a broad cone from the ground to the waist, the knee pushing it forward.
+        const robeR = 95 - Math.max(0, Math.min(1, y / 170)) * 48
+        let d = Math.max(Math.hypot(x, (z + 10) * 0.85) - robeR, y - 175, -y - 10)
+        d = smin(d, ellipsoid(x - 35, y - 55, z - 70, 40, 45, 60), 25)
+        // Torso, leaning a little forward, and the shoulders.
+        d = smin(d, ellipsoid(x, y - 220, z - 8, 55, 75, 42), 30)
+        d = smin(d, ellipsoid(x - 58, y - 268, z - 5, 30, 26, 30), 18)
+        d = smin(d, ellipsoid(x + 58, y - 268, z - 5, 30, 26, 30), 18)
+        // Arms down and forward to the pommel.
+        for (const sx of [-1, 1]) {
+          d = smin(d, capsule(x, y, z, sx * 66, 262, -2, sx * 58, 205, 48, 15), 10)
+          d = smin(d, capsule(x, y, z, sx * 58, 205, 48, sx * 16, 248, 92, 12.5), 8)
+          d = smin(d, ellipsoid(x - sx * 13, y - 250, z - 96, 15, 13, 17), 6)
+        }
+        // The hood, hollow toward the front: a cave of shadow where the face would be.
+        let hood = ellipsoid(x, y - 318, z - 10, 38, 44, 40)
+        hood = ssub(hood, ellipsoid(x, y - 312, z - 34, 24, 30, 30), 5)
+        d = smin(d, hood, 14)
+        // The sword: grip and pommel under the hands, crossguard, a blade into the ground.
+        let sw = capsule(x, y, z, 0, 205, 98, 0, 262, 96, 6)
+        sw = Math.min(sw, len3(x, y - 266, z - 96) - 10)
+        sw = Math.min(sw, roundBox(x, y - 200, z - 98, 46, 6, 8, 2))
+        sw = Math.min(sw, roundBox(x, y - 95, z - 99 - (y - 95) * 0.04, 13 - Math.max(0, 40 - y) * 0.2, 105, 3.2, 1))
+        d = Math.min(d, sw)
+        // A shoulder broken away; the ground holds it.
+        d = ssub(d, len3(x + 75, y - 290, z + 20) - 30, 8)
+        return Math.max(d, -(y + 12)) + wear(x, y, z, 4)
+      },
+      hx: 135,
+      hy: 200,
+      hz: 135,
+      cy: 188,
+    }
+  }
+  if (kind === 'ribcage') {
+    // The ribs of a fallen First One, arching out of the sand along a buried spine.
+    const ribs = 11
+    const len = 520
+    return {
+      field: (x, y, z) => {
+        // Spine: a row of vertebrae along z, half sunk.
+        const t = Math.max(0, Math.min(ribs - 1, Math.round((z + len / 2) / (len / (ribs - 1)))))
+        const vz = -len / 2 + t * (len / (ribs - 1))
+        let d = ellipsoid(x, y + 6, z - vz, 26, 22, 20)
+        d = smin(d, capsule(x, y, z, 0, -2, -len / 2 - 30, 0, -2, len / 2 + 30, 12), 8)
+        // Ribs: arcs rising from the spine, out and up, over and down to the sand.
+        const k = Math.max(0, Math.min(ribs - 1, Math.round((z + len / 2) / (len / (ribs - 1)))))
+        const rz = -len / 2 + k * (len / (ribs - 1))
+        const size = 1 - Math.abs(k - (ribs - 1) * 0.4) / ribs
+        const R = 70 + 75 * size
+        // Each side: a torus in the x–y plane centred beside the spine.
+        for (const sx of [-1, 1]) {
+          const cx = sx * R * 0.92
+          const tor = Math.hypot(Math.hypot(x - cx, y - R * 0.15) - R, (z - rz) * 1.1 + (y > 0 ? y * 0.08 : 0)) - (7 + 4 * size)
+          // Only the arc above the spine's side: cut the outer lower half away.
+          d = smin(d, Math.max(tor, -(x * sx) - 4), 6)
+        }
+        return Math.max(d, -(y + 14)) + wear(x, y, z, 2.2)
+      },
+      hx: 290,
+      hy: 140,
+      hz: len / 2 + 60,
+      cy: 120,
+    }
+  }
+  if (kind === 'skull') {
+    // Its skull, on its side in the sand: you could walk into an eye.
+    return {
+      field: (x, y, z) => {
+        let d = ellipsoid(x, y - 40, z, 95, 80, 110)
+        d = smin(d, ellipsoid(x, y - 10, z - 85, 70, 45, 70), 25)
+        // Eye sockets, the nose, the jaw's hollow.
+        d = ssub(d, ellipsoid(x - 42, y - 45, z - 120, 26, 24, 40), 6)
+        d = ssub(d, ellipsoid(x + 42, y - 45, z - 120, 26, 24, 40), 6)
+        d = ssub(d, ellipsoid(x, y - 15, z - 150, 14, 22, 30), 4)
+        d = ssub(d, ellipsoid(x, y + 5, z - 70, 55, 30, 60), 10)
+        // Teeth along the upper jaw.
+        for (let i = -4; i <= 4; i++) d = smin(d, capsule(x, y, z, i * 11, 2, -150 + Math.abs(i) * 6, i * 11, -14, -146 + Math.abs(i) * 6, 4.5), 2)
+        return Math.max(d, -(y + 20)) + wear(x, y, z, 2.5)
+      },
+      hx: 110,
+      hy: 80,
+      hz: 165,
+      cy: 50,
+    }
+  }
+  if (kind === 'sword') {
+    // A blade 300 m long, driven into the dunes at a slant.
+    const tilt = 0.32
+    return {
+      field: (x, y, z) => {
+        // Into the blade's frame: tilted about x.
+        const c = Math.cos(tilt)
+        const s2 = Math.sin(tilt)
+        const by = y * c - z * s2
+        const bz = y * s2 + z * c
+        const taper = Math.max(0, Math.min(1, (by + 60) / 300))
+        let d = roundBox(x, by - 90, bz, 15 * (0.55 + 0.45 * taper), 160, 3.4, 1.2)
+        d = Math.min(d, roundBox(x, by - 252, bz, 62, 9, 11, 3))
+        d = Math.min(d, capsule(x, by, bz, 0, 262, 0, 0, 312, 0, 7))
+        d = Math.min(d, len3(x, by - 320, bz) - 13)
+        return Math.max(d, -(y + 10)) + wear(x, y, z, 1.4)
+      },
+      hx: 80,
+      hy: 170,
+      hz: 130,
+      cy: 150,
+    }
+  }
+  if (kind === 'monolith') {
+    // A shaft of stone hanging in the air, its ends broken.
+    const h = 90 + rand() * 90
+    const w = 14 + rand() * 10
+    return {
+      field: (x, y, z) => {
+        let d = roundBox(x, y, z, w * (1 - 0.15 * (y / h)), h / 2, w * 0.8, 3)
+        d = ssub(d, len3(x - w, y - h / 2, z) - w * 0.9, 4)
+        d = ssub(d, len3(x + w * 0.6, y + h / 2, z - w * 0.3) - w * 0.8, 4)
+        return d + wear(x, y, z, 2)
+      },
+      hx: w + 8,
+      hy: h / 2 + 8,
+      hz: w + 8,
+      cy: 0,
+    }
+  }
+  // A giant tree's trunk: roots buttressing out like ridges of hills.
+  const h = 150 + rand() * 90
+  const r = 11 + rand() * 6
+  const roots = 6 + Math.floor(rand() * 3)
+  const twist = rand() * 6.28
+  return {
+    field: (x, y, z) => {
+      const k = Math.max(0, Math.min(1, y / h))
+      let d = Math.hypot(x + Math.sin(y * 0.012 + twist) * 6, z) - r * (1.6 - 0.9 * k)
+      d = Math.max(d, y - h, -y - 10)
+      for (let i = 0; i < roots; i++) {
+        const a = (i / roots) * Math.PI * 2 + twist
+        const ex = Math.cos(a) * r * 4.5
+        const ez = Math.sin(a) * r * 4.5
+        d = smin(d, capsule(x, y, z, 0, r * 2.2, 0, ex, -3, ez, r * 0.45), r * 0.9)
+      }
+      // Great limbs at the crown.
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + twist * 2
+        d = smin(d, capsule(x, y, z, 0, h * 0.82, 0, Math.cos(a) * r * 3.5, h * 1.02, Math.sin(a) * r * 3.5, r * 0.5), r * 0.6)
+      }
+      // Bark: deep vertical furrows.
+      const fur = Math.sin(Math.atan2(z, x) * 26 + n(x * 0.05, z * 0.05) * 2) * 0.6
+      return d + fur + wear(x, y, z, 0.8)
+    },
+    hx: r * 6,
+    hy: (h * 1.08 + 12) / 2,
+    hz: r * 6,
+    cy: (h * 1.08 - 12) / 2,
+  }
+}
