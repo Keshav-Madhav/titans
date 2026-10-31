@@ -388,6 +388,61 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Words on stone and trinkets on high places: every one placed sensibly, readable, takeable.
+  async spots() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 180000 })
+    await page.evaluate(() => window.__g.weather.set('clear', true))
+    const list = await page.evaluate(() => window.__g.spots.spots.map((s) => ({ id: s.id, kind: s.kind, x: Math.round(s.at.x), y: +s.at.y.toFixed(1), z: Math.round(s.at.z), ground: +window.__g.heightAt(s.at.x, s.at.z).toFixed(1) })))
+    for (const s of list) console.log(`${s.kind.padEnd(7)} ${s.id.padEnd(15)} (${s.x}, ${s.y}, ${s.z})  ${s.y - s.ground > 3 ? `${(s.y - s.ground).toFixed(0)} m up` : 'on the ground'}`)
+    // A stone up close, then read it.
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'lore-knee')
+      g.teleport(s.at.x + 2, s.at.z + 1.5)
+      g.setCam(Math.atan2(2, 1.5) + 0.4, 0.15, 4)
+    })
+    await page.waitForTimeout(600)
+    await shot('spots-stone')
+    await page.evaluate(() => window.__g.input.press('KeyE'))
+    await page.waitForTimeout(200)
+    await page.evaluate(() => window.__g.input.release('KeyE'))
+    await page.waitForTimeout(1800)
+    await shot('spots-stone-read')
+    // A trinket's glint from the ground below and some way off.
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'coin-arch') ?? g.spots.spots.find((s) => s.kind === 'trinket')
+      const x = s.at.x + 260
+      const z = s.at.z + 180
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 1.7, z], [s.at.x, s.at.y, s.at.z])
+    })
+    await page.waitForTimeout(1200)
+    await shot('spots-glint')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // Every trinket: stand on it (with the bag) and take it.
+    const took = await page.evaluate(async () => {
+      const g = window.__g
+      g.finds.find('bag')
+      const out = []
+      for (const s of g.spots.spots.filter((s) => s.kind === 'trinket')) {
+        g.teleport(s.at.x + 0.6, s.at.z, s.at.y + 0.1)
+        await new Promise((r) => setTimeout(r, 120))
+        g.input.press('KeyE')
+        await new Promise((r) => setTimeout(r, 120))
+        g.input.release('KeyE')
+        await new Promise((r) => setTimeout(r, 60))
+        out.push(`${s.id}:${g.finds.has(s.id) ? 'taken' : 'MISSED'}`)
+      }
+      return out
+    })
+    console.log(took.join(' '))
+    await page.keyboard.press('KeyI')
+    await page.waitForTimeout(300)
+    await shot('spots-bag')
+    await page.keyboard.press('KeyI')
+    if (took.some((t) => t.endsWith('MISSED'))) throw new Error('spots gate: a trinket could not be taken')
+  },
   // The bag: the camp ahead of the start, taking it, looking in it.
   async bag() {
     await page.evaluate(() => window.__g.weather.set('breaking', true))

@@ -56,6 +56,32 @@ export const CATALOGUE: Find[] = [
   f('giant', 'herd', 'The Herd', 'The eastern Dune Sea.', 'Five of them, keeping together: the big one in front, the young ones in the middle. They graze on something in the sand. They would prefer you kept your distance.'),
   f('giant', 'beyond', 'The Ones Beyond', 'From a high place, look past the Wall.', 'Too big to be alive, and yet one of them turned to look at you. They do not come closer. You hope they do not come closer.'),
   f('giant', 'striders', 'The Striders', 'They cross the far lands on long legs.', 'Legs like threads coming down out of the cloud. They step over hills without seeming to notice them.'),
+  // Words on stone: left by those who came before you (no one you will meet).
+  f('lore', 'lore-knee', "A stone at the Sentinel's knee", 'Near the Sentinel, on the side that faces the Green.', 'We camped at its knee for nine days before we were sure it was not a statue. On the tenth it sighed, and the grass lay flat for a mile.'),
+  f('lore', 'lore-hall', 'A stone in the Undercroft', 'On the floor of the Undercroft.', 'Not built for us. The steps are wrong for our legs, the doors too high to knock on. We sleep here when it storms. So do other things.'),
+  f('lore', 'lore-fallen', 'A stone under the ribs', 'Among the bones of the Fallen.', 'This one lay down in the sand and did not get up. The others came, one at a time, over a year. They stood here a while. Then they went back to their lands.'),
+  f('lore', 'lore-sword', 'A stone by the Sword', 'At the foot of the Sword.', 'No one has lifted it. No one has seen it lifted. The sand around it is undisturbed. Perhaps it grew.'),
+  f('lore', 'lore-stair', 'A stone before the Gate', 'At the top of the Great Stair.', 'If you have climbed this far, you know what the steps were for. Do not knock. We knocked.'),
+  f('lore', 'lore-grove', 'A stone in the Grove', 'Among the giant trees.', 'The trees here are older than the giants, and the giants know it. They walk around the Grove, never through.'),
+  f('lore', 'lore-colonnade', 'A stone in the Colonnade', 'Among the pillars of the Colonnade.', 'The carvings show people as small as us, carrying things up to the giants. Offerings, or tribute, or gifts. They do not show what the giants gave back.'),
+  f('lore', 'lore-token', 'A stone on a high place', 'On top of a mesa in the Dune Sea.', 'A token for whoever climbs this. We leave one on every high place we reach. Take it, or leave it, and leave one of your own.'),
+  f('lore', 'lore-chains', 'A stone under the chains', 'Below one of the Chained Stones.', 'We do not know who chained the stones, or why they want to rise. When a storm comes, the chains sing.'),
+  f('lore', 'lore-herd', 'A stone near the Herd', "On the edge of the Herd's grazing.", 'The herd eats the stone that grows under the sand. Keep downwind. Keep low. The big one will chase you off if it thinks you are too near the young.'),
+  f('lore', 'lore-walker', 'A stone on the western Green', 'Far out on the western Green.', 'The Walker has crossed the Green ten thousand times. It has never once stepped on our camp. It knows we are here. It simply does not mind.'),
+  f('lore', 'lore-sleep', 'A stone under the arch', 'Under the stone arch out on the Green.', 'They sleep where the land is low and warm. When one sleeps long enough, the grass grows over it, and then there is a hill, and then you cannot tell.'),
+  // Trinkets: left on the hardest high places (a token for whoever climbs there).
+  f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
+  f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),
+  f('trinket', 'figure-stair', 'A little stone giant', 'At the top of the Great Stair.', 'A small stone figure of one of them, kneeling. The carving is good. Someone loved it.', 'figure', '#9a9283'),
+  f('trinket', 'key-hall', 'An iron key', 'In the darkest corner of the Undercroft.', 'An iron key. There is no lock in the Undercroft it fits. You checked.', 'key', '#5a5450'),
+  f('trinket', 'tooth-skull', 'A tooth', 'On top of the skull of the Fallen.', 'A tooth from something that is not a giant. Smaller than your head. Barely.', 'tooth', '#e6dcc4'),
+  f('trinket', 'horn-ribs', 'A horn cup', 'High on the ribs of the Fallen.', 'A cup carved from horn. Horn from what, you would rather not guess.', 'horn', '#c9b48a'),
+  f('trinket', 'shard-sword', 'A flake of the Sword', 'Where the Sword stands in the sand.', 'A flake of the blade. It is not iron, and it does not rust, and it is very slightly warm.', 'shard', '#545c66'),
+  f('trinket', 'pebble-chains', 'A chain-marked pebble', 'On top of one of the Chained Stones.', 'A pebble carved with the chain-mark. Holding it, your hand feels heavier than it should.', 'stone', '#3f4248'),
+  f('trinket', 'feather-spire', 'A grey feather', 'On top of a spire in the Dune Sea.', 'A grey feather as long as your arm. Nothing you have seen has wings this size. Yet.', 'feather', '#8f8f92'),
+  f('trinket', 'coin-arch', 'A stamped coin', 'On top of the stone arch out on the Green.', 'A coin with a triangle stamped on one side and nothing on the other.', 'coin', '#b89a52'),
+  f('trinket', 'bell-grove', 'A small bell', 'Among the roots of the biggest tree in the Grove.', 'A bronze bell, green with age. It has no clapper, and yet when the wind is right it rings.', 'bell', '#6f8a6a'),
+  f('trinket', 'shard-mesa', 'A glassy shard', 'On top of a mesa in the Dune Sea, beside a stone.', 'A shard of black glassy stone, warm to the touch, with a single scratch on it like a tally mark.', 'shard', '#2e2a2e'),
 ]
 
 export class Discoveries {

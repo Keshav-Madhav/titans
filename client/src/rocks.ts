@@ -346,7 +346,9 @@ export class Rocks {
 
   /** Formations near (x, z) within `r`. */
   private near(x: number, z: number, r: number): Formation[] {
-    return this.formations.filter((f) => !f.float && Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
+    // (A stone held still — a chained one, float with no drift — is solid
+    // like any other: you can climb it and stand on it.)
+    return this.formations.filter((f) => (!f.float || (f.float.amp === 0 && f.float.spin === 0)) && Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
   }
 
   /**

@@ -181,6 +181,25 @@ Each phase ends playable. Phases are in PLAN.md §6.
       where you can't see it — never a sting
 - [x] Gate: `shot.mjs weather` (storm swallows the Sentinel to the waist)
 
+## D — Discovery (user: environmental storytelling; "a lot of mechanics"; "the first thing we find is a bag")
+- [x] D1 `discovery.ts` (hand-written catalogue + what is found, saved), `journal.ts` (J: places,
+      those who live here, words on stone; a hint for each missing one; the card that rises)
+- [x] D1 Places and giants found by going to them (the Green, the Sentinel, the Undercroft, the
+      Grove, the Fallen, the Sword, the Colonnade, the Great Stair, the Chained Stones, the Wall;
+      the Walker, the Grey One, the Herd, the Ones Beyond, the Striders)
+- [x] D2 The bag (`bag.ts`, `camp.ts`): the first thing you find, at a camp just ahead of the start
+      (red cloth snapping in the wind); until then small things stay where they lie; I opens it —
+      each thing drawn (`drawIcon`), named, described; unlimited
+- [x] D3 Words on stone (`spots.ts`): 12 carved stones by those who came before (E to read, again any
+      time) — at the Sentinel's knee, in the Undercroft, under the ribs, by the Sword, before the
+      Gate, in the Grove, the Colonnade, on a mesa, under the chains, near the Herd, the western
+      Green, under the arch
+- [x] D3 Trinkets on the high places: 12, each on a standable top (the Sentinel's hood 370 m up,
+      the tallest pillar 812 m, a chained stone 373 m, the ribs, the skull, the Stair, a spire, the
+      arch…), glinting bright enough for the bloom to catch from far off
+- [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
+- [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

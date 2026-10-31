@@ -104,6 +104,39 @@ Big things next to big things cancel each other out; emptiness and distance carr
   - *a herd*: several smaller giants (120–200 m) roaming together across open ground.
 - Travel stays a pleasure: a faster run on open ground, and riding a walking giant to cross a land.
 
+## 2f. Discovery, not plot (user, 2026-10-31)
+"Environmental storytelling: giants own the lands, they live here, they don't go anywhere; we are a
+visitor, simply curious… quests about discovery through puzzles or targets or missions, rewards
+in trinkets, artifacts, lore." And: "a lot of mechanics so it doesn't get boring or repetitive —
+lore stones, abandoned camps, raiding something, chase the light, terraform this to uncover, a
+puzzle, a parkour thing… find more."
+
+Knowledge goes in the **journal** (J: places, those who live here, words on stone); things go in
+the **bag** (I: relics, trinkets) — and the bag is itself the first thing you find (a camp just
+ahead of the start; until then small things stay where they lie).
+
+The mechanics roster — each a kind of thing placed many times, each with its own reward:
+1. **Words on stone** — carved stones left by earlier visitors; read one (E) → lore.
+2. **Abandoned camps** — one traveller's camps across the lands, in order: a page and a thing at
+   each; follow them and you follow their journey (the bag is at the first).
+3. **High places** — trinkets left on the hardest tops (spires, mesas, pillars, the Sentinel's
+   hood), glinting so you see the target from far off; climb to them.
+4. **Raiding the giants** — a relic in the shrine on each walking giant's back; climb it while it
+   walks and take it. It is not pleased: it shrugs hard, and may try to shake you off.
+5. **Chase the light** — a wisp near a ruin: it flees as you come, leading you somewhere; keep up
+   and it settles on what it was showing you.
+6. **Resonance stones** — standing stones that hum when struck; the carving says in what order.
+   Right, and the ground opens / something rises.
+7. **Uncover** — something buried: get a giant to stamp the ground open (lead it, or stand where
+   the herd grazes), or drain a pool, and see what was underneath.
+8. **Parkour** — floating stones and broken pillars in a line, a jump and a climb each; a trinket
+   at the end.
+9. **Watching** — things the giants do, seen from close: the Walker drinking, the herd's young,
+   a giant lying down; stay still long enough and you learn something (lore).
+10. **Riding** — stay on a walking giant across a land (a page from someone who did it first).
+11. **Cairns** — the high places' beacons (exist); all of a land's lit → an artifact.
+12. **Offerings** — a shrine that takes a trinket from your bag and gives back words.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

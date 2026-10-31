@@ -56,10 +56,11 @@ import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
-import { Discoveries, visit, type Site } from './discovery'
+import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
 import { Bag } from './bag'
 import { Camp } from './camp'
+import { Spots, type Spot } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -235,6 +236,126 @@ const cairnPlaces: CairnPlace[] = []
   }
 }
 const cairns = new Cairns(cairnPlaces)
+
+// Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
+const spots = (() => {
+  const H = (x: number, z: number) => terrain.heightAt(x, z)
+  const ground = (x: number, z: number) => new THREE.Vector3(x, H(x, z), z)
+  /** The top of the rock at (x, z) if it is level enough to stand on (else null: you would slide off). */
+  const flatTop = (x: number, z: number) => {
+    const y = rocks.topAt(x, z)
+    if (y === null) return null
+    for (const [dx, dz] of [[0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8]]) {
+      const n = rocks.topAt(x + dx, z + dz)
+      if (n === null || Math.abs(n - y) > 0.45) return null
+    }
+    return y
+  }
+  /** The highest standable top within `r` of (x, z) (formations and colossi), or null. */
+  const topNear = (x: number, z: number, r: number) => {
+    let best: THREE.Vector3 | null = null
+    const step = Math.max(1.5, r / 8)
+    for (let dz = -r; dz <= r; dz += step) {
+      for (let dx = -r; dx <= r; dx += step) {
+        const y = flatTop(x + dx, z + dz)
+        if (y !== null && (!best || y > best.y)) best = new THREE.Vector3(x + dx, y, z + dz)
+      }
+    }
+    return best
+  }
+  const P = (n: string) => colossi.places.get(n)
+  const cairnAt = (n: string) => cairnPlaces.find((c) => c.name === n)
+  const regions = terrain.base.regions
+  const formation = (kind: string, land: string) => rocks.formations.find((f) => f.kind === kind && regions.name(f.x, f.z) === land)
+  // A mesa top in the Dune Sea: high above its surroundings, flat on top.
+  let mesa: THREE.Vector3 | null = null
+  for (let z = 2800; z <= 6400 && !mesa; z += 150) {
+    for (let x = -3600; x <= 3600 && !mesa; x += 150) {
+      if (regions.name(x, z) !== 'desert') continue
+      const h = H(x, z)
+      let ring = 0
+      let flat = 0
+      for (let k = 0; k < 8; k++) {
+        ring += H(x + Math.cos(k * 0.785) * 160, z + Math.sin(k * 0.785) * 160) / 8
+        flat = Math.max(flat, Math.abs(H(x + Math.cos(k * 0.785) * 14, z + Math.sin(k * 0.785) * 14) - h))
+      }
+      if (h - ring > 45 && flat < 1.5) mesa = ground(x, z)
+    }
+  }
+  const list: Array<[string, Spot['kind'], THREE.Vector3 | null | undefined]> = []
+  const sen = P('sentinel')
+  if (sen) list.push(['lore-knee', 'stone', ground(sen.x + 25, sen.z + 205)])
+  list.push(['lore-hall', 'stone', ground(HALL.x + 150, HALL.z - 95)])
+  list.push(['key-hall', 'trinket', ground(HALL.x - 192, HALL.z - 132)])
+  const rib = P('ribcage')
+  if (rib) {
+    list.push(['lore-fallen', 'stone', ground(rib.x, rib.z)])
+    list.push(['horn-ribs', 'trinket', topNear(rib.x, rib.z, 120)])
+  }
+  const sk = P('skull')
+  if (sk) list.push(['tooth-skull', 'trinket', topNear(sk.x, sk.z, 60)])
+  const sw = P('sword')
+  if (sw) {
+    list.push(['lore-sword', 'stone', ground(sw.x + 55, sw.z + 35)])
+    // On the crossguard: the highest top in a ring round the blade (the pommel, dead centre, is too small to stand on).
+    let guard: THREE.Vector3 | null = null
+    for (let r = 10; r <= 40; r += 3) {
+      for (let k = 0; k < 24; k++) {
+        const x = sw.x + Math.cos((k / 24) * Math.PI * 2) * r
+        const z = sw.z + Math.sin((k / 24) * Math.PI * 2) * r
+        const y = flatTop(x, z)
+        if (y !== null && y > H(x, z) + 20 && (!guard || y > guard.y)) guard = new THREE.Vector3(x, y, z)
+      }
+    }
+    // (It has no level place to stand: then in the sand at the blade's foot, where a flake would fall.)
+    list.push(['shard-sword', 'trinket', guard ?? ground(sw.x + 16, sw.z + 10)])
+  }
+  const gate = P('gate')
+  if (gate) {
+    const y = rocks.floorAt(gate.x, gate.y + 4, gate.z, 0.6, 12) ?? gate.y
+    list.push(['lore-stair', 'stone', new THREE.Vector3(gate.x, y, gate.z)])
+    const y2 = rocks.floorAt(gate.x + 6, gate.y + 4, gate.z + 4, 0.6, 12) ?? y
+    list.push(['figure-stair', 'trinket', new THREE.Vector3(gate.x + 6, y2, gate.z + 4)])
+  }
+  let big = { x: 0, z: 0, h: -1 }
+  for (let i = 1; i <= 30; i++) {
+    const t = P(`tree-${i}`)
+    if (!t) break
+    const h = rocks.topAt(t.x, t.z) ?? 0
+    if (h > big.h) big = { x: t.x, z: t.z, h }
+  }
+  if (big.h > 0) {
+    list.push(['lore-grove', 'stone', ground(big.x + 95, big.z + 40)])
+    const gy = H(big.x + 40, big.z)
+    list.push(['bell-grove', 'trinket', new THREE.Vector3(big.x + 40, rocks.floorAt(big.x + 40, gy + 40, big.z, 0.6, 45) ?? gy, big.z)])
+  }
+  const col = P('colonnade')
+  if (col) list.push(['lore-colonnade', 'stone', ground(col.x + 0.866 * 60, col.z - 0.5 * 60)])
+  if (mesa) {
+    list.push(['lore-token', 'stone', mesa])
+    list.push(['shard-mesa', 'trinket', ground(mesa.x + 5, mesa.z + 3)])
+  }
+  const st = P('stone-1')
+  if (st) {
+    list.push(['lore-chains', 'stone', ground(st.x + 40, st.z + 25)])
+    list.push(['pebble-chains', 'trinket', topNear(st.x, st.z, 20)])
+  }
+  list.push(['lore-herd', 'stone', ground(2550, 3450)])
+  list.push(['lore-walker', 'stone', ground(-2300, 400)])
+  const arch = formation('arch', 'valley')
+  if (arch) {
+    list.push(['lore-sleep', 'stone', ground(arch.x, arch.z)])
+    list.push(['coin-arch', 'trinket', topNear(arch.x, arch.z, Math.max(arch.hx, arch.hz))])
+  }
+  const spire = formation('spire', 'desert')
+  if (spire) list.push(['feather-spire', 'trinket', topNear(spire.x, spire.z, Math.max(spire.hx, spire.hz) * 0.6)])
+  const hood = cairnAt("The Sentinel's Hood")
+  if (hood) list.push(['ring-hood', 'trinket', new THREE.Vector3(hood.x + 2, (rocks.topAt(hood.x + 2, hood.z) ?? hood.y), hood.z)])
+  const pillar = cairnAt('The Tallest Pillar')
+  if (pillar) list.push(['beads-pillar', 'trinket', new THREE.Vector3(pillar.x + 1.5, (rocks.topAt(pillar.x + 1.5, pillar.z) ?? pillar.y), pillar.z)])
+  return new Spots(list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at })))
+})()
+scene.add(spots.group)
 scene.add(cairns.group)
 const promptEl = document.getElementById('prompt')!
 let promptHtml = ''
@@ -531,6 +652,7 @@ function loadLocal(): boolean {
     camp.take()
     tipState.bag = true
   }
+  for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -674,10 +796,20 @@ function simulate(dt: number): void {
     }
   } else {
     const cairn = cairns.near(wanderer.pos)
+    const spot = spots.near(wanderer.pos, (id) => finds.has(id))
     if (camp.near(wanderer.pos) && input.pressed('KeyE')) {
       camp.take()
       finds.find('bag')
       tipState.bag = true
+    } else if (spot && input.pressed('KeyE')) {
+      if (spot.kind === 'stone') {
+        // Read it (again, if you like).
+        if (!finds.find(spot.id)) narration.say(CATALOGUE.find((c) => c.id === spot.id)?.text ?? '')
+      } else if (!bag.have) narration.say('You have nothing to carry it in. Not yet.')
+      else {
+        finds.find(spot.id)
+        spots.take(spot.id)
+      }
     } else if (cairn && input.pressed('KeyE')) {
       // Light the cairn: the beam rises, the land round it is uncovered.
       cairns.light(cairn)
@@ -925,6 +1057,7 @@ function frame(now: number): void {
   rocks.update(camera.position)
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
+  spots.update(dt, camera)
   visitClock -= dt
   if (visitClock <= 0 && ready) {
     visitClock = 0.5
@@ -932,7 +1065,15 @@ function frame(now: number): void {
   }
   // What E would do here.
   const free = !climber.active && !cliff.active
-  const html = free && camp.near(wanderer.pos) ? `<kbd>E</kbd>Take the bag` : free && cairns.near(wanderer.pos) ? `<kbd>E</kbd>Light the cairn` : ''
+  const spotNear = free ? spots.near(wanderer.pos, (id) => finds.has(id)) : null
+  const html =
+    free && camp.near(wanderer.pos)
+      ? `<kbd>E</kbd>Take the bag`
+      : spotNear
+        ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : 'Pick it up'}`
+        : free && cairns.near(wanderer.pos)
+          ? `<kbd>E</kbd>Light the cairn`
+          : ''
   if (html !== promptHtml) {
     promptHtml = html
     promptEl.innerHTML = html
@@ -1071,6 +1212,7 @@ const g = {
   journal,
   bag,
   camp,
+  spots,
   birds,
   vegetation,
   grass,
@@ -1114,8 +1256,8 @@ const g = {
   setPlough(on: boolean) {
     for (const a of titans.values()) a.titan.gait.plough = on
   },
-  teleport(x: number, z: number) {
-    wanderer.place(x, terrain.heightAt(x, z), z)
+  teleport(x: number, z: number, y?: number) {
+    wanderer.place(x, y ?? terrain.heightAt(x, z), z)
     fallTop = NaN
   },
   /** Walk up to giant 1's left foot from outside and grab it. */
