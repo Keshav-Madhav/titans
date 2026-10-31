@@ -220,7 +220,7 @@ function fur(lumps: LumpSurface[], zones: Array<[number, (d: THREE.Vector3) => b
     const L = lumps[li]
     if (!L) continue
     const area = (L.r.x * L.r.y + L.r.y * L.r.z + L.r.x * L.r.z) / (H * H)
-    const tufts = Math.round(area * 9000)
+    const tufts = Math.round(area * 13000)
     for (let k = 0; k < tufts; k++) {
       _d.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1)
       if (_d.lengthSq() > 1 || _d.lengthSq() < 0.01) continue
@@ -233,11 +233,12 @@ function fur(lumps: LumpSurface[], zones: Array<[number, (d: THREE.Vector3) => b
       down.set(0, -1, 0).addScaledVector(n, n.y).normalize()
       if (down.lengthSq() < 0.01) down.set(0, 0, -1)
       side.crossVectors(n, down).normalize()
-      const len = (0.02 + rand() * 0.025) * H
-      const w = len * 0.5
+      // Long, heavy and combed down by its own weight: it hangs, it doesn't bristle.
+      const len = (0.028 + rand() * 0.035) * H
+      const w = len * 0.62
       for (const turn of [0, 1]) {
-        const across = turn ? n.clone().multiplyScalar(0.7).addScaledVector(side, 0.3).normalize() : side
-        const dir = down.clone().multiplyScalar(0.8).addScaledVector(n, 0.45).normalize()
+        const across = turn ? n.clone().multiplyScalar(0.35).addScaledVector(side, 0.65).normalize() : side
+        const dir = down.clone().multiplyScalar(0.94).addScaledVector(n, 0.2 + rand() * 0.08).normalize()
         const root = p.clone().addScaledVector(n, -0.004 * H)
         const tip = root.clone().addScaledVector(dir, len)
         const a = root.clone().addScaledVector(across, -w / 2)

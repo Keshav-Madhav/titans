@@ -212,12 +212,13 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial, layer: number): void {
 export type Bulge = (dx: number, dy: number, dz: number) => number
 
 /**
- * Each lump is a block of dressed stone, not a boulder: a superellipsoid
- * (|x|^P + |y|^P + |z|^P = 1, a cube with rounded edges), weathered a little.
- * Climbing walks the same surface (it uses this bulge), so what you hold is
- * what you see.
+ * Each lump is a heavy rounded mass, squarer than a boulder: a superellipsoid
+ * (|x|^P + |y|^P + |z|^P = 1), weathered a little. At P = 4 they were cut
+ * blocks and the giants read as machines; the dressed stone is the armour's
+ * job, the body under it should read as a body. Climbing walks the same
+ * surface (it uses this bulge), so what you hold is what you see.
  */
-export const BLOCK_P = 4
+export const BLOCK_P = 2.7
 
 function boulderNoise(seed: number): { bulge: Bulge; noise3: (x: number, y: number, z: number) => number } {
   const n1 = makeSimplex2(seed)
