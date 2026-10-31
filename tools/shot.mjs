@@ -390,6 +390,175 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // Aiming, as a player sees it: the real camera over the shoulder, the mark on an eye, the arrow
+  // in flight, the eye closing — on the Sentinel, in the Undercroft, at a mesa.
+  async aim() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.finds.find('bag')
+      g.finds.find('bow')
+    })
+    // Turn the rig until the centre of the view is on `t` (with the bow drawn: the shoulder camera).
+    const aimAt = (t) =>
+      page.evaluate(async (t) => {
+        const g = window.__g
+        const T = new g.THREE.Vector3(t[0], t[1], t[2])
+        const dir = new g.THREE.Vector3()
+        for (let i = 0; i < 40; i++) {
+          await new Promise((r) => requestAnimationFrame(r))
+          const c = g.camera.position
+          g.camera.getWorldDirection(dir)
+          const want = T.clone().sub(c).normalize()
+          const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
+          const pitchErr = Math.asin(want.y) - Math.asin(dir.y)
+          g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
+          g.rig.pitch -= pitchErr * 0.35
+          g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch))
+        }
+        g.camera.getWorldDirection(dir)
+        const want = T.clone().sub(g.camera.position).normalize()
+        return +((dir.angleTo(want) * 180) / Math.PI).toFixed(2)
+      }, t)
+    const standOff = (setId, k, d) =>
+      page.evaluate(([setId, k, d]) => {
+        const g = window.__g
+        const e = g.eyes.sets.find((s) => s.id === setId).eyes[k]
+        const q = e.at.clone().addScaledVector(e.normal, d)
+        g.teleport(q.x, q.z)
+        g.rig.yaw = Math.atan2(q.x - e.at.x, q.z - e.at.z)
+        return e.at.toArray()
+      }, [setId, k, d])
+    const draw = (on) => page.evaluate((on) => (on ? window.__g.input.press('KeyQ') : window.__g.input.release('KeyQ')), on)
+    const loose = () => page.evaluate(() => window.__g.input.press('KeyF'))
+    // The Sentinel's eyes, from the Green.
+    const report = []
+    for (const k of [0, 1, 2]) {
+      const t = await standOff('eyes-sentinel', k, 150)
+      await draw(true)
+      await page.waitForTimeout(700)
+      report.push(await aimAt(t))
+      if (k === 1) await shot('aim-sentinel')
+      await loose()
+      if (k === 1) {
+        await page.waitForTimeout(450)
+        await shot('aim-flight')
+      }
+      await page.waitForTimeout(2600)
+      if (k === 1) await shot('aim-hit')
+      await draw(false)
+    }
+    await page.waitForTimeout(1600)
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.1, 7))
+    await page.waitForTimeout(1400)
+    await shot('aim-released')
+    // The Undercroft: from the altar, at an eye high on a pillar.
+    const th = await page.evaluate(() => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'bow')
+      g.teleport(s.at.x - 4, s.at.z + 2)
+      return g.eyes.sets.find((s) => s.id === 'eyes-hall').eyes[0].at.toArray()
+    })
+    await draw(true)
+    await page.waitForTimeout(700)
+    report.push(await aimAt(th))
+    await shot('aim-hall')
+    await draw(false)
+    // A mesa's cliff, from the sand.
+    const tm = await standOff('eyes-mesa', 1, 90)
+    await draw(true)
+    await page.waitForTimeout(700)
+    report.push(await aimAt(tm))
+    await shot('aim-mesa')
+    await draw(false)
+    const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
+    console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
+  },
+  // More of play, as a player sees it: aiming from far off (you in the frame), an arrow in the
+  // grass, a wisp darting away, the bag and the journal full.
+  async play() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.finds.find('bag')
+      g.finds.find('bow')
+    })
+    const aimAt = (t) =>
+      page.evaluate(async (t) => {
+        const g = window.__g
+        const T = new g.THREE.Vector3(t[0], t[1], t[2])
+        const dir = new g.THREE.Vector3()
+        for (let i = 0; i < 40; i++) {
+          await new Promise((r) => requestAnimationFrame(r))
+          g.camera.getWorldDirection(dir)
+          const want = T.clone().sub(g.camera.position).normalize()
+          const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
+          g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
+          g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch - (Math.asin(want.y) - Math.asin(dir.y)) * 0.35))
+        }
+      }, t)
+    // A mesa's eye from 260 m across the sand.
+    const tm = await page.evaluate(() => {
+      const g = window.__g
+      const e = g.eyes.sets.find((s) => s.id === 'eyes-mesa').eyes[2]
+      const q = e.at.clone().addScaledVector(e.normal, 260)
+      g.teleport(q.x, q.z)
+      g.rig.yaw = Math.atan2(q.x - e.at.x, q.z - e.at.z)
+      g.input.press('KeyQ')
+      return e.at.toArray()
+    })
+    await page.waitForTimeout(700)
+    await aimAt(tm)
+    await shot('play-aim-far')
+    await page.evaluate(() => window.__g.input.press('KeyF'))
+    await page.waitForTimeout(700)
+    await shot('play-aim-far-flight')
+    await page.evaluate(() => window.__g.input.release('KeyQ'))
+    // An arrow into the grass a few metres ahead, then looked at.
+    const at = await page.evaluate(() => {
+      const g = window.__g
+      g.teleport(300, 400)
+      g.rig.yaw = 0
+      g.input.press('KeyQ')
+      return [300, g.heightAt(300, 390), 390]
+    })
+    await page.waitForTimeout(700)
+    await aimAt(at)
+    await page.evaluate(() => window.__g.input.press('KeyF'))
+    await page.waitForTimeout(800)
+    await page.evaluate(() => {
+      const g = window.__g
+      g.input.release('KeyQ')
+      g.lookFrom([302.5, g.heightAt(302.5, 392.5) + 1.2, 392.5], [300, g.heightAt(300, 390) + 0.3, 390])
+    })
+    await page.waitForTimeout(600)
+    await shot('play-arrow-stuck')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // A wisp darting away across the dunes.
+    await page.evaluate(() => {
+      const g = window.__g
+      const w = g.wisps.wisps.find((w) => w.def.id === 'wisp-dunes')
+      g.teleport(w.pos.x + 10, w.pos.z + 6)
+      g.lookFrom([w.pos.x + 18, g.heightAt(w.pos.x + 18, w.pos.z + 14) + 2.5, w.pos.z + 14], [w.path[1].x, w.path[1].y, w.path[1].z])
+    })
+    await page.waitForTimeout(900)
+    await shot('play-wisp-flight')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // Everything found: the bag and the journal, full.
+    await page.evaluate(() => {
+      const g = window.__g
+      for (const id of ['bow', 'ring-hood', 'beads-pillar', 'figure-stair', 'key-hall', 'tooth-skull', 'feather-spire', 'coin-arch', 'bell-grove', 'relic-walker', 'relic-herd-1', 'relic-herd-5', 'wisp-green', 'res-wood', 'eyes-sentinel', 'sentinel', 'undercroft', 'grove', 'fallen', 'walker', 'herd', 'lore-knee', 'lore-hall', 'lore-bow', 'lore-walker']) g.finds.find(id)
+    })
+    await page.waitForTimeout(400)
+    await page.keyboard.press('KeyI')
+    await page.waitForTimeout(400)
+    await shot('play-bag')
+    await page.keyboard.press('KeyI')
+    await page.keyboard.press('KeyJ')
+    await page.waitForTimeout(400)
+    await shot('play-journal')
+    await page.keyboard.press('KeyJ')
+  },
   // The bow: take it from the altar, then close every set of eyes and take what they watched over.
   async bow() {
     await page.evaluate(() => {

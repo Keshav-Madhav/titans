@@ -19,7 +19,7 @@ const RADIUS = 2.6
 
 export class Eyes {
   readonly group = new THREE.Group()
-  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; mat: THREE.MeshBasicMaterial; shut: boolean }> = []
+  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; mat: THREE.MeshBasicMaterial; halo: THREE.Sprite; shut: boolean }> = []
   /** An eye closed; all of a set closed (`done`). */
   onShut: (set: EyeSet, done: boolean) => void = () => {}
 
@@ -38,11 +38,16 @@ export class Eyes {
         i.position.z = 0.46
         const r = new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: 0x2a2620 }))
         r.position.z = 0.455
-        g.add(body, i, r)
+        // A soft amber glow over the open iris, so an eye reads from far off.
+        // (fog: false — a sprite's shader has no 'transformed' for the patched fog to read: it would not compile.)
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture(), color: new THREE.Color(2.6, 1.5, 0.5), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
+        halo.scale.setScalar(6.5)
+        halo.position.z = 0.6
+        g.add(body, i, r, halo)
         g.position.copy(e.at)
         g.lookAt(e.at.clone().add(e.normal))
         this.group.add(g)
-        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), mat, shut: false })
+        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), mat, halo, shut: false })
       })
     }
   }
@@ -79,6 +84,7 @@ export class Eyes {
   private shut(e: (typeof this.irises)[number]): void {
     e.shut = true
     e.mat.color.set(0x15130f)
+    e.halo.visible = false
   }
 
   /** Closed before (a loaded game). */
@@ -95,4 +101,22 @@ export class Eyes {
   targets(): THREE.Vector3[] {
     return this.irises.filter((e) => !e.shut).map((e) => e.at)
   }
+}
+
+let halo: THREE.CanvasTexture | null = null
+/** A soft round glow. */
+function haloTexture(): THREE.CanvasTexture {
+  if (halo) return halo
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grad.addColorStop(0, 'rgba(255,220,160,0.9)')
+  grad.addColorStop(0.3, 'rgba(255,190,110,0.35)')
+  grad.addColorStop(1, 'rgba(255,190,110,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 64, 64)
+  halo = new THREE.CanvasTexture(c)
+  halo.colorSpace = THREE.SRGBColorSpace
+  return halo
 }

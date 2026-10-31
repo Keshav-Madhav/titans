@@ -50,13 +50,15 @@ export class Bow {
   onLoose: () => void = () => {}
 
   constructor() {
-    const shaft = new THREE.CylinderGeometry(0.018, 0.018, 0.9, 5).rotateX(Math.PI / 2)
-    const head = new THREE.ConeGeometry(0.04, 0.12, 5).rotateX(Math.PI / 2).translate(0, 0, 0.5)
-    const fletch = new THREE.BoxGeometry(0.11, 0.004, 0.16).translate(0, 0, -0.38)
+    // (A little long and pale-fletched, so you can follow one and find it where it lands.)
+    const shaft = new THREE.CylinderGeometry(0.022, 0.022, 1.1, 5).rotateX(Math.PI / 2)
+    const head = new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2).translate(0, 0, 0.6)
+    const fletch = new THREE.BoxGeometry(0.14, 0.006, 0.22).translate(0, 0, -0.46)
     const mat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.8 })
+    const pale = new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.9, emissive: new THREE.Color(0.12, 0.1, 0.08) })
     for (let i = 0; i < ARROWS; i++) {
       const m = new THREE.Mesh(shaft, mat)
-      m.add(new THREE.Mesh(head, mat), new THREE.Mesh(fletch, mat), new THREE.Mesh(fletch.clone().rotateZ(Math.PI / 2), mat))
+      m.add(new THREE.Mesh(head, mat), new THREE.Mesh(fletch, pale), new THREE.Mesh(fletch.clone().rotateZ(Math.PI / 2), pale))
       m.visible = false
       this.group.add(m)
       this.arrows.push({ mesh: m, pos: new THREE.Vector3(), vel: new THREE.Vector3(), flying: false, age: 0 })

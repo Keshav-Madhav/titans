@@ -1308,7 +1308,8 @@ function frame(now: number): void {
     // Drawing the bow: the camera comes in over the right shoulder, the view narrows, you face where you aim.
     if (bow.draw > 0 && !awakening.active) {
       camera.getWorldDirection(aimFwd).setY(0).normalize()
-      const shoulder = wanderer.pos.clone().add(new THREE.Vector3(-aimFwd.z * 0.65, 1.8, aimFwd.x * 0.65)).addScaledVector(aimFwd, -2.1)
+      // (Low and close, a little to the right: your hood and shoulder in the corner of the view.)
+      const shoulder = wanderer.pos.clone().add(new THREE.Vector3(-aimFwd.z * 0.72, 1.5, aimFwd.x * 0.72)).addScaledVector(aimFwd, -1.55)
       camera.position.lerp(shoulder, bow.draw * 0.9)
       wanderer.yaw = Math.atan2(aimFwd.x, aimFwd.z)
     }
