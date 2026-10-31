@@ -474,6 +474,59 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // The Sight-stone: take it in the Grove, hold V, see the marks, follow them to what waits.
+  async sight() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      window.__g.finds.find('bag')
+    })
+    const took = await page.evaluate(async () => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'sight')
+      g.teleport(s.at.x + 0.6, s.at.z)
+      await new Promise((r) => setTimeout(r, 200))
+      g.input.press('KeyE')
+      await new Promise((r) => setTimeout(r, 150))
+      g.input.release('KeyE')
+      await new Promise((r) => setTimeout(r, 100))
+      return g.finds.has('sight')
+    })
+    // On the Green at the first camp, looking along its trail: without, then through the stone.
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.glyphs.trails.find((t) => t.def.id === 'cache-green')
+      const p0 = t.marks[0].position
+      const p3 = t.marks[3].position
+      g.teleport(p0.x - (p3.x - p0.x) * 0.12, p0.z - (p3.z - p0.z) * 0.12)
+      g.setCam(Math.atan2(p0.x - p3.x, p0.z - p3.z), 0.3, 6)
+    })
+    await page.waitForTimeout(700)
+    await shot('sight-without')
+    await page.evaluate(() => window.__g.input.press('KeyV'))
+    await page.waitForTimeout(900)
+    await shot('sight-through')
+    // Follow each trail to its end, looking.
+    const ends = await page.evaluate(async () => {
+      const g = window.__g
+      const out = []
+      for (const t of g.glyphs.trails) {
+        g.teleport(t.end.x + 1, t.end.z)
+        await new Promise((r) => setTimeout(r, 400))
+        const s = g.spots.spots.find((x) => x.id === t.def.id)
+        g.teleport(s.at.x + 0.5, s.at.z)
+        await new Promise((r) => setTimeout(r, 150))
+        g.input.press('KeyE')
+        await new Promise((r) => setTimeout(r, 150))
+        g.input.release('KeyE')
+        await new Promise((r) => setTimeout(r, 100))
+        out.push(`${t.def.id}:${g.finds.has(t.def.id) ? 'taken' : 'MISSED'}`)
+      }
+      g.input.release('KeyV')
+      return out
+    })
+    console.log(`took the stone: ${took}; ${ends.join(' ')}`)
+    if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
+  },
   // The wing-cloak: take it at the top of the Great Stair, step off, and sail down.
   async glide() {
     await page.evaluate(() => {

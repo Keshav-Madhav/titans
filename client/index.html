@@ -137,6 +137,10 @@
       #bag-detail b { display: block; font: italic 700 16px ui-serif, Georgia, serif; margin-bottom: 6px; }
       #bag-detail p { margin: 0; }
       @media (max-width: 640px) { #bag-frame { grid-template-columns: 1fr; } #bag-detail { border: 0; padding: 0; } }
+      #sight {
+        position: fixed; inset: 0; pointer-events: none; opacity: 0;
+        background: radial-gradient(ellipse at center, rgba(40, 90, 100, 0.06) 35%, rgba(6, 22, 28, 0.62) 100%);
+      }
       #aim {
         position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
         border: 2px solid rgba(244, 239, 230, 0.85); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
@@ -201,6 +205,7 @@
     <div id="prompt"></div>
     <div id="found"></div>
     <div id="aim"></div>
+    <div id="sight"></div>
     <div id="bag">
       <div id="bag-frame">
         <h1><span>The Traveller's Bag</span><small id="bag-count"></small></h1>

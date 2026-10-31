@@ -43,6 +43,7 @@ export const CATALOGUE: Find[] = [
   // Tools: things that are used, and open new ways into the land.
   f('tool', 'horn', "The Traveller's Horn", 'At a camp near the Herd, in the Dune Sea.', 'A horn made from a shell found in the sand. Blow it (H) and the nearest walker comes to see what is making the noise. Blow it from one\'s back and it walks the way you are looking.', 'horn', '#9b8a6c'),
   f('tool', 'cloak', 'The Wing-cloak', 'Left at the top of the Great Stair.', "The traveller's cloak, cut wide and stiffened along its edges with something light and strong. Jump, and hold Space as you fall: it opens, and you sail.", 'feather', '#7a2e24'),
+  f('tool', 'sight', 'The Sight-stone', 'Left in the Grove, among the giant trees.', 'A disc of clouded crystal on a cord. Hold V to look through it: marks the First Ones left on the land show, faint and glowing, where the eye alone sees nothing. They lead somewhere.', 'ring', '#9fc6c8'),
   f('tool', 'bow', 'The Old Bow', 'On an altar at the far end of the Undercroft.', 'A bow of dark wood and horn, strung with something that is not gut, and a quiver that is never empty. Hold the right mouse button (or Q) to draw; click (or F) to loose. Somewhere, stone eyes are watching.', 'bow', '#5a3e2a'),
   // Places
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),
@@ -99,6 +100,10 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'eyes-hall', 'A lidded box', "Watched by three eyes high on the Undercroft's pillars.", 'A small stone box with a lid that will not open. When you shake it, something inside shakes back.', 'figure', '#8d8577'),
   f('trinket', 'eyes-sentinel', "The Sentinel's tear", 'Watched by three eyes set in the Sentinel itself.', 'A drop of clear stone, the size of an egg. It was lying where the Sentinel would see it, if it looked down.', 'shard', '#bfd4dc'),
   f('trinket', 'eyes-mesa', 'A sun-disc', 'Watched by three eyes in the cliffs of a mesa in the Dune Sea.', 'A disc of beaten copper, green at the edges, with a hole in the middle you can see the sky through.', 'coin', '#a86d3c'),
+  // At the ends of the glyph trails (seen through the Sight-stone).
+  f('trinket', 'cache-grove', 'A wooden spinner', 'At the end of the marks that wind through the Grove.', 'A spinning top carved from root, worn smooth by small hands, long ago.', 'figure', '#8a6a48'),
+  f('trinket', 'cache-green', 'A bone whistle', 'At the end of the marks that start at the first camp.', "A whistle cut from a bird's bone. It makes no sound you can hear; on the Green, the grass leans toward it.", 'horn', '#e4dccb'),
+  f('trinket', 'cache-steps', 'A clay tablet', 'At the end of the marks among the terraces of the Steps.', 'A tablet of fired clay pressed with rows of marks like the ones you followed here. You can almost read it.', 'stone', '#b08a62'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

@@ -65,6 +65,7 @@ import { Wisps } from './wisps'
 import { Resonance } from './resonance'
 import { Eyes, type EyeSet } from './eyes'
 import { Bow, type ArrowHit, type Pick } from './bow'
+import { Glyphs } from './glyphs'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -286,6 +287,8 @@ scene.add(resonance.group)
 const eyeSets: EyeSet[] = []
 // The traveller's later camps (the first, with the bag, is `camp`): each with a page; the second with the horn.
 const travellerCamps: Camp[] = []
+// Glyph trails, seen through the Sight-stone (made with the spots: the Grove's starts at the stone).
+let glyphs: Glyphs
 
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
@@ -477,6 +480,22 @@ const spots = (() => {
     travellerCamps.push(camp)
     list.push([c.page, 'page', ground(c.x + 1.1, c.z + 1.4)])
   }
+  // The Sight-stone in the Grove, and the glyph trails: from it, from the first camp, from the Colonnade.
+  const sightAt = ground(big.x + 70, big.z + 55)
+  const colAt = P('colonnade') ?? new THREE.Vector3(3068, 0, -2808)
+  glyphs = new Glyphs(
+    [
+      { id: 'cache-grove', start: { x: sightAt.x + 6, z: sightAt.z }, bearing: -2.4, seed: 71 },
+      { id: 'cache-green', start: { x: CAMP.x + 4, z: CAMP.z - 3 }, bearing: 1.9, seed: 72 },
+      { id: 'cache-steps', start: { x: colAt.x + 0.866 * 70, z: colAt.z - 0.5 * 70 }, bearing: 0.9, seed: 73 },
+    ],
+    terrain,
+    (x, z) => rocks.occupies(x, z) || rocks.sdfAt(x, H(x, z) + 1, z) < 2,
+  )
+  scene.add(glyphs.group)
+  const sightModel = new THREE.Group()
+  sightModel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.03, 16), new THREE.MeshStandardMaterial({ color: 0x9fc6c8, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 })))
+  sightModel.position.y = 0.02
   const hornModel = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 6, 14, Math.PI * 0.8), new THREE.MeshStandardMaterial({ color: 0x9b8a6c, roughness: 0.6 }))
   hornModel.rotation.set(Math.PI / 2, 0, 0.6)
   const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at, hidden: id.startsWith('eyes-') }))
@@ -490,6 +509,8 @@ const spots = (() => {
     wrap.add(cloakModel)
     placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap })
   }
+  placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
+  for (const t of glyphs.trails) placed.push({ id: t.def.id, kind: 'trinket', at: t.end.clone(), hidden: true })
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
@@ -526,6 +547,11 @@ const pick: Pick = (from, dir, max) => {
     if (eyes.test(a, b) || b.y < terrain.heightAt(b.x, b.z) || rocks.sdfAt(b.x, b.y, b.z) < 0) return t + 2
   }
   return max
+}
+glyphs.onEnd = (id) => {
+  sound.chime()
+  narration.say('The marks end here. Something has been waiting a long time to be looked at.')
+  spots.reveal(id)
 }
 resonance.onStrike = (pitch, wrong) => sound.stone(pitch, wrong)
 resonance.onSolve = (id, pitches) => {
@@ -839,6 +865,7 @@ function loadLocal(): boolean {
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
   for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
   for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
+  for (const t of glyphs.trails) if (finds.has(t.def.id)) glyphs.finish(t.def.id)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -1351,6 +1378,7 @@ function frame(now: number): void {
   for (const c of travellerCamps) c.update(dt, weather.now.wind)
   spots.update(dt, camera)
   wisps.update(dt, wanderer.pos)
+  glyphs.update(dt, finds.has('sight') && input.held('KeyV') && !climber.active && !journal.open && !bag.open, wanderer.pos, crownWind.value)
   {
     const has = finds.has('bow')
     const drawing = has && !climber.active && !cliff.active && !awakening.active && !journal.open && !bag.open && (input.held('Mouse2') || input.held('KeyQ'))
@@ -1530,6 +1558,9 @@ const g = {
   bow,
   pick,
   hornOrders,
+  get glyphs() {
+    return glyphs
+  },
   birds,
   vegetation,
   grass,

@@ -222,7 +222,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D9 The Wing-cloak (top of the Great Stair, where the last page said): falling with Space held,
       it opens — a wing from wrist to wrist — you sink at 2.6 m/s and sail at 15 m/s the way you
       lean, and land soft from any height. Gate: `shot.mjs glide` (sailed 437 m coming down 172 m)
-- [ ] D10 The Sight-stone (the Grove): glyph trails to hidden caches — PLAN.md §2f
+- [x] D10 The Sight-stone (the Grove, as the third page said): hold V — the view darkens at the
+      edges and the First Ones' marks show, glowing, over the grass in a line, a column of light at
+      the end; stand at the end still looking and the cache there shows itself. Three trails (from the
+      stone through the Grove, from the first camp across the Green, from the Colonnade over the
+      terraces), stepping round anything solid. Gate: `shot.mjs sight`
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
