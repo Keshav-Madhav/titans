@@ -87,6 +87,8 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   float fogFactor = 1.0 - exp( - fogDens * fogDist );
   float fogSun = pow( max( dot( fogRay / max( fogDist, 1e-3 ), ${sun} ), 0.0 ), 6.0 );
   vec3 fogCol = mix( fogColor, fogColor * vec3( 1.22, 1.08, 0.88 ), fogSun * 0.7 );
+  // Far away, the air goes cool and blue-grey (the paintings' distant mountains).
+  fogCol = mix( fogCol, fogCol * vec3( 0.9, 0.98, 1.1 ), smoothstep( 700.0, 6000.0, fogDist ) * ( 1.0 - fogSun ) );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogCol, fogFactor );
 #endif`
 

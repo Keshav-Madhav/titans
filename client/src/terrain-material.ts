@@ -165,7 +165,8 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         }
 
         // One layer, tri-planar (cliffs).
-        void triLayer(int i, vec3 p, vec3 dpx, vec3 dpy, vec3 N, out vec3 col, out vec3 nrm, out float hgt) {
+        // N: which way to project (the wall's facing); S: the smooth normal the relief sits on.
+        void triLayer(int i, vec3 p, vec3 dpx, vec3 dpy, vec3 N, vec3 S, out vec3 col, out vec3 nrm, out float hgt) {
           float s = 1.0 / LSCALE[i];
           vec3 w = pow(abs(N), vec3(4.0));
           w /= (w.x + w.y + w.z);
@@ -180,9 +181,9 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           vec3 tx = unpackN(nx);
           vec3 ty = unpackN(ny);
           vec3 tz = unpackN(nz);
-          tx = vec3(tx.xy + N.zy, abs(tx.z) * N.x);
-          ty = vec3(ty.xy + N.xz, abs(ty.z) * N.y);
-          tz = vec3(tz.xy + N.xy, abs(tz.z) * N.z);
+          tx = vec3(tx.xy + S.zy, abs(tx.z) * S.x);
+          ty = vec3(ty.xy + S.xz, abs(ty.z) * S.y);
+          tz = vec3(tz.xy + S.xy, abs(tz.z) * S.z);
           nrm = normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
           hgt = nx.b * w.x + ny.b * w.y + nz.b * w.z;
         }`,
@@ -205,7 +206,13 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // vertex normal: a triangle spanning a cliff's foot is steep all over,
         // where the interpolated normal would leave a pale tooth of sand or grass.
         vec3 gFlat = normalize(cross(gDx, gDy));
+        // (Smooth, so the projection does not jump at every triangle edge.)
         float gSteep = 1.0 - smoothstep(0.58, 0.8, min(gN.y, abs(gFlat.y) + 0.06));
+        // The facing on steep ground comes from the triangle (the smoothed normal can
+        // still point up on a wall at coarse detail); only its horizontal part, so the
+        // projection turns smoothly round a cliff instead of jumping at each edge.
+        vec2 gHor = gFlat.xz * sign(gFlat.y + 1e-4);
+        vec3 gTriN = normalize(mix(gN, vec3(gHor.x, 0.12, gHor.y) / max(1e-3, length(gHor)), gSteep * 0.9));
         if (gSteep > 0.0) {
           for (int i = 0; i < 8; i++) if (i != 5 && i != 6) gW[i] *= 1.0 - gSteep;
           gW[5] += gSteep * vColor.b;
@@ -219,7 +226,9 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gH[i] = -10.0;
           if (gW[i] < 0.004) continue;
           vec3 c; vec3 n; float h;
-          if (i == 5 || i == 6) triLayer(i, gP, gDx, gDy, gN, c, n, h);
+          // Cliffs: on steep ground, project from the sides, not from above — the
+          // smoothed normal leans up, and a top-down projection streaks down a wall.
+          if (i == 5 || i == 6) triLayer(i, gP, gDx, gDy, gTriN, gN, c, n, h);
           else topLayer(i, gP, gDx, gDy, gN, gFar, c, n, h);
           gCol[i] = c * LTINT[i];
           gNrm[i] = n;

@@ -53,7 +53,7 @@ export class SkySystem {
     scene.add(this.sky)
 
     // Density for the height haze in atmosphere.ts (linear, per metre at ground level).
-    this.fog = new THREE.FogExp2(0xa9bccf, 0.00012)
+    this.fog = new THREE.FogExp2(0xa9bccf, 0.00017)
     scene.fog = this.fog
 
     const s = this.sun

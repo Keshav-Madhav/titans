@@ -52,6 +52,7 @@ import { WorldMap, type MapPlace } from './map'
 import { Cairns, type CairnPlace } from './cairns'
 import { Striders } from './striders'
 import { Watchers } from './watchers'
+import { Mist } from './mist'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -148,6 +149,9 @@ scene.add(colossi.group)
 // Striders: pale things on legs five hundred metres long, walking the far lands.
 const striders = new Striders(terrain, WORLD_SEED)
 scene.add(striders.group)
+// Mist lying in the hollows and gathered round the colossi's feet.
+const mist = new Mist(terrain, WORLD_SEED, [...colossi.places].filter(([k]) => !k.startsWith('stone')).map(([, v]) => v))
+scene.add(mist.mesh)
 // Watchers: gaunt figures on the ridges, seen only under a heavy sky; gone when you come close.
 const watchers = new Watchers(terrain, WORLD_SEED, (x, z) => rocks.occupies(x, z))
 scene.add(watchers.group)
@@ -775,6 +779,7 @@ function frame(now: number): void {
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes)
   clouds.tint(weather.now.dark)
+  mist.update(sky.fog.color, sky.sunDir, weather.now.dark)
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
@@ -898,6 +903,7 @@ const g = {
   leviathans,
   striders,
   watchers,
+  mist,
   farGiants,
   birds,
   vegetation,
