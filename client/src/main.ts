@@ -1712,17 +1712,20 @@ const g = {
   grabTitan(): boolean {
     const titan = first()
     titan.group.updateMatrixWorld(true)
-    const foot = titan.part('footL')!
-    const c = foot.lumps[0].c.clone().applyMatrix4(foot.mesh.matrixWorld)
-    const out = new THREE.Vector3(c.x - titan.gait.x, 0, c.z - titan.gait.z).normalize()
-    for (let d = 40; d > 0; d -= 0.5) {
-      const x = c.x + out.x * d
-      const z = c.z + out.z * d
-      wanderer.place(x, terrain.heightAt(x, z), z)
-      chest.set(x, wanderer.pos.y + 0.9, z)
-      if (climber.tryGrab(chest)) {
-        climber.stamina = 1
-        return true
+    // (Either foot: one may be lifted mid-stride.)
+    for (const name of ['footL', 'footR']) {
+      const foot = titan.part(name)!
+      const c = foot.lumps[0].c.clone().applyMatrix4(foot.mesh.matrixWorld)
+      const out = new THREE.Vector3(c.x - titan.gait.x, 0, c.z - titan.gait.z).normalize()
+      for (let d = 40; d > 0; d -= 0.5) {
+        const x = c.x + out.x * d
+        const z = c.z + out.z * d
+        wanderer.place(x, terrain.heightAt(x, z), z)
+        chest.set(x, wanderer.pos.y + 0.9, z)
+        if (climber.tryGrab(chest)) {
+          climber.stamina = 1
+          return true
+        }
       }
     }
     return false
