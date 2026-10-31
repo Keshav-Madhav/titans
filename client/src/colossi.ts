@@ -171,8 +171,11 @@ export class Colossi {
       trees.push({ x, y: lo - 2, z, h: f.cy + f.hy, tips })
       place(`tree-${trees.length}`, x, z, lo)
     }
-    // Their crowns: billows of leaf cards at every limb's end.
-    const count = trees.reduce((n, t) => n + t.tips.length, 0)
+    // Their crowns: billows of leaf cards at every limb's end — and a smaller
+    // one halfway along each limb, so the canopy reaches down to the trunk
+    // and reads as one tree (tip crowns alone, over a hill that hid the trunk,
+    // hung in the air like clouds).
+    const count = trees.reduce((n, t) => n + t.tips.length * 2, 0)
     const crown = new THREE.InstancedMesh(canopyGeometry(31, 64, 15, 90, 14), foliageMaterial(foliage, time, 0.0004), count)
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
@@ -182,6 +185,11 @@ export class Colossi {
         // Broad: close enough together, their crowns meet into a roof far overhead.
         const s = (k === t.tips.length - 1 ? 0.85 : 0.58) * (0.85 + rand() * 0.35)
         m.compose(tip, q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(s, s * (0.75 + rand() * 0.3), s))
+        crown.setMatrixAt(ci++, m)
+        const fork = new THREE.Vector3(t.x, t.y + t.h * 0.72, t.z)
+        const mid = fork.lerp(tip, 0.55)
+        const s2 = s * 0.62
+        m.compose(mid, q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(s2, s2 * 0.8, s2))
         crown.setMatrixAt(ci++, m)
       })
     }

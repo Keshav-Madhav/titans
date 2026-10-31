@@ -27,7 +27,12 @@ export function foliageTexture(): THREE.CanvasTexture {
   const g = c.getContext('2d')!
   const rand = mulberry32(4242)
   g.fillStyle = '#ffffff'
+  // The trunks' opaque corner. (Both corners: the texture is flipped on upload
+  // (flipY), so UV (0.02, 0.02) is the canvas's bottom-left — with only the top
+  // one painted, every trunk sampled transparency and was cut away, leaving
+  // the crowns hanging in the air.)
   g.fillRect(0, 0, 16, 16)
+  g.fillRect(0, SIZE - 16, 16, 16)
   // Leaves: a dense clump of soft ovals, lighter toward the top.
   const lx0 = LEAVES[0] * SIZE
   const lw = (LEAVES[2] - LEAVES[0]) * SIZE
