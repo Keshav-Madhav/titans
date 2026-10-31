@@ -49,6 +49,7 @@ import { Rocks } from './rocks'
 import { Colossi } from './colossi'
 import { Leviathans } from './leviathans'
 import { Undercroft } from './hall'
+import { WorldMap, type MapPlace } from './map'
 import { Striders } from './striders'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -154,6 +155,25 @@ const colossusAvoid = rocks.formations.filter((f) => f.always && !f.float).map((
 // The Undercroft: a hall of pillars under the valley floor.
 const undercroft = new Undercroft(terrain, rocks)
 scene.add(undercroft.group)
+// The map: uncovered as you explore (more from up high); M opens it.
+const NAMES: Record<string, string> = {
+  sentinel: 'The Sentinel',
+  ribcage: 'The Fallen',
+  sword: 'The Sword',
+  colonnade: 'The Colonnade',
+  gate: 'The Gate',
+}
+const mapPlaces: MapPlace[] = [
+  ...[...colossi.places].filter(([k]) => k !== 'skull' && k !== 'stair').map(([k, v]): MapPlace => ({
+    name: NAMES[k] ?? null,
+    kind: k.startsWith('tree') ? 'tree' : k.startsWith('stone') ? 'stone' : 'colossus',
+    x: v.x,
+    z: v.z,
+  })),
+  { name: 'The Undercroft', kind: 'hall', x: HALL.x, z: HALL.z },
+]
+const worldMap = new WorldMap(terrain, mapPlaces)
+worldMap.onToggle = () => input.releaseAll()
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
@@ -321,6 +341,7 @@ function saveLocal(): void {
     mountains: mountains.infos(),
     player: { x: wanderer.pos.x, y: wanderer.pos.y, z: wanderer.pos.z },
     lakes: lakes.save(),
+    seen: worldMap.save(),
   }
   if (!saveWorld(data)) narration.say('Could not save (browser storage is full or blocked).')
   saveDirty = false
@@ -344,6 +365,7 @@ function loadLocal(): boolean {
   wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
+  if (d.seen) worldMap.load(d.seen)
   if (d.lakes) lakes.restore(d.lakes)
   lakes.fillAll()
   // A giant resting long enough while you were away fell asleep.
@@ -618,6 +640,9 @@ function frame(now: number): void {
   sky.tick(dt)
   weather.update(dt, camera)
   undercroft.update(sky.sun.intensity / 3)
+  mapGiants.length = 0
+  for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
+  worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes)
   clouds.tint(weather.now.dark)
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
@@ -655,6 +680,7 @@ function frame(now: number): void {
   }
 }
 const birdSpots: Array<{ x: number; z: number }> = []
+const mapGiants: Array<{ x: number; z: number }> = []
 /** How near something enormous is (0 … 1): the score swells under the colossi. */
 function awe(): number {
   const p = wanderer.pos
@@ -713,6 +739,7 @@ const g = {
   rocks,
   colossi,
   undercroft,
+  worldMap,
   leviathans,
   striders,
   farGiants,

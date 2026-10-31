@@ -90,6 +90,35 @@ const scenes = {
     await shot('undercroft-walked')
     if (walk.y0 - walk.y < 20) throw new Error('undercroft gate: could not walk down the stair')
   },
+  // The map: wander a little (and once up high), see the minimap; open the map.
+  async map() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })
+    const seen = await page.evaluate(async () => {
+      const g = window.__g
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      const before = g.worldMap.explored
+      for (const [x, z] of [[0, 0], [0, -500], [300, 900], [-900, -600], [1200, -900]]) {
+        g.teleport(x, z)
+        await wait(300)
+      }
+      const ground = g.worldMap.explored
+      // Up a pillar of the colonnade: far more of the land comes into view.
+      const c = g.colossi.places.get('colonnade')
+      g.wanderer.place(c.x, c.y + 300, c.z)
+      await wait(400)
+      g.teleport(120, 80)
+      await wait(400)
+      return { before, ground, high: g.worldMap.explored }
+    })
+    console.log('seen', JSON.stringify(seen))
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.15, 8))
+    await shot('map-minimap')
+    await page.evaluate(() => window.__g.worldMap.toggle())
+    await new Promise((r) => setTimeout(r, 400))
+    await shot('map-open')
+    await page.evaluate(() => window.__g.worldMap.toggle())
+    if (!(seen.high > seen.ground && seen.ground > seen.before)) throw new Error('map gate: exploring did not uncover the map')
+  },
   // The weather: the same views under each kind of sky.
   async weather() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })

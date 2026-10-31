@@ -29,6 +29,8 @@ export interface SaveData {
   player: { x: number; y: number; z: number }
   /** The lakes as they stood (rebuilding them from the events alone means re-running all the rain). */
   lakes?: LakesSave
+  /** The land you have seen (the map's uncovered grid, packed). */
+  seen?: string
 }
 
 export interface Settings {

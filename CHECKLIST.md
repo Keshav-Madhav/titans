@@ -98,6 +98,19 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Gate: `shot.mjs undercroft` (plaza, floor, rows, stair; walks down the stair)
 - [ ] Gaunt watchers in fog; vertigo ledges
 
+## A2a — The map (user, 2026-10-31: "have a map/minimap openable")
+- [x] `map.ts`: a round minimap (north-up, 1.8 km across) and the whole map on M — shaded relief,
+      the lands' colours, contours every 25 m, lakes, the colossi you have seen (named), giants
+      walking, you; uncovered as you explore, much further the higher you stand; saved (packed
+      bits); `% seen`
+- [x] Gate: `shot.mjs map` (wandering uncovers it; climbing high uncovers far more)
+
+## Design drafts
+- [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
+      Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,
+      horn, cloak, pitons), exploration, the lands to come (the Green, the Mire, the Shore, the
+      High Places), and the decisions waiting on the user
+
 # Archive: the multiplayer world (tag `pre-adventure`)
 
 ## P0 — Bootstrap

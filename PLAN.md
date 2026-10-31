@@ -92,6 +92,11 @@ Base terrain is shaped per region (`shared/src/terrain.ts`): rolling hills in th
 ridges in the Dune Sea, stepped terraces in the Steps. Region weights are a deterministic function
 of position, shared by terrain height, texturing, vegetation and atmosphere.
 
+**More lands, eventually** (user, 2026-10-31: "distinct biome zones… very curvy smooth green
+rolling hills with dense grass, desert, mountains, swampy, forest, old forest, ocean/beachy…
+progressive, pick it eventually"). The roster and each land's enormous thing are drafted in
+`STORY.md` §6; they arrive one at a time.
+
 **Carved, not rolling** (user, 2026-10-31: "massive rock walls and cliffs and valleys and caverns…
 like Colossus or ARK"). The heightfield carries the big forms — an escarpment ringing the valley
 with three passes, fault walls, mesas, canyons, rock spines — and rock formations made as signed

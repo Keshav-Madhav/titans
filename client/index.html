@@ -71,6 +71,23 @@
       }
       #narration .line.old { opacity: 0; }
       #narration .line b { color: var(--accent); }
+      #minimap {
+        position: fixed; right: 16px; bottom: 16px; width: 168px; height: 168px; border-radius: 50%;
+        pointer-events: none; opacity: 0.92; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      }
+      #map {
+        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+        background: rgba(12, 12, 14, 0.62); cursor: pointer;
+      }
+      #map-frame {
+        padding: 14px; border-radius: 6px; background: #d6ccb4; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+      #map-canvas { display: block; width: min(78vh, 78vw); height: min(78vh, 78vw); border-radius: 3px; }
+      #map-title {
+        margin: 0 0 8px; font: italic 700 18px/1 ui-serif, Georgia, serif; color: #3a3226; letter-spacing: 0.06em;
+        display: flex; justify-content: space-between;
+      }
+      #map-title small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
         background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
@@ -92,6 +109,13 @@
     <div id="grip"><i></i></div>
     <div id="tips"><span></span><button aria-label="Dismiss hints">✕</button></div>
     <div id="narration"></div>
+    <canvas id="minimap" width="168" height="168"></canvas>
+    <div id="map">
+      <div id="map-frame">
+        <div id="map-title"><span>The Land</span><small id="map-explored"></small></div>
+        <canvas id="map-canvas" width="900" height="900"></canvas>
+      </div>
+    </div>
     <div id="loading">
       <div>
         <h1>TITANS</h1>
