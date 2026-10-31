@@ -40,7 +40,7 @@ for (const land of lands) {
         const z = Math.sin(a) * d
         if (g.terrain.base.regions.name(x, z) !== land) continue
         if (g.lakes.lakes.some((l) => l.level > g.heightAt(x, z) && Math.abs(l.basin.bx - x) < 200 && Math.abs(l.basin.bz - z) < 200)) continue
-        if (g.rocks.sdfAt(x, g.heightAt(x, z) + 1, z) < 1) continue
+        if (g.rocks.sdfAt && g.rocks.sdfAt(x, g.heightAt(x, z) + 1, z) < 1) continue
         g.teleport(x, z)
         const yaw = rand() * Math.PI * 2
         g.lookFrom(null)

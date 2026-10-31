@@ -20,10 +20,21 @@ def jpeg(src, dst):
 
 def main():
     before, after, out, title = sys.argv[1:5]
-    captions = dict(a.split('=', 1) for a in sys.argv[5:] if '=' in a)
+    captions = dict(a.split('=', 1) for a in sys.argv[5:] if '=' in a and not a.startswith('--'))
+    # --targets=<dir>: images shown first, as what the game is aiming for.
+    targets = next((a.split('=', 1)[1] for a in sys.argv[5:] if a.startswith('--targets=')), None)
     os.makedirs(os.path.join(out, 'img'), exist_ok=True)
     names = sorted(f for f in os.listdir(after) if f.endswith('.png'))
     rows = []
+    if targets:
+        imgs = []
+        for t in sorted(os.listdir(targets)):
+            if not t.lower().endswith(('.jpg', '.png')):
+                continue
+            dst = f'img/target-{t.rsplit(".", 1)[0]}.jpg'
+            jpeg(os.path.join(targets, t), os.path.join(out, dst))
+            imgs.append(f'<figure><img src="{dst}" loading="lazy"><figcaption>{html.escape(t.rsplit(".", 1)[0].replace("-", " "))}</figcaption></figure>')
+        rows.append('<section><h2>The targets <em>concept paintings</em></h2><div class="pair">' + ''.join(imgs) + '</div></section>')
     for n in names:
         stem = n[:-4]
         a_dst = f'img/{stem}-after.jpg'
