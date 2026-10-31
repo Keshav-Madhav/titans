@@ -338,6 +338,36 @@ const scenes = {
     await shot('giant-shrine')
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // From where you wake, toward each land: is there room between the big things?
+  async vistas() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 180000 })
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const views = [
+      ['north-sentinel', 0, -1],
+      ['northwest-wood', -0.866, -0.5],
+      ['south-dunes', 0, 1],
+      ['northeast-steps', 0.866, -0.5],
+      ['east-green', 1, 0.15],
+      ['west-green', -1, 0.3],
+    ]
+    for (const [name, dx, dz] of views) {
+      await page.evaluate(([dx, dz]) => {
+        const g = window.__g
+        g.teleport(0, 0)
+        g.rig.yaw = Math.atan2(dx, dz) + Math.PI
+      }, [dx, dz])
+      await settle(40)
+      await shot(`vista-${name}`)
+    }
+    // And from up high: the Sentinel's shoulder, looking back across the Green.
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.colossi.places.get('sentinel')
+      g.lookFrom([s.x + 60, s.y + 200, s.z + 260], [0, 30, 2600])
+    })
+    await shot('vista-from-the-sentinel')
+    await page.evaluate(() => window.__g.lookFrom(null))
+  },
   // An awakening: a colossus beyond the mountains moves, and the camera is taken to watch it.
   async awakening() {
     await page.evaluate(() => {
@@ -609,10 +639,10 @@ const scenes = {
   // The four lands, each from the ground and from above.
   async lands() {
     const places = [
-      ['valley', 120, 60],
-      ['forest', -1300, -750],
-      ['desert', 0, 1500],
-      ['ruins', 1300, -750],
+      ['valley', 300, 150],
+      ['forest', -3720, -2150],
+      ['desert', 0, 4600],
+      ['ruins', 3720, -2150],
     ]
     for (const [name, x, z] of places) {
       const info = await page.evaluate(([x, z]) => {

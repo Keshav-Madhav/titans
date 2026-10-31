@@ -5,11 +5,12 @@
 //   desert — the Dune Sea, to the south
 //   ruins  — the Steps of the First Ones, to the north-east
 //
-// Beyond about 2.7 km, all three rise into the mountains that ring the world.
+// Beyond about 7 km, all three rise into the mountains that ring the world.
 // Terrain shape, ground textures, plants and air all read these weights, so a
 // border is the same border for each. Pure and seeded: same answer every time.
 
 import { makeSimplex2, smoothstep, type Noise2 } from './noise'
+import { SPREAD } from './constants'
 
 export interface RegionWeights {
   valley: number
@@ -27,8 +28,8 @@ const AXES: Array<[RegionName, number, number]> = [
   ['ruins', 0.866, -0.5],
 ]
 
-/** The valley gives way to the three lands between these distances (metres). */
-export const VALLEY_RADIUS: [number, number] = [520, 1000]
+/** The Green (the valley) gives way to the three lands between these distances (metres). */
+export const VALLEY_RADIUS: [number, number] = [800 * SPREAD, 1400 * SPREAD]
 
 export class Regions {
   private readonly warp: Noise2
@@ -40,8 +41,9 @@ export class Regions {
   /** Weights at (x, z), written into `out`. */
   at(x: number, z: number, out: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }): RegionWeights {
     // Bend the borders so they wander instead of running straight out.
-    const wx = x + 420 * this.warp(x * 0.0006, z * 0.0006)
-    const wz = z + 420 * this.warp(x * 0.0006 + 41.3, z * 0.0006 - 12.7)
+    const k = 0.0006 / SPREAD
+    const wx = x + 420 * SPREAD * this.warp(x * k, z * k)
+    const wz = z + 420 * SPREAD * this.warp(x * k + 41.3, z * k - 12.7)
     const d = Math.sqrt(wx * wx + wz * wz)
     const valley = 1 - smoothstep(VALLEY_RADIUS[0], VALLEY_RADIUS[1], d)
     out.valley = valley

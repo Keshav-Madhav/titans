@@ -9,7 +9,7 @@
 // far behind the body lifts and swings forward, one leg at a time, slowly.
 
 import * as THREE from 'three'
-import { mulberry32, type Terrain } from '@titans/shared'
+import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
 
 const LEGS = 4
 const HIP = 470 // body height above the ground
@@ -126,7 +126,7 @@ export class Striders {
       for (const m of [body, neck]) m.frustumCulled = false
       threads.frustumCulled = false
       const orbit = rand() * Math.PI * 2
-      const radius = 1900 + rand() * 900
+      const radius = (1900 + rand() * 900) * SPREAD
       const st: Strider = { group, body, neck, threads, legs, x: 0, z: 0, heading: 0, speed: 3.2 + rand() * 1.6, orbit, radius, phase: rand() * 10 }
       st.x = Math.cos(orbit) * radius
       st.z = Math.sin(orbit) * radius
@@ -150,7 +150,7 @@ export class Striders {
       // Round the far lands, slowly, the loop bending as it goes.
       const w = s.speed / s.radius
       s.orbit += w * dt
-      const r = s.radius + Math.sin(s.orbit * 3 + s.phase) * 350
+      const r = s.radius + Math.sin(s.orbit * 3 + s.phase) * 350 * SPREAD
       const nx = Math.cos(s.orbit) * r
       const nz = Math.sin(s.orbit) * r
       s.heading = Math.atan2(nx - s.x, nz - s.z)

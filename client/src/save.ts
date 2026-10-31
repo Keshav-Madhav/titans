@@ -6,7 +6,8 @@
 
 import type { LakesSave, MountainInfo, TitanSnapshot } from '@titans/shared'
 
-const SAVE_KEY = 'titans.adventure.v1'
+// v2: the world grew (SPREAD); a v1 save's lakes and map belong to the old land.
+const SAVE_KEY = 'titans.adventure.v2'
 const SETTINGS_KEY = 'titans.adventure.settings'
 
 export type SavedEvent =

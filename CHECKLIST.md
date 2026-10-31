@@ -132,6 +132,24 @@ Each phase ends playable. Phases are in PLAN.md §6.
       smaller eyes; uneven stone horns, some broken. Colossi meshed on a pool of up to 3 workers
 - [x] Gate: `shot.mjs awakening` (stepped: true), `giant` (giant-shrine), single, climb, rocks
 
+## A1d — Space (user, 2026-10-31: "it feels overcrowded… much bigger, distance the giants… a lone
+## giant looming, or a herd, or a big tree forest, or huge empty rolling plains")
+- [x] The world grows 2.6× (`SPREAD`): lands to ~7 km, wider and higher mountains, terrain root
+      65 km, map 21 km (512² seen-grid), save key v2; far colossi 4.8 km tall at 21 km
+- [x] The Green: the centre is now vast smooth rolling grass (swells ~70 m, ~1.2 km apart), its
+      trees, scrub and stones thinned to almost nothing; the ground levelled round the Undercroft
+- [x] One idea per place: the Sentinel alone at the Green's north rim; the lone giant walking its
+      empty east; 16 giant trees together as one forest in the Old Wood; the dead colossus (ribs,
+      skull) and the sword kilometres apart in the Dune Sea; the chained stones in a row at the back
+      of the Steps; rock formations spread over 7× the area with not quite twice the count; mesas
+      rarer, sheer and ragged; canyons and faults longer and grander
+- [x] Broadleaf trees: a stout visible trunk and a broad flattened crown (they read as dark blobs
+      floating over the grass)
+- [x] Gate: `shot.mjs vistas` (from spawn toward each land), lands, fill-bench, single, climb,
+      undercroft, cairns, rocks, fall
+- [ ] A herd: several smaller giants roaming together
+- [ ] Travel at this scale: a faster run on open ground; riding a walking giant across a land
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

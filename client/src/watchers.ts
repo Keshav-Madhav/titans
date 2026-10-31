@@ -7,7 +7,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { inHall, mulberry32, type Terrain } from '@titans/shared'
+import { inHall, mulberry32, SPREAD, type Terrain } from '@titans/shared'
 
 /** A tapering tube along points (radius r0 at the first, r1 at the last). */
 function branch(points: THREE.Vector3[], r0: number, r1: number, sides = 7): THREE.BufferGeometry {
@@ -136,7 +136,7 @@ export class Watchers {
     const cands: Array<{ x: number; z: number; rise: number }> = []
     for (let i = 0; i < 900; i++) {
       const a = rand() * Math.PI * 2
-      const d = 400 + rand() * 2100
+      const d = (400 + rand() * 2100) * SPREAD
       const x = Math.cos(a) * d
       const z = Math.sin(a) * d
       if (terrain.base.regions.name(x, z) === 'desert' || inHall(x, z, 80) || occupied(x, z)) continue
@@ -188,7 +188,7 @@ export class Watchers {
       this.to.set(w.x, w.mesh.position.y + w.mesh.scale.x * 0.6, w.z).sub(camera.position).normalize()
       const gaze = THREE.MathUtils.smoothstep(this.look.dot(this.to), 0.995, 0.96)
       // There: under a heavy sky, beyond arm's reach, not so far the haze takes them anyway.
-      const want = gaze * THREE.MathUtils.smoothstep(heavy, 0.3, 0.6) * THREE.MathUtils.smoothstep(d, w.near, w.near * 1.5) * (1 - THREE.MathUtils.smoothstep(d, 2400, 3200))
+      const want = gaze * THREE.MathUtils.smoothstep(heavy, 0.3, 0.6) * THREE.MathUtils.smoothstep(d, w.near, w.near * 1.5) * (1 - THREE.MathUtils.smoothstep(d, 2400 * SPREAD, 3200 * SPREAD))
       // They come slowly and go quickly.
       w.seen += (want - w.seen) * Math.min(1, dt * (want > w.seen ? 0.25 : 0.9))
       w.mesh.visible = w.seen > 0.01

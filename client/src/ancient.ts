@@ -6,7 +6,7 @@
 // giants, then left to grow over (no fresh-earth marks, plants regrow).
 // The old villages are founded on their shores.
 
-import { inHall, mulberry32, titanBody, TitanGait, TITAN_SPAWNS, type GaitEvent } from '@titans/shared'
+import { inHall, mulberry32, SPREAD, titanBody, TitanGait, TITAN_SPAWNS, type GaitEvent } from '@titans/shared'
 
 export interface AncientTrail {
   events: GaitEvent[]
@@ -22,7 +22,7 @@ export function ancientTrails(seed: number, height: number, heightAt: (x: number
   const out: AncientTrail[] = []
   for (let k = 0; k < count; k++) {
     const a = (k / count) * Math.PI * 2 + rand() * 0.9
-    const r = 400 + rand() * 180
+    const r = (400 + rand() * 180) * SPREAD
     const x0 = Math.cos(a) * r
     const z0 = Math.sin(a) * r
     // Roughly round spawn (tangential), a little in or out.
@@ -53,7 +53,7 @@ export function ancientTrails(seed: number, height: number, heightAt: (x: number
         const sx = s.x - gait.x
         const sz = s.z - gait.z
         const sd = Math.hypot(sx, sz)
-        if (sd > 520) continue
+        if (sd > 520 * SPREAD) continue
         // Which side the spawn is on, relative to the heading: turn the other way.
         const side = Math.sin(gait.heading) * sz - Math.cos(gait.heading) * sx
         turn += (side > 0 ? 1 : -1) * 1.4 * (1 - sd / 520)
@@ -66,7 +66,7 @@ export function ancientTrails(seed: number, height: number, heightAt: (x: number
         const z = ev.type === 'drag' ? ev.bz : ev.z
         // Keep to the valley floor (inside the escarpment), off the start.
         const d = Math.hypot(x, z)
-        if (heightAt(x, z) > 40 || d < 250 || d > 900 || inHall(x, z, 120) || TITAN_SPAWNS.some((s) => Math.hypot(s.x - x, s.z - z) < 260)) stop = true
+        if (heightAt(x, z) > 95 || d < 250 * SPREAD || d > 900 * SPREAD || inHall(x, z, 120) || TITAN_SPAWNS.some((s) => Math.hypot(s.x - x, s.z - z) < 260)) stop = true
       }
       if (stop) break
       events.push(...tick)

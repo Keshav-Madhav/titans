@@ -13,7 +13,7 @@ import { makeDetailTexture } from './detail-texture'
 import type { Biome } from './biome'
 import { LAYER, makeTerrainMaterial, type TerrainTextures } from './terrain-material'
 
-const ROOT = 32768
+const ROOT = 65536
 const LEAF = 64
 const MAX_LEVEL = Math.round(Math.log2(ROOT / LEAF))
 

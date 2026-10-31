@@ -3,6 +3,7 @@
 // protocol when the game had a server; the server is gone, the shapes stay.)
 
 import type { GaitEvent } from './gait'
+import { SPREAD } from './constants'
 
 /** A dormant Titan's hill rising, as a terrain event. */
 export interface MountainRise {
@@ -18,10 +19,11 @@ export type TerrainEvent = GaitEvent | MountainRise
  * Where each giant slot first wakes. Slot 1 is the one near spawn (tools rely on it).
  */
 export const TITAN_SPAWNS = [
-  { x: 230, z: -400, heading: Math.PI * 0.62 },
-  { x: -460, z: 420, heading: -Math.PI * 0.3 },
-  { x: 700, z: 520, heading: Math.PI * 1.2 },
-  { x: -620, z: -560, heading: Math.PI * 0.2 },
+  // The lone giant of the Green, walking its empty east (not beside the Sentinel).
+  { x: 1500, z: 300, heading: -Math.PI * 0.4 },
+  { x: -460 * SPREAD, z: 420 * SPREAD, heading: -Math.PI * 0.3 },
+  { x: 700 * SPREAD, z: 520 * SPREAD, heading: Math.PI * 1.2 },
+  { x: -620 * SPREAD, z: -560 * SPREAD, heading: Math.PI * 0.2 },
 ]
 
 /** A giant resting this long falls asleep and becomes a mountain. */

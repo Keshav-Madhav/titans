@@ -100,7 +100,7 @@ function shade(g: THREE.BufferGeometry, hex: number, centre?: THREE.Vector3, rad
     let k = 1
     if (centre) {
       v.fromBufferAttribute(p, i).sub(centre)
-      k = 0.4 + 0.6 * Math.min(1, v.length() / radius) * (0.7 + 0.3 * Math.max(-1, Math.min(1, v.y / radius)))
+      k = 0.55 + 0.45 * Math.min(1, v.length() / radius) * (0.7 + 0.3 * Math.max(-1, Math.min(1, v.y / radius)))
     }
     col.set([c.r * k, c.g * k, c.b * k], i * 3)
   }
@@ -139,25 +139,28 @@ function finish(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
  */
 export function broadleafGeometry(seed: number, far = false): THREE.BufferGeometry {
   const rand = mulberry32(seed)
-  const parts: THREE.BufferGeometry[] = [trunk(0.42, 0.24, 5.6, 0x5c4632, far ? 4 : 7)]
+  // A stout trunk standing clear under the crown: from across a field a tree
+  // with no visible trunk reads as a dark blob hanging in the air.
+  const parts: THREE.BufferGeometry[] = [trunk(0.62, 0.32, 6.6, 0x6b5440, far ? 5 : 7)]
   // A few limbs reaching up into the crown.
-  for (let i = 0; i < (far ? 0 : 4); i++) {
-    const a = (i / 4) * Math.PI * 2 + rand()
-    const limb = trunk(0.16, 0.07, 3.4, 0x5c4632, 5)
-    limb.rotateZ(0.7).rotateY(a).translate(0, 4.2 + rand() * 0.8, 0)
+  for (let i = 0; i < (far ? 2 : 5); i++) {
+    const a = (i / 5) * Math.PI * 2 + rand()
+    const limb = trunk(0.22, 0.08, 3.8, 0x6b5440, 5)
+    limb.rotateZ(0.75).rotateY(a).translate(0, 5.2 + rand() * 0.8, 0)
     parts.push(limb)
   }
-  const centre = new THREE.Vector3(0, 7.4, 0)
+  const centre = new THREE.Vector3(0, 8.6, 0)
   const crown: THREE.BufferGeometry[] = []
   // Clusters on an egg-shaped shell; each a fan of crossed leaf cards.
-  const clusters = far ? 6 : 13
+  // A broad, flattened dome (wider than tall), so the outline is a crown, not a heart.
+  const clusters = far ? 8 : 18
   for (let c = 0; c < clusters; c++) {
-    const u = rand() * 2 - 1
+    const u = rand() * 1.6 - 0.6
     const t = rand() * Math.PI * 2
     const s = Math.sqrt(1 - u * u)
-    const px = Math.cos(t) * s * (far ? 2.5 : 3.1)
-    const py = u * 2.3 + 0.3
-    const pz = Math.sin(t) * s * (far ? 2.5 : 3.1)
+    const px = Math.cos(t) * s * (far ? 3.3 : 3.9)
+    const py = u * 1.7 + 0.3
+    const pz = Math.sin(t) * s * (far ? 3.3 : 3.9)
     for (let k = 0; k < (far ? 3 : 9); k++) {
       const q = card(far ? 4.6 : 3.0, far ? 4.6 : 3.0, LEAVES)
       q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2).rotateZ((rand() - 0.5) * 0.8)
@@ -167,7 +170,7 @@ export function broadleafGeometry(seed: number, far = false): THREE.BufferGeomet
   }
   const leaves = finish(crown)
   crownNormals(leaves, centre, 1.3)
-  shade(leaves, 0xffffff, centre, 3.4)
+  shade(leaves, 0xffffff, centre, 3.6)
   parts[0].computeVertexNormals()
   return finish([...parts, leaves])
 }

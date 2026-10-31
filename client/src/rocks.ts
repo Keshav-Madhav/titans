@@ -6,7 +6,7 @@
 // collision: you walk through a cave, under an arch, onto a ledge.
 
 import * as THREE from 'three'
-import { mulberry32, type RegionName, type Terrain } from '@titans/shared'
+import { mulberry32, SPREAD, type RegionName, type Terrain } from '@titans/shared'
 import { LAYER, type TerrainTextures } from './terrain-material'
 import { make, PLAN, type RockMesh, type Shape, type ShapeKind } from './rock-fields'
 
@@ -164,7 +164,7 @@ export class Rocks {
         let placed = 0
         for (let tries = 0; tries < count * 60 && placed < count; tries++) {
           const a = rand() * Math.PI * 2
-          const d = land === 'valley' ? 250 + rand() * 650 : 700 + rand() * 2000
+          const d = (land === 'valley' ? 250 + rand() * 650 : 700 + rand() * 2000) * SPREAD
           const x = Math.cos(a) * d
           const z = Math.sin(a) * d
           if (regions.name(x, z) !== land) continue

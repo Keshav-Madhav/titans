@@ -6,7 +6,7 @@
 
 import { makeSimplex2, smoothstep, type Noise2 } from './noise'
 import { Regions, type RegionWeights } from './regions'
-import { DELTA_TILE } from './constants'
+import { DELTA_TILE, SPREAD } from './constants'
 
 // fBm octave rotation (scaled rotation, as in Inigo Quilez's terrain work):
 // rotating every octave hides the grid alignment simplex otherwise shows.
@@ -94,6 +94,15 @@ export class BaseTerrain {
     let h = 7 * fbm(this.plains, wx * 0.0015, wz * 0.0015, 4)
     h += 0.9 * this.plains(x * 0.018 + 7.1, z * 0.018 - 3.3)
 
+    // The Green: vast smooth swells of grass, a kilometre or so from crest to
+    // crest, so the horizon is always a long curve and a giant can sink behind one.
+    // (Laid flat over the Undercroft, whose roof is one level.)
+    if (r.valley > 0.001) {
+      const swell = fbm(this.hills, wx * 0.00085 + 3.7, wz * 0.00085 - 8.1, 3)
+      const calm = smoothstep(30, 450, Math.max(Math.abs(x - HALL.x) - HALL.hx, Math.abs(z - HALL.z) - HALL.hz))
+      h += r.valley * calm * (68 * (0.5 + 0.5 * swell) + 12 * fbm(this.plains, wx * 0.0018 + 2.2, wz * 0.0018 + 6.6, 2))
+    }
+
     // The Old Wood: rolling hills.
     if (r.forest > 0.001) h += r.forest * 58 * (0.5 + 0.5 * fbm(this.hills, wx * 0.0021, wz * 0.0021, 4))
 
@@ -116,21 +125,25 @@ export class BaseTerrain {
 
     const d = Math.sqrt(x * x + z * z)
     h += this.carve(x, z, wx, wz, d, r)
-    // The Undercroft's pit: sheer sides, a flat floor.
-    if (!Number.isNaN(this.hallTop) && inHall(x, z, 4)) {
+    if (!Number.isNaN(this.hallTop)) {
       const out = Math.max(Math.abs(x - HALL.x) - HALL.hx, Math.abs(z - HALL.z) - HALL.hz)
-      const k = 1 - smoothstep(-3, 3, out)
-      h += (this.hallTop - HALL.depth - h) * k
+      // The ground meets the Undercroft's roof all round it (its stair lands
+      // on the grass, not under a step of roof edge), easing out over 200 m.
+      if (out < 220) h += (this.hallTop - h) * (1 - smoothstep(10, 220, out))
+      // The pit: sheer sides, a flat floor.
+      if (inHall(x, z, 4)) h += (this.hallTop - HALL.depth - h) * (1 - smoothstep(-3, 3, out))
     }
 
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
     // broad massif lifts the range; ridges are carved into it at a long
     // wavelength so the skyline reads as ranges, not needles.
-    const belt = smoothstep(2700, 5200, d + 700 * this.mask(x * 0.0006 - 9.1, z * 0.0006 + 4.4))
+    // (Grown with the world: wider ranges, higher, further out.)
+    const mk = 0.0006 / SPREAD
+    const belt = smoothstep(2700 * SPREAD, 5200 * SPREAD, d + 700 * SPREAD * this.mask(x * mk - 9.1, z * mk + 4.4))
     if (belt > 0) {
-      const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.00032 + 3.3, wz * 0.00032 - 8.8, 3)
-      const rr = ridged(this.peaks, wx * 0.00042, wz * 0.00042, 6)
-      h += belt * (massif * 380 + rr * rr * 620 * (0.4 + massif))
+      const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.0002 + 3.3, wz * 0.0002 - 8.8, 3)
+      const rr = ridged(this.peaks, wx * 0.00026, wz * 0.00026, 6)
+      h += belt * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
     }
     return h
   }
@@ -151,7 +164,7 @@ export class BaseTerrain {
    * The start (the middle of the valley) is left gentle.
    */
   private carve(x: number, z: number, wx: number, wz: number, d: number, r: RegionWeights): number {
-    const away = smoothstep(320, 640, d)
+    const away = smoothstep(320 * SPREAD, 640 * SPREAD, d)
     if (away <= 0) return 0
     let h = 0
     const lands = 1 - r.valley
@@ -172,15 +185,17 @@ export class BaseTerrain {
     // Fault walls: where a slow noise crosses zero, the ground steps up.
     const faults = (r.forest * 45 + r.ruins * 70 + r.desert * 25) * away
     if (faults > 1) {
-      const f = this.rock(wx * 0.00042 + 12.5, wz * 0.00042 - 7.5) + 0.012 * this.rock(x * 0.012, z * 0.012)
+      const f = this.rock(wx * 0.00028 + 12.5, wz * 0.00028 - 7.5) + 0.012 * this.rock(x * 0.012, z * 0.012)
       h += faults * strata(smoothstep(-0.012, 0.012, f), 3)
     }
 
     // Mesas: a few big flat-topped stones.
     const stone = (r.desert * 0.95 + r.ruins * 0.6 + r.forest * 0.2) * away
     if (stone > 0.01) {
-      const m = fbm(this.rock, wx * 0.0011 + 4.4, wz * 0.0011 - 9.9, 3) + 0.03 * this.rock(x * 0.02, z * 0.02)
-      const top = smoothstep(0.3, 0.325, m)
+      // Ragged edges (bays, spurs, fallen corners) so a side is never one plane.
+      const m = fbm(this.rock, wx * 0.00085 + 4.4, wz * 0.00085 - 9.9, 3) + 0.045 * this.rock(x * 0.011, z * 0.011) + 0.02 * this.rock(x * 0.04, z * 0.04)
+      // (Rarer than they were: a mesa should stand alone on its plain.) Sheer sides.
+      const top = smoothstep(0.4, 0.414, m)
       if (top > 0) h += stone * strata(top, 4) * (70 + 80 * (0.5 + 0.5 * this.rock(wx * 0.0006 + 3.1, wz * 0.0006 - 5.3)))
     }
 
@@ -190,7 +205,7 @@ export class BaseTerrain {
     if (depth > 1) {
       const cx = wx + 160 * this.rock(wx * 0.0013 - 1.7, wz * 0.0013 + 6.2)
       const cz = wz + 160 * this.rock(wx * 0.0013 + 8.8, wz * 0.0013 - 2.6)
-      const t = Math.abs(this.canyon(cx * 0.00036, cz * 0.00036))
+      const t = Math.abs(this.canyon(cx * 0.00024, cz * 0.00024))
       const inside = 1 - smoothstep(0.03, 0.052, t)
       if (inside > 0) h -= depth * strata(inside, 4)
     }
@@ -222,8 +237,8 @@ export const TERRACE = 16
  * over the ramp's mouth at the west end.
  */
 export const HALL = {
-  x: 20,
-  z: 540,
+  x: 60,
+  z: 1400,
   hx: 210,
   hz: 150,
   depth: 70,

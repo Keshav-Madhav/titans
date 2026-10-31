@@ -88,6 +88,22 @@ it move, with dread." So:
   an hour; the camera is taken, pans to it, holds, the sound drops to a drone, then gives control
   back. Never a jumpscare: slow, inevitable, and you see it coming.
 
+## 2e. Space (user, 2026-10-31: "it feels overcrowded… make it much bigger, distance the giants
+## a lot too… either a lone giant looming over hugely, or smaller but big giants together like a
+## herd, or a big tree forest, or a huge rolling plains — even huge empty rolling plains with
+## grass give the feel of megalophobia")
+Big things next to big things cancel each other out; emptiness and distance carry the scale. So:
+- **The world grows ~2.6×** (`SPREAD` in `shared/constants.ts`): the lands reach ~7 km before the
+  mountains, the mountains are wider and higher, the far colossi stand ~21 km out and ~5 km tall.
+- **One idea per place**, with long empty approaches between them:
+  - *the Green* (the centre, where you wake): vast smooth rolling grass, almost nothing on it; a
+    lone giant walks it, far off; the Sentinel kneels at its northern rim, alone, looming;
+  - *the Old Wood*: the giant trees together, a forest of them, nothing else that big;
+  - *the Dune Sea*: the dead colossus (ribs and skull) as one scene, the sword far from it;
+  - *the Steps*: the Great Stair and Gate, the colonnade, the chained stones;
+  - *a herd*: several smaller giants (120–200 m) roaming together across open ground.
+- Travel stays a pleasure: a faster run on open ground, and riding a walking giant to cross a land.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

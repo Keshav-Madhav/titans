@@ -6,9 +6,9 @@
 // mist, not looking at a card.
 
 import * as THREE from 'three'
-import { mulberry32, type Terrain } from '@titans/shared'
+import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
 
-const BANKS = 700
+const BANKS = 1400
 
 /** A soft bank: dense low in the middle, fading to the top, the bottom and the sides. */
 function bankTexture(): THREE.CanvasTexture {
@@ -118,9 +118,9 @@ export class Mist {
       }
     }
     // In the hollows: try spots, keep the low ones.
-    for (let tries = 0; tries < 6000 && n < BANKS; tries++) {
+    for (let tries = 0; tries < 16000 && n < BANKS; tries++) {
       const a = rand() * Math.PI * 2
-      const d = 200 + Math.sqrt(rand()) * 2600
+      const d = 200 + Math.sqrt(rand()) * 2600 * SPREAD
       const x = Math.cos(a) * d
       const z = Math.sin(a) * d
       const h = terrain.heightAt(x, z)

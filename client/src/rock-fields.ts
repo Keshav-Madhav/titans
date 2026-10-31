@@ -183,30 +183,31 @@ export function make(kind: ShapeKind, seed: number, worldSeed: number): Shape {
 
 /** What each land holds, and how many. */
 export const PLAN: Record<RegionName, Array<[FormationKind, number]>> = {
+  // The Green is meant to be empty: a few stones, one arch far out on the grass.
   valley: [
-    ['boulders', 8],
+    ['boulders', 5],
     ['arch', 1],
-    ['overhang', 2],
   ],
+  // The lands are ~7× the area they were, with not quite twice the rock: room between.
   forest: [
-    ['boulders', 14],
-    ['overhang', 6],
+    ['boulders', 18],
+    ['overhang', 8],
     ['cave', 3],
     ['arch', 2],
   ],
   desert: [
-    ['arch', 7],
-    ['hoodoo', 16],
-    ['spire', 6],
+    ['arch', 9],
+    ['hoodoo', 20],
+    ['spire', 8],
     ['cave', 3],
-    ['boulders', 6],
+    ['boulders', 8],
   ],
   ruins: [
-    ['spire', 5],
+    ['spire', 7],
     ['arch', 3],
-    ['overhang', 4],
+    ['overhang', 5],
     ['cave', 2],
-    ['boulders', 8],
+    ['boulders', 10],
   ],
 }
 

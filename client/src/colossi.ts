@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { mulberry32, type Terrain } from '@titans/shared'
+import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
@@ -118,32 +118,34 @@ export class Colossi {
       return best
     }
 
-    // The Sentinel kneels on the valley floor at its northern edge, facing the
-    // start: the first thing you see, and taller than the cliffs behind it.
-    const sen = site(0, -640, 110, 260)
+    // The Sentinel kneels alone at the Green's northern rim, facing the start
+    // across kilometres of empty grass: the first thing you see.
+    const sen = site(0, -640 * SPREAD, 110, 400)
     rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 22, tint: STONE, res: 195 })
     place('sentinel', sen.x, sen.z, sen.y)
 
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
     const ribRot = 0.35
-    const rib = site(250, 1950, 220, 350)
+    const rib = site(250 * SPREAD, 1950 * SPREAD, 220, 500)
     rocks.addColossus({ kind: 'ribcage', x: rib.x, z: rib.z, y: rib.y - 10, rot: ribRot, seed: 11, layers: [LAYER.bone, LAYER.sand], scale: 10, tint: BONE, res: 120 })
     place('ribcage', rib.x, rib.z, rib.y)
     const sk = site(rib.x + Math.sin(ribRot) * 380, rib.z + Math.cos(ribRot) * 380, 110, 120)
     rocks.addColossus({ kind: 'skull', x: sk.x, z: sk.z, y: sk.y - 18, rot: ribRot + 0.5, seed: 13, layers: [LAYER.bone, LAYER.sand], scale: 10, tint: BONE, res: 110 })
     place('skull', sk.x, sk.z, sk.y)
-    const sw = site(-780, 1650, 70, 300)
+    // The sword stands alone, kilometres from the bones (each its own scene).
+    const sw = site(-3300, 4500, 70, 450)
     rocks.addColossus({ kind: 'sword', x: sw.x, z: sw.z, y: sw.y, rot: 1.1, seed: 17, layers: [LAYER.basalt, LAYER.sand], scale: 12, tint: IRON })
     place('sword', sw.x, sw.z, sw.y)
 
     // The Old Wood's giant trees.
     const trees: Array<{ x: number; y: number; z: number; h: number; tips: THREE.Vector3[] }> = []
-    for (let tries = 0; tries < 600 && trees.length < 11; tries++) {
-      const a = (rand() - 0.5) * 1.3 + Math.atan2(-0.866, -0.5)
-      const d = 1050 + rand() * 1300
-      const x = Math.sin(a) * d
-      const z = Math.cos(a) * d
-      if (terrain.base.regions.name(x, z) !== 'forest' || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 260)) continue
+    for (let tries = 0; tries < 1500 && trees.length < 16; tries++) {
+      // Together, as one forest of them (nothing else that big near).
+      const a = rand() * Math.PI * 2
+      const d = Math.sqrt(rand()) * 1500
+      const x = -0.866 * 4300 + Math.cos(a) * d
+      const z = -0.5 * 4300 + Math.sin(a) * d
+      if (terrain.base.regions.name(x, z) !== 'forest' || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 330)) continue
       let lo = Infinity
       let hi = -Infinity
       for (let k = 0; k < 8; k++) {
@@ -182,8 +184,8 @@ export class Colossi {
     this.group.add(crown)
 
     // The Steps: a colonnade rising into the clouds, some pillars broken.
-    const cx0 = 1180
-    const cz0 = -1080
+    const cx0 = 1180 * SPREAD
+    const cz0 = -1080 * SPREAD
     const along = new THREE.Vector2(0.5, 0.866)
     for (let i = 0; i < 9; i++) {
       const x = cx0 + along.x * (i - 4) * 175
@@ -218,21 +220,22 @@ export class Colossi {
     place('colonnade', cx0, cz0)
 
     // The Great Stair, each step a cliff, up to a platform and the sealed Gate.
-    const st = site(1900, -560, 160, 450)
+    const st = site(1900 * SPREAD, -560 * SPREAD, 160, 600)
     this.stairAndGate(rocks, st.x, st.z)
 
-    // Stones hanging in the sky: the low ones chained to the ground.
+    // Stones hanging in the sky. The chained ones stand in a row at the back
+    // of the Steps, under the mountains; the free ones drift high over the lands.
     const chains: Array<[THREE.Vector3, THREE.Vector3]> = []
     const stones: Array<[number, number, number, boolean]> = [
-      [-1500, -300, 270, true],
-      [1050, 520, 300, true],
-      [-650, -1850, 330, true],
-      [2050, -1650, 290, true],
-      [-300, 900, 240, true],
-      [650, -650, 640, false],
-      [-1850, 1250, 560, false],
-      [1650, 1750, 720, false],
-      [-2300, -1600, 820, false],
+      [3330, -4750, 290, true],
+      [4890, -3820, 330, true],
+      [5540, -2020, 270, true],
+      [6280, -550, 310, true],
+      [-3000, 900, 640, false],
+      [-4810, 3250, 560, false],
+      [4290, 4550, 720, false],
+      [-5980, -4160, 820, false],
+      [-780, 2600, 520, false],
     ]
     stones.forEach(([x, z, alt, chained], i) => {
       const y = H(x, z) + alt

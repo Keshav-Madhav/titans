@@ -404,7 +404,7 @@ export class Vegetation {
         const f = this.biome.forest(x, z)
         const cp = this.biome.copse(x, z)
         // No trees in the Dune Sea.
-        const p = (f > 0.45 ? 0.2 + f * 0.62 : f * 0.06 + 0.011 + cp * 0.42) * (1 - this.biome.desert(x, z))
+        const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z))
         if (rand() > p) continue
         const h = this.ground(x, z, 240)
         if (h === null) continue
@@ -419,7 +419,7 @@ export class Vegetation {
     for (let i = 0; i < 7; i++) {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
-      if (rand() > 0.55) continue
+      if (rand() > 0.55 * (1 - 0.7 * this.biome.open(x, z))) continue
       const h = this.ground(x, z, 400)
       if (h === null) continue
       const sc = 0.5 + rand() * rand() * 2.8

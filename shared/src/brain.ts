@@ -11,6 +11,7 @@
 // Titans). Seeded, so a server restart wanders the same way.
 
 import { mulberry32 } from './noise'
+import { SPREAD } from './constants'
 import type { GaitInput, TitanGait } from './gait'
 
 export interface BrainWorld {
@@ -28,7 +29,7 @@ export interface BrainOutput extends GaitInput {
 }
 
 /** How far from the world's middle the wild Titan roams (the mountain belt starts ~1.9 km out). */
-const ROAM = 1500
+const ROAM = 1500 * SPREAD
 const ARRIVE = 70
 
 export class TitanBrain {
@@ -85,8 +86,8 @@ export class TitanBrain {
       const x = Math.cos(a) * r
       const z = Math.sin(a) * r
       const far = Math.hypot(x - g.x, z - g.z)
-      if (far < 400 || far > 1600) continue
-      if (world.heightAt(x, z) > 40) continue // keep to the low plains
+      if (far < 400 * SPREAD || far > 1600 * SPREAD) continue
+      if (world.heightAt(x, z) > 95) continue // keep to the low ground
       if (world.avoid.some((m) => Math.hypot(x - m.x, z - m.z) < m.r)) continue
       this.target.x = x
       this.target.z = z

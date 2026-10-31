@@ -5,7 +5,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { mulberry32 } from '@titans/shared'
+import { mulberry32, SPREAD } from '@titans/shared'
 
 interface Beast {
   mesh: THREE.Mesh
@@ -148,8 +148,8 @@ export class Leviathans {
         mesh,
         cx: (rand() - 0.5) * 1600,
         cz: (rand() - 0.5) * 1600,
-        rx: 1600 + rand() * 1400,
-        rz: 1300 + rand() * 1400,
+        rx: (1600 + rand() * 1400) * SPREAD,
+        rz: (1300 + rand() * 1400) * SPREAD,
         y: 950 + i * 260 + rand() * 200,
         w: (0.0055 + rand() * 0.003) * (i % 2 ? 1 : -1),
         phase: rand() * 6.28,

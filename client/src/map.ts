@@ -10,7 +10,7 @@ import * as THREE from 'three'
 import { inBasin, WORLD_HALF, type Lake, type RegionName, type Terrain } from '@titans/shared'
 
 const SIZE = 512 // relief, pixels across the whole world
-const FOG = 256 // seen-grid cells across the whole world
+const FOG = 512 // seen-grid cells across the whole world
 const SPAN = WORLD_HALF * 2
 const MINI_R = 900 // the minimap shows this far around you (metres)
 

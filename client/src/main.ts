@@ -15,6 +15,7 @@ import {
   DORMANT_AFTER_MS,
   LakeSystem,
   Terrain,
+  SPREAD,
   TITAN_HEIGHT,
   WORLD_SEED,
   HALL,
@@ -140,7 +141,7 @@ scene.add(birds.mesh)
 const trails = ancientTrails(WORLD_SEED, TITAN_HEIGHT, (x, z) => terrain.heightAt(x, z))
 const trailPoints = trails.flatMap((t) => t.events.map((e) => (e.type === 'drag' ? { x: e.bx, z: e.bz } : { x: e.x, z: e.z })))
 // Arches, caves, hoodoos, overhangs, spires and boulders, clear of the start and the old trails.
-const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 260 + r && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < r + 60))
+const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 600 + r && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < r + 60))
 scene.add(rocks.group)
 // The colossi: the Sentinel, the fallen First One's bones, the colonnade, the
 // Great Stair and the Gate, the giant trees, the stones hanging in the sky.
@@ -195,19 +196,20 @@ const cairnPlaces: CairnPlace[] = []
   }
   for (const land of ['forest', 'desert', 'ruins'] as const) {
     const peaks: Array<{ x: number; z: number; h: number }> = []
-    for (let z = -2500; z <= 2500; z += 50) {
-      for (let x = -2500; x <= 2500; x += 50) {
-        if (Math.hypot(x, z) > 2500 || terrain.base.regions.name(x, z) !== land || inHall(x, z, 60)) continue
+    const R = 2500 * SPREAD
+    for (let z = -R; z <= R; z += 120) {
+      for (let x = -R; x <= R; x += 120) {
+        if (Math.hypot(x, z) > R || terrain.base.regions.name(x, z) !== land || inHall(x, z, 60)) continue
         const h = terrain.heightAt(x, z)
         if (h > 330) continue // the snow line: out of reach for now
         let top = true
-        for (let k = 0; k < 8 && top; k++) if (terrain.heightAt(x + Math.cos(k * 0.785) * 120, z + Math.sin(k * 0.785) * 120) > h) top = false
+        for (let k = 0; k < 8 && top; k++) if (terrain.heightAt(x + Math.cos(k * 0.785) * 200, z + Math.sin(k * 0.785) * 200) > h) top = false
         if (top) peaks.push({ x, z, h })
       }
     }
     peaks.sort((a, b) => b.h - a.h)
     const chosen: typeof peaks = []
-    for (const p of peaks) if (chosen.length < 2 && chosen.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > 900)) chosen.push(p)
+    for (const p of peaks) if (chosen.length < 2 && chosen.every((c) => Math.hypot(c.x - p.x, c.z - p.z) > 900 * SPREAD)) chosen.push(p)
     chosen.forEach((p, i) => cairnPlaces.push({ name: NAMES[land][i], x: p.x, y: terrain.heightAt(p.x, p.z), z: p.z }))
   }
   // The top of the tallest standing pillar of the colonnade.
@@ -285,8 +287,8 @@ scene.add(mountains.group)
  */
 const farGiants: Titan[] = []
 for (const a of [0.45, 2.55, 4.4]) {
-  const r = 8600
-  const t = new Titan(2600, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
+  const r = 21000
+  const t = new Titan(4800, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
   t.restBlend = 0
   scene.add(t.group)
   farGiants.push(t)
