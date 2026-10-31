@@ -22,7 +22,7 @@ const CELL = 96
 const REGROW = 300
 const GCELL = 24 // grass cells
 
-type Kind = 'coniferNear' | 'coniferMid' | 'broadNear' | 'broadMid' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub'
+type Kind = 'coniferNear' | 'coniferMid' | 'broadNear' | 'broadMid' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
   coniferNear: 7000,
   coniferMid: 26000,
@@ -33,6 +33,8 @@ const CAP: Record<Kind, number> = {
   grass: 34000,
   reed: 6000,
   shrub: 40000,
+  fern: 16000,
+  stalk: 9000,
 }
 
 /** Instances of each kind in one cell: packed matrices + colours (number[] while generating, typed once done). */
@@ -45,7 +47,7 @@ interface Batch {
 function pack(b: Batch): Batch {
   return { m: Float32Array.from(b.m), c: Float32Array.from(b.c), n: b.n }
 }
-type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed' | 'shrub', Batch>>
+type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed' | 'shrub' | 'fern' | 'stalk', Batch>>
 
 /** The rock material's layers (sides, tops, metres per tile) on every vertex. */
 function rockLayers(g: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -126,6 +128,56 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
     return g
   },
+  // A fern: fronds arching out from a crown, each a long tapering leaf bent down at the tip.
+  fern: () => {
+    const parts: THREE.BufferGeometry[] = []
+    const fronds = 8
+    for (let i = 0; i < fronds; i++) {
+      const a = (i / fronds) * Math.PI * 2 + (i % 2) * 0.3
+      const L = 0.85 + (i % 3) * 0.15
+      const pos: number[] = []
+      const segs = 6
+      for (let k = 0; k < segs; k++) {
+        const t0 = k / segs
+        const t1 = (k + 1) / segs
+        // Out and up, then over (a parabola), narrowing to the tip.
+        const at = (t: number) => [Math.cos(a) * L * t, 0.55 * t - 0.62 * t * t + 0.05, Math.sin(a) * L * t]
+        const w0 = 0.13 * (1 - t0) + 0.01
+        const w1 = 0.13 * (1 - t1) + 0.01
+        const p0 = at(t0)
+        const p1 = at(t1)
+        const sx = -Math.sin(a)
+        const sz = Math.cos(a)
+        const A = [p0[0] - sx * w0, p0[1], p0[2] - sz * w0]
+        const B = [p0[0] + sx * w0, p0[1], p0[2] + sz * w0]
+        const C = [p1[0] + sx * w1, p1[1], p1[2] + sz * w1]
+        const D = [p1[0] - sx * w1, p1[1], p1[2] - sz * w1]
+        pos.push(...A, ...B, ...C, ...A, ...C, ...D, ...B, ...A, ...C, ...C, ...A, ...D)
+      }
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      const nrm = new Float32Array(pos.length)
+      for (let j = 1; j < nrm.length; j += 3) nrm[j] = 1
+      g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
+      parts.push(colored(g, i % 2 ? 0x3f6a2a : 0x4c7a30))
+    }
+    return mergeGeometries(parts)!
+  },
+  // A stand of tall flowering stems: thin stalks, a pale head at the top of each.
+  stalk: () => {
+    const parts: THREE.BufferGeometry[] = []
+    for (let i = 0; i < 4; i++) {
+      const a = i * 2.1
+      const ox = Math.cos(a) * 0.12
+      const oz = Math.sin(a) * 0.12
+      const h = 0.9 + (i % 2) * 0.35
+      parts.push(colored(new THREE.CylinderGeometry(0.008, 0.012, h, 4).translate(ox, h / 2, oz).toNonIndexed(), 0x5d7036))
+      parts.push(colored(new THREE.IcosahedronGeometry(0.055, 0).scale(1, 1.6, 1).translate(ox, h + 0.04, oz), [0xe8e2d0, 0xd9b8d8, 0xe8c66a, 0xc9d6e8][i]))
+    }
+    // (All non-indexed, no uvs: mergeGeometries needs them alike.)
+    for (const g of parts) g.deleteAttribute('uv')
+    return mergeGeometries(parts)!
+  },
   reed: () => {
     const parts: THREE.BufferGeometry[] = []
     for (let i = 0; i < 5; i++) {
@@ -143,7 +195,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   },
 }
 
-const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, broadNear: 0.014, broadMid: 0.01, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0 }
+const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, broadNear: 0.014, broadMid: 0.01, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
 
 export class Vegetation {
   readonly group = new THREE.Group()
@@ -275,7 +327,7 @@ export class Vegetation {
   }
 
   private rebuild(cam: THREE.Vector3): void {
-    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, broadNear: 0, broadMid: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0 }
+    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, broadNear: 0, broadMid: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const push = (kind: Kind, b: Batch) => {
       const fit = Math.min(b.n, CAP[kind] - n[kind])
@@ -321,6 +373,8 @@ export class Vegetation {
       }
       if (d < this.midR * 0.85 && c.shrub) push('shrub', c.shrub)
       if (d < this.nearR && c.reed) push('reed', c.reed)
+      if (d < this.nearR * 0.7 && c.fern) push('fern', c.fern)
+      if (d < this.nearR * 0.8 && c.stalk) push('stalk', c.stalk)
     }
     // Grass and flowers, close by.
     const gr = Math.ceil(this.grassR / GCELL)
@@ -406,9 +460,9 @@ export class Vegetation {
         // No trees in the Dune Sea.
         const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z))
         if (rand() > p) continue
-        const h = this.ground(x, z, 240)
+        const h = this.ground(x, z, 400)
         if (h === null) continue
-        const conifer = h > 110 || rand() < 0.45
+        const conifer = h > 160 || rand() < 0.45
         const sc = 0.75 + rand() * 0.65
         const tint = 0.82 + rand() * 0.3
         this.col.setRGB(tint * (0.95 + rand() * 0.1), tint, tint * (0.9 + rand() * 0.1))
@@ -457,6 +511,31 @@ export class Vegetation {
       const d = this.biome.desert(x, z)
       this.col.setRGB(t * (1 + 0.75 * d), t * (0.95 + rand() * 0.1) * (1 + 0.35 * d), t * 0.85 * (1 + 0.45 * d))
       this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc * (1 - 0.35 * d), sc * (0.7 + rand() * 0.6) * (1 - 0.35 * d), this.col)
+    }
+    // Ferns on the woods' floor; tall flowering stems out on the Green's meadows.
+    for (let i = 0; i < 420; i++) {
+      const x = x0 + rand() * CELL
+      const z = z0 + rand() * CELL
+      const f = this.biome.forest(x, z)
+      const open = this.biome.open(x, z)
+      const meadow = this.biome.meadow(x, z)
+      const roll = rand()
+      // (Into the clearings' edges too: a fern-line is where a wood begins.)
+      if (f > 0.15 && roll < 0.15 + f * 0.6) {
+        // (The lands stand higher since the world grew: woods to ~400 m.)
+        const h = this.ground(x, z, 450)
+        if (h === null) continue
+        const sc = 0.7 + rand() * 0.7
+        const t = 0.8 + rand() * 0.35
+        this.col.setRGB(t, t, t * 0.9)
+        this.add(batch('fern'), x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.4), this.col)
+      } else if (open > 0.5 && roll < 0.11 * meadow * open) {
+        const h = this.ground(x, z, 450)
+        if (h === null) continue
+        const sc = 0.8 + rand() * 0.5
+        this.col.setRGB(1, 1, 1)
+        this.add(batch('stalk'), x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.5), this.col)
+      }
     }
     // Reeds in the shallows of the Titans' lakes.
     for (const l of this.lakes.lakes) {

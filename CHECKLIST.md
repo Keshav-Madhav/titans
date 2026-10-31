@@ -277,7 +277,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
       (fog ×10), grit racing flat on the wind, the grade keeping its warmth; after rain, with the
       sun low behind you, a rainbow (42° round the anti-sun point); mist thickest in the hollows at
       dawn and dusk. Gate: `shot.mjs lands_weather`
-- [ ] More plants (ferns, tall flowers, reeds by water); small animals on the ground
+- [x] More plants: ferns over the Old Wood's floor and along its edges (arching fronds), stands of tall
+      flowering stems out on the Green's meadows (four colours); trees and plants grow to 400 m again
+      (the lands stand higher since the world grew — a 200 m cap had bared the high woods)
+- [ ] Small animals on the ground (hares, foxes), birds that rise from the grass as you come
 
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
