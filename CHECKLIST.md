@@ -227,6 +227,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
       the end; stand at the end still looking and the cache there shows itself. Three trails (from the
       stone through the Grove, from the first camp across the Green, from the Colonnade over the
       terraces), stepping round anything solid. Gate: `shot.mjs sight`
+- [x] D11 Parkour: the Hanging Steps (`parkour.ts`) on the western Green — 26 slabs and blocks held
+      still in a rising spiral: hop the short gaps, climb every third, a trinket at the top (50 m).
+      Gate: `shot.mjs steps` (every slab stood on)
+- [ ] Still to come from the roster: uncover (a giant stamps something open), watching the giants,
+      offerings, a land's cairns all lit → an artifact
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)

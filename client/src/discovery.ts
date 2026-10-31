@@ -55,6 +55,7 @@ export const CATALOGUE: Find[] = [
   f('place', 'colonnade', 'The Colonnade', 'The Steps, north-east.', 'Pillars in a row, some still standing to the clouds, most fallen. Carved all over with figures too worn to read.'),
   f('place', 'stair', 'The Great Stair', 'The Steps, east.', 'Each step a cliff. It was made for feet much larger than yours, climbing to a door that has not opened in a very long time.'),
   f('place', 'chained', 'The Chained Stones', 'The far edge of the Steps.', 'Stones that would rather float, held down by chains. Someone went to great trouble to keep them here.'),
+  f('place', 'steps', 'The Hanging Steps', 'Out on the western Green.', 'Slabs of stone hanging in the air in a rising spiral, held still the way the chained stones are. Someone meant them to be climbed.'),
   f('place', 'wall', 'The Wall', 'Look to the edge of the world on a clear day.', 'Mountains past the mountains, higher than anything should be. On a clear day you can see that something stands behind them.'),
   // Those who live here
   f('giant', 'walker', 'The Walker of the Green', 'It walks the Green, east of where you woke.', 'It walks the Green from one end to the other and back, and has worn paths doing it. It notices you the way you notice a bird.'),
@@ -104,6 +105,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'cache-grove', 'A wooden spinner', 'At the end of the marks that wind through the Grove.', 'A spinning top carved from root, worn smooth by small hands, long ago.', 'figure', '#8a6a48'),
   f('trinket', 'cache-green', 'A bone whistle', 'At the end of the marks that start at the first camp.', "A whistle cut from a bird's bone. It makes no sound you can hear; on the Green, the grass leans toward it.", 'horn', '#e4dccb'),
   f('trinket', 'cache-steps', 'A clay tablet', 'At the end of the marks among the terraces of the Steps.', 'A tablet of fired clay pressed with rows of marks like the ones you followed here. You can almost read it.', 'stone', '#b08a62'),
+  f('trinket', 'kite-steps', "A kite's spool", 'At the top of the Hanging Steps.', 'A wooden spool wound with a long, long cord, its end frayed. Whatever was flown from up here is not coming back down.', 'stone', '#a07a4c'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

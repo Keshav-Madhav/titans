@@ -66,6 +66,7 @@ import { Resonance } from './resonance'
 import { Eyes, type EyeSet } from './eyes'
 import { Bow, type ArrowHit, type Pick } from './bow'
 import { Glyphs } from './glyphs'
+import { hangingSteps } from './parkour'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -242,6 +243,10 @@ const cairnPlaces: CairnPlace[] = []
   }
 }
 const cairns = new Cairns(cairnPlaces)
+
+// The Hanging Steps: a parkour line on the western Green (hop, climb, up to the top).
+const STEPS_AT = { x: -1700, z: 300 }
+const stepsTop = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
 
 // Chase the light: wisps that lead you somewhere, and leave something there.
 const wisps = new Wisps(
@@ -510,6 +515,7 @@ const spots = (() => {
     placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap })
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
+  placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
   for (const t of glyphs.trails) placed.push({ id: t.def.id, kind: 'trinket', at: t.end.clone(), hidden: true })
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
@@ -613,6 +619,7 @@ const near = (x: number, z: number) => () => ({ x, z })
 const placeAt = (name: string) => () => colossi.places.get(name) ?? null
 const sites: Site[] = [
   { id: 'green', r: 500, at: near(0, 0) },
+  { id: 'steps', r: 160, at: near(STEPS_AT.x, STEPS_AT.z) },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },

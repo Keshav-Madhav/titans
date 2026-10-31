@@ -474,6 +474,35 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // The Hanging Steps: every slab stood on in turn (a level top you land on), the view, the top.
+  async steps() {
+    await page.waitForFunction(() => window.__g.rocks.formations.every((f) => f.mesh || !f.always), null, { timeout: 180000 })
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const slabs = g.rocks.formations.filter((f) => f.kind === 'built' && f.hx < 4 && f.float)
+      const stood = []
+      for (const f of slabs) {
+        const top = g.rocks.topAt(f.x, f.z)
+        g.teleport(f.x, f.z, top + 0.3)
+        await new Promise((res) => setTimeout(res, 250))
+        const p = g.player()
+        stood.push(Math.abs(p.y - top) < 0.6 ? 1 : 0)
+      }
+      return { n: slabs.length, stood: stood.reduce((a, b) => a + b, 0), top: Math.round(g.rocks.topAt(slabs[slabs.length - 1].x, slabs[slabs.length - 1].z) - g.heightAt(slabs[0].x, slabs[0].z)) }
+    })
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'kite-steps')
+      g.teleport(s.at.x + 40, s.at.z + 40)
+      g.lookFrom([s.at.x + 45, g.heightAt(s.at.x + 45, s.at.z + 45) + 8, s.at.z + 45], [s.at.x, s.at.y - 18, s.at.z])
+    })
+    await page.waitForTimeout(800)
+    await shot('steps')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    console.log(`the Hanging Steps: ${r.n} slabs, stood on ${r.stood}; the top ${r.top} m up`)
+    if (r.stood < r.n) throw new Error('steps gate: a slab could not be stood on')
+  },
   // The Sight-stone: take it in the Grove, hold V, see the marks, follow them to what waits.
   async sight() {
     await page.evaluate(() => {
