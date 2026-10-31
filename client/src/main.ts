@@ -51,6 +51,7 @@ import { Leviathans } from './leviathans'
 import { Undercroft } from './hall'
 import { WorldMap, type MapPlace } from './map'
 import { Striders } from './striders'
+import { Watchers } from './watchers'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -148,6 +149,9 @@ scene.add(colossi.group)
 // Striders: pale things on legs five hundred metres long, walking the far lands.
 const striders = new Striders(terrain, WORLD_SEED)
 scene.add(striders.group)
+// Watchers: gaunt figures on the ridges, seen only under a heavy sky; gone when you come close.
+const watchers = new Watchers(terrain, WORLD_SEED, (x, z) => rocks.occupies(x, z))
+scene.add(watchers.group)
 // Leviathans swimming through the sky a kilometre up.
 const leviathans = new Leviathans(WORLD_SEED)
 scene.add(leviathans.group)
@@ -623,6 +627,7 @@ function frame(now: number): void {
   }
   leviathans.update(dt)
   striders.update(dt)
+  watchers.update(dt, wanderer.pos, weather.now.dark)
   if (climber.active) {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
@@ -759,6 +764,7 @@ const g = {
   worldMap,
   leviathans,
   striders,
+  watchers,
   farGiants,
   birds,
   vegetation,

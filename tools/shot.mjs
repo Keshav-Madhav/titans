@@ -159,6 +159,39 @@ const scenes = {
       g.input.release('ShiftLeft')
     })
   },
+  // Watchers: from the ground at a distance under a heavy sky; then walk at one — it is gone.
+  async watchers() {
+    const info = await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('overcast', true)
+      return g.watchers.watchers.map((w) => ({ x: Math.round(w.x), z: Math.round(w.z), h: Math.round(w.mesh.scale.x) }))
+    })
+    console.log(`${info.length} watchers`, JSON.stringify(info.slice(0, 4)))
+    for (const [i, dist] of [[0, 190], [1, 200], [3, 210]]) {
+      await page.evaluate(async ([i, dist]) => {
+        const g = window.__g
+        const w = g.watchers.watchers[i]
+        const ok = g.frame([w.x, g.heightAt(w.x, w.z) + w.mesh.scale.x * 0.55, w.z], dist, 2.5, w.yaw)
+        // Let it come out of the haze (they appear slowly) and turn a little.
+        g.clock.scale = 1
+        for (const q of g.watchers.watchers) q.seen = 1
+        await new Promise((r) => setTimeout(r, 400))
+        return ok
+      }, [i, dist])
+      await shot(`watcher-${i}`)
+    }
+    // Close in on one: it thins away before you reach it.
+    const gone = await page.evaluate(async () => {
+      const g = window.__g
+      g.lookFrom(null)
+      const w = g.watchers.watchers[0]
+      g.teleport(w.x + 60, w.z + 60)
+      await new Promise((r) => setTimeout(r, 2500))
+      return { seen: +w.seen.toFixed(2), visible: w.mesh.visible }
+    })
+    console.log('walked up to one', JSON.stringify(gone))
+    if (gone.seen > 0.1) throw new Error('watchers gate: a watcher stayed when you came close')
+  },
   // The weather: the same views under each kind of sky.
   async weather() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })

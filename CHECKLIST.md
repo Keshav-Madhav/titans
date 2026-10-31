@@ -96,7 +96,21 @@ Each phase ends playable. Phases are in PLAN.md §6.
       the atmosphere shader (everything under the roof dimmed, lit under the skylights); no rain
       under the roof; invisible-wall fix (roof holes a little wider than their tiles in the field)
 - [x] Gate: `shot.mjs undercroft` (plaza, floor, rows, stair; walks down the stair)
-- [ ] Gaunt watchers in fog; vertigo ledges
+- [x] Watchers (`watchers.ts`, user's reference: a gaunt stick giant in fog): nine figures of
+      branch and root, 34–70 m, on rounded rises below the cloud deck; seen only under a heavy
+      sky, coming slowly out of the haze; they turn to face you over a minute; gone (thinned into
+      the fog) before you can reach one. Lesson: a fading transparent mesh must still write depth,
+      or the cloud deck and puffs drawn after it — though farther away — paint over it
+- [ ] Vertigo ledges
+
+## A1c — The wanderer and the grass (user, 2026-10-31: "focus on visuals and feel")
+- [x] The wanderer (`wanderer.ts`): a body (tunic, jointed legs, boots, swinging arms), a deep
+      pointed hood with the face in shadow, a mantle; a cape and a scarf simulated as verlet cloth
+      (pinned at the shoulders, kept out of the body and the ground, streaming when you run,
+      gusting in the weather's wind); walk/run/idle/air/slide/climb poses; a lantern at the hip
+      that makes a warm pool of light in dark places. Gate: `shot.mjs hero`
+- [x] Grass (`grass.ts`): up to 30k alpha-cut cards round the camera, densest in meadows; waves
+      rolling with the wind (flat in storms), parting round you, sinking away at its range edge
 
 ## A2a — The map (user, 2026-10-31: "have a map/minimap openable")
 - [x] `map.ts`: a round minimap (north-up, 1.8 km across) and the whole map on M — shaded relief,
