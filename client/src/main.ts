@@ -948,7 +948,9 @@ const lore = setInterval(() => {
   loreEl.textContent = LORE[loreAt]
 }, 2400)
 hud.setMode('wanderer')
-rig.yaw = Math.PI * 0.85
+// You wake facing north, across the Green to the Sentinel kneeling on its rim:
+// the first thing you see is the biggest thing you can reach.
+rig.yaw = 0
 if (!(localSave && loadLocal()) && !params.has('noancient')) newWorld()
 requestAnimationFrame(frame)
 
