@@ -802,6 +802,19 @@ const scenes = {
     })
     await page.waitForTimeout(1500)
     await shot('life-butterflies')
+    // A hare, close: put one in front of the camera and look at it.
+    await page.evaluate(() => {
+      const g = window.__g
+      const h = g.ambience.hareState[0]
+      const p = g.player()
+      h.x = p.x + 20
+      h.z = p.z + 4
+      h.run = 0
+      g.lookFrom([p.x + 16, g.heightAt(p.x + 16, p.z + 3) + 0.9, p.z + 3], [h.x, g.heightAt(h.x, h.z) + 0.2, h.z])
+    })
+    await page.waitForTimeout(600)
+    await shot('life-hare')
+    await page.evaluate(() => window.__g.lookFrom(null))
     await page.evaluate(() => {
       const g = window.__g
       const t = g.titan

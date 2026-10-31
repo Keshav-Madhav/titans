@@ -287,7 +287,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D13 Offerings (`offerings.ts`): three shrines (the Colonnade, the Fallen, the Hanging Steps), each
       with a carving of a small thing found elsewhere — the picture is the puzzle; hold it over the
       bowl and the carving lights and it answers (lore). Gate: `shot.mjs offer`
-- [ ] Small animals on the ground (hares, foxes)
+- [x] Hares in the grass near you (by day and dusk, on green ground): they sit and nibble, and bolt
+      in zigzag hops when you come within 14 m
+- [x] Riding camera: on a walking giant the view pulls back and up and slowly turns to its way; the
+      camera's occluder knows the held giant's body (it no longer ends up inside a leg)
 
 ## H — A bigger world, and the Mire (user: "make the map bigger too, we are not limited")
 - [x] The lands reach ~10.4 km before the mountains (`LAND_EDGE`, `MOUNTAINS_FULL`), the Wall moves

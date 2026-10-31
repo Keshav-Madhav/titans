@@ -20,6 +20,9 @@ const BUTTERFLIES = 48
 const BUTTER_R = 45
 /** Small birds flushed out of the grass as you run through it. */
 const FLUSH = 14
+/** Hares in the grass near you: they sit, nibble, and bolt when you come close. */
+const HARES = 14
+const HARE_R = 90
 
 const _m = new THREE.Matrix4()
 const _q = new THREE.Quaternion()
@@ -37,6 +40,8 @@ export class Ambience {
   private readonly butterState: Array<{ x: number; y: number; z: number; a: number; ph: number; hue: number }> = []
   private readonly circlers: THREE.InstancedMesh
   private readonly flushed: THREE.InstancedMesh
+  private readonly hares: THREE.InstancedMesh
+  readonly hareState: Array<{ x: number; z: number; a: number; run: number; hop: number; zig: number }> = []
   private readonly flushState: Array<{ p: THREE.Vector3; v: THREE.Vector3; age: number }> = []
   private flushClock = 8
   private time = 0
@@ -121,6 +126,13 @@ export class Ambience {
     this.flushed.count = 0
     for (let i = 0; i < FLUSH; i++) this.flushState.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99 })
     this.group.add(this.flushed)
+    // A hare: a round body, a smaller head, two tall ears, a white scut.
+    const hare = mergeHare()
+    this.hares = new THREE.InstancedMesh(hare, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), HARES)
+    this.hares.frustumCulled = false
+    this.hares.castShadow = true
+    for (let i = 0; i < HARES; i++) this.hareState.push({ x: (this.rand() - 0.5) * 2 * HARE_R, z: (this.rand() - 0.5) * 2 * HARE_R, a: this.rand() * 6.28, run: 0, hop: 0, zig: 0 })
+    this.group.add(this.hares)
   }
 
   /**
@@ -144,6 +156,43 @@ export class Ambience {
         }
         this.onFlush()
       }
+    }
+    // Hares: by day and dusk, on lush ground; sit, then bolt (zigzag hops) from you.
+    const hOn = (day > 0.2 || dusk > 0) && rain < 0.6
+    this.hares.visible = hOn
+    if (hOn && runner) {
+      this.hareState.forEach((h, i) => {
+        if (h.x - camera.x > HARE_R) h.x -= 2 * HARE_R
+        else if (camera.x - h.x > HARE_R) h.x += 2 * HARE_R
+        if (h.z - camera.z > HARE_R) h.z -= 2 * HARE_R
+        else if (camera.z - h.z > HARE_R) h.z += 2 * HARE_R
+        const dx = h.x - runner.pos.x
+        const dz = h.z - runner.pos.z
+        const d = Math.hypot(dx, dz)
+        if (h.run <= 0 && d < 14) {
+          h.run = 2.5 + this.rand() * 1.5
+          h.a = Math.atan2(dx, dz)
+        }
+        let hopY = 0
+        if (h.run > 0) {
+          h.run -= dt
+          h.zig -= dt
+          if (h.zig <= 0) {
+            h.zig = 0.35 + this.rand() * 0.4
+            h.a = Math.atan2(dx, dz) + (this.rand() - 0.5) * 1.4
+          }
+          h.hop += dt * 9
+          h.x += Math.sin(h.a) * 11 * dt
+          h.z += Math.cos(h.a) * 11 * dt
+          hopY = Math.abs(Math.sin(h.hop)) * 0.35
+        } else if (this.rand() < dt * 0.15) h.a += (this.rand() - 0.5) * 1.5
+        const live = this.lush(h.x, h.z) > 0.5
+        const y = live ? this.terrain.heightAt(h.x, h.z) + hopY : -1e4
+        _q.setFromAxisAngle(_up, h.a)
+        _m.compose(_p.set(h.x, y, h.z), _q, _s.set(1, h.run > 0 ? 0.85 : 1, h.run > 0 ? 1.25 : 1))
+        this.hares.setMatrixAt(i, _m)
+      })
+      this.hares.instanceMatrix.needsUpdate = true
     }
     let fk = 0
     for (const b of this.flushState) {
@@ -225,4 +274,39 @@ export class Ambience {
     this.circlers.count = k
     this.circlers.instanceMatrix.needsUpdate = true
   }
+}
+
+/** A small hare, about 45 cm long, facing +z: brown-grey, a white scut, tall ears. */
+function mergeHare(): THREE.BufferGeometry {
+  const parts: Array<[THREE.BufferGeometry, number]> = [
+    [new THREE.SphereGeometry(0.13, 10, 8).scale(1, 0.95, 1.55).translate(0, 0.15, -0.02), 0x7b6650],
+    [new THREE.SphereGeometry(0.075, 8, 6).scale(0.9, 1, 1.2).translate(0, 0.27, 0.19), 0x7b6650],
+    [new THREE.CapsuleGeometry(0.018, 0.13, 3, 6).rotateX(-0.3).translate(-0.03, 0.4, 0.15), 0x6d5944],
+    [new THREE.CapsuleGeometry(0.018, 0.13, 3, 6).rotateX(-0.3).translate(0.03, 0.4, 0.15), 0x6d5944],
+    [new THREE.SphereGeometry(0.04, 6, 5).translate(0, 0.17, -0.22), 0xece6da],
+  ]
+  let n = 0
+  const ni = parts.map(([g, c]) => {
+    const t = g.index ? g.toNonIndexed() : g
+    n += t.getAttribute('position').count
+    return [t, c] as const
+  })
+  const pos = new Float32Array(n * 3)
+  const nrm = new Float32Array(n * 3)
+  const col = new Float32Array(n * 3)
+  let o = 0
+  const c = new THREE.Color()
+  for (const [g, hex] of ni) {
+    const k = g.getAttribute('position').count
+    pos.set(g.getAttribute('position').array as Float32Array, o * 3)
+    nrm.set(g.getAttribute('normal').array as Float32Array, o * 3)
+    c.set(hex)
+    for (let i = 0; i < k; i++) col.set([c.r, c.g, c.b], (o + i) * 3)
+    o += k
+  }
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  return out
 }

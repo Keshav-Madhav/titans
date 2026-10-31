@@ -1775,6 +1775,7 @@ const g = {
   uncover,
   offerings,
   mireView,
+  ambience,
   get glyphs() {
     return glyphs
   },
