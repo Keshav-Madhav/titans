@@ -222,6 +222,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D9 The Wing-cloak (top of the Great Stair, where the last page said): falling with Space held,
       it opens — a wing from wrist to wrist — you sink at 2.6 m/s and sail at 15 m/s the way you
       lean, and land soft from any height. Gate: `shot.mjs glide` (sailed 437 m coming down 172 m)
+- [x] D9b Flight as physics (user: "so players can master it and it isn't just pressing W"): lift and
+      drag with the square of airspeed; W lowers the nose (dive, gain speed), S raises it (climb,
+      bleed speed), A/D bank (turns; steep turns sink); below ~8 m/s the cloak stalls; ridge lift
+      off steep ground ahead. Body leans with bank and pitch; the camera swings round behind; its
+      own hints and a "Flying" badge. Gate: `shot.mjs flight` (hands-off 362 m in 25 s losing 59 m;
+      held W dives to 35 m/s; held S stalls at 5 m/s)
 - [x] D10 The Sight-stone (the Grove, as the third page said): hold V — the view darkens at the
       edges and the First Ones' marks show, glowing, over the grass in a line, a column of light at
       the end; stand at the end still looking and the cache there shows itself. Three trails (from the

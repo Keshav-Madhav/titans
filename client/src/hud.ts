@@ -6,6 +6,7 @@ import type { TerrainView } from './terrain-view'
 const HINTS = {
   wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
+  flying: '<kbd>W</kbd> dive (speed) · <kbd>S</kbd> pull up (height) · <kbd>A D</kbd> bank · slow too much and you stall · steep ground ahead lifts you · let go of <kbd>Space</kbd> to drop',
 }
 
 export class Hud {
@@ -25,10 +26,10 @@ export class Hud {
     }
   }
 
-  setMode(mode: 'wanderer' | 'climbing'): void {
+  setMode(mode: 'wanderer' | 'climbing' | 'flying'): void {
     if (mode === this.mode) return
     this.mode = mode
-    this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : '<b>Wanderer</b>'
+    this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : mode === 'flying' ? '<b>Flying</b>' : '<b>Wanderer</b>'
     this.hint.innerHTML = HINTS[mode]
   }
 

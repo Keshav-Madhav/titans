@@ -663,6 +663,74 @@ const scenes = {
     console.log(`took the stone: ${took}; ${ends.join(' ')}`)
     if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
   },
+  // Flight, as physics: a hands-off glide, a dive-and-climb, a stall, and lift off a slope.
+  async flight() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      for (const id of ['bag', 'cloak']) window.__g.finds.find(id)
+    })
+    const fly = (keys, ms, at) =>
+      page.evaluate(
+        async ([keys, ms, at]) => {
+          const g = window.__g
+          g.wanderer.place(at[0], g.heightAt(at[0], at[2]) + at[1], at[2])
+          g.wanderer.yaw = at[3]
+          g.wanderer.vel.set(Math.sin(at[3]) * 12, -2, Math.cos(at[3]) * 12)
+          g.input.press('Space')
+          for (const k of keys) g.input.press(k)
+          const x0 = g.player().x
+          const z0 = g.player().z
+          const y0 = g.player().y
+          let minV = 99
+          let maxV = 0
+          let maxUp = 0
+          const t0 = Date.now()
+          while (Date.now() - t0 < ms) {
+            await new Promise((r) => setTimeout(r, 100))
+            minV = Math.min(minV, g.wanderer.airspeed)
+            maxV = Math.max(maxV, g.wanderer.airspeed)
+            maxUp = Math.max(maxUp, g.wanderer.updraft)
+            if (g.player().grounded) break
+          }
+          for (const k of keys) g.input.release(k)
+          g.input.release('Space')
+          const p = g.player()
+          return { far: Math.round(Math.hypot(p.x - x0, p.z - z0)), dy: Math.round(p.y - y0), secs: ((Date.now() - t0) / 1000).toFixed(1), minV: minV.toFixed(1), maxV: maxV.toFixed(1), up: maxUp.toFixed(1) }
+        },
+        [keys, ms, at],
+      )
+    const out = {}
+    out.handsOff = await fly([], 25000, [300, 150, 400, 0])
+    out.diveAll = await fly(['KeyW'], 25000, [300, 150, 400, 0])
+    out.stall = await fly(['KeyS'], 6000, [300, 150, 400, 0])
+    // Toward the escarpment at the Green's edge (rising ground ahead): ridge lift.
+    out.ridge = await page.evaluate(() => {
+      const g = window.__g
+      // Find steep rising ground: walk out north from the Sentinel's side till the ground climbs.
+      for (let d = 1800; d < 3400; d += 20) {
+        const a = g.heightAt(d, 0)
+        const b = g.heightAt(d + 40, 0)
+        if ((b - a) / 40 > 0.6) return [d - 60, a]
+      }
+      return null
+    })
+    if (out.ridge) out.ridgeFlight = await fly([], 8000, [out.ridge[0], 25, 0, Math.PI / 2])
+    console.log('flight', JSON.stringify(out))
+    // A shot in a bank.
+    await page.evaluate(() => {
+      const g = window.__g
+      g.wanderer.place(300, g.heightAt(300, 400) + 120, 400)
+      g.wanderer.vel.set(0, -3, 14)
+      g.input.press('Space')
+      g.input.press('KeyD')
+    })
+    await page.waitForTimeout(2200)
+    await shot('flight-bank')
+    await page.evaluate(() => {
+      window.__g.input.release('KeyD')
+      window.__g.input.release('Space')
+    })
+  },
   // The wing-cloak: take it at the top of the Great Stair, step off, and sail down.
   async glide() {
     await page.evaluate(() => {

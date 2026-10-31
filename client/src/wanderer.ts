@@ -17,8 +17,18 @@ const SPRINT = 8.5
  * lengthens to this (the lands are kilometres across; SotC had a horse).
  */
 const LONG = 14.5
-/** Gliding with the wing-cloak: how fast you sail. */
-const GLIDE = 15
+/**
+ * Flight with the wing-cloak (user: "make gliding a physics based thing so
+ * players can master it, not just pressing W"). A small glider: lift and drag
+ * grow with the square of airspeed; W lowers the nose (less lift: you dive and
+ * gain speed), S raises it (more lift: you climb, and bleed speed), A / D bank
+ * you into a turn (steeper turns sink more); below ~8 m/s the cloak stalls and
+ * you drop until speed returns. Air rising off steep ground ahead lifts you:
+ * ride a ridge and you can stay up.
+ */
+const FLY_G = 11
+const KL = 0.079
+const CD0 = 0.04
 const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
@@ -29,6 +39,7 @@ const SLIDE = 14
 const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
+const _fwd = new THREE.Vector3(0, 0, 1)
 const _cx = new THREE.Vector3()
 const _cy = new THREE.Vector3()
 const _cz = new THREE.Vector3()
@@ -278,6 +289,13 @@ export class Wanderer {
   canGlide = false
   /** Falling with the cloak open. */
   gliding = false
+  /** In flight: airspeed (m/s), flight-path angle (rad, + up), heading, bank (rad, + right). */
+  airspeed = 0
+  private gamma = 0
+  private heading = 0
+  bank = 0
+  /** Rising air under you this step (m/s): for the tools and the HUD. */
+  updraft = 0
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
@@ -497,15 +515,39 @@ export class Wanderer {
     this.vel.y -= GRAVITY * dt
     // The wing-cloak: falling with Space held, it opens — you sink slowly and
     // sail the way you lean (or the way you face), and land on your feet.
-    this.gliding = this.canGlide && !this.grounded && jump && this.vel.y < -1
+    const wasGliding = this.gliding
+    this.gliding = this.canGlide && !this.grounded && jump && (wasGliding || this.vel.y < -1)
     if (this.gliding) {
-      this.vel.y = Math.max(this.vel.y, -2.6)
-      const gx = len > 0 ? wx : Math.sin(this.yaw)
-      const gz = len > 0 ? wz : Math.cos(this.yaw)
-      const k2 = Math.min(1, dt * 0.9)
-      this.vel.x += (gx * GLIDE - this.vel.x) * k2
-      this.vel.z += (gz * GLIDE - this.vel.z) * k2
-    }
+      if (!wasGliding) {
+        // Opening: take up the flight from how you were falling.
+        const hs0 = Math.hypot(this.vel.x, this.vel.z)
+        this.airspeed = Math.max(9, Math.hypot(hs0, this.vel.y))
+        this.gamma = Math.atan2(this.vel.y, Math.max(hs0, 1))
+        this.heading = hs0 > 1 ? Math.atan2(this.vel.x, this.vel.z) : this.yaw
+        this.bank = 0
+      }
+      const cl = THREE.MathUtils.clamp(0.62 - move.y * 0.47, 0.12, 1.15)
+      this.bank += (move.x * 0.75 - this.bank) * Math.min(1, dt * 2.5)
+      const v = this.airspeed
+      const stall = THREE.MathUtils.smoothstep(v, 7, 10)
+      const lift = KL * v * v * cl * stall
+      const drag = KL * v * v * (CD0 + 0.12 * cl * cl)
+      this.airspeed = THREE.MathUtils.clamp(v + (-FLY_G * Math.sin(this.gamma) - drag) * dt, 2, 45)
+      this.gamma = THREE.MathUtils.clamp(this.gamma + ((lift * Math.cos(this.bank) - FLY_G * Math.cos(this.gamma)) / Math.max(v, 3)) * dt, -1.35, 0.9)
+      // Bank right (+): turn right — the body faces +z, its right is −x, so heading falls.
+      this.heading -= ((lift * Math.sin(this.bank)) / Math.max(v, 3)) * dt
+      const cg = Math.cos(this.gamma)
+      this.vel.set(Math.sin(this.heading) * cg * this.airspeed, Math.sin(this.gamma) * this.airspeed, Math.cos(this.heading) * cg * this.airspeed)
+      // Ridge lift: air pushed up a steep slope ahead of you, strongest low over it.
+      const ax = this.pos.x + Math.sin(this.heading) * 40
+      const az = this.pos.z + Math.cos(this.heading) * 40
+      const below = terrain.heightAt(this.pos.x, this.pos.z)
+      const rise = (terrain.heightAt(ax, az) - below) / 40
+      const agl = this.pos.y - below
+      this.updraft = rise > 0.25 && agl < 160 ? Math.min(7, (rise - 0.25) * 16) * (1 - agl / 160) : 0
+      this.vel.y += this.updraft
+      this.yaw = this.heading
+    } else this.updraft = 0
     this.pos.addScaledVector(this.vel, dt)
 
     const ground = terrain.heightAt(this.pos.x, this.pos.z)
@@ -550,6 +592,11 @@ export class Wanderer {
     d = Math.atan2(Math.sin(d), Math.cos(d))
     this.obj.quaternion.setFromAxisAngle(_up, this.prevYaw + d * alpha)
     if (this.tilt > 0.01) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, -this.tilt))
+    // In flight: lean into the bank, nose with the flight path, body near level.
+    if (this.gliding) {
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bank * 0.9))
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, 0.9 - this.gamma * 0.5))
+    }
   }
 
   /**

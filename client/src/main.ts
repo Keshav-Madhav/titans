@@ -1522,7 +1522,7 @@ function frame(now: number): void {
   crownWind.value += dt
   rocks.animate(crownWind.value)
   wildlife.render()
-  hud.setMode(climber.active || cliff.active ? 'climbing' : 'wanderer')
+  hud.setMode(climber.active || cliff.active ? 'climbing' : wanderer.gliding ? 'flying' : 'wanderer')
   hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
@@ -1532,6 +1532,12 @@ function frame(now: number): void {
     camera.lookAt(freeCam.at)
   } else {
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
+    // In flight the camera swings round behind you (you steer the body, not the view).
+    if (wanderer.gliding) {
+      let dy = wanderer.yaw + Math.PI - rig.yaw
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy))
+      rig.yaw += dy * Math.min(1, dt * 2.2)
+    }
     // Drawing the bow: the camera comes in over the right shoulder, the view narrows, you face where you aim.
     if (bow.draw > 0 && !awakening.active) {
       camera.getWorldDirection(aimFwd).setY(0).normalize()
