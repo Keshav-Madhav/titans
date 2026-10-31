@@ -139,13 +139,13 @@ export class Colossi {
 
     // The Old Wood's giant trees.
     const trees: Array<{ x: number; y: number; z: number; h: number; tips: THREE.Vector3[] }> = []
-    for (let tries = 0; tries < 1500 && trees.length < 16; tries++) {
+    for (let tries = 0; tries < 2500 && trees.length < 22; tries++) {
       // Together, as one forest of them (nothing else that big near).
       const a = rand() * Math.PI * 2
-      const d = Math.sqrt(rand()) * 1500
+      const d = Math.sqrt(rand()) * 1150
       const x = -0.866 * 4300 + Math.cos(a) * d
       const z = -0.5 * 4300 + Math.sin(a) * d
-      if (terrain.base.regions.name(x, z) !== 'forest' || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 330)) continue
+      if (terrain.base.regions.name(x, z) !== 'forest' || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 250)) continue
       let lo = Infinity
       let hi = -Infinity
       for (let k = 0; k < 8; k++) {
@@ -173,7 +173,8 @@ export class Colossi {
     let ci = 0
     for (const t of trees) {
       t.tips.forEach((tip, k) => {
-        const s = (k === t.tips.length - 1 ? 0.62 : 0.4) * (0.85 + rand() * 0.35)
+        // Broad: close enough together, their crowns meet into a roof far overhead.
+        const s = (k === t.tips.length - 1 ? 0.85 : 0.58) * (0.85 + rand() * 0.35)
         m.compose(tip, q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(s, s * (0.75 + rand() * 0.3), s))
         crown.setMatrixAt(ci++, m)
       })

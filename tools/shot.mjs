@@ -388,6 +388,32 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // The giant trees, together: from the forest's edge, and from among them.
+  async forest() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.kind === 'trunk').every((f) => f.mesh), null, { timeout: 180000 })
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const views = [
+      // From the Green, 2.4 km out from the forest's middle, looking at it.
+      ['edge', 2400, 2.5, 0.06],
+      // Among them.
+      ['among', 350, 2.5, 0.35],
+    ]
+    for (const [name, back, up, tilt] of views) {
+      await page.evaluate(([back, up, tilt]) => {
+        const g = window.__g
+        const cx = -0.866 * 4300
+        const cz = -0.5 * 4300
+        // From the centre's side of it, looking out at it.
+        const x = cx + 0.866 * back
+        const z = cz + 0.5 * back
+        g.teleport(x, z)
+        const h = g.heightAt(x, z)
+        g.lookFrom([x, h + up, z], [cx, h + up + back * tilt + 120, cz])
+      }, [back, up, tilt])
+      await shot(`forest-${name}`)
+    }
+    await page.evaluate(() => window.__g.lookFrom(null))
+  },
   // The herd: smaller giants roaming the eastern Dune Sea together.
   async herd() {
     await page.evaluate(() => {
