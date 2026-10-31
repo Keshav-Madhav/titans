@@ -44,6 +44,149 @@ async function shot(name) {
 }
 
 const scenes = {
+  // Rock formations: one of each kind, from a little way off; then into a cave.
+  async rocks() {
+    const kinds = await page.evaluate(() => {
+      const g = window.__g
+      const by = {}
+      for (const f of g.rocks.formations) {
+        const d = Math.hypot(f.x, f.z)
+        if (!by[f.kind] || d < by[f.kind].d) by[f.kind] = { id: f.id, d, land: f.land }
+      }
+      return { count: g.rocks.formations.length, by }
+    })
+    console.log(`${kinds.count} formations;`, Object.entries(kinds.by).map(([k, v]) => `${k} in the ${v.land} ${Math.round(v.d)} m out`).join(', '))
+    for (const [kind, v] of Object.entries(kinds.by)) {
+      await page.evaluate(async ([id, kind]) => {
+        const g = window.__g
+        const f = g.rocks.formations[id]
+        const r = Math.max(f.hx, f.hz)
+        // Stand off to one side, a little more than its size away, and look at it.
+        // An arch is seen through its opening (its ring lies across local x): look along local z.
+        const turn = kind === 'arch' ? 0 : 0.6
+        const ax = Math.sin(f.rot + turn), az = Math.cos(f.rot + turn)
+        g.teleport(f.x + ax * (r * 1.5 + 25), f.z + az * (r * 1.5 + 25))
+        g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 9, focusHeight: 1.5, follow: 10 })
+        g.setCam(Math.atan2(ax, az), kind === 'spire' || kind === 'hoodoo' ? -0.25 : -0.05, 9)
+        while (!f.mesh) await new Promise((r) => setTimeout(r, 100))
+      }, [v.id, kind])
+      await shot(`rock-${kind}`)
+    }
+    // Into the cave: from its mouth, walk in along the tunnel.
+    const cave = await page.evaluate(async (id) => {
+      const g = window.__g
+      const f = g.rocks.formations[id]
+      // Local (0, z) along the tunnel → world (mesh.rotation.y = rot).
+      const at = (lz) => ({ x: f.x + lz * Math.sin(f.rot), z: f.z + lz * Math.cos(f.rot) })
+      const mouth = at(-f.hz + 2)
+      g.teleport(mouth.x, mouth.z)
+      const into = at(0)
+      g.wanderer.yaw = Math.atan2(into.x - mouth.x, into.z - mouth.z)
+      g.rig.setProfile({ minDist: 1.5, maxDist: 4000, dist: 5, focusHeight: 1.6, follow: 10 })
+      g.setCam(Math.atan2(mouth.x - into.x, mouth.z - into.z), 0.05, 5)
+      await new Promise((r) => setTimeout(r, 600))
+      const start = g.player()
+      // Walk in, steering along the tunnel.
+      g.input.press('KeyW')
+      const t0 = performance.now()
+      while (performance.now() - t0 < 5000) {
+        g.setCam(Math.atan2(mouth.x - into.x, mouth.z - into.z), 0.05, 5)
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      g.input.release('KeyW')
+      const p = g.player()
+      return { walked: Math.hypot(p.x - start.x, p.z - start.z), y: p.y, ground: g.heightAt(p.x, p.z), inRock: g.rocks.sdf(f, p.x, p.y + 0.9, p.z) < 0 }
+    }, kinds.by.cave.id)
+    console.log('into the cave', JSON.stringify(cave))
+    await shot('rock-cave-inside')
+    if (cave.walked < 8 || cave.inRock) throw new Error('rocks gate: could not walk into the cave')
+  },
+  // The carved land: in each land, the foot of its tallest wall, looking up; then from above.
+  async carved() {
+    const spots = await page.evaluate(() => {
+      const g = window.__g
+      const H = (x, z) => g.heightAt(x, z)
+      const out = {}
+      for (const [land, ax, az] of [['forest', -0.866, -0.5], ['desert', 0, 1], ['ruins', 0.866, -0.5], ['valley', 0, 0]]) {
+        let best = null
+        for (let r = land === 'valley' ? 650 : 900; r <= (land === 'valley' ? 1000 : 2400); r += 70) {
+          for (let a = -0.6; a <= 0.6; a += 0.06) {
+            const base = land === 'valley' ? Math.atan2(1, 0) + a * 5.2 : Math.atan2(ax, az) + a
+            const x = Math.sin(base) * r
+            const z = Math.cos(base) * r
+            if (g.terrain.base.regions.name(x, z) !== land && land !== 'valley') continue
+            const h = H(x, z)
+            // Flat enough to stand at the foot of it.
+            if (Math.abs(H(x + 3, z) - h) + Math.abs(H(x, z + 3) - h) > 2) continue
+            let top = -Infinity, tx = 0, tz = 0
+            for (let k = 0; k < 16; k++) {
+              const t = (k / 16) * Math.PI * 2
+              for (const dd of [60, 110, 170]) {
+                const hh = H(x + Math.sin(t) * dd, z + Math.cos(t) * dd)
+                if (hh - h > top) {
+                  top = hh - h
+                  tx = Math.sin(t)
+                  tz = Math.cos(t)
+                }
+              }
+            }
+            if (!best || top > best.relief) best = { x, z, relief: top, tx, tz }
+          }
+        }
+        out[land] = best
+      }
+      return out
+    })
+    for (const [land, s] of Object.entries(spots)) {
+      if (!s) continue
+      console.log(land, `wall ${s.relief.toFixed(0)} m above`, JSON.stringify({ x: Math.round(s.x), z: Math.round(s.z) }))
+      await page.evaluate((s) => {
+        const g = window.__g
+        // Stand back from the wall a little and look up at it.
+        g.teleport(s.x - s.tx * 25, s.z - s.tz * 25)
+        g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 9, focusHeight: 1.5, follow: 10 })
+        g.setCam(Math.atan2(-s.tx, -s.tz), -0.32, 9)
+      }, s)
+      await shot(`carved-${land}`)
+      await page.evaluate((s) => {
+        const g = window.__g
+        g.rig.setProfile({ minDist: 10, maxDist: 4000, dist: 520, focusHeight: 1.5, follow: 10 })
+        g.setCam(Math.atan2(-s.tx, -s.tz), 0.42)
+      }, s)
+      await shot(`carved-${land}-above`)
+    }
+    // Climb the desert's wall: take hold, climb for a while.
+    const s = spots.desert
+    const climb = await page.evaluate(async (s) => {
+      const g = window.__g
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 9, focusHeight: 1.5, follow: 10 })
+      // Walk at the wall until E takes hold.
+      g.teleport(s.x, s.z)
+      g.wanderer.yaw = Math.atan2(s.tx, s.tz)
+      g.setCam(Math.atan2(-s.tx, -s.tz), 0.1, 9)
+      let held = false
+      for (let i = 0; i < 400 && !held; i++) {
+        g.input.press('KeyW')
+        await new Promise((r) => requestAnimationFrame(r))
+        g.input.release('KeyW')
+        g.input.press('KeyE')
+        await new Promise((r) => requestAnimationFrame(r))
+        g.input.release('KeyE')
+        held = g.cliff.active
+      }
+      const y0 = g.player().y
+      g.input.press('KeyW')
+      const t0 = performance.now()
+      while (performance.now() - t0 < 6000 && g.cliff.active) await new Promise((r) => setTimeout(r, 50))
+      const out = { held, rose: g.player().y - y0, still: g.cliff.active, grip: g.cliff.stamina }
+      g.input.release('KeyW')
+      return out
+    }, s)
+    console.log('cliff climb', JSON.stringify(climb))
+    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.2, 7))
+    await shot('carved-climbing')
+    if (!climb.held || climb.rose < 4) throw new Error('carved gate: could not climb the rock')
+  },
   // The four lands, each from the ground and from above.
   async lands() {
     const places = [

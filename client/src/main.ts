@@ -38,10 +38,12 @@ import { CameraRig, WANDERER_CAM } from './camera-rig'
 import { Hud } from './hud'
 import { Narration } from './narration'
 import { Climber } from './climb'
+import { CliffClimb } from './cliff'
 import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
 import { ancientTrails } from './ancient'
 import { Ruins } from './ruins'
+import { Rocks } from './rocks'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -82,7 +84,8 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.15, 9
 
 const terrain = new Terrain(WORLD_SEED)
 // The ground's textures load under the loading screen, before anything is built.
-const terrainView = new TerrainView(terrain, WORLD_SEED, await loadTerrainTextures(renderer))
+const terrainTex = await loadTerrainTextures(renderer)
+const terrainView = new TerrainView(terrain, WORLD_SEED, terrainTex)
 scene.add(terrainView.group)
 const biome = new Biome(WORLD_SEED, terrain.base.regions)
 const paint = new PaintField()
@@ -119,7 +122,10 @@ const trails = ancientTrails(WORLD_SEED, TITAN_HEIGHT, (x, z) => terrain.heightA
 const trailPoints = trails.flatMap((t) => t.events.map((e) => (e.type === 'drag' ? { x: e.bx, z: e.bz } : { x: e.x, z: e.z })))
 const ruins = new Ruins(terrain, WORLD_SEED, (x, z) => Math.hypot(x, z) > 300 && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < 140))
 scene.add(ruins.mesh)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z))
+// Arches, caves, hoodoos, overhangs, spires and boulders, clear of the start and the ruins.
+const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 260 + r && !ruins.sites.some((s) => Math.hypot(s.x - x, s.z - z) < s.r + r + 20))
+scene.add(rocks.group)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
 quality.refresh()
@@ -159,6 +165,8 @@ const first = () => titans.get('t1')!.titan
 const mountains = new Mountains()
 scene.add(mountains.group)
 const climber = new Climber(() => [...[...titans].map(([id, a]) => ({ id, titan: a.titan })), ...mountains.targets()])
+/** Climbing the land itself: cliffs, canyon walls, the escarpment. */
+const cliff = new CliffClimb()
 
 // ---------------------------------------------------------------------------
 // Terrain events: the giants' footfalls, drags, and the hills that rise under
@@ -360,14 +368,29 @@ function simulate(dt: number): void {
       // The body rides along, for the camera and the moment we let go.
       wanderer.place(climber.world.x, climber.world.y, climber.world.z)
     }
+  } else if (cliff.active) {
+    if (input.pressed('KeyE')) letGoCliff(0.5)
+    else if (input.pressed('Space')) letGoCliff(3.5)
+    else {
+      const r = cliff.step(dt, input.axes(), rig.yaw, terrain)
+      if (r === 'fell') {
+        narration.say('Your grip gave out.')
+        letGoCliff(1)
+      } else wanderer.place(cliff.world.x, cliff.world.y, cliff.world.z)
+    }
   } else {
     if (input.pressed('KeyE')) {
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
+      // No giant within reach: the rock, if there is a wall to hand.
+      const wall = climber.active ? null : cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain)
+      if (wall) cliff.start(wall.x, wall.z, terrain)
     }
-    if (!climber.active) {
+    if (!climber.active && !cliff.active) {
       wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
       climber.pushOut(wanderer.pos)
+      onRock()
+      if (wanderer.grounded) cliff.rest(dt)
     }
   }
 
@@ -418,8 +441,8 @@ function simulate(dt: number): void {
   }
   if (!climber.active && wanderer.speed > 6) threats.push({ x: wanderer.pos.x, z: wanderer.pos.z, r: 14 })
   wildlife.step(dt, threats)
-  if (!climber.active) tipState.moved += wanderer.speed * dt
-  else {
+  if (!climber.active && !cliff.active) tipState.moved += wanderer.speed * dt
+  else if (climber.active) {
     tipState.climbed = true
     tipState.high = Math.max(tipState.high, climber.world.y - terrain.heightAt(climber.world.x, climber.world.z))
   }
@@ -436,6 +459,30 @@ function letGo(push: number): void {
   const w = climber.world
   wanderer.place(w.x + climber.normal.x * 0.6, w.y + climber.normal.y * 0.6, w.z + climber.normal.z * 0.6)
   wanderer.vel.copy(v)
+  wanderer.grounded = false
+}
+
+const body = new THREE.Vector3()
+/** Rock formations: walls push the wanderer out; ledges, arch tops and cave floors hold them up. */
+function onRock(): void {
+  const p = wanderer.pos
+  body.set(p.x, p.y + 0.9, p.z)
+  if (rocks.pushOut(body)) p.set(body.x, body.y - 0.9, body.z)
+  if (wanderer.vel.y > 0.5) return // leaving the ground in a jump
+  const floor = rocks.floorAt(p.x, p.y, p.z)
+  if (floor !== null && floor > terrain.heightAt(p.x, p.z) - 0.05) {
+    p.y = floor
+    wanderer.vel.y = 0
+    wanderer.grounded = true
+  }
+}
+
+/** Let go of the rock: pushed off it, falling. */
+function letGoCliff(push: number): void {
+  cliff.active = false
+  const n = cliff.normal
+  wanderer.place(cliff.world.x + n.x * 0.6, cliff.world.y + n.y * 0.6, cliff.world.z + n.z * 0.6)
+  wanderer.vel.set(n.x * push, Math.max(0, n.y) * push, n.z * push)
   wanderer.grounded = false
 }
 
@@ -492,6 +539,8 @@ function frame(now: number): void {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
     wanderer.climbPose(dt, climber.world, climber.normal, climber.standing, rig.yaw + Math.PI, climber.moving)
+  } else if (cliff.active) {
+    wanderer.climbPose(dt, cliff.world, cliff.normal, false, rig.yaw + Math.PI, cliff.moving ? 1 : 0)
   } else {
     wanderer.sync(acc / STEP)
   }
@@ -507,9 +556,10 @@ function frame(now: number): void {
   birds.render()
   sky.tick(dt)
   vegetation.update(dt, camera.position)
+  rocks.update(camera.position)
   wildlife.render()
-  hud.setMode(climber.active ? 'climbing' : 'wanderer')
-  hud.setGrip(climber.active ? climber.stamina : null)
+  hud.setMode(climber.active || cliff.active ? 'climbing' : 'wanderer')
+  hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
   const focus = wanderer.obj.position
@@ -580,6 +630,7 @@ const g = {
   mountains,
   wildlife,
   ruins,
+  rocks,
   birds,
   vegetation,
   paint,
@@ -593,6 +644,7 @@ const g = {
     onGait({ type: 'footfall', foot: 0, x, z, heading: 0, hx: 0, hz: 1, step: 0, ...(stomp ? { stomp } : {}) })
   },
   climber,
+  cliff,
   goDormant,
   setWild(on: boolean) {
     wild = on

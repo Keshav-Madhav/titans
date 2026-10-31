@@ -71,6 +71,12 @@ Base terrain is shaped per region (`shared/src/terrain.ts`): rolling hills in th
 ridges in the Dune Sea, stepped terraces in the Steps. Region weights are a deterministic function
 of position, shared by terrain height, texturing, vegetation and atmosphere.
 
+**Carved, not rolling** (user, 2026-10-31: "massive rock walls and cliffs and valleys and caverns…
+like Colossus or ARK"). The heightfield carries the big forms — an escarpment ringing the valley
+with three passes, fault walls, mesas, canyons, rock spines — and rock formations made as signed
+distance fields carry what a heightfield cannot: arches, caves, overhangs, hoodoos, spires. Rock is
+climbable (grip), and anything steeper than ~50° cannot be walked up.
+
 ## 4. What you do
 
 **Verbs:** walk, sprint, jump; **climb** (giants, mossy and carved surfaces) with a grip meter;

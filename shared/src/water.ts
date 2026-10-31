@@ -444,8 +444,17 @@ export function levelFor(b: Basin, volume: number): number {
 }
 
 /** Identifies a pair of lakes by their shapes (ids alone survive re-floods that change them). */
+/**
+ * A lake's shape, whatever its id: its lowest cell and its size. Spill keeps
+ * making the same pool in the same hollow under a new id; keyed by shape, a
+ * pair that was tried before is recognised however often it comes back.
+ */
+function shapeOf(l: Lake): string {
+  return `${l.basin.bx},${l.basin.bz},${l.basin.sorted.length}`
+}
+
 function shapeKey(l: Lake, d: Lake): string {
-  return `${l.id}:${l.basin.sorted.length}:${d.id}:${d.basin.sorted.length}`
+  return `${shapeOf(l)}:${shapeOf(d)}`
 }
 
 export function inBasin(b: Basin, x: number, z: number): boolean {
@@ -753,11 +762,11 @@ export class LakeSystem {
    * whose shared overflow runs off. Without it they would be tried again.
    */
   save(): LakesSave {
-    const shapes = new Set(this.lakes.map((l) => `${l.id}:${l.basin.sorted.length}`))
+    const shapes = new Set(this.lakes.map(shapeOf))
     const live = (set: Set<string>) =>
       [...set].filter((k) => {
-        const [a, n, b, m] = k.split(':')
-        return shapes.has(`${a}:${n}`) && shapes.has(`${b}:${m}`)
+        const [a, b] = k.split(':')
+        return shapes.has(a) && shapes.has(b)
       })
     const lakes = this.lakes.map((l): LakeSave => {
       const b = l.basin

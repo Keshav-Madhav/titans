@@ -60,7 +60,10 @@ function buildIndex(N: number, edges: Int32Array): THREE.BufferAttribute {
       const b = a + 1
       const c = a + ROW
       const d = c + 1
-      idx.push(a, c, b, b, c, d)
+      // Diagonals alternate in a checkerboard: steep walls fold into a mesh
+      // of diamonds instead of rows of identical saw teeth.
+      if ((i + j) & 1) idx.push(a, c, d, a, d, b)
+      else idx.push(a, c, b, b, c, d)
     }
   }
   // Skirts: each edge strip, both windings (cheaper than a double-sided material).

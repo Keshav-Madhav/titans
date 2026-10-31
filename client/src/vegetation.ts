@@ -11,6 +11,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { broadleafGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
 import { inBasin, makeSimplex2, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
 import type { Biome } from './biome'
 import type { PaintField } from './paint'
@@ -71,15 +72,6 @@ function lumpy(g: THREE.BufferGeometry, seed: number, amt: number): THREE.Buffer
   return g
 }
 
-/** Merge pieces keeping each piece's own (smooth) normals: no faceted, low-poly look. */
-function merge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  for (const p of parts) {
-    if (!p.getAttribute('normal')) p.computeVertexNormals()
-    p.deleteAttribute('uv')
-  }
-  return mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
-}
-
 /** Weld and smooth a blob (icosahedra come unwelded). */
 function smooth(g: THREE.BufferGeometry): THREE.BufferGeometry {
   g.deleteAttribute('normal')
@@ -89,28 +81,16 @@ function smooth(g: THREE.BufferGeometry): THREE.BufferGeometry {
   return w
 }
 
-const TRUNK = 0x5a4430
 const PINE = 0x34432b
 const LEAF = 0x58602f
 const SRGB = THREE.SRGBColorSpace
 
 const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
-  coniferNear: () =>
-    merge([
-      colored(new THREE.CylinderGeometry(0.22, 0.34, 3.2, 8).translate(0, 1.6, 0), TRUNK),
-      colored(lumpy(new THREE.ConeGeometry(2.7, 5, 14, 3), 41, 0.1).translate(0, 4.6, 0), PINE),
-      colored(lumpy(new THREE.ConeGeometry(2.15, 4.4, 14, 3), 42, 0.1).translate(0, 7.1, 0), PINE),
-      colored(lumpy(new THREE.ConeGeometry(1.4, 3.8, 12, 2), 43, 0.08).translate(0, 9.5, 0), PINE),
-    ]),
-  coniferMid: () => colored(new THREE.ConeGeometry(2.5, 10.5, 8).translate(0, 6, 0), PINE),
-  broadNear: () =>
-    merge([
-      colored(new THREE.CylinderGeometry(0.28, 0.45, 4.4, 8).translate(0, 2.2, 0), TRUNK),
-      colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 11, 0.16).scale(3.6, 2.9, 3.6).translate(0, 6.3, 0), LEAF),
-      colored(lumpy(new THREE.IcosahedronGeometry(1, 1), 12, 0.18).scale(2.3, 2, 2.3).translate(1.4, 7.6, 0.6), LEAF),
-      colored(lumpy(new THREE.IcosahedronGeometry(1, 1), 13, 0.18).scale(2, 1.8, 2).translate(-1.3, 7.2, -0.9), LEAF),
-    ]),
-  broadMid: () => colored(smooth(new THREE.IcosahedronGeometry(1, 1)).scale(3.7, 3.2, 3.7).translate(0, 6.4, 0), LEAF),
+  // Up close: leaf-card trees (trees.ts). Farther: simple shapes in the same colours.
+  coniferNear: () => coniferGeometry(41),
+  coniferMid: () => colored(new THREE.ConeGeometry(2.9, 10.5, 8).translate(0, 6.6, 0), PINE),
+  broadNear: () => broadleafGeometry(11),
+  broadMid: () => colored(smooth(new THREE.IcosahedronGeometry(1, 1)).scale(4.0, 3.2, 4.0).translate(0, 7.6, 0), LEAF),
   rock: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 21, 0.26).scale(1, 0.7, 1), 0x8f877b),
   bush: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 31, 0.22).scale(1.3, 0.85, 1.3).translate(0, 0.55, 0), 0x55702f),
   // Low scrub: a few triangles each, thousands of them — the savanna's dark speckle.
@@ -204,9 +184,14 @@ export class Vegetation {
     /** Something built here (no plant may stand on it). */
     private readonly occupied: (x: number, z: number) => boolean,
   ) {
+    const foliage = foliageTexture()
     for (const k of Object.keys(GEOMS) as Kind[]) {
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
-      if (SWAY[k] > 0) this.sway(mat, SWAY[k])
+      let mat: THREE.MeshStandardMaterial
+      if (k === 'coniferNear' || k === 'broadNear') mat = foliageMaterial(foliage, this.time, SWAY[k])
+      else {
+        mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
+        if (SWAY[k] > 0) this.sway(mat, SWAY[k])
+      }
       const mesh = new THREE.InstancedMesh(GEOMS[k](), mat, CAP[k])
       mesh.count = 0
       mesh.frustumCulled = false
@@ -443,8 +428,8 @@ export class Vegetation {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
-      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - 0.85 * this.biome.desert(x, z))
-      const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 : 0
+      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - this.biome.desert(x, z))
+      const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 * (1 - this.biome.desert(x, z)) : 0
       if (rand() > edge + waterSide) continue
       const h = this.ground(x, z)
       if (h === null) continue

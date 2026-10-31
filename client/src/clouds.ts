@@ -55,7 +55,7 @@ export class Clouds {
       const a = rand() * Math.PI * 2
       const r = Math.sqrt(rand()) * SPREAD
       // Low: about a Titan's waist and chest, as in the reel.
-      this.centres.push(new THREE.Vector3(Math.cos(a) * r, 150 + rand() * rand() * 330, Math.sin(a) * r))
+      this.centres.push(new THREE.Vector3(Math.cos(a) * r, 260 + rand() * rand() * 320, Math.sin(a) * r))
       const w = 120 + rand() * 160
       for (let p = 0; p < PUFFS; p++) {
         const ox = (rand() - 0.5) * 2 * w

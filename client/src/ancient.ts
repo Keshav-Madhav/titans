@@ -14,15 +14,15 @@ export interface AncientTrail {
 
 /**
  * Lay out `count` ancient trails, deterministically from the seed: each
- * starts out on the plain and arcs round spawn, staying on low ground and
- * off the start.
+ * starts in the valley and arcs round the start, inside the ring of cliffs,
+ * staying on low ground and off the start itself.
  */
 export function ancientTrails(seed: number, height: number, heightAt: (x: number, z: number) => number, count = 3, steps = 16): AncientTrail[] {
   const rand = mulberry32(seed ^ 0x0a11ce5)
   const out: AncientTrail[] = []
   for (let k = 0; k < count; k++) {
     const a = (k / count) * Math.PI * 2 + rand() * 0.9
-    const r = 650 + rand() * 550
+    const r = 400 + rand() * 180
     const x0 = Math.cos(a) * r
     const z0 = Math.sin(a) * r
     // Roughly round spawn (tangential), a little in or out.
@@ -30,19 +30,33 @@ export function ancientTrails(seed: number, height: number, heightAt: (x: number
     gait.plough = rand() < 0.75 // most dragged their feet: rivers between the lakes
     const phase = rand() * 6
     const bend = 0.25 + rand() * 0.3
+    // Which way round the start it walks (the way it set out).
+    const dir = Math.sign(Math.cos(a) * Math.cos(gait.heading) - Math.sin(a) * Math.sin(gait.heading)) || 1
     const events: GaitEvent[] = []
     const tick: GaitEvent[] = []
     let t = 0
-    while (gait.steps < steps && t < 4000) {
+    while (gait.steps < steps && t < 6000) {
       tick.length = 0
-      gait.step(0.1, { forward: 1, turn: bend * Math.sin(phase + t * 0.004) }, tick)
+      // Hold the circle round the start, wander a little, turn from rising ground.
+      const d = Math.hypot(gait.x, gait.z) || 1
+      const rx = gait.x / d
+      const rz = gait.z / d
+      const inward = Math.max(-0.8, Math.min(0.8, (d - r) * 0.004))
+      const want = Math.atan2(-rz * dir - rx * inward, rx * dir - rz * inward)
+      let turn = Math.atan2(Math.sin(want - gait.heading), Math.cos(want - gait.heading)) * 1.5 + bend * Math.sin(phase + t * 0.004) * 0.4
+      const ahead = 120
+      const l = heightAt(gait.x + Math.sin(gait.heading + 0.5) * ahead, gait.z + Math.cos(gait.heading + 0.5) * ahead)
+      const rr = heightAt(gait.x + Math.sin(gait.heading - 0.5) * ahead, gait.z + Math.cos(gait.heading - 0.5) * ahead)
+      turn += Math.max(-0.6, Math.min(0.6, (rr - l) * 0.03))
+      gait.step(0.1, { forward: 1, turn: Math.max(-1, Math.min(1, turn)) }, tick)
       t++
       let stop = false
       for (const ev of tick) {
         const x = ev.type === 'drag' ? ev.bx : ev.x
         const z = ev.type === 'drag' ? ev.bz : ev.z
-        // Keep to the low plains, and off the place everyone starts.
-        if (heightAt(x, z) > 55 || Math.hypot(x, z) < 320) stop = true
+        // Keep to the valley floor (inside the escarpment), off the start.
+        const d = Math.hypot(x, z)
+        if (heightAt(x, z) > 40 || d < 250 || d > 900) stop = true
       }
       if (stop) break
       events.push(...tick)

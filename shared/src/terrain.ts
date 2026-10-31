@@ -62,6 +62,8 @@ export class BaseTerrain {
   private readonly peaks: Noise2
   private readonly mask: Noise2
   private readonly dunes: Noise2
+  private readonly rock: Noise2
+  private readonly canyon: Noise2
   private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
 
   constructor(seed: number) {
@@ -72,6 +74,8 @@ export class BaseTerrain {
     this.peaks = makeSimplex2(seed + 303)
     this.mask = makeSimplex2(seed + 404)
     this.dunes = makeSimplex2(seed + 505)
+    this.rock = makeSimplex2(seed + 606)
+    this.canyon = makeSimplex2(seed + 707)
   }
 
   height(x: number, z: number): number {
@@ -105,10 +109,12 @@ export class BaseTerrain {
       h += r.ruins * (Math.floor(t) + smoothstep(0.84, 1, f)) * TERRACE
     }
 
+    const d = Math.sqrt(x * x + z * z)
+    h += this.carve(x, z, wx, wz, d, r)
+
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
     // broad massif lifts the range; ridges are carved into it at a long
     // wavelength so the skyline reads as ranges, not needles.
-    const d = Math.sqrt(x * x + z * z)
     const belt = smoothstep(2700, 5200, d + 700 * this.mask(x * 0.0006 - 9.1, z * 0.0006 + 4.4))
     if (belt > 0) {
       const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.00032 + 3.3, wz * 0.00032 - 8.8, 3)
@@ -117,11 +123,96 @@ export class BaseTerrain {
     }
     return h
   }
+
+  /**
+   * The carving that makes the land dramatic, added to the lands' own shapes.
+   * A few big forms, each one you can name from far away:
+   *
+   * - the escarpment: the three lands stand on a shelf above the valley, a wall
+   *   of layered rock between them, broken by a pass toward each land;
+   * - fault walls: long winding cliffs where the ground steps up tens of
+   *   metres, across the Old Wood and the Steps;
+   * - mesas: big flat-topped stones with sheer, banded sides, in the Dune Sea
+   *   and the Steps;
+   * - canyons: a few deep, winding, flat-floored canyons through each land;
+   * - rock spines: ridges of stone through the Wood's hills.
+   *
+   * The start (the middle of the valley) is left gentle.
+   */
+  private carve(x: number, z: number, wx: number, wz: number, d: number, r: RegionWeights): number {
+    const away = smoothstep(320, 640, d)
+    if (away <= 0) return 0
+    let h = 0
+    const lands = 1 - r.valley
+
+    // The escarpment: the shelf rises at the valley's edge, as a wall except
+    // through the three passes, where it ramps.
+    const shelf = 40 + 32 * (0.5 + 0.5 * this.rock(wx * 0.0011 + 7.7, wz * 0.0011 - 3.1))
+    const ragged = 0.06 * this.rock(wx * 0.0045, wz * 0.0045) + 0.025 * this.rock(x * 0.021, z * 0.021)
+    const wall = smoothstep(0.44, 0.5, lands + ragged)
+    if (wall > 0) {
+      const nx = x / (d || 1)
+      const nz = z / (d || 1)
+      let pass = 0
+      for (const [ax, az] of PASSES) pass = Math.max(pass, smoothstep(0.9, 0.975, nx * ax + nz * az))
+      h += shelf * ((1 - pass) * strata(wall, 3) + pass * smoothstep(0.15, 0.9, lands))
+    }
+
+    // Fault walls: where a slow noise crosses zero, the ground steps up.
+    const faults = (r.forest * 45 + r.ruins * 70 + r.desert * 25) * away
+    if (faults > 1) {
+      const f = this.rock(wx * 0.00042 + 12.5, wz * 0.00042 - 7.5) + 0.012 * this.rock(x * 0.012, z * 0.012)
+      h += faults * strata(smoothstep(-0.012, 0.012, f), 3)
+    }
+
+    // Mesas: a few big flat-topped stones.
+    const stone = (r.desert * 0.95 + r.ruins * 0.6 + r.forest * 0.2) * away
+    if (stone > 0.01) {
+      const m = fbm(this.rock, wx * 0.0011 + 4.4, wz * 0.0011 - 9.9, 3) + 0.03 * this.rock(x * 0.02, z * 0.02)
+      const top = smoothstep(0.3, 0.325, m)
+      if (top > 0) h += stone * strata(top, 4) * (70 + 80 * (0.5 + 0.5 * this.rock(wx * 0.0006 + 3.1, wz * 0.0006 - 5.3)))
+    }
+
+    // Canyons: where a warped, slow noise crosses zero — wide flat floors,
+    // walls in bands.
+    const depth = (110 * r.desert + 85 * r.ruins + 60 * r.forest) * away
+    if (depth > 1) {
+      const cx = wx + 160 * this.rock(wx * 0.0013 - 1.7, wz * 0.0013 + 6.2)
+      const cz = wz + 160 * this.rock(wx * 0.0013 + 8.8, wz * 0.0013 - 2.6)
+      const t = Math.abs(this.canyon(cx * 0.00036, cz * 0.00036))
+      const inside = 1 - smoothstep(0.03, 0.052, t)
+      if (inside > 0) h -= depth * strata(inside, 4)
+    }
+
+    // Rock spines through the Old Wood.
+    if (r.forest > 0.05) {
+      const sp = ridged(this.rock, wx * 0.0012 - 5.5, wz * 0.0012 + 2.2, 3)
+      h += r.forest * away * 50 * strata(smoothstep(0.84, 0.95, sp), 2)
+    }
+    return h
+  }
 }
+
+/** Directions of the three passes out of the valley (toward each land's heart). */
+const PASSES: Array<[number, number]> = [
+  [-0.866, -0.5],
+  [0, 1],
+  [0.866, -0.5],
+]
 
 /** Height of one of the Steps' terraces (metres). */
 export const TERRACE = 16
 
+/**
+ * Rock layers: a 0…1 rise quantised into `bands` steps with short, steep
+ * risers, so a cliff climbs in ledges like layered stone instead of one smooth
+ * ramp.
+ */
+function strata(t: number, bands: number): number {
+  const s = t * bands
+  const k = Math.floor(s)
+  return Math.min(1, (k + smoothstep(0.55, 1, s - k)) / bands)
+}
 
 /**
  * Sparse, 1 m-resolution record of terrain changes. Tiles are DELTA_TILE

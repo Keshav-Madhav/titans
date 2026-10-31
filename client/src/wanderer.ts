@@ -11,6 +11,9 @@ const SPRINT = 8.5
 const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
+/** Steeper than this (rise over run, ≈ 50°) you cannot walk up: you slide. */
+export const MAX_SLOPE = 1.2
+const SLIDE = 14
 
 const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
@@ -81,6 +84,8 @@ export class Wanderer {
   private readonly prev = new THREE.Vector3()
   private prevYaw = 0
   grounded = true
+  /** On ground too steep to stand on. */
+  sliding = false
   /** Seconds left knocked off your feet (a Titan stomped nearby). */
   stunned = 0
   private tilt = 0
@@ -158,6 +163,24 @@ export class Wanderer {
     const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
     this.vel.x += (wx * speed - this.vel.x) * k
     this.vel.z += (wz * speed - this.vel.z) * k
+
+    // Too steep to stand on: no walking up it, and you slide down.
+    const gx = terrain.heightAt(this.pos.x + 0.5, this.pos.z) - terrain.heightAt(this.pos.x - 0.5, this.pos.z)
+    const gz = terrain.heightAt(this.pos.x, this.pos.z + 0.5) - terrain.heightAt(this.pos.x, this.pos.z - 0.5)
+    const steep = Math.hypot(gx, gz)
+    this.sliding = this.grounded && steep > MAX_SLOPE
+    if (this.sliding) {
+      const ux = gx / steep
+      const uz = gz / steep
+      const up = this.vel.x * ux + this.vel.z * uz
+      if (up > 0) {
+        this.vel.x -= up * ux
+        this.vel.z -= up * uz
+      }
+      this.vel.x -= ux * SLIDE * dt
+      this.vel.z -= uz * SLIDE * dt
+      jump = false
+    }
 
     if (jump && this.grounded) {
       this.vel.y = JUMP

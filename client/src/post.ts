@@ -4,6 +4,7 @@
 // pipeline (after the scene's own haze, atmosphere.ts):
 //
 //   scene (HDR, multisampled)
+//   → clamp: the sun's disk would otherwise flood everything below
 //   → bloom: wide and soft, from the brightest light only
 //   → god rays: radial blur of the bright sky toward the sun, at half size;
 //     giants, trees and ridges cut shafts out of it
@@ -81,6 +82,43 @@ class GodRaysPass extends Pass {
   render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
     this.uniforms.tScene.value = read.texture
     renderer.setRenderTarget(this.target)
+    this.quad.render(renderer)
+  }
+}
+
+/**
+ * Clamp the HDR scene before bloom and rays read it: the sky's sun disk is
+ * thousands of times brighter than the land, and spread by bloom it would
+ * flood the frame. (Past tone mapping a luminance of 6 is white anyway.)
+ */
+class ClampPass extends Pass {
+  private readonly quad: FullScreenQuad
+  private readonly uniforms = { tScene: { value: null as THREE.Texture | null }, limit: { value: 6.0 } }
+
+  constructor() {
+    super()
+    this.quad = new FullScreenQuad(
+      new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: /* glsl */ `
+          uniform sampler2D tScene;
+          uniform float limit;
+          varying vec2 vUv;
+          void main() {
+            vec3 c = texture2D(tScene, vUv).rgb;
+            float l = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+            gl_FragColor = vec4(c * min(1.0, limit / l), 1.0);
+          }`,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    )
+  }
+
+  render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
+    this.uniforms.tScene.value = read.texture
+    renderer.setRenderTarget(write)
     this.quad.render(renderer)
   }
 }
@@ -192,6 +230,7 @@ export class Post {
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 })
     this.composer = new EffectComposer(renderer, target)
     this.composer.addPass(new RenderPass(scene, camera))
+    this.composer.addPass(new ClampPass())
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)
     this.composer.addPass(this.rays)
@@ -215,7 +254,8 @@ export class Post {
     this.ndc.copy(this.sunWorld).project(this.camera)
     this.camera.getWorldDirection(this.look)
     const facing = THREE.MathUtils.smoothstep(this.look.dot(sunDir), -0.1, 0.45)
-    const edge = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(this.ndc.x), Math.abs(this.ndc.y)), 1.0, 1.9)
+    // Shafts only while the sun is in (or just outside) the frame.
+    const edge = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(this.ndc.x), Math.abs(this.ndc.y)), 0.85, 1.25)
     const u = this.rays.uniforms
     u.sunUv.value.set(this.ndc.x * 0.5 + 0.5, this.ndc.y * 0.5 + 0.5)
     u.sunSeen.value = facing * edge

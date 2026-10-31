@@ -27,8 +27,33 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] The look (user, 2026-10-31: "very good looking… see Shadow of the Colossus"): post pipeline
       — bloom, god rays, grade, grain, vignette (`client/src/post.ts`); off at the lowest quality
 - [x] No trees in the Dune Sea; dry scrub there; greener tufts in the meadows
-- [ ] Better trees; giant trees in the Old Wood
+- [x] Leaf-card trees (`client/src/trees.ts`): crowns of alpha-cut leaf cards with crown normals
+      (soft, painterly), firs of drooping needle-branch cards; leaves flutter; one drawn texture
+- [ ] Giant trees in the Old Wood
 - [ ] Air per region (dust in the Dune Sea, mist in the Wood)
+
+## A1b — Carved land (user, 2026-10-31: "hills, massive rock walls and cliffs and valleys and
+## caverns… properly carved terrain like Colossus or ARK")
+- [x] Carving in the base terrain (`BaseTerrain.carve`): an escarpment of layered rock ringing the
+      valley with a pass toward each land; fault walls stepping the land up 25–70 m; big mesas with
+      banded sides; a few deep winding canyons with flat floors; rock spines through the Old Wood.
+      `npx tsx tools/terrain-map.ts` draws the whole map (no browser) for shaping
+- [x] Slopes steeper than ~50° cannot be walked up: you slide
+- [x] Cliff climbing (`client/src/cliff.ts`): E at a wall takes hold of the rock itself; W/S up and
+      down, A/D across; grip drains; standing again where it lays back; fall when spent
+- [x] Rock formations (`client/src/rocks.ts`, `rock-fields.ts`, `rocks-worker.ts`): ~96 arches,
+      caves with chambers, hoodoos, overhangs, spires and boulder piles — signed distance fields
+      meshed by surface nets in a worker, gradient normals, field occlusion, tri-planar rock with
+      moss/sand on top; their fields are collision (walk through caves, onto ledges)
+- [x] Terrain diagonals alternate (no rows of saw teeth on distant cliffs); the sun's HDR clamped
+      before bloom and rays (looking into it no longer floods the frame); rays only near the frame;
+      clouds above the raised land; no green bushes in the Dune Sea
+- [x] The First Ones' trails keep to the valley inside the cliffs (the old walkers steer round
+      the start and away from rising ground)
+- [x] Lakes: the memory of pairs already tried is keyed by shape (lowest cell + size), not id —
+      spill re-made the same pool under new ids and the refill cycled for ever; settles in 0.4 s
+- [x] Gates: `shot.mjs carved` (each land's tallest wall; climbs the desert's), `shot.mjs rocks`
+      (one of each formation; walks into a cave); all earlier gates re-run green
 
 # Archive: the multiplayer world (tag `pre-adventure`)
 
