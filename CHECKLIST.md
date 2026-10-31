@@ -90,7 +90,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
       woods, camera low, the wanderer in frame for scale (shots were looking at hillsides)
 - [x] The First Ones' trails keep wide of the giants' starting places (a giant stood over an
       old 17 m crater and could not be climbed)
-- [ ] Gaunt watchers in fog; the pillared hall in the dark; vertigo ledges
+- [x] The Undercroft (`hall.ts`, shared `HALL`): a hall of 24 pillars 16 m square, 70 m under the
+      valley floor south of the start — the ground cut away in the base terrain; a stone plaza roof
+      with skylights; a long stair down from the west rim; shafts of daylight; darkness baked into
+      the atmosphere shader (everything under the roof dimmed, lit under the skylights); no rain
+      under the roof; invisible-wall fix (roof holes a little wider than their tiles in the field)
+- [x] Gate: `shot.mjs undercroft` (plaza, floor, rows, stair; walks down the stair)
+- [ ] Gaunt watchers in fog; vertigo ledges
 
 # Archive: the multiplayer world (tag `pre-adventure`)
 

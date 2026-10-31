@@ -17,6 +17,8 @@ import {
   Terrain,
   TITAN_HEIGHT,
   WORLD_SEED,
+  HALL,
+  inHall,
   type Box,
   type GaitEvent,
   type GaitInput,
@@ -46,6 +48,7 @@ import { Ruins } from './ruins'
 import { Rocks } from './rocks'
 import { Colossi } from './colossi'
 import { Leviathans } from './leviathans'
+import { Undercroft } from './hall'
 import { Striders } from './striders'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -97,7 +100,7 @@ const pave = new PaintField()
 terrainView.biome = biome
 
 const sky = new SkySystem(scene, renderer)
-installAtmosphere(sky.sunDir)
+installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop } })
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
 const post = new Post(renderer, scene, camera)
@@ -111,6 +114,7 @@ quality.onApply(quality.level)
 const weather = new Weather(sky, post, scene, WORLD_SEED)
 scene.add(weather.group)
 weather.onLightning = (d) => sound.thunder(d)
+weather.roof = terrain.base.hallTop
 if (params.get('weather')) weather.set(params.get('weather') as Parameters<Weather['set']>[0], true)
 
 // New pools only in hollows a giant dug (natural hollows stay dry).
@@ -147,7 +151,10 @@ const leviathans = new Leviathans(WORLD_SEED)
 scene.add(leviathans.group)
 /** Where the giants must not walk: through a colossus. */
 const colossusAvoid = rocks.formations.filter((f) => f.always && !f.float).map((f) => ({ x: f.x, z: f.z, r: Math.max(f.hx, f.hz) + 160 }))
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z))
+// The Undercroft: a hall of pillars under the valley floor.
+const undercroft = new Undercroft(terrain, rocks)
+scene.add(undercroft.group)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6))
 scene.add(vegetation.group)
 quality.vegetation = vegetation
 quality.refresh()
@@ -610,6 +617,7 @@ function frame(now: number): void {
   birds.render()
   sky.tick(dt)
   weather.update(dt, camera)
+  undercroft.update(sky.sun.intensity / 3)
   clouds.tint(weather.now.dark)
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
@@ -704,6 +712,7 @@ const g = {
   ruins,
   rocks,
   colossi,
+  undercroft,
   leviathans,
   striders,
   farGiants,

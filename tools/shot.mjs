@@ -44,6 +44,52 @@ async function shot(name) {
 }
 
 const scenes = {
+  // The Undercroft: down a skylight from the plaza; among the pillars; the stair.
+  async undercroft() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })
+    await page.evaluate(() => window.__g.weather.set('breaking', true))
+    const H = await page.evaluate(() => ({ ...window.__g.shared.HALL, top: window.__g.terrain.base.hallTop }))
+    const views = [
+      // On the plaza beside a skylight, looking down into it.
+      ['plaza', [H.x - 40 + 4, H.top + 9, H.z - 20 + 14], [H.x - 40, H.top - 70, H.z - 20 - 6]],
+      // On the floor between pillars, toward a shaft of light.
+      ['floor', [H.x - 185, H.top - 66, H.z - 55], [H.x + 0, H.top - 45, H.z + 45]],
+      // Down the long axis, low, the rows of pillars receding into the dark.
+      ['rows', [H.x + 190, H.top - 66, H.z - 2], [H.x - 200, H.top - 40, H.z]],
+      // At the head of the stair, looking down it.
+      ['stair', [H.x - 205, H.top + 3, H.z + 125], [H.x - 20, H.top - 60, H.z + 125]],
+    ]
+    for (const [name, from, at] of views) {
+      await page.evaluate(([from, at]) => {
+        const g = window.__g
+        g.teleport(from[0], from[2])
+        g.lookFrom(from, at)
+      }, [from, at])
+      await shot(`undercroft-${name}`)
+    }
+    await page.evaluate(() => window.__g.lookFrom(null))
+    // Walk down the stair from the rim.
+    const walk = await page.evaluate(async (H) => {
+      const g = window.__g
+      // On the rim just outside the west end, at the stair's landing.
+      g.teleport(H.x - 222, H.z + 125)
+      const y0 = g.player().y
+      g.wanderer.yaw = Math.PI / 2
+      g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 6, focusHeight: 1.5, follow: 10 })
+      g.setCam(-Math.PI / 2, 0.2, 6)
+      g.input.press('KeyW')
+      g.input.press('ShiftLeft')
+      const t0 = performance.now()
+      while (performance.now() - t0 < 12000) await new Promise((r) => setTimeout(r, 100))
+      g.input.release('KeyW')
+      g.input.release('ShiftLeft')
+      const p = g.player()
+      return { y0: +y0.toFixed(1), y: +p.y.toFixed(1), x: Math.round(p.x - H.x), z: Math.round(p.z - H.z) }
+    }, H)
+    console.log('down the stair', JSON.stringify(walk))
+    await shot('undercroft-walked')
+    if (walk.y0 - walk.y < 20) throw new Error('undercroft gate: could not walk down the stair')
+  },
   // The weather: the same views under each kind of sky.
   async weather() {
     await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 120000 })

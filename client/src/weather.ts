@@ -13,7 +13,7 @@
 // the numbers; rain falls entirely on the GPU.
 
 import * as THREE from 'three'
-import { mulberry32 } from '@titans/shared'
+import { HALL, mulberry32 } from '@titans/shared'
 import type { SkySystem } from './sky'
 import type { Post } from './post'
 
@@ -105,7 +105,7 @@ export class Weather {
     uNoise: { value: null as THREE.Texture | null },
     uWind: { value: new THREE.Vector2(1, 0.4) },
   }
-  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 } }
+  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 } }
   private readonly deck: THREE.Mesh[] = []
   private readonly rain: THREE.InstancedMesh
   private flashLeft = 0
@@ -196,7 +196,7 @@ export class Weather {
       new THREE.ShaderMaterial({
         uniforms: this.rainUniforms,
         vertexShader: /* glsl */ `
-          uniform float uTime, uRain, uWind;
+          uniform float uTime, uRain, uWind, uRoof;
           varying float vA;
           float h(float n) { return fract(sin(n) * 43758.5453); }
           void main() {
@@ -211,6 +211,9 @@ export class Weather {
             vec3 side = vec3(toCam.z, 0.0, -toCam.x);
             vec3 p = base + side * position.x + vec3(uWind * 0.35, 1.0, 0.0) * position.y;
             vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(25.0, 70.0, distance(base, cameraPosition)));
+            // No rain under the Undercroft's roof.
+            vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
+            if (hq.x < ${HALL.hx.toFixed(1)} && hq.y < ${HALL.hz.toFixed(1)} && base.y < uRoof - 2.0) vA = 0.0;
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
@@ -227,6 +230,11 @@ export class Weather {
     this.rain.frustumCulled = false
     this.rain.renderOrder = 3
     this.group.add(this.rain)
+  }
+
+  /** The Undercroft's roof height (rain stops under it). */
+  set roof(y: number) {
+    this.rainUniforms.uRoof.value = y
   }
 
   /** Change the weather (instantly for tools, else eased in over a minute). */

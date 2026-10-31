@@ -6,7 +6,7 @@
 // giants, then left to grow over (no fresh-earth marks, plants regrow).
 // The old villages are founded on their shores.
 
-import { mulberry32, titanBody, TitanGait, TITAN_SPAWNS, type GaitEvent } from '@titans/shared'
+import { inHall, mulberry32, titanBody, TitanGait, TITAN_SPAWNS, type GaitEvent } from '@titans/shared'
 
 export interface AncientTrail {
   events: GaitEvent[]
@@ -66,7 +66,7 @@ export function ancientTrails(seed: number, height: number, heightAt: (x: number
         const z = ev.type === 'drag' ? ev.bz : ev.z
         // Keep to the valley floor (inside the escarpment), off the start.
         const d = Math.hypot(x, z)
-        if (heightAt(x, z) > 40 || d < 250 || d > 900 || TITAN_SPAWNS.some((s) => Math.hypot(s.x - x, s.z - z) < 260)) stop = true
+        if (heightAt(x, z) > 40 || d < 250 || d > 900 || inHall(x, z, 120) || TITAN_SPAWNS.some((s) => Math.hypot(s.x - x, s.z - z) < 260)) stop = true
       }
       if (stop) break
       events.push(...tick)

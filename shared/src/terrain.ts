@@ -76,7 +76,12 @@ export class BaseTerrain {
     this.dunes = makeSimplex2(seed + 505)
     this.rock = makeSimplex2(seed + 606)
     this.canyon = makeSimplex2(seed + 707)
+    // The ground level the Undercroft's roof sits at (measured with no pit yet).
+    this.hallTop = this.height(HALL.x, HALL.z)
   }
+
+  /** Ground level at the Undercroft (its roof); the floor is HALL.depth below. */
+  hallTop = NaN
 
   height(x: number, z: number): number {
     // Domain warp: bends every later feature so nothing reads as a circle.
@@ -111,6 +116,12 @@ export class BaseTerrain {
 
     const d = Math.sqrt(x * x + z * z)
     h += this.carve(x, z, wx, wz, d, r)
+    // The Undercroft's pit: sheer sides, a flat floor.
+    if (!Number.isNaN(this.hallTop) && inHall(x, z, 4)) {
+      const out = Math.max(Math.abs(x - HALL.x) - HALL.hx, Math.abs(z - HALL.z) - HALL.hz)
+      const k = 1 - smoothstep(-3, 3, out)
+      h += (this.hallTop - HALL.depth - h) * k
+    }
 
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
     // broad massif lifts the range; ridges are carved into it at a long
@@ -202,6 +213,34 @@ const PASSES: Array<[number, number]> = [
 
 /** Height of one of the Steps' terraces (metres). */
 export const TERRACE = 16
+
+/**
+ * The Undercroft: a hall of pillars under the valley floor, south of the
+ * start (client/src/hall.ts builds it). The ground is cut away inside its
+ * rectangle down to the hall's floor; its roof is a stone plaza at ground
+ * level, open at the skylights (local x, z: square holes `sky` across) and
+ * over the ramp's mouth at the west end.
+ */
+export const HALL = {
+  x: 20,
+  z: 540,
+  hx: 210,
+  hz: 150,
+  depth: 70,
+  sky: 20,
+  skylights: [
+    [-120, -60],
+    [0, 60],
+    [120, -30],
+    [150, 90],
+    [-40, -20],
+  ] as Array<[number, number]>,
+}
+
+/** Is (x, z) within the Undercroft's rectangle (grown by `margin`)? */
+export function inHall(x: number, z: number, margin = 0): boolean {
+  return Math.abs(x - HALL.x) < HALL.hx + margin && Math.abs(z - HALL.z) < HALL.hz + margin
+}
 
 /**
  * Rock layers: a 0…1 rise quantised into `bands` steps with short, steep

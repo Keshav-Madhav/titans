@@ -5,8 +5,36 @@
 
 import * as THREE from 'three'
 
-export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number } = {}): void {
+/** A roofed space to keep dark inside (the Undercroft): its rectangle, roof height and skylights. */
+export interface DarkHall {
+  x: number
+  z: number
+  hx: number
+  hz: number
+  /** The roof's height: below it (by a few metres) is inside. */
+  top: number
+  skylights: Array<[number, number]>
+  sky: number
+}
+
+export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall } = {}): void {
   const H = (opts.heightScale ?? 380).toFixed(1)
+  const f = (v: number) => v.toFixed(2)
+  const hall = opts.hall
+  // Under a roof it is dark — except under its skylights and by the stair's
+  // mouth. Everything with fog (all lit materials) is dimmed alike, before the haze.
+  const darkHall = hall
+    ? `
+  vec2 hq = vFogWorld.xz - vec2(${f(hall.x)}, ${f(hall.z)});
+  float hin = (1.0 - smoothstep(-4.0, 4.0, max(abs(hq.x) - ${f(hall.hx)}, abs(hq.y) - ${f(hall.hz)})))
+            * (1.0 - smoothstep(${f(hall.top - 16)}, ${f(hall.top - 8)}, vFogWorld.y));
+  if (hin > 0.0) {
+    float lit = 0.0;
+    ${hall.skylights.map(([sx, sz]) => `{ vec2 d = abs(hq - vec2(${f(sx)}, ${f(sz)})); lit = max(lit, 1.0 - smoothstep(${f(hall.sky * 0.5)}, ${f(hall.sky * 2.8)}, max(d.x, d.y))); }`).join('\n    ')}
+    lit = max(lit, (1.0 - smoothstep(-150.0, -40.0, hq.x)) * smoothstep(80.0, 105.0, hq.y) * 0.85);
+    gl_FragColor.rgb *= mix(1.0, 0.15 + 0.75 * lit, hin);
+  }`
+    : ''
   const s = sunDir.clone().normalize()
   const sun = `vec3(${s.x.toFixed(4)}, ${s.y.toFixed(4)}, ${s.z.toFixed(4)})`
   const C = THREE.ShaderChunk as unknown as Record<string, string>
@@ -44,6 +72,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   // looking toward the sun, the haze is lit warm.
   C.fog_fragment = /* glsl */ `
 #ifdef USE_FOG
+  ${darkHall}
   vec3 fogRay = vFogWorld - cameraPosition;
   float fogDist = length( fogRay );
   float fogH = 0.5 * ( max( cameraPosition.y, 0.0 ) + max( vFogWorld.y, 0.0 ) );
