@@ -15,7 +15,7 @@ const H = new Float32Array(n * n)
 const t0 = performance.now()
 for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) H[j * n + i] = t.base.height(-half + i * mpp, -half + j * mpp)
 const rgb = new Uint8Array(n * n * 3)
-const tint = { valley: [120, 150, 80], forest: [70, 105, 55], desert: [205, 180, 130], ruins: [160, 150, 110] }
+const tint = { valley: [120, 150, 80], forest: [70, 105, 55], desert: [205, 180, 130], ruins: [160, 150, 110], mire: [60, 74, 60] }
 for (let j = 1; j < n - 1; j++) {
   for (let i = 1; i < n - 1; i++) {
     const k = j * n + i

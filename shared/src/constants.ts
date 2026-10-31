@@ -10,8 +10,17 @@ export const WORLD_SEED = 20261030
  */
 export const SPREAD = 2.6
 
-/** Half-size of the mapped world (~21 km across). Terrain continues past it. */
-export const WORLD_HALF = Math.round(4096 * SPREAD)
+/**
+ * Where the lands end and the mountains begin (metres from the centre), and
+ * where the mountains have risen fully. (user, 2026-10-31: "make the map
+ * bigger too, we are not limited" — the lands now reach ~10 km, with new
+ * ones in the outer ring: the Mire first.)
+ */
+export const LAND_EDGE = 10400
+export const MOUNTAINS_FULL = 16900
+
+/** Half-size of the mapped world (~26 km across). Terrain continues past it. */
+export const WORLD_HALF = 13000
 
 /** Delta tiles: DELTA_TILE metres square at 1 m resolution. */
 export const DELTA_TILE = 64

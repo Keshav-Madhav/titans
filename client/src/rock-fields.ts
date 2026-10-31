@@ -202,6 +202,8 @@ export const PLAN: Record<RegionName, Array<[FormationKind, number]>> = {
     ['cave', 3],
     ['boulders', 8],
   ],
+  // The Mire: a few half-sunk boulders, nothing high.
+  mire: [['boulders', 8]],
   ruins: [
     ['spire', 7],
     ['arch', 3],

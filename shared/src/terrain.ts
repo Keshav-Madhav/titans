@@ -6,7 +6,8 @@
 
 import { makeSimplex2, smoothstep, type Noise2 } from './noise'
 import { Regions, type RegionWeights } from './regions'
-import { DELTA_TILE, SPREAD } from './constants'
+import { DELTA_TILE, LAND_EDGE, MOUNTAINS_FULL, SPREAD } from './constants'
+import { poolBowl } from './mire'
 
 // fBm octave rotation (scaled rotation, as in Inigo Quilez's terrain work):
 // rotating every octave hides the grid alignment simplex otherwise shows.
@@ -64,7 +65,7 @@ export class BaseTerrain {
   private readonly dunes: Noise2
   private readonly rock: Noise2
   private readonly canyon: Noise2
-  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
+  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }
 
   constructor(seed: number) {
     this.regions = new Regions(seed)
@@ -106,6 +107,7 @@ export class BaseTerrain {
     // The Old Wood: rolling hills.
     if (r.forest > 0.001) h += r.forest * 58 * (0.5 + 0.5 * fbm(this.hills, wx * 0.0021, wz * 0.0021, 4))
 
+
     // The Dune Sea: long crests across a wind from the west, on broad swells.
     if (r.desert > 0.001) {
       const u = wx * 0.94 + wz * 0.34
@@ -125,6 +127,13 @@ export class BaseTerrain {
 
     const d = Math.sqrt(x * x + z * z)
     h += this.carve(x, z, wx, wz, d, r)
+    // The Mire: the land let down into a wide, nearly level basin — hummocks a
+    // metre or two high, and the pools sunk four metres into it.
+    if (r.mire > 0.001) {
+      const level = 44 + 7 * fbm(this.hills, wx * 0.00025 + 1.3, wz * 0.00025 - 7.7, 2) + 1.4 * fbm(this.hills, wx * 0.006 + 9.9, wz * 0.006 - 4.1, 2)
+      h += (level - h) * Math.min(1, r.mire * 1.15)
+      h -= r.mire * 4 * poolBowl(x, z)
+    }
     if (!Number.isNaN(this.hallTop)) {
       const out = Math.max(Math.abs(x - HALL.x) - HALL.hx, Math.abs(z - HALL.z) - HALL.hz)
       // The ground meets the Undercroft's roof all round it (its stair lands
@@ -139,7 +148,7 @@ export class BaseTerrain {
     // wavelength so the skyline reads as ranges, not needles.
     // (Grown with the world: wider ranges, higher, further out.)
     const mk = 0.0006 / SPREAD
-    const belt = smoothstep(2700 * SPREAD, 5200 * SPREAD, d + 700 * SPREAD * this.mask(x * mk - 9.1, z * mk + 4.4))
+    const belt = smoothstep(LAND_EDGE, MOUNTAINS_FULL, d + 700 * SPREAD * this.mask(x * mk - 9.1, z * mk + 4.4))
     if (belt > 0) {
       const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.0002 + 3.3, wz * 0.0002 - 8.8, 3)
       const rr = ridged(this.peaks, wx * 0.00026, wz * 0.00026, 6)
@@ -153,7 +162,7 @@ export class BaseTerrain {
     // three times its height, their chests and heads clear above its crest.
     const wk = 0.00009
     const wallD = d + 2600 * this.mask(x * wk + 5.5, z * wk - 2.2)
-    const wall = smoothstep(12500, 16500, wallD) * (1 - smoothstep(19500, 22500, wallD))
+    const wall = smoothstep(18000, 22000, wallD) * (1 - smoothstep(25000, 28000, wallD))
     if (wall > 0) {
       const crest = ridged(this.peaks, wx * 0.00011 + 7.7, wz * 0.00011 - 3.3, 5)
       h += wall * (1300 + crest * crest * 1900)

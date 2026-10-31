@@ -19,6 +19,7 @@ const LAND: Record<RegionName, [number, number, number]> = {
   forest: [70, 96, 58],
   desert: [200, 176, 128],
   ruins: [148, 148, 116],
+  mire: [74, 86, 68],
 }
 
 const LAND_NAMES: Array<[string, number, number]> = [

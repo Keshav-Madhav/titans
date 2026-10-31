@@ -663,6 +663,49 @@ const scenes = {
     console.log(`took the stone: ${took}; ${ends.join(' ')}`)
     if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
   },
+  // The Mire: its pools and drowned trees; the Drowned One rising out of it.
+  async mire() {
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 240000 })
+    await page.evaluate(() => window.__g.weather.set('overcast', true))
+    const views = [
+      ['edge', -0.866 * 7600, -0.5 * 7600, -0.866, -0.5, 2],
+      ['pools', -0.866 * 8300 + 300, -0.5 * 8300 - 200, -0.866, -0.5, 2],
+    ]
+    for (const [name, x, z, dx, dz] of views) {
+      await page.evaluate(([x, z, dx, dz]) => {
+        const g = window.__g
+        g.teleport(x, z)
+        g.setCam(Math.atan2(-dx, -dz), 0.12, 7)
+      }, [x, z, dx, dz])
+      await page.waitForTimeout(1500)
+      await shot(`mire-${name}`)
+    }
+    await page.evaluate(() => {
+      const g = window.__g
+      const d = g.colossi.places.get('drowned')
+      const back = Math.atan2(-d.x, -d.z)
+      const x = d.x + Math.sin(back) * 520
+      const z = d.z + Math.cos(back) * 520
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 2, z], [d.x, d.y + 140, d.z])
+    })
+    await page.waitForTimeout(1500)
+    await shot('mire-drowned')
+    await page.evaluate(() => {
+      const g = window.__g
+      g.lookFrom(null)
+      g.sky.setTime(0.94)
+      const d = g.colossi.places.get('drowned')
+      const back = Math.atan2(-d.x, -d.z)
+      g.teleport(d.x + Math.sin(back) * 420, d.z + Math.cos(back) * 420)
+      g.setCam(back + Math.PI, 0.1, 7)
+    })
+    await page.waitForTimeout(1500)
+    await shot('mire-night')
+    await page.evaluate(() => window.__g.sky.setTime(0.36))
+    const r = await page.evaluate(() => ({ region: window.__g.terrain.base.regions.name(-0.866 * 8300, -0.5 * 8300), pools: window.__g.mireView.water.count, snags: window.__g.mireView.snags.count }))
+    console.log('mire', JSON.stringify(r))
+  },
   // Offerings: look at the carving (nothing yet), bring the thing, hold it over the bowl; it answers.
   async offer() {
     await page.evaluate(() => {

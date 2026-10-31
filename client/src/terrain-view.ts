@@ -8,7 +8,7 @@
 // holes. Builds are time-sliced to a per-frame budget.
 
 import * as THREE from 'three'
-import { makeSimplex2, smoothstep, type Noise2, type RegionWeights, type Terrain } from '@titans/shared'
+import { makeSimplex2, poolBowl, smoothstep, type Noise2, type RegionWeights, type Terrain } from '@titans/shared'
 import { makeDetailTexture } from './detail-texture'
 import type { Biome } from './biome'
 import { LAYER, makeTerrainMaterial, type TerrainTextures } from './terrain-material'
@@ -112,7 +112,7 @@ export class TerrainView {
   splitK = 1.5
   /** Where forests and meadows are (forests read as dark canopy from afar). */
   biome: Biome | null = null
-  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
+  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }
   /** Splat weights for one vertex (LAYERS order). */
   private readonly sw = new Float32Array(8)
   /** Is this ground freshly churned by a giant (bare sand), or old and grown over? */
@@ -411,6 +411,10 @@ export class TerrainView {
     // The Dune Sea: sand, with tough dry grass in the hollows between dunes.
     w[LAYER.sand] += r.desert
     w[LAYER.drygrass] += r.desert * smoothstep(0.35, 0.8, n) * smoothstep(30, 12, h) * 0.6
+    // The Mire: black mud and wet leaf-rot, coarse grass on the hummocks.
+    w[LAYER.mud] += r.mire * (0.55 + 0.3 * n)
+    w[LAYER.forest] += r.mire * 0.35
+    w[LAYER.grass] += r.mire * smoothstep(0.4, 0.8, n) * 0.4
     // The Steps: dry grass and meadow over the old stone.
     w[LAYER.drygrass] += r.ruins * (0.3 + 0.4 * dry)
     w[LAYER.grass] += r.ruins * (0.7 - 0.4 * dry)
@@ -421,11 +425,12 @@ export class TerrainView {
 
     // Bare ground a giant turned over: earth (sand in the Dune Sea); old trails
     // (or ground that has greened again) only a little.
-    let dark = 1
+    // Wet ground darkens: all of the Mire a little, the pools' banks most.
+    let dark = 1 - r.mire * (0.22 + 0.25 * poolBowl(x, z))
     if (delta !== 0) {
       const t = smoothstep(0.15, 1.8, Math.abs(delta)) * (this.fresh(x, z) ? 0.85 : 0.25)
       this.toward(r.desert > 0.5 ? LAYER.sand : LAYER.mud, t)
-      dark = 1 - 0.18 * t * (delta < 0 ? smoothstep(0.5, 3, -delta) : 0)
+      dark *= 1 - 0.18 * t * (delta < 0 ? smoothstep(0.5, 3, -delta) : 0)
     }
     // Cliffs and mountain sides: rock (red in the Dune Sea).
     const alpine = smoothstep(140, 330, h) * 0.75

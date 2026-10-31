@@ -70,6 +70,7 @@ import { hangingSteps } from './parkour'
 import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
 import { Offerings } from './offerings'
+import { MireView } from './mire'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -567,6 +568,13 @@ const spots = (() => {
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  const dro = P('drowned')
+  if (dro) {
+    const back = Math.atan2(-dro.x, -dro.z)
+    placed.push({ id: 'lore-drowned', kind: 'stone', at: ground(dro.x + Math.sin(back) * 260, dro.z + Math.cos(back) * 260) })
+    const crown = topNear(dro.x, dro.z, 70)
+    if (crown) placed.push({ id: 'moss-crown', kind: 'trinket', at: crown })
+  }
   placed.push({ id: 'buried-box', kind: 'trinket', at: ground(MOUND.x + 0.8, MOUND.z), hidden: true })
   placed.push({ id: 'lore-mound', kind: 'stone', at: ground(MOUND.x - 16, MOUND.z + 12) })
   for (const t of glyphs.trails) placed.push({ id: t.def.id, kind: 'trinket', at: t.end.clone(), hidden: true })
@@ -695,8 +703,12 @@ const narration = new Narration()
 const finds = new Discoveries()
 const journal = new Journal(finds)
 const toolbar = new Toolbar(finds)
+// The Mire: its pools' still water and its drowned trees, near you.
+const mireView = new MireView(terrain, (x, z) => biome.mire(x, z))
+scene.add(mireView.group)
 // Small life: fireflies, butterflies, big birds circling the giants' heads; insects and birdsong.
 const lush = (x: number, z: number) => 1 - biome.desert(x, z)
+const wetland = (x: number, z: number) => biome.mire(x, z)
 const ambience = new Ambience(terrain, lush)
 scene.add(ambience.group)
 ambience.onFlush = () => sound.flush()
@@ -721,6 +733,8 @@ const placeAt = (name: string) => () => colossi.places.get(name) ?? null
 const sites: Site[] = [
   { id: 'green', r: 500, at: near(0, 0) },
   { id: 'steps', r: 160, at: near(STEPS_AT.x, STEPS_AT.z) },
+  { id: 'mire', r: 900, at: near(-0.866 * 8200, -0.5 * 8200) },
+  { id: 'drowned', r: 650, at: placeAt('drowned') },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
@@ -786,8 +800,8 @@ const farGiants: Titan[] = []
 // Beyond the Wall (the outer range, 1.5–3 km high): they stand two or three
 // times its height, chest and head clear above its crest.
 for (const a of [0.45, 2.55, 4.4]) {
-  const r = 24500
-  const t = new Titan(8000, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
+  const r = 30500
+  const t = new Titan(9500, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
   t.restBlend = 0
   t.silhouette(0.12)
   scene.add(t.group)
@@ -1514,6 +1528,7 @@ function frame(now: number): void {
   sky.advance(dt)
   weather.part = awakening.reveal
   weather.desert = biome.desert(camera.position.x, camera.position.z)
+  weather.mire = biome.mire(camera.position.x, camera.position.z)
   weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
   post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night
@@ -1534,6 +1549,7 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind)
   spots.update(dt, camera)
+  mireView.update(camera.position)
   {
     const heads: Array<{ at: THREE.Vector3; H: number }> = []
     for (const a of titans.values()) heads.push({ at: a.titan.head, H: a.titan.H })
@@ -1541,7 +1557,8 @@ function frame(now: number): void {
     const dusk = Math.max(sky.dusk, sky.night)
     ambience.update(dt, camera.position, dusk, 1 - dusk, weather.now.rain, heads, { pos: wanderer.pos, speed: wanderer.speed, yaw: wanderer.yaw })
     const here = lush(wanderer.pos.x, wanderer.pos.z)
-    sound.ambience(Math.max(sky.night, sky.dusk * 0.7), 1 - sky.dusk, weather.now.rain, here, here * 0.6)
+    // (Frogs where it is wet: the Mire most of all.)
+    sound.ambience(Math.max(sky.night, sky.dusk * 0.7), 1 - sky.dusk, weather.now.rain, here, Math.min(1, here * 0.4 + wetland(wanderer.pos.x, wanderer.pos.z) * 1.6))
   }
   wisps.update(dt, wanderer.pos)
   glyphs.update(dt, finds.has('sight') && input.held('KeyV') && !climber.active && !journal.open && !bag.open, wanderer.pos, crownWind.value)
@@ -1757,6 +1774,7 @@ const g = {
   hornOrders,
   uncover,
   offerings,
+  mireView,
   get glyphs() {
     return glyphs
   },

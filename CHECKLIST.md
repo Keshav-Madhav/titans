@@ -289,6 +289,19 @@ Each phase ends playable. Phases are in PLAN.md §6.
       bowl and the carving lights and it answers (lore). Gate: `shot.mjs offer`
 - [ ] Small animals on the ground (hares, foxes)
 
+## H — A bigger world, and the Mire (user: "make the map bigger too, we are not limited")
+- [x] The lands reach ~10.4 km before the mountains (`LAND_EDGE`, `MOUNTAINS_FULL`), the Wall moves
+      out to 18–28 km, the colossi beyond it to 30.5 km and 9.5 km tall; the map covers 26 km;
+      save key v3
+- [x] The Mire (a fifth land, `regions.mire`, beyond the Old Wood from 7.3 km): the land let down
+      into a wide, nearly level basin with hummocks; round pools with wobbling shores sunk 4 m into
+      it (`shared/mire.ts`, the same pools for the ground and the water); still black water in
+      them (`client/mire.ts`), drowned grey trees, reeds thick on the banks, black mud and leaf-rot,
+      no living trees, green-grey close air (fog ×3), mist, frogs, fireflies
+- [x] The Drowned One: a kneeling colossus sunk to the chest at the Mire's heart, mossy; a stone on
+      the bank, a crown of moss on its hood. Gate: `shot.mjs mire`
+- [ ] The Shore (beyond the Dune Sea), the High Places (beyond the Steps)
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

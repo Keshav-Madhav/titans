@@ -4,6 +4,8 @@
 //   forest — the Old Wood, to the north-west
 //   desert — the Dune Sea, to the south
 //   ruins  — the Steps of the First Ones, to the north-east
+//   mire   — the Mire, beyond the Old Wood (north-west, from ~7.3 km): low,
+//            flooded, the trees drowned
 //
 // Beyond about 7 km, all three rise into the mountains that ring the world.
 // Terrain shape, ground textures, plants and air all read these weights, so a
@@ -17,7 +19,11 @@ export interface RegionWeights {
   forest: number
   desert: number
   ruins: number
+  mire: number
 }
+
+/** Where the Mire begins and is full, beyond the Old Wood. */
+export const MIRE_RADIUS: [number, number] = [7300, 8400]
 
 export type RegionName = keyof RegionWeights
 
@@ -39,7 +45,7 @@ export class Regions {
   }
 
   /** Weights at (x, z), written into `out`. */
-  at(x: number, z: number, out: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }): RegionWeights {
+  at(x: number, z: number, out: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }): RegionWeights {
     // Bend the borders so they wander instead of running straight out.
     const k = 0.0006 / SPREAD
     const wx = x + 420 * SPREAD * this.warp(x * k, z * k)
@@ -47,6 +53,7 @@ export class Regions {
     const d = Math.sqrt(wx * wx + wz * wz)
     const valley = 1 - smoothstep(VALLEY_RADIUS[0], VALLEY_RADIUS[1], d)
     out.valley = valley
+    out.mire = 0
     if (d < 1) {
       out.forest = out.desert = out.ruins = (1 - valley) / 3
       return out
@@ -62,6 +69,10 @@ export class Regions {
       sum += w
     }
     for (const [name] of AXES) out[name] = ((1 - valley) * out[name]) / sum
+    // The Mire: the Old Wood's outer reaches, gone low and wet.
+    const m = out.forest * smoothstep(MIRE_RADIUS[0], MIRE_RADIUS[1], d)
+    out.mire = m
+    out.forest -= m
     return out
   }
 
@@ -69,9 +80,9 @@ export class Regions {
   name(x: number, z: number): RegionName {
     const w = this.at(x, z, scratch)
     let best: RegionName = 'valley'
-    for (const k of ['forest', 'desert', 'ruins'] as const) if (w[k] > w[best]) best = k
+    for (const k of ['forest', 'desert', 'ruins', 'mire'] as const) if (w[k] > w[best]) best = k
     return best
   }
 }
 
-const scratch: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
+const scratch: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }

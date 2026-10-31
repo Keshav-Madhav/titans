@@ -123,6 +123,9 @@ export class Weather {
   desert = 0
   /** 0 … 1: how much of the storm is sand right now. */
   sand = 0
+  /** How much of where you stand is the Mire (main.ts sets it): the air there is thick, low and green-grey. */
+  mire = 0
+  private mireK = 0
   /** Wet air after rain (decays): a rainbow when the sun comes back. */
   private wet = 0
   private readonly rainbow: THREE.Mesh
@@ -355,7 +358,8 @@ export class Weather {
     sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
     sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
-    sky.fog.density = b.fog * w.fog * (1 + this.sand * 9)
+    this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.4)
+    sky.fog.density = b.fog * w.fog * (1 + this.sand * 9) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
     sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
@@ -364,6 +368,8 @@ export class Weather {
     sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
     sky.fog.base = w.base
     sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(0.12 + 0.88 * day), w.dark)
+    // The Mire's air: green-grey and close.
+    sky.fog.color.lerp(new THREE.Color(0.42, 0.47, 0.4).multiplyScalar(0.12 + 0.88 * day), this.mireK * 0.6)
     // A sandstorm: the air thick and ochre (dimmer as the day goes).
     sky.fog.color.lerp(new THREE.Color(0.62, 0.46, 0.29).multiplyScalar(0.15 + 0.85 * day), this.sand * 0.92)
     // After rain, with the sun back low behind you: a rainbow opposite it.

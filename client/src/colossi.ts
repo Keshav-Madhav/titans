@@ -124,6 +124,13 @@ export class Colossi {
     rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 22, tint: STONE, res: 195 })
     place('sentinel', sen.x, sen.z, sen.y)
 
+    // The Drowned One: at the Mire's heart, another of them, sunk to the chest
+    // in the black water — only its hooded head, shoulders and the sword's hilt
+    // above the mire, leaning, green with moss.
+    const dr = site(-0.866 * 8700, -0.5 * 8700, 150, 600)
+    rocks.addColossus({ kind: 'sentinel', x: dr.x, z: dr.z, y: dr.y - 120, rot: Math.atan2(-dr.x, -dr.z) + 0.5, seed: 8, layers: [LAYER.moss, LAYER.carved], scale: 18, tint: [0.6, 0.66, 0.56], res: 170 })
+    place('drowned', dr.x, dr.z, dr.y)
+
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
     const ribRot = 0.35
     const rib = site(250 * SPREAD, 1950 * SPREAD, 220, 500)

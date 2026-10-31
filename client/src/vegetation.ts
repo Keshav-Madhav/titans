@@ -12,7 +12,7 @@
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
-import { inBasin, makeSimplex2, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
+import { inBasin, makeSimplex2, mulberry32, poolBowl, type LakeSystem, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Biome } from './biome'
 import type { PaintField } from './paint'
@@ -458,7 +458,8 @@ export class Vegetation {
         const f = this.biome.forest(x, z)
         const cp = this.biome.copse(x, z)
         // No trees in the Dune Sea.
-        const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z))
+        // (No living trees in the Mire: only the drowned ones, mire.ts.)
+        const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z)) * (1 - this.biome.mire(x, z))
         if (rand() > p) continue
         const h = this.ground(x, z, 400)
         if (h === null) continue
@@ -488,7 +489,7 @@ export class Vegetation {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
-      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - this.biome.desert(x, z))
+      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - this.biome.desert(x, z)) * (1 - 0.85 * this.biome.mire(x, z))
       const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 * (1 - this.biome.desert(x, z)) : 0
       if (rand() > edge + waterSide) continue
       const h = this.ground(x, z)
@@ -535,6 +536,19 @@ export class Vegetation {
         const sc = 0.8 + rand() * 0.5
         this.col.setRGB(1, 1, 1)
         this.add(batch('stalk'), x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.5), this.col)
+      }
+    }
+    // Reeds round the Mire's pools, thick on the banks.
+    if (this.biome.mire(x0 + CELL / 2, z0 + CELL / 2) > 0.2) {
+      for (let i = 0; i < 260; i++) {
+        const x = x0 + rand() * CELL
+        const z = z0 + rand() * CELL
+        const bank = poolBowl(x, z)
+        if (bank < 0.04 || bank > 0.55 || rand() > this.biome.mire(x, z)) continue
+        const sc = 0.8 + rand() * 0.7
+        const t = 0.7 + rand() * 0.3
+        this.col.setRGB(t * 0.9, t, t * 0.75)
+        this.add(batch('reed'), x, this.terrain.heightAt(x, z) - 0.1, z, rand() * 6.28, sc, sc, this.col)
       }
     }
     // Reeds in the shallows of the Titans' lakes.

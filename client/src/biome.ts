@@ -9,7 +9,7 @@ export class Biome {
   private readonly a: Noise2
   private readonly b: Noise2
   private readonly c: Noise2
-  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0 }
+  private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }
 
   constructor(
     seed: number,
@@ -31,6 +31,11 @@ export class Biome {
     return r.forest * smoothstep(-0.4, 0.15, n) + r.valley * woods * 0.15 + r.ruins * woods * 0.35
   }
 
+  /** 0 … 1: how much of the Mire this is (wet, low, drowned trees). */
+  mire(x: number, z: number): number {
+    return this.regions.at(x, z, this.w).mire
+  }
+
   /**
    * 0 … 1: how much of the Green this is — vast and nearly empty (user,
    * 2026-10-31: "huge empty rolling plains with grass give the feel"), so
@@ -49,13 +54,13 @@ export class Biome {
   /** Copses: small clumps of trees out on open ground. 0 … 1. */
   copse(x: number, z: number): number {
     const r = this.regions.at(x, z, this.w)
-    return smoothstep(0.5, 0.78, this.c(x * 0.0065 + 11, z * 0.0065 - 7)) * (1 - r.desert) * (1 - 0.8 * r.valley)
+    return smoothstep(0.5, 0.78, this.c(x * 0.0065 + 11, z * 0.0065 - 7)) * (1 - r.desert) * (1 - 0.8 * r.valley) * (1 - r.mire)
   }
 
   /** Scrub: how thick the low bushes are. 0.2 … 1 (thin in the Dune Sea). */
   scrub(x: number, z: number): number {
     const r = this.regions.at(x, z, this.w)
-    return (0.2 + 0.8 * smoothstep(-0.4, 0.6, this.b(x * 0.0042 - 3, z * 0.0042 + 5))) * (1 - 0.7 * r.desert) * (1 - 0.8 * r.valley)
+    return (0.2 + 0.8 * smoothstep(-0.4, 0.6, this.b(x * 0.0042 - 3, z * 0.0042 + 5))) * (1 - 0.7 * r.desert) * (1 - 0.8 * r.valley) * (1 - 0.85 * r.mire)
   }
 
   /** Patches of wildflowers: 0 none … 1 thick (the valley, and the Wood's clearings). */
