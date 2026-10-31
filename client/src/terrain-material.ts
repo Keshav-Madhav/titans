@@ -191,6 +191,19 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gDist = distance(gP, cameraPosition);
         float gFar = smoothstep(25.0, 160.0, gDist);
         float gW[8] = float[8](vSplatA.x, vSplatA.y, vSplatA.z, vSplatA.w, vSplatB.x, vSplatB.y, vSplatB.z, vSplatB.w);
+        // Steep is rock, decided here per pixel from the surface itself, not from
+        // the (coarser, smoother) vertex weights: grass and sand projected from
+        // above stretch into streaks and pale teeth down a cliff.
+        // The triangle's own slope (from screen derivatives), not only the smooth
+        // vertex normal: a triangle spanning a cliff's foot is steep all over,
+        // where the interpolated normal would leave a pale tooth of sand or grass.
+        vec3 gFlat = normalize(cross(gDx, gDy));
+        float gSteep = 1.0 - smoothstep(0.58, 0.8, min(gN.y, abs(gFlat.y) + 0.06));
+        if (gSteep > 0.0) {
+          for (int i = 0; i < 8; i++) if (i != 5 && i != 6) gW[i] *= 1.0 - gSteep;
+          gW[5] += gSteep * vColor.b;
+          gW[6] += gSteep * (1.0 - vColor.b);
+        }
         vec3 gCol[8];
         vec3 gNrm[8];
         float gH[8];
@@ -220,6 +233,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gSum += b;
         }
         gAlb /= max(gSum, 1e-4);
+        // Cliffs in strata: horizontal bands, lighter and darker, wavering a little.
+        float gRockW = (gW[5] + gW[6]) / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]);
+        float gBand = texture2D(tDetail, vec2(gP.y * 0.021 + texture2D(tDetail, gP.xz * 0.002).r * 0.35, 0.37)).r;
+        gAlb *= mix(1.0, 0.72 + 0.5 * gBand, gRockW * 0.85);
         gNorm = normalize(gNorm + gN * 1e-3);
         gRough /= max(gSum, 1e-4);
         // Far away, the normal detail would only shimmer.
@@ -231,7 +248,17 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         gAlb *= (0.84 + 0.32 * gd2) * (0.86 + 0.28 * gd3);
 
         // The Old Wood from afar: a mottled canopy where the trees stop being drawn.
-        float gCanopy = vColor.r * smoothstep(380.0, 760.0, gDist);
+        // Cliffs differ by land: mossy and dark in the Old Wood, pale grey elsewhere (red in the dunes).
+        gAlb = mix(gAlb, gAlb * vec3(0.66, 0.78, 0.62), gRockW * vColor.r * (1.0 - vColor.b));
+        // Big, slow variation over open ground — greener and yellower swathes,
+        // darker hollows — so a plain never reads as one flat sheet from afar.
+        float gM1 = texture2D(tDetail, gP.xz * 0.0011).r;
+        float gM2 = texture2D(tDetail, gP.xz * 0.0031 + 0.5).r;
+        vec3 gWarm = gAlb * vec3(1.12, 1.04, 0.82);
+        vec3 gCool = gAlb * vec3(0.86, 1.0, 0.92);
+        gAlb = mix(gAlb, mix(gCool, gWarm, gM1), (1.0 - gRockW) * 0.7);
+        gAlb *= 0.88 + 0.24 * gM2;
+        float gCanopy = vColor.r * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
         float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
         gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
         // Ground a giant churned up, still bare (darkened in the vertex colour).

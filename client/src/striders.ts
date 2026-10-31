@@ -21,6 +21,7 @@ const REACH = 210 // how far out from the body a foot rests
 interface Leg {
   thigh: THREE.Mesh
   shin: THREE.Mesh
+  knee: THREE.Mesh
   foot: THREE.Vector3
   from: THREE.Vector3
   to: THREE.Vector3
@@ -74,7 +75,9 @@ export class Striders {
     const pale = new THREE.MeshStandardMaterial({ color: 0xbfbbb2, roughness: 0.92 })
     // A bone: base at the origin, up the y axis, one metre long, tapering.
     const thighGeo = new THREE.CylinderGeometry(8, 13, 1, 10, 1).translate(0, 0.5, 0)
-    const shinGeo = new THREE.CylinderGeometry(3, 10, 1, 10, 1).translate(0, 0.5, 0)
+    // The shin narrows to a point where it meets the ground (no flat-cut ends up close).
+    const shinGeo = new THREE.CylinderGeometry(0.6, 10, 1, 12, 4).translate(0, 0.5, 0)
+    const kneeGeo = new THREE.SphereGeometry(13, 14, 10)
     // The body: a long spined spindle; the neck, a thin column with a small head.
     const bodyGeo = new THREE.CylinderGeometry(20, 14, 150, 14, 6).rotateX(Math.PI / 2)
     const bp = bodyGeo.getAttribute('position')
@@ -113,10 +116,11 @@ export class Striders {
       for (let l = 0; l < LEGS; l++) {
         const thigh = new THREE.Mesh(thighGeo, pale)
         const shin = new THREE.Mesh(shinGeo, pale)
-        thigh.castShadow = shin.castShadow = true
-        thigh.frustumCulled = shin.frustumCulled = false
-        group.add(thigh, shin)
-        legs.push({ thigh, shin, foot: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), swing: -1, angle: (l / LEGS) * Math.PI * 2 + Math.PI / LEGS })
+        const knee = new THREE.Mesh(kneeGeo, pale)
+        thigh.castShadow = shin.castShadow = knee.castShadow = true
+        thigh.frustumCulled = shin.frustumCulled = knee.frustumCulled = false
+        group.add(thigh, shin, knee)
+        legs.push({ thigh, shin, knee, foot: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), swing: -1, angle: (l / LEGS) * Math.PI * 2 + Math.PI / LEGS })
       }
       body.castShadow = neck.castShadow = true
       for (const m of [body, neck]) m.frustumCulled = false
@@ -207,6 +211,7 @@ export class Striders {
         const knee = _k.set(hipL.x + (dx / flat) * Math.cos(kneeA) * THIGH, hipL.y + Math.sin(kneeA) * THIGH, hipL.z + (dz / flat) * Math.cos(kneeA) * THIGH)
         bone(leg.thigh, hipL, knee)
         bone(leg.shin, knee, leg.foot)
+        leg.knee.position.copy(knee)
       }
       s.group.updateMatrixWorld(true)
     }

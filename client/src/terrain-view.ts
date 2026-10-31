@@ -448,9 +448,11 @@ export class TerrainView {
     SB[o + 1] = w[5] * 255
     SB[o + 2] = w[6] * 255
     SB[o + 3] = w[7] * 255
-    C[v * 3] = r.forest * trees * (1 - smoothstep(170, 260, h)) * (1 - rockT)
+    // The Old Wood's weight (its canopy from afar; its mossy, darker cliffs).
+    C[v * 3] = r.forest * (1 - smoothstep(170, 260, h))
     C[v * 3 + 1] = dark
-    C[v * 3 + 2] = 1
+    // How much of the Dune Sea this is: the shader's cliffs are red rock there.
+    C[v * 3 + 2] = r.desert
   }
 
   /** Blend the splat weights toward one layer by t (they still sum to 1). */

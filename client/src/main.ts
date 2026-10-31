@@ -44,8 +44,7 @@ import { CliffClimb } from './cliff'
 import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
 import { ancientTrails } from './ancient'
-import { Ruins } from './ruins'
-import { Rocks } from './rocks'
+import { Rocks, rockMaterial } from './rocks'
 import { Colossi } from './colossi'
 import { Leviathans } from './leviathans'
 import { Undercroft } from './hall'
@@ -58,6 +57,7 @@ import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation } from './vegetation'
+import { foliageFocus } from './trees'
 import { Grass } from './grass'
 import { Sound } from './audio'
 import { Tips } from './tips'
@@ -133,14 +133,11 @@ const clouds = new Clouds()
 scene.add(clouds.mesh)
 const birds = new Birds(terrain)
 scene.add(birds.mesh)
-// The First Ones' trails and ruins come from the seed alone, so they are the
-// same in every session: ruins stand clear of the trails' lakes and rivers.
+// The First Ones' trails come from the seed alone, so they are the same in every session.
 const trails = ancientTrails(WORLD_SEED, TITAN_HEIGHT, (x, z) => terrain.heightAt(x, z))
 const trailPoints = trails.flatMap((t) => t.events.map((e) => (e.type === 'drag' ? { x: e.bx, z: e.bz } : { x: e.x, z: e.z })))
-const ruins = new Ruins(terrain, WORLD_SEED, (x, z) => Math.hypot(x, z) > 300 && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < 140))
-scene.add(ruins.mesh)
-// Arches, caves, hoodoos, overhangs, spires and boulders, clear of the start and the ruins.
-const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 260 + r && !ruins.sites.some((s) => Math.hypot(s.x - x, s.z - z) < s.r + r + 20))
+// Arches, caves, hoodoos, overhangs, spires and boulders, clear of the start and the old trails.
+const rocks = new Rocks(terrain, WORLD_SEED, terrainTex, (x, z, r) => Math.hypot(x, z) > 260 + r && !trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < r + 60))
 scene.add(rocks.group)
 // The colossi: the Sentinel, the fallen First One's bones, the colonnade, the
 // Great Stair and the Gate, the giant trees, the stones hanging in the sky.
@@ -231,7 +228,7 @@ let promptHtml = ''
 const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a long way.', 'The flame catches. The wind takes the smoke.', 'Someone stood here once, and looked out as you do.']
 /** Keep a clearing round each cairn (they are placed further down; plants grow later, lazily). */
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => ruins.occupies(x, z) || rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z))
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z))
@@ -243,6 +240,8 @@ vegetation.onRegrow = (x0, z0, x1, z1) => terrainView.markDirty(x0, z0, x1, z1)
 
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
+// The camera stays out of rock (formations, colossi, the Undercroft).
+rig.occluder = (x, y, z) => rocks.sdfAt(x, y, z)
 rig.setProfile(WANDERER_CAM)
 sky.setShadowRadius(260)
 const hud = new Hud()
@@ -745,7 +744,7 @@ function frame(now: number): void {
   }
   leviathans.update(dt)
   striders.update(dt)
-  watchers.update(dt, wanderer.pos, weather.now.dark)
+  watchers.update(dt, wanderer.pos, weather.now.dark, camera)
   if (climber.active) {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
@@ -765,7 +764,7 @@ function frame(now: number): void {
   clouds.update(dt, camera.position)
   birdSpots.length = 0
   for (const l of lakes.lakes) if (l.basin.sorted.length > 400 && l.level > l.basin.bottom + 0.5) birdSpots.push({ x: l.basin.bx, z: l.basin.bz })
-  for (const s of ruins.sites) birdSpots.push({ x: s.x, z: s.z })
+  for (const [, c] of colossi.places) birdSpots.push({ x: c.x, z: c.z })
   birds.step(dt, camera.position, birdSpots)
   birds.render()
   sky.tick(dt)
@@ -800,6 +799,11 @@ function frame(now: number): void {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
   } else rig.update(dt, look.dx, look.dy, look.wheel, focus, terrain)
+  // The camera pressed right up to you (a wall behind): see past yourself, not into your hood.
+  const tooClose = camera.position.distanceTo(_head.copy(wanderer.obj.position).setY(wanderer.obj.position.y + 1.2)) < 1.6
+  foliageFocus.value.copy(_head)
+  wanderer.obj.visible = !tooClose
+  wanderer.world.visible = !tooClose
   terrainView.update(camera.position, ready ? 5 : 40)
   sky.follow(focus, camera)
   renderer.info.reset()
@@ -823,6 +827,7 @@ function frame(now: number): void {
 const birdSpots: Array<{ x: number; z: number }> = []
 const mapGiants: Array<{ x: number; z: number }> = []
 const clothWind = new THREE.Vector3()
+const _head = new THREE.Vector3()
 /** The ground the cloth must stay above: the land, or the rock you stand on. */
 const groundAt = (x: number, z: number) => {
   const p = wanderer.pos
@@ -884,7 +889,6 @@ const g = {
   titans,
   mountains,
   wildlife,
-  ruins,
   rocks,
   colossi,
   undercroft,

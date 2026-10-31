@@ -199,6 +199,9 @@ export function coniferGeometry(seed: number, far = false): THREE.BufferGeometry
   return finish([...parts, needles])
 }
 
+/** Where the wanderer is (world space, chest height): foliage between it and the camera thins out. */
+export const foliageFocus = { value: new THREE.Vector3() }
+
 /**
  * The foliage material: alpha-cut (with alpha-to-coverage, so cut edges stay
  * soft under multisampling), both faces lit alike (the cards' crown normals
@@ -209,6 +212,8 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
   mat.alphaToCoverage = true
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = time
+    sh.uniforms.uFocus = foliageFocus
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;')
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
@@ -222,13 +227,30 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
       transformed += leaf * 0.06 * vec3(sin(uTime * 4.1 + position.y * 3.0 + phase), sin(uTime * 3.3 + position.x * 2.7), cos(uTime * 3.7 + position.z * 3.1));`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
-    sh.fragmentShader = sh.fragmentShader.replace(
-      '#include <normal_fragment_begin>',
-      `#include <normal_fragment_begin>
+    // And leaves right in front of the camera dissolve (dithered), so walking
+    // through a wood never fills the screen with a wall of cards.
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>
       #ifdef DOUBLE_SIDED
         normal *= faceDirection;
       #endif`,
-    )
+      )
+      .replace(
+        '#include <alphatest_fragment>',
+        `#include <alphatest_fragment>
+        float nearCam = length(vViewPosition);
+        float dith = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453);
+        if (nearCam < 2.2 + 2.6 * dith) discard;
+        // Between the camera and the wanderer, leaves thin out (the wanderer is
+        // never lost behind a tree): within a tube round that line, dithered.
+        vec3 sp = (viewMatrix * vec4(uFocus, 1.0)).xyz;
+        vec3 fp = -vViewPosition;
+        float along = clamp(dot(fp, sp) / dot(sp, sp), 0.0, 1.0);
+        float tube = length(fp - sp * along);
+        if (along < 0.97 && tube < (1.4 + 2.2 * along) * (0.55 + 0.45 * dith)) discard;`,
+      )
   }
   return mat
 }
@@ -261,5 +283,27 @@ export function canopyGeometry(seed: number, R: number, card_: number, clusters:
   const g = finish(parts)
   crownNormals(g, centre, 1.4)
   shade(g, 0xffffff, centre, R)
+  return g
+}
+
+/**
+ * A bush: a low dome of leaf cards (about 2.6 m across, 1.6 m tall), lit as
+ * one soft mass. `cards` sets how full it is (a scrub is a handful).
+ */
+export function bushGeometry(seed: number, cards: number, size = 1): THREE.BufferGeometry {
+  const rand = mulberry32(seed)
+  const parts: THREE.BufferGeometry[] = []
+  const centre = new THREE.Vector3(0, 0.55 * size, 0)
+  for (let k = 0; k < cards; k++) {
+    const a = rand() * Math.PI * 2
+    const r = Math.sqrt(rand()) * 0.75 * size
+    const q = card(1.5 * size, 1.5 * size, LEAVES)
+    q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2)
+    q.translate(Math.cos(a) * r, (0.5 + rand() * 0.45) * size, Math.sin(a) * r)
+    parts.push(q)
+  }
+  const g = finish(parts)
+  crownNormals(g, centre, 1.6)
+  shade(g, 0xffffff, centre, 1.2 * size)
   return g
 }

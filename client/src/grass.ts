@@ -133,6 +133,8 @@ export class Grass {
         .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= mix(0.72, 1.0, vTip);')
         // Both faces lit as the ground is (DoubleSide would turn the back faces' normals down: black).
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif')
+        // Blades right at the lens dissolve instead of filling the frame.
+        .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (length(vViewPosition) < 0.9 + 0.8 * fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453)) discard;')
     }
     this.mesh = new THREE.InstancedMesh(cardGeometry(), mat, CAP)
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
@@ -189,9 +191,10 @@ export class Grass {
       q.setFromAxisAngle(up, rand() * Math.PI)
       mat.compose(v.set(x, h - 0.04, z), q, s.set(Math.max(0.6, sc), sc * (0.75 + rand() * 0.45), Math.max(0.6, sc)))
       m.push(...mat.elements)
-      // Lush green in the meadows, toward straw where it is dry.
+      // Lush green in the meadows, toward straw where it is dry, pale and yellow at the dunes.
       const dry = 1 - this.biome.meadow(x, z)
-      tint.setRGB(0.85 + dry * 0.3 + rand() * 0.1, 0.9 + rand() * 0.08, 0.7 - dry * 0.2 + rand() * 0.08)
+      const sand = this.biome.desert(x, z)
+      tint.setRGB(0.85 + dry * 0.3 + sand * 0.7 + rand() * 0.1, 0.9 + sand * 0.25 + rand() * 0.08, 0.7 - dry * 0.2 - sand * 0.1 + rand() * 0.08)
       col.push(tint.r, tint.g, tint.b)
     }
     c = { m: Float32Array.from(m), c: Float32Array.from(col), n: col.length / 3 }

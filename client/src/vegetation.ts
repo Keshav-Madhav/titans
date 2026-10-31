@@ -11,8 +11,9 @@
 
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { broadleafGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
+import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
 import { inBasin, makeSimplex2, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
+import { LAYER } from './terrain-material'
 import type { Biome } from './biome'
 import type { PaintField } from './paint'
 
@@ -45,6 +46,15 @@ function pack(b: Batch): Batch {
   return { m: Float32Array.from(b.m), c: Float32Array.from(b.c), n: b.n }
 }
 type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed' | 'shrub', Batch>>
+
+/** The rock material's layers (sides, tops, metres per tile) on every vertex. */
+function rockLayers(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const n = g.getAttribute('position').count
+  const a = new Float32Array(n * 3)
+  for (let i = 0; i < n; i++) a.set([LAYER.rock, LAYER.grass, 3.5], i * 3)
+  g.setAttribute('aLayer', new THREE.BufferAttribute(a, 3))
+  return g
+}
 
 function colored(g: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   const c = new THREE.Color(hex)
@@ -81,10 +91,11 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   coniferMid: () => coniferGeometry(41, true),
   broadNear: () => broadleafGeometry(11),
   broadMid: () => broadleafGeometry(11, true),
-  rock: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 21, 0.26).scale(1, 0.7, 1), 0x8f877b),
-  bush: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 2), 31, 0.22).scale(1.3, 0.85, 1.3).translate(0, 0.55, 0), 0x55702f),
-  // Low scrub: a few triangles each, thousands of them — the savanna's dark speckle.
-  shrub: () => colored(lumpy(new THREE.IcosahedronGeometry(1, 0), 37, 0.25).scale(1.1, 0.6, 1.1).translate(0, 0.35, 0), 0x4c5629),
+  // Boulders: lumpy, flattened, textured as rock (rocks.ts' tri-planar material).
+  rock: () => rockLayers(colored(lumpy(lumpy(new THREE.IcosahedronGeometry(1, 3), 21, 0.22), 22, 0.08).scale(1.1, 0.68, 0.95), 0xffffff)),
+  // Bushes and scrub: clumps of leaf cards, as the trees are.
+  bush: () => bushGeometry(31, 12),
+  shrub: () => bushGeometry(37, 4, 0.7),
   grass: () => {
     // A tuft of thin blades leaning outward.
     const pos: number[] = []
@@ -173,11 +184,14 @@ export class Vegetation {
     private readonly pave: PaintField,
     /** Something built here (no plant may stand on it). */
     private readonly occupied: (x: number, z: number) => boolean,
+    /** The boulders' material (textured rock). */
+    rockMat: THREE.MeshStandardMaterial,
   ) {
     const foliage = foliageTexture()
     for (const k of Object.keys(GEOMS) as Kind[]) {
       let mat: THREE.MeshStandardMaterial
-      if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid') mat = foliageMaterial(foliage, this.time, SWAY[k])
+      if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid' || k === 'bush' || k === 'shrub') mat = foliageMaterial(foliage, this.time, SWAY[k] || 0.004)
+      else if (k === 'rock') mat = rockMat
       else {
         mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
         if (SWAY[k] > 0) this.sway(mat, SWAY[k])
@@ -409,8 +423,10 @@ export class Vegetation {
       const h = this.ground(x, z, 400)
       if (h === null) continue
       const sc = 0.5 + rand() * rand() * 2.8
-      const t = 0.85 + rand() * 0.25
-      this.col.setRGB(t, t * 0.98, t * 0.94)
+      // The rock texture is warm brown: toward grey here, toward red in the Dune Sea.
+      const t = 0.8 + rand() * 0.3
+      const d = this.biome.desert(x, z)
+      this.col.setRGB(t * (1.1 + 0.2 * d), t * (1.28 - 0.18 * d), t * (1.5 - 0.55 * d))
       this.add(batch('rock'), x, h - sc * 0.25, z, rand() * 6.28, sc, sc * (0.7 + rand() * 0.6), this.col)
     }
     // Bushes: along forest edges and near water.

@@ -242,13 +242,17 @@ const scenes = {
       return g.watchers.watchers.map((w) => ({ x: Math.round(w.x), z: Math.round(w.z), h: Math.round(w.mesh.scale.x) }))
     })
     console.log(`${info.length} watchers`, JSON.stringify(info.slice(0, 4)))
-    for (const [i, dist] of [[0, 190], [1, 200], [3, 210]]) {
+    for (const [i, dist] of [[0, 320], [1, 340], [3, 360]]) {
       await page.evaluate(async ([i, dist]) => {
         const g = window.__g
         const w = g.watchers.watchers[i]
         const ok = g.frame([w.x, g.heightAt(w.x, w.z) + w.mesh.scale.x * 0.55, w.z], dist, 2.5, w.yaw)
-        // Let it come out of the haze (they appear slowly) and turn a little.
-        g.clock.scale = 1
+        // Look a little aside (straight at one, it thins away): it stands at the edge of the frame.
+        const c = g.camera.position
+        const ax = w.x - c.x
+        const az = w.z - c.z
+        const turn = 0.42
+        g.lookFrom([c.x, c.y, c.z], [c.x + ax * Math.cos(turn) - az * Math.sin(turn), g.heightAt(w.x, w.z) + w.mesh.scale.x * 0.4, c.z + ax * Math.sin(turn) + az * Math.cos(turn)])
         for (const q of g.watchers.watchers) q.seen = 1
         await new Promise((r) => setTimeout(r, 400))
         return ok
@@ -768,21 +772,6 @@ const scenes = {
     console.log(`climbing the mountain: ${climbed.active} (holding ${climbed.on})`)
     if (r.mountains !== 1 || r.rise < 5 || r.newTitanAway < 300) throw new Error('rest gate: no proper mountain')
     if (!climbed.active || !climbed.on?.startsWith('local-')) throw new Error('rest gate: could not climb the mountain')
-  },
-  // Landmarks: each kind of ruin, from the ground.
-  async ruins() {
-    const sites = await page.evaluate(() => window.__g.ruins.sites)
-    for (const kind of ['hand', 'circle', 'colonnade', 'face']) {
-      const s = sites.find((q) => q.kind === kind)
-      if (!s) continue
-      await page.evaluate((s) => {
-        const g = window.__g
-        g.teleport(s.x + 45, s.z + 30)
-        const p = g.player()
-        g.setCam(Math.atan2(p.x - s.x, p.z - s.z), 0.08, 7)
-      }, s)
-      await shot(`ruin-${kind}`)
-    }
   },
   // The reel's sky: a Wanderer looking up at a Titan with clouds about its waist.
   async sky() {

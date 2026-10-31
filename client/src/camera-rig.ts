@@ -40,6 +40,11 @@ export class CameraRig {
     this.snapped = false
   }
 
+  /** Signed distance to solid rock (negative inside), so the camera stays out of it. */
+  occluder: ((x: number, y: number, z: number) => number) | null = null
+  /** How far out the camera may go now (eases back out after being pulled in). */
+  private held = Infinity
+
   get distance(): number {
     return this.dist
   }
@@ -55,6 +60,9 @@ export class CameraRig {
 
     const p = this.profile
     const fy = subject.y + p.focusHeight
+    // A jump (a respawn, a teleport): cut, don't glide — gliding across the map
+    // dragged the camera under hills on the way.
+    if (this.snapped && Math.hypot(subject.x - this.focus.x, fy - this.focus.y, subject.z - this.focus.z) > 40) this.snapped = false
     if (!this.snapped) {
       this.focus.set(subject.x, fy, subject.z)
       this.snapped = true
@@ -64,6 +72,8 @@ export class CameraRig {
       this.focus.y += (fy - this.focus.y) * k
       this.focus.z += (subject.z - this.focus.z) * k
     }
+    // The focus is never under the ground.
+    this.focus.y = Math.max(this.focus.y, terrain.heightAt(this.focus.x, this.focus.z) + 0.5)
 
     const pitch = Math.max(this.pitch, -0.08)
     const cp = Math.cos(pitch)
@@ -73,6 +83,27 @@ export class CameraRig {
       this.focus.y + Math.sin(pitch) * this.dist,
       this.focus.z + Math.cos(this.yaw) * cp * this.dist,
     )
+    // Never through the world: march from the focus out to the camera and stop
+    // short of rock (formations, colossi) or ground in between. Pull in at
+    // once; ease back out.
+    const want = this.dist
+    let clear = want
+    const ux = (cam.x - this.focus.x) / want
+    const uy = (cam.y - this.focus.y) / want
+    const uz = (cam.z - this.focus.z) / want
+    for (let t = 0.6; t <= want; t += Math.max(0.35, t * 0.08)) {
+      const x = this.focus.x + ux * t
+      const y = this.focus.y + uy * t
+      const z = this.focus.z + uz * t
+      const solid = this.occluder ? this.occluder(x, y, z) < 0.5 : false
+      if (solid || y < terrain.heightAt(x, z) + 0.35) {
+        clear = Math.max(0.6, t - 0.5)
+        break
+      }
+    }
+    this.held = clear < this.held ? clear : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
+    const d = Math.min(want, this.held)
+    cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
     const floor = terrain.heightAt(cam.x, cam.z) + 0.45
     if (cam.y < floor) cam.y = floor
 

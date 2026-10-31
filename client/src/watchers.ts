@@ -1,19 +1,19 @@
 // Watchers: gaunt figures of branch and root, thirty to seventy metres tall,
-// standing on the ridges. You only see them when the sky is heavy — grey
-// shapes in the haze, perfectly still, one arm out as if pointing. Over a
-// minute they turn to face you. Walk toward one and it is not there when you
-// arrive: it thins into the fog before you are close. Nothing else. (Where
-// they point is worth going: the story will put things there.)
+// standing on the ridges. You only see them when the sky is heavy, and only
+// at the edge of your sight: look straight at one and it thins into the haze.
+// Over a minute they turn to face you. Walk toward one and it is not there
+// when you arrive. Nothing else. (Where they point is worth going: the story
+// will put things there.)
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { inHall, mulberry32, type Terrain } from '@titans/shared'
 
 /** A tapering tube along points (radius r0 at the first, r1 at the last). */
-function branch(points: THREE.Vector3[], r0: number, r1: number, sides = 6): THREE.BufferGeometry {
+function branch(points: THREE.Vector3[], r0: number, r1: number, sides = 7): THREE.BufferGeometry {
   // Thick enough to read as a silhouette from a few hundred metres, still gaunt.
-  r0 *= 2.1
-  r1 *= 2.1
+  r0 *= 1.7
+  r1 *= 1.7
   const curve = new THREE.CatmullRomCurve3(points)
   const segs = Math.max(4, points.length * 4)
   const pos: number[] = []
@@ -119,6 +119,8 @@ interface Watcher {
 export class Watchers {
   readonly group = new THREE.Group()
   readonly watchers: Watcher[] = []
+  private readonly look = new THREE.Vector3()
+  private readonly to = new THREE.Vector3()
   private readonly geos: THREE.BufferGeometry[]
 
   constructor(
@@ -170,7 +172,7 @@ export class Watchers {
       mesh.castShadow = false
       mesh.visible = false
       this.group.add(mesh)
-      this.watchers.push({ mesh, mat, x: c.x, z: c.z, yaw, seen: 0, near: 50 + H })
+      this.watchers.push({ mesh, mat, x: c.x, z: c.z, yaw, seen: 0, near: 140 + H })
     }
   }
 
@@ -178,13 +180,17 @@ export class Watchers {
    * Each frame. `heavy` (0 … 1): how overcast it is — they only show under a
    * heavy sky. They turn toward `player`, slowly; they are gone when you come close.
    */
-  update(dt: number, player: THREE.Vector3, heavy: number): void {
+  update(dt: number, player: THREE.Vector3, heavy: number, camera: THREE.Camera): void {
+    camera.getWorldDirection(this.look)
     for (const w of this.watchers) {
       const d = Math.hypot(w.x - player.x, w.z - player.z)
+      // Where you are looking: straight at it, it is not there.
+      this.to.set(w.x, w.mesh.position.y + w.mesh.scale.x * 0.6, w.z).sub(camera.position).normalize()
+      const gaze = THREE.MathUtils.smoothstep(this.look.dot(this.to), 0.995, 0.96)
       // There: under a heavy sky, beyond arm's reach, not so far the haze takes them anyway.
-      const want = THREE.MathUtils.smoothstep(heavy, 0.3, 0.6) * THREE.MathUtils.smoothstep(d, w.near, w.near * 1.5) * (1 - THREE.MathUtils.smoothstep(d, 2400, 3200))
+      const want = gaze * THREE.MathUtils.smoothstep(heavy, 0.3, 0.6) * THREE.MathUtils.smoothstep(d, w.near, w.near * 1.5) * (1 - THREE.MathUtils.smoothstep(d, 2400, 3200))
       // They come slowly and go quickly.
-      w.seen += (want - w.seen) * Math.min(1, dt * (want > w.seen ? 0.25 : 1.5))
+      w.seen += (want - w.seen) * Math.min(1, dt * (want > w.seen ? 0.25 : 0.9))
       w.mesh.visible = w.seen > 0.01
       if (!w.mesh.visible) continue
       w.mat.opacity = w.seen

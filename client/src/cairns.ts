@@ -34,7 +34,7 @@ function stackGeometry(seed: number): THREE.BufferGeometry {
     const h = 0.22 + rand() * 0.1
     const g = new THREE.DodecahedronGeometry(1, 0).scale(r, h, r * (0.8 + rand() * 0.3))
     g.rotateY(rand() * 3).translate((rand() - 0.5) * 0.12, y + h * 0.8, (rand() - 0.5) * 0.12)
-    parts.push(g.toNonIndexed())
+    parts.push(g.index ? g.toNonIndexed() : g)
     y += h * 1.5
   }
   parts.push(new THREE.CylinderGeometry(0.45, 0.25, 0.3, 10, 1).translate(0, y + 0.15, 0).toNonIndexed())

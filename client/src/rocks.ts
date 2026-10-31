@@ -56,14 +56,25 @@ export interface ColossusPlacement {
 // --- material -------------------------------------------------------------------
 
 /** Tri-planar rock from the ground's texture arrays; moss or sand settles on top. */
-function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
+export function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aLayer;\nvarying vec3 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvLayer = aLayer;\nvRockPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvRockN = normalize(mat3(modelMatrix) * objectNormal);')
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+        vLayer = aLayer;
+        #ifdef USE_INSTANCING
+          vRockPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+          vRockN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
+        #else
+          vRockPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+          vRockN = normalize(mat3(modelMatrix) * objectNormal);
+        #endif`,
+      )
     sh.fragmentShader = sh.fragmentShader
       .replace(
         '#include <common>',
@@ -97,8 +108,11 @@ function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
         vec3 nA; vec3 nB;
         vec3 cA = triTex(vLayer.x, 1.0 / vLayer.z, vRockPos, rN, nA);
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);
-        // Moss, leaf litter or sand on the faces that look up.
-        float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3));
+        // Moss, leaf litter or sand on the faces that look up — in patches, the
+        // stone showing through (a big flat top must not read as one green sheet).
+        vec3 nTmp;
+        float patchy = triTex(vLayer.x, 1.0 / (vLayer.z * 6.0), vRockPos + 17.0, rN, nTmp).g;
+        float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
         diffuseColor.rgb = mix(cA, cB * vec3(0.8, 1.15, 0.7), topT) * vColor.rgb;
         rockN = normalize(mix(nA, nB, topT));`,
       )
@@ -368,6 +382,13 @@ export class Rocks {
       }
     }
     return null
+  }
+
+  /** Distance to the nearest solid rock at a point (Infinity when none is near). */
+  sdfAt(x: number, y: number, z: number): number {
+    let d = Infinity
+    for (const f of this.near(x, z, 2)) d = Math.min(d, this.sdf(f, x, y, z))
+    return d
   }
 
   /** The highest solid surface over (x, z) among the formations (null if none is there). */

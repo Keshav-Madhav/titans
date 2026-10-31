@@ -10,7 +10,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { HALL, type Terrain } from '@titans/shared'
+import { HALL, mulberry32, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
@@ -74,6 +74,29 @@ export class Undercroft {
       const y = rampY(x + run)
       parts.push(block(x + run / 2, (y - D) / 2, rz, run / 2, (D + y) / 2, rw))
     }
+    // A parapet round the plaza's rim, broken in places; fallen blocks lying on it.
+    const rand = mulberry32(4041)
+    const walls: Array<[number, number, number, number]> = [] // cx, cz, half-x, half-z
+    const H2 = 1.1
+    for (let cx = -HALL.hx + 10; cx < HALL.hx; cx += 20) {
+      for (const sz of [-1, 1]) {
+        if (rand() < 0.3 || (sz > 0 && cx <= -60)) continue // gaps; the stair's mouth stays open
+        walls.push([cx, sz * (HALL.hz - 1), 9.2 - rand() * 2, 0.9])
+      }
+    }
+    for (let cz = -HALL.hz + 10; cz < HALL.hz; cz += 20) {
+      for (const sx of [-1, 1]) {
+        if (rand() < 0.3 || (sx < 0 && cz >= 90)) continue
+        walls.push([sx * (HALL.hx - 1), cz, 0.9, 9.2 - rand() * 2])
+      }
+    }
+    for (const [cx, cz, bx, bz] of walls) parts.push(block(cx, 1 + H2 * (0.6 + rand() * 0.6), cz, bx, H2 * (0.6 + rand() * 0.6), bz))
+    for (let k = 0; k < 14; k++) {
+      const cx = (rand() - 0.5) * HALL.hx * 1.7
+      const cz = (rand() - 0.5) * HALL.hz * 1.7
+      if (open(Math.round(cx / TILE) * TILE + TILE / 2, Math.round(cz / TILE) * TILE + TILE / 2)) continue
+      parts.push(block(cx, 1.5, cz, 1.5 + rand() * 1.5, 0.6 + rand() * 0.6, 1.2 + rand()).rotateY(rand()).translate(0, 0, 0))
+    }
     const geo = mergeGeometries(parts.map((p) => p.toNonIndexed()))!
     geo.deleteAttribute('uv')
 
@@ -84,6 +107,7 @@ export class Undercroft {
       // otherwise leave the slab's outer face standing in the field, an invisible wall.)
       for (const [cx, cz] of holes) roof = Math.max(roof, -box(x - cx, y - (1 - ROOF) / 2, z - cz, TILE / 2 + 0.6, ROOF, TILE / 2 + 0.6))
       let d = roof
+      for (const [cx, cz, bx, bz] of walls) d = Math.min(d, box(x - cx, y - 1 - H2 * 0.6, z - cz, bx, H2 * 1.2, bz))
       // Nearest pillar only (they are on a grid).
       const px = PX.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a))
       const pz = PZ.reduce((a, b) => (Math.abs(b - z) < Math.abs(a - z) ? b : a))
@@ -101,7 +125,7 @@ export class Undercroft {
       return d
     }
     const shape: Shape = { field, hx: HALL.hx + 10, hy: D / 2 + 8, hz: HALL.hz + 10, cy: -D / 2 }
-    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.dressed, LAYER.blocks], scale: 7, tint: [0.95, 0.94, 0.9] })
+    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.dressed, LAYER.grass], scale: 7, tint: [0.72, 0.72, 0.7] })
     this.floor = new THREE.Vector3(HALL.x, top - D, HALL.z)
 
     // Shafts of daylight down through the skylights: soft, brightest at the top.
