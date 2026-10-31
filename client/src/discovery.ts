@@ -42,6 +42,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'bag', "The Traveller's Bag", 'Left at a camp on the Green, just ahead of where you woke.', 'Patched leather, deep, and somehow never full. Whoever left it here is not coming back for it.', 'bag', '#8a5a3c'),
   // Tools: things that are used, and open new ways into the land.
   f('tool', 'horn', "The Traveller's Horn", 'At a camp near the Herd, in the Dune Sea.', 'A horn made from a shell found in the sand. Blow it (H) and the nearest walker comes to see what is making the noise. Blow it from one\'s back and it walks the way you are looking.', 'horn', '#9b8a6c'),
+  f('tool', 'cloak', 'The Wing-cloak', 'Left at the top of the Great Stair.', "The traveller's cloak, cut wide and stiffened along its edges with something light and strong. Jump, and hold Space as you fall: it opens, and you sail.", 'feather', '#7a2e24'),
   f('tool', 'bow', 'The Old Bow', 'On an altar at the far end of the Undercroft.', 'A bow of dark wood and horn, strung with something that is not gut, and a quiver that is never empty. Hold the right mouse button (or Q) to draw; click (or F) to loose. Somewhere, stone eyes are watching.', 'bow', '#5a3e2a'),
   // Places
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),

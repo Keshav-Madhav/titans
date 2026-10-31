@@ -219,8 +219,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D8 The Horn (camp 2): H blown on the ground — the nearest walker comes to see what made the
       noise and stands looking; blown from its back — it walks the way you look (30 s): riding.
       Gate: `shot.mjs horn` (came 1.4 km → 130 m; rode 279 m east)
-- [ ] D7 More tools: the Wing-cloak (top of the Great Stair: glide), the Sight-stone (the Grove:
-      glyph trails) — PLAN.md §2f
+- [x] D9 The Wing-cloak (top of the Great Stair, where the last page said): falling with Space held,
+      it opens — a wing from wrist to wrist — you sink at 2.6 m/s and sail at 15 m/s the way you
+      lean, and land soft from any height. Gate: `shot.mjs glide` (sailed 437 m coming down 172 m)
+- [ ] D10 The Sight-stone (the Grove): glyph trails to hidden caches — PLAN.md §2f
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)

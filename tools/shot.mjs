@@ -474,6 +474,67 @@ const scenes = {
     const open = await page.evaluate(() => window.__g.eyes.open('eyes-sentinel'))
     console.log(`aim error (deg): ${report.join(', ')}; Sentinel eyes still open: ${open}`)
   },
+  // The wing-cloak: take it at the top of the Great Stair, step off, and sail down.
+  async glide() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      window.__g.finds.find('bag')
+    })
+    const took = await page.evaluate(async () => {
+      const g = window.__g
+      const c = g.spots.spots.find((s) => s.id === 'cloak')
+      g.teleport(c.at.x + 0.6, c.at.z, c.at.y + 0.1)
+      await new Promise((r) => setTimeout(r, 200))
+      g.input.press('KeyE')
+      await new Promise((r) => setTimeout(r, 150))
+      g.input.release('KeyE')
+      await new Promise((r) => setTimeout(r, 100))
+      return g.finds.has('cloak')
+    })
+    // From 150 m over the Steps, facing back toward the Green: Space and W held.
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const c = g.spots.spots.find((s) => s.id === 'cloak')
+      const x = c.at.x - 60
+      const z = c.at.z
+      const y0 = g.heightAt(x, z) + 150
+      g.wanderer.place(x, y0, z)
+      g.setCam(Math.atan2(x, z), 0.15, 8) // looking toward the centre
+      g.input.press('KeyW')
+      g.input.press('Space')
+      const lines0 = g.narration.lines.length
+      let glided = false
+      const until = Date.now() + 70000
+      let shotAt = 0
+      while (Date.now() < until) {
+        await new Promise((res) => setTimeout(res, 200))
+        if (g.wanderer.gliding) glided = true
+        if (!shotAt && glided) shotAt = Date.now()
+        if (g.player().grounded) break
+      }
+      g.input.release('KeyW')
+      g.input.release('Space')
+      const p = g.player()
+      return { glided, flew: Math.round(Math.hypot(p.x - x, p.z - z)), from: Math.round(y0 - p.y), fell: g.narration.lines.slice(lines0).some((l) => /fell|ground came|Darkness|wake/.test(l)) }
+    })
+    console.log(`took the cloak: ${took}; glided: ${r.glided}; sailed ${r.flew} m coming down ${r.from} m; a fall: ${r.fell}`)
+    // And as it looks: off the top of the Sentinel's hood, sailing out over the Green.
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.colossi.places.get('sentinel')
+      g.wanderer.place(s.x, g.heightAt(s.x, s.z) + 380, s.z + 160)
+      g.setCam(Math.PI, 0.32, 9) // looking south, toward the start
+      g.input.press('KeyW')
+      g.input.press('Space')
+    })
+    await page.waitForTimeout(4500)
+    await shot('glide')
+    await page.evaluate(() => {
+      window.__g.input.release('KeyW')
+      window.__g.input.release('Space')
+    })
+    if (!took || !r.glided || r.fell || r.flew < 300) throw new Error('glide gate failed')
+  },
   // The traveller's trail and the Horn: read the page, take the horn, call the Walker, ride it.
   async horn() {
     await page.evaluate(() => {

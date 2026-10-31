@@ -481,6 +481,15 @@ const spots = (() => {
   hornModel.rotation.set(Math.PI / 2, 0, 0.6)
   const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at, hidden: id.startsWith('eyes-') }))
   placed.push({ id: 'bow', kind: 'trinket', at: new THREE.Vector3(altarAt.x, altarAt.y + 1.12, altarAt.z), model: bowModel })
+  // The wing-cloak, folded, at the top of the Great Stair (where the last page said it would be).
+  if (gate) {
+    const cy = rocks.floorAt(gate.x - 5, gate.y + 4, gate.z - 3, 0.6, 12) ?? gate.y
+    const cloakModel = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.55), new THREE.MeshStandardMaterial({ color: 0x7a2e24, roughness: 0.95 }))
+    cloakModel.position.y = 0.06
+    const wrap = new THREE.Group()
+    wrap.add(cloakModel)
+    placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap })
+  }
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
@@ -914,7 +923,8 @@ function watchFalls(dt: number): void {
   }
   const p = wanderer.pos
   if (!wanderer.grounded) {
-    fallTop = Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
+    // (Under the open cloak you are not falling: you land soft from any height.)
+    fallTop = wanderer.gliding || Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
     return
   }
   // Landed.
@@ -998,6 +1008,7 @@ function hornInput(id: string, t: Titan): GaitInput | null {
 }
 
 function simulate(dt: number): void {
+  wanderer.canGlide = finds.has('cloak')
   watchFalls(dt)
   if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
   if (awakening.active) {

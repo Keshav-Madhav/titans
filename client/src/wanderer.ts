@@ -17,6 +17,8 @@ const SPRINT = 8.5
  * lengthens to this (the lands are kilometres across; SotC had a horse).
  */
 const LONG = 14.5
+/** Gliding with the wing-cloak: how fast you sail. */
+const GLIDE = 15
 const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
@@ -272,6 +274,10 @@ export class Wanderer {
   private stride = 0
   /** 0 … 1: how far into the long run (see LONG). */
   lope = 0
+  /** Has the wing-cloak (main.ts sets it once found). */
+  canGlide = false
+  /** Falling with the cloak open. */
+  gliding = false
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
@@ -279,6 +285,8 @@ export class Wanderer {
   private climbMoving = 0
   private readonly pelvis = new THREE.Group()
   private readonly chest = new THREE.Group()
+  /** The wing-cloak spread behind the shoulders (only while gliding). */
+  private readonly wing: THREE.Mesh
   private readonly head = new THREE.Group()
   private readonly legs: Leg[] = []
   private readonly arms: Arm[] = []
@@ -302,6 +310,29 @@ export class Wanderer {
     const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 })
     const dark = new THREE.MeshStandardMaterial({ color: 0x0c0a09, roughness: 1 })
 
+    // The wing-cloak: a wide sheet from wrist to wrist, bellied by the air,
+    // out behind the shoulders — shown only while gliding.
+    const wg = new THREE.PlaneGeometry(2.3, 1.15, 12, 4)
+    const wp = wg.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < wp.count; i++) {
+      const x = wp.getX(i) / 1.15
+      const y = wp.getY(i) / 0.575
+      const t = (y + 1) / 2 // 1 along the arms, 0 at the small of the back
+      // A wing, not a sheet: wrist to wrist across the top, narrowing to the
+      // small of the back, the trailing edge scalloped between the ribs.
+      const nx = x * (0.18 + 0.82 * Math.pow(t, 0.7))
+      wp.setX(i, nx * 1.15)
+      const scallop = t < 0.01 ? 0.1 * Math.abs(Math.sin(x * Math.PI * 2.5)) : 0
+      wp.setY(i, wp.getY(i) + scallop - 0.12 * x * x * t)
+      // Bellied back (−z) in the middle, the lower edge trailing.
+      wp.setZ(i, -0.3 * (1 - nx * nx) * t - 0.25 * (1 - t))
+    }
+    wg.computeVertexNormals()
+    this.wing = new THREE.Mesh(wg, red)
+    this.wing.position.set(0, 0.12, -0.12)
+    this.wing.visible = false
+    this.wing.castShadow = true
+
     // Pelvis at the hips; the chest, head and arms hang from it.
     this.pelvis.position.y = 0.92
     this.obj.add(this.pelvis)
@@ -316,6 +347,7 @@ export class Wanderer {
     )
     torso.castShadow = true
     this.chest.add(torso)
+    this.chest.add(this.wing)
     this.chest.add(new THREE.Mesh(new THREE.TorusGeometry(0.142, 0.022, 6, 18).rotateX(Math.PI / 2).scale(1.15, 1, 0.85).translate(0, 0.06, 0), leather))
     this.pelvis.add(this.chest)
 
@@ -428,6 +460,17 @@ export class Wanderer {
       this.grounded = false
     }
     this.vel.y -= GRAVITY * dt
+    // The wing-cloak: falling with Space held, it opens — you sink slowly and
+    // sail the way you lean (or the way you face), and land on your feet.
+    this.gliding = this.canGlide && !this.grounded && jump && this.vel.y < -1
+    if (this.gliding) {
+      this.vel.y = Math.max(this.vel.y, -2.6)
+      const gx = len > 0 ? wx : Math.sin(this.yaw)
+      const gz = len > 0 ? wz : Math.cos(this.yaw)
+      const k2 = Math.min(1, dt * 0.9)
+      this.vel.x += (gx * GLIDE - this.vel.x) * k2
+      this.vel.z += (gz * GLIDE - this.vel.z) * k2
+    }
     this.pos.addScaledVector(this.vel, dt)
 
     const ground = terrain.heightAt(this.pos.x, this.pos.z)
@@ -511,6 +554,8 @@ export class Wanderer {
    */
   animate(dt: number, ground: (x: number, z: number) => number, wind: THREE.Vector3, dark: number): void {
     this.t += dt
+    this.wing.visible = this.gliding
+    if (this.gliding) this.wing.rotation.x = Math.sin(this.t * 9) * 0.03
     const hs = this.climbing ? 0 : this.speed
     this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
     // (Longer strides, not just faster ones, past a sprint.)
