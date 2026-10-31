@@ -207,6 +207,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
       stones of different heights; each hums its own note when struck (tall low, short high); the
       slab's carving shows the order as bars of heights; wrong → silence, start again; right → they
       answer each other and the slab sinks, leaving what it kept. Gate: `shot.mjs resonance`
+- [x] D7 Tools — progression (user: "artifacts found become items that can be used… a bow… bow
+      type puzzles unlock"). The Old Bow (`bow.ts`) on an altar at the Undercroft's far end, a stone
+      beside it: hold right mouse / Q to draw (camera over the shoulder, a mark), click / F to loose;
+      arrows fly a solved arc to whatever is under the mark. Stone eyes (`eyes.ts`): three sets of
+      three (the Undercroft's pillars, the Sentinel, a mesa's cliff); close a set and what it watched
+      over is let go. Tools sit first in the bag. Gate: `shot.mjs bow` (every set closed, all taken)
+- [ ] D7 More tools: the Horn (call a giant / ride), the Wing-cloak (glide), the Sight-stone (glyph
+      trails) — PLAN.md §2f
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)

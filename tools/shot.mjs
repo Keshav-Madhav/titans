@@ -178,6 +178,8 @@ const scenes = {
       g.wanderer.place(158, g.heightAt(158, 80) + 8, 80)
       await wait(1500)
       const short = g.player()
+      // (Stood there a while, the short drop's landing may have become safe ground itself.)
+      const before = g.lastSafe
       // A long drop, further off.
       g.wanderer.place(190, g.heightAt(190, 80) + 60, 80)
       await wait(4500)
@@ -185,7 +187,7 @@ const scenes = {
       return {
         safe: [safe.x, safe.z].map(Math.round),
         shortStayed: Math.hypot(short.x - 158, short.z - 80) < 2,
-        longBack: Math.hypot(long.x - safe.x, long.z - safe.z) < 2,
+        longBack: Math.hypot(long.x - before.x, long.z - before.z) < 2,
         long: [long.x, long.z].map(Math.round),
         said: g.narration.lines.slice(-1)[0] ?? '',
       }
@@ -387,6 +389,109 @@ const scenes = {
       }
     }
     await page.evaluate(() => window.__g.lookFrom(null))
+  },
+  // The bow: take it from the altar, then close every set of eyes and take what they watched over.
+  async bow() {
+    await page.evaluate(() => {
+      window.__g.weather.set('breaking', true)
+      window.__g.finds.find('bag')
+    })
+    const took = await page.evaluate(async () => {
+      const g = window.__g
+      const s = g.spots.spots.find((s) => s.id === 'bow')
+      g.teleport(s.at.x - 1.2, s.at.z, s.at.y - 1.1)
+      await new Promise((r) => setTimeout(r, 200))
+      g.input.press('KeyE')
+      await new Promise((r) => setTimeout(r, 150))
+      g.input.release('KeyE')
+      await new Promise((r) => setTimeout(r, 100))
+      return g.finds.has('bow')
+    })
+    console.log(`took the bow: ${took}`)
+    // Drawn, in the Undercroft, aiming at the first eye on the pillars.
+    await page.evaluate(() => {
+      const g = window.__g
+      const t = g.eyes.targets()[0]
+      g.setCam(Math.atan2(g.player().x - t.x, g.player().z - t.z), -0.35, 6)
+      g.input.press('KeyQ')
+    })
+    await page.waitForTimeout(900)
+    await shot('bow-drawn')
+    await page.evaluate(() => window.__g.input.release('KeyQ'))
+    // The eyes themselves: one on the Sentinel, from the Green below.
+    await page.evaluate(() => {
+      const g = window.__g
+      const e = g.eyes.sets.find((s) => s.id === 'eyes-sentinel').eyes[1]
+      const q = e.at.clone().addScaledVector(e.normal, 140)
+      const y = g.heightAt(q.x, q.z) + 1.7
+      g.teleport(q.x, q.z)
+      g.lookFrom([q.x, y, q.z], [e.at.x, e.at.y - 25, e.at.z])
+    })
+    await page.waitForTimeout(800)
+    await shot('bow-eyes')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    const sets = await page.evaluate(() => window.__g.eyes.sets.map((s) => s.id))
+    const report = []
+    for (const id of sets) {
+      const n = await page.evaluate(async (id) => {
+        const g = window.__g
+        const set = g.eyes.sets.find((s) => s.id === id)
+        let shots = 0
+        for (const e of set.eyes) {
+          // Stand 35 m out along where the eye looks (on the ground below that point), aim at it, loose.
+          // Standing on the ground out along where it looks, as near as a clear shot allows.
+          let p = null
+          let y = 0
+          for (const d of [30, 60, 100, 160, 240, 340, 460]) {
+            const q = e.at.clone().addScaledVector(e.normal, d)
+            const qy = g.heightAt(q.x, q.z) + 1.7
+            const from = new g.THREE.Vector3(q.x, qy, q.z)
+            const dir = e.at.clone().sub(from)
+            const len = dir.length()
+            if (g.pick(from, dir.normalize(), len + 2) >= len - 2) {
+              p = q
+              y = qy - 1.7
+              break
+            }
+          }
+          if (!p) continue
+          g.teleport(p.x, p.z, y)
+          g.lookFrom([p.x, y + 1.7, p.z], [e.at.x, e.at.y, e.at.z])
+          await new Promise((r) => setTimeout(r, 120))
+          g.input.press('KeyQ')
+          await new Promise((r) => setTimeout(r, 600))
+          g.input.press('KeyF')
+          await new Promise((r) => setTimeout(r, 100))
+          g.input.release('KeyF')
+          await new Promise((r) => setTimeout(r, 900))
+          g.input.release('KeyQ')
+          shots++
+        }
+        g.lookFrom(null)
+        // (A long shot is still in the air: give it time to land.)
+        await new Promise((r) => setTimeout(r, 2500))
+        return g.eyes.open(id)
+      }, id)
+      report.push(`${id}: ${n} open`)
+    }
+    await page.waitForTimeout(2000)
+    const got = await page.evaluate(async () => {
+      const g = window.__g
+      const out = []
+      for (const s of g.eyes.sets) {
+        const spot = g.spots.spots.find((x) => x.id === s.id)
+        g.teleport(spot.at.x + 0.5, spot.at.z)
+        await new Promise((r) => setTimeout(r, 150))
+        g.input.press('KeyE')
+        await new Promise((r) => setTimeout(r, 150))
+        g.input.release('KeyE')
+        await new Promise((r) => setTimeout(r, 100))
+        out.push(`${s.id}:${g.finds.has(s.id) ? 'taken' : 'MISSED'}`)
+      }
+      return out
+    })
+    console.log(`eyes left open after shooting — ${report.join(', ')}; ${got.join(' ')}`)
+    if (!took || report.some((r) => !r.endsWith(': 0 open')) || got.some((x) => x.endsWith('MISSED'))) throw new Error('bow gate failed')
   },
   // Resonance: strike the stones in the carved order; the slab sinks; take what it kept.
   async resonance() {

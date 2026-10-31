@@ -17,7 +17,8 @@ export class Narration {
     }
     line.append(document.createTextNode(text))
     this.log.appendChild(line)
-    while (this.log.children.length > 12) this.log.firstChild?.remove()
+    // Three at most: the found things' words are long, and a stack of them hides the land.
+    while (this.log.children.length > 3) this.log.firstChild?.remove()
     setTimeout(() => line.classList.add('old'), FADE_MS)
   }
 

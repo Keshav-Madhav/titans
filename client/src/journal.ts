@@ -58,7 +58,7 @@ export class Journal {
 
   /** The card that rises when something is found: what kind, and its name. */
   announce(find: Find): void {
-    const word = { place: 'Discovered', giant: 'Met', lore: 'Read', relic: 'Taken', trinket: 'Found' }[find.kind]
+    const word = { place: 'Discovered', giant: 'Met', lore: 'Read', relic: 'Taken', trinket: 'Found', tool: 'A new way in' }[find.kind]
     this.card.innerHTML = `<small>${word}</small><b>${esc(find.name)}</b>`
     this.card.classList.add('on')
     clearTimeout(this.cardTimer)

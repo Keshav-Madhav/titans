@@ -29,9 +29,14 @@ export class Input {
       if (e.button === 2) this.dragging = true
       // A left click while looking around (pointer locked) is an action, not a lock request.
       if (e.button === 0 && document.pointerLockElement === canvas) this.clicks++
+      // While looking around, the right button is held like a key (drawing the bow).
+      if (e.button === 2 && document.pointerLockElement === canvas) this.down.add('Mouse2')
     })
     addEventListener('mouseup', (e) => {
-      if (e.button === 2) this.dragging = false
+      if (e.button === 2) {
+        this.dragging = false
+        this.down.delete('Mouse2')
+      }
     })
     addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === canvas || this.dragging) {

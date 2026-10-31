@@ -6,8 +6,10 @@
 
 import { CATALOGUE, type Discoveries, type Find } from './discovery'
 
-/** The things the bag holds: relics and trinkets (the bag itself is the container, not an item). */
-const carried = (c: Find) => (c.kind === 'relic' || c.kind === 'trinket') && c.id !== 'bag'
+/** The things the bag holds: tools, relics and trinkets (the bag itself is the container, not an item). */
+const carried = (c: Find) => (c.kind === 'tool' || c.kind === 'relic' || c.kind === 'trinket') && c.id !== 'bag'
+/** Tools first (they are what you use), then the rest in the order found in the catalogue. */
+const rank = (c: Find) => (c.kind === 'tool' ? 0 : 1)
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
@@ -50,7 +52,7 @@ export class Bag {
   }
 
   private render(): void {
-    const items = CATALOGUE.filter((c) => carried(c) && this.finds.has(c.id))
+    const items = CATALOGUE.filter((c) => carried(c) && this.finds.has(c.id)).sort((a, b) => rank(a) - rank(b))
     const left = CATALOGUE.filter((c) => carried(c) && !this.finds.has(c.id)).length
     this.count.textContent = items.length ? `${items.length} thing${items.length === 1 ? '' : 's'}${left ? ` · ${left} more out there` : ''}` : 'Empty, for now'
     this.grid.innerHTML = ''
@@ -197,6 +199,29 @@ export function drawIcon(icon: string, tint: string, size = 64): HTMLCanvasEleme
         g.quadraticCurveTo(34, 62, 10, 52)
         g.closePath()
       })
+      break
+    case 'bow':
+      g.lineWidth = 3.4
+      g.strokeStyle = tint
+      shape(() => {
+        g.moveTo(16, 6)
+        g.quadraticCurveTo(52, 32, 16, 58)
+      }, false)
+      g.lineWidth = 1.2
+      g.strokeStyle = '#3a3226'
+      shape(() => {
+        g.moveTo(16, 6)
+        g.lineTo(16, 58)
+      }, false)
+      g.lineWidth = 2
+      shape(() => {
+        g.moveTo(10, 32)
+        g.lineTo(54, 32)
+        g.moveTo(54, 32)
+        g.lineTo(47, 28)
+        g.moveTo(54, 32)
+        g.lineTo(47, 36)
+      }, false)
       break
     case 'bag':
       shape(() => {

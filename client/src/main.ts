@@ -63,6 +63,9 @@ import { Camp } from './camp'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
+import { Eyes, type EyeSet } from './eyes'
+import { Bow, type ArrowHit, type Pick } from './bow'
+import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
@@ -279,6 +282,9 @@ const resonance = new Resonance(
 )
 scene.add(resonance.group)
 
+// The bow's targets: sets of stone eyes (placed with the spots, below).
+const eyeSets: EyeSet[] = []
+
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
@@ -395,11 +401,101 @@ const spots = (() => {
   if (hood) list.push(['ring-hood', 'trinket', new THREE.Vector3(hood.x + 2, (rocks.topAt(hood.x + 2, hood.z) ?? hood.y), hood.z)])
   const pillar = cairnAt('The Tallest Pillar')
   if (pillar) list.push(['beads-pillar', 'trinket', new THREE.Vector3(pillar.x + 1.5, (rocks.topAt(pillar.x + 1.5, pillar.z) ?? pillar.y), pillar.z)])
-  const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at }))
+  // The bow, on an altar at the Undercroft's far end, with a stone beside it.
+  const altarAt = ground(HALL.x + 186, HALL.z)
+  const altar = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.1, 1.3), carvedStone())
+  altar.position.set(altarAt.x, altarAt.y + 0.55, altarAt.z)
+  altar.castShadow = altar.receiveShadow = true
+  scene.add(altar)
+  list.push(['lore-bow', 'stone', ground(HALL.x + 179, HALL.z + 7)])
+  const bowModel = new THREE.Group()
+  const limb = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.035, 6, 24, Math.PI * 0.9), new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 0.7 }))
+  limb.rotation.set(Math.PI / 2, 0, Math.PI * 0.05)
+  const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1.48, 4), new THREE.MeshBasicMaterial({ color: 0xcfc6b2 }))
+  string.rotation.z = Math.PI / 2
+  string.position.z = 0.1
+  bowModel.add(limb, string)
+
+  // The stone eyes, three to a set, each where a ray toward the stone first meets it.
+  const meet = (from: THREE.Vector3, to: THREE.Vector3) => {
+    const dir = to.clone().sub(from)
+    const len = dir.length()
+    dir.normalize()
+    const p = new THREE.Vector3()
+    for (let t = 0; t < len; t += 0.8) {
+      p.copy(from).addScaledVector(dir, t)
+      if (rocks.sdfAt(p.x, p.y, p.z) < 0.5 || H(p.x, p.z) > p.y) return { at: from.clone().addScaledVector(dir, Math.max(0, t - 0.6)), normal: dir.clone().negate() }
+    }
+    return null
+  }
+  const set = (id: string, rays: Array<[THREE.Vector3, THREE.Vector3]>, reward: THREE.Vector3) => {
+    const eyes = rays.map(([a, b]) => meet(a, b)).filter((e): e is { at: THREE.Vector3; normal: THREE.Vector3 } => !!e)
+    if (eyes.length === 3) {
+      eyeSets.push({ id, eyes, reward })
+      list.push([id, 'trinket', reward])
+    }
+  }
+  const floor = altarAt.y
+  set(
+    'eyes-hall',
+    // (Not straight down the aisle: that runs between the rows of pillars and meets nothing.)
+    [-2.6, 3.0, 2.6].map((a, k) => [new THREE.Vector3(altarAt.x - 6, floor + 30 + k * 5, altarAt.z), new THREE.Vector3(altarAt.x - 6 + Math.cos(a) * 420, floor + 30 + k * 5, altarAt.z + Math.sin(a) * 420)] as [THREE.Vector3, THREE.Vector3]),
+    ground(HALL.x + 166, HALL.z - 12),
+  )
+  if (sen) {
+    const gy = H(sen.x, sen.z)
+    set(
+      'eyes-sentinel',
+      [-45, 0, 45].map((lat, k) => [new THREE.Vector3(sen.x + lat, gy + 120 + k * 60, sen.z + 330), new THREE.Vector3(sen.x + lat * 0.3, gy + 120 + k * 60, sen.z)] as [THREE.Vector3, THREE.Vector3]),
+      ground(sen.x - 25, sen.z + 212),
+    )
+  }
+  if (mesa) {
+    const y = mesa.y - 22
+    set(
+      'eyes-mesa',
+      [0.5, 2.6, 4.4].map((a) => [new THREE.Vector3(mesa!.x + Math.cos(a) * 260, y, mesa!.z + Math.sin(a) * 260), new THREE.Vector3(mesa!.x, y, mesa!.z)] as [THREE.Vector3, THREE.Vector3]),
+      ground(mesa.x + Math.cos(0.5) * 120, mesa.z + Math.sin(0.5) * 120),
+    )
+  }
+  const placed: Spot[] = list.filter((e): e is [string, Spot['kind'], THREE.Vector3] => !!e[2]).map(([id, kind, at]) => ({ id, kind, at, hidden: id.startsWith('eyes-') }))
+  placed.push({ id: 'bow', kind: 'trinket', at: new THREE.Vector3(altarAt.x, altarAt.y + 1.12, altarAt.z), model: bowModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   return new Spots(placed)
 })()
+// The bow and its eyes.
+const eyes = new Eyes(eyeSets)
+scene.add(eyes.group)
+eyes.onShut = (set, done) => {
+  sound.stone(done ? 196 : 262)
+  if (!done) return
+  sound.resolve([196, 247, 294, 392])
+  narration.say('The last eye closes. What it watched over is let go.')
+  setTimeout(() => spots.reveal(set.id), 1500)
+}
+const bow = new Bow()
+scene.add(bow.group)
+bow.onLoose = () => sound.loose()
+const arrowHit: ArrowHit = (a, b) => {
+  const e = eyes.hit(a, b)
+  if (e) return { at: e, stop: true }
+  const h = terrain.heightAt(b.x, b.z)
+  if (b.y < h) return { at: b.clone().setY(h), stop: false }
+  if (rocks.sdfAt(b.x, b.y, b.z) < 0) return { at: a.clone(), stop: false }
+  return null
+}
+const aimFwd = new THREE.Vector3()
+const pick: Pick = (from, dir, max) => {
+  const a = new THREE.Vector3()
+  const b = new THREE.Vector3()
+  for (let t = 0; t < max; t += 2) {
+    a.copy(from).addScaledVector(dir, t)
+    b.copy(from).addScaledVector(dir, t + 2)
+    if (eyes.test(a, b) || b.y < terrain.heightAt(b.x, b.z) || rocks.sdfAt(b.x, b.y, b.z) < 0) return t + 2
+  }
+  return max
+}
 resonance.onStrike = (pitch, wrong) => sound.stone(pitch, wrong)
 resonance.onSolve = (id, pitches) => {
   sound.resolve(pitches)
@@ -711,6 +807,7 @@ function loadLocal(): boolean {
   for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
   for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
+  for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -1164,6 +1261,13 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   spots.update(dt, camera)
   wisps.update(dt, wanderer.pos)
+  {
+    const has = finds.has('bow')
+    const drawing = has && !climber.active && !cliff.active && !awakening.active && !journal.open && !bag.open && (input.held('Mouse2') || input.held('KeyQ'))
+    const loose = has && (input.clicked() || input.pressed('KeyF'))
+    camera.getWorldDirection(aimFwd)
+    bow.update(dt, drawing, loose, wanderer.pos.clone().add(new THREE.Vector3(0, 1.45, 0)).addScaledVector(aimFwd, 0.5), camera, arrowHit, pick)
+  }
   resonance.update(dt)
   visitClock -= dt
   if (visitClock <= 0 && ready) {
@@ -1201,9 +1305,16 @@ function frame(now: number): void {
     camera.lookAt(freeCam.at)
   } else {
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
+    // Drawing the bow: the camera comes in over the right shoulder, the view narrows, you face where you aim.
+    if (bow.draw > 0 && !awakening.active) {
+      camera.getWorldDirection(aimFwd).setY(0).normalize()
+      const shoulder = wanderer.pos.clone().add(new THREE.Vector3(-aimFwd.z * 0.65, 1.8, aimFwd.x * 0.65)).addScaledVector(aimFwd, -2.1)
+      camera.position.lerp(shoulder, bow.draw * 0.9)
+      wanderer.yaw = Math.atan2(aimFwd.x, aimFwd.z)
+    }
     // The long run widens the view a little: speed you feel at the edges.
     if (!awakening.active) {
-      const fov = 58 + 7 * wanderer.lope
+      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
@@ -1324,6 +1435,9 @@ const g = {
   spots,
   wisps,
   resonance,
+  eyes,
+  bow,
+  pick,
   birds,
   vegetation,
   grass,

@@ -11,7 +11,7 @@
 //
 // The catalogue is fixed and written by hand; what you have found is saved.
 
-export type FindKind = 'place' | 'giant' | 'lore' | 'relic' | 'trinket'
+export type FindKind = 'place' | 'giant' | 'lore' | 'relic' | 'trinket' | 'tool'
 
 export interface Find {
   id: string
@@ -32,6 +32,7 @@ export const KIND_TITLES: Record<FindKind, string> = {
   lore: 'Words on stone',
   relic: 'Relics',
   trinket: 'Trinkets',
+  tool: 'Tools',
 }
 
 const f = (kind: FindKind, id: string, name: string, hint: string, text: string, icon?: string, tint?: string): Find => ({ id, kind, name, hint, text, icon, tint })
@@ -39,6 +40,8 @@ const f = (kind: FindKind, id: string, name: string, hint: string, text: string,
 export const CATALOGUE: Find[] = [
   // The first thing to find: until you have it, small things stay where they lie.
   f('trinket', 'bag', "The Traveller's Bag", 'Left at a camp on the Green, just ahead of where you woke.', 'Patched leather, deep, and somehow never full. Whoever left it here is not coming back for it.', 'bag', '#8a5a3c'),
+  // Tools: things that are used, and open new ways into the land.
+  f('tool', 'bow', 'The Old Bow', 'On an altar at the far end of the Undercroft.', 'A bow of dark wood and horn, strung with something that is not gut, and a quiver that is never empty. Hold the right mouse button (or Q) to draw; click (or F) to loose. Somewhere, stone eyes are watching.', 'bow', '#5a3e2a'),
   // Places
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),
   f('place', 'sentinel', 'The Sentinel', 'North, on the rim of the Green.', 'It kneels with its sword before it, and it has knelt so long that moss has climbed to its knees. Whatever it was waiting for, it is still waiting.'),
@@ -68,6 +71,7 @@ export const CATALOGUE: Find[] = [
   f('lore', 'lore-chains', 'A stone under the chains', 'Below one of the Chained Stones.', 'We do not know who chained the stones, or why they want to rise. When a storm comes, the chains sing.'),
   f('lore', 'lore-herd', 'A stone near the Herd', "On the edge of the Herd's grazing.", 'The herd eats the stone that grows under the sand. Keep downwind. Keep low. The big one will chase you off if it thinks you are too near the young.'),
   f('lore', 'lore-walker', 'A stone on the western Green', 'Far out on the western Green.', 'The Walker has crossed the Green ten thousand times. It has never once stepped on our camp. It knows we are here. It simply does not mind.'),
+  f('lore', 'lore-bow', 'A stone by the altar', 'At the far end of the Undercroft.', 'We leave the bow for whoever comes after. The eyes in the stone have watched over their things long enough. Close them.'),
   f('lore', 'lore-sleep', 'A stone under the arch', 'Under the stone arch out on the Green.', 'They sleep where the land is low and warm. When one sleeps long enough, the grass grows over it, and then there is a hill, and then you cannot tell.'),
   // Relics: in the shrines on the giants' backs. Taking one is raiding something alive.
   f('relic', 'relic-walker', "The Walker's relic", "In the shrine on the Walker's back.", "A disc of pale stone cut with the same mark that glows in the Walker's eyes. It is warm, like something alive, and a little heavier whenever the Walker is near.", 'coin', '#bcd2e6'),
@@ -84,6 +88,10 @@ export const CATALOGUE: Find[] = [
   // What the resonance stones kept under their slabs.
   f('trinket', 'res-steps', 'A humming stone', 'Under the slab of the ringing stones on the Steps.', 'A palm-sized stone that hums, very quietly, the note the tallest stone made. It is the only quiet thing you own.', 'stone', '#b7ad96'),
   f('trinket', 'res-wood', 'A bone flute', 'Under the slab of the ringing stones in the Old Wood.', 'A flute of pale bone with four holes. Each plays one of the stones\' notes, and no other.', 'horn', '#e2d8c0'),
+  // What the stone eyes watch over (close all three of a set with the bow).
+  f('trinket', 'eyes-hall', 'A lidded box', "Watched by three eyes high on the Undercroft's pillars.", 'A small stone box with a lid that will not open. When you shake it, something inside shakes back.', 'figure', '#8d8577'),
+  f('trinket', 'eyes-sentinel', "The Sentinel's tear", 'Watched by three eyes set in the Sentinel itself.', 'A drop of clear stone, the size of an egg. It was lying where the Sentinel would see it, if it looked down.', 'shard', '#bfd4dc'),
+  f('trinket', 'eyes-mesa', 'A sun-disc', 'Watched by three eyes in the cliffs of a mesa in the Dune Sea.', 'A disc of beaten copper, green at the edges, with a hole in the middle you can see the sky through.', 'coin', '#a86d3c'),
   // Trinkets: left on the hardest high places (a token for whoever climbs there).
   f('trinket', 'ring-hood', 'A dark ring', "On the crown of the Sentinel's hood.", 'A ring of dark metal, too large for any finger of yours and far too small for theirs.', 'ring', '#6d6a72'),
   f('trinket', 'beads-pillar', 'Clay beads', 'On top of the tallest pillar of the Colonnade.', 'Beads of fired clay on a rotten cord. Someone carried these a very long way up.', 'beads', '#b06a46'),

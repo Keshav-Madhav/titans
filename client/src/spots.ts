@@ -32,6 +32,8 @@ export interface Spot {
   at: THREE.Vector3
   /** Not there until something reveals it (a wisp settling: wisps.ts). */
   hidden?: boolean
+  /** Shown instead of the small glinting token (the bow on its altar). */
+  model?: THREE.Object3D
 }
 
 const REACH = 2.8
@@ -75,8 +77,9 @@ export class Spots {
         this.group.add(g)
         this.marks.set(s.id, g)
       } else {
-        const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), thing)
-        m.position.copy(s.at).add(new THREE.Vector3(0, 0.25, 0))
+        const m = s.model ?? new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), thing)
+        if (s.model) m.position.copy(s.at)
+        else m.position.copy(s.at).add(new THREE.Vector3(0, 0.25, 0))
         this.group.add(m)
         this.marks.set(s.id, m)
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: new THREE.Color(7, 6, 4.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false }))
@@ -138,7 +141,8 @@ export class Spots {
       g.sprite.scale.set(s, s, 1)
     }
     for (const [id, m] of this.marks) {
-      if (this.spots.find((s) => s.id === id)?.kind === 'trinket') m.rotation.y += dt * 0.8
+      const s = this.spots.find((s) => s.id === id)
+      if (s?.kind === 'trinket' && !s.model) m.rotation.y += dt * 0.8
     }
   }
 }

@@ -137,6 +137,18 @@ The mechanics roster — each a kind of thing placed many times, each with its o
 11. **Cairns** — the high places' beacons (exist); all of a land's lit → an artifact.
 12. **Offerings** — a shrine that takes a trinket from your bag and gives back words.
 
+**Tools — progression (user: "artifacts found become items that can be used, like a bow is found
+and then bow type puzzles unlock").** Each tool is found somewhere that teaches it, and opens a
+kind of thing you could see before but not reach:
+- **The Old Bow** (the Undercroft's altar) → stone eyes high in stone (three to a set: close them
+  all and what they watch over is let go); later, bells on chains to ring or drop, wisps to pin.
+- **The Horn** (from the herd's grazing) → call a giant to you (and ride it); make the ringing
+  stones answer from far off; startle the herd.
+- **The Wing-cloak** (top of the Great Stair) → glide from high places: the floating stones, the
+  chasm crossings, the long way down from the Sentinel's hood.
+- **The Sight-stone** (the Grove) → hold it up to see the glyph-trails the First Ones left: hidden
+  paths to caches, doors that are only there when looked at.
+
 ## 3. The world
 
 One continuous landscape, about 8 × 8 km of playable ground ringed by mountains (the existing

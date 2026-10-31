@@ -293,6 +293,24 @@ export class Sound {
     }
   }
 
+  /** A bowstring: a dry snap and a low thrum. */
+  loose(): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    this.burst(t, 0.12, 1400, 0.08)
+    const o = ctx.createOscillator()
+    o.frequency.setValueAtTime(150, t)
+    o.frequency.exponentialRampToValueAtTime(80, t + 0.25)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.01)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)
+    o.connect(g).connect(this.master!)
+    o.start(t)
+    o.stop(t + 0.35)
+  }
+
   /** Stones answering each other: the four struck together, rising. */
   resolve(pitches: number[]): void {
     pitches.forEach((p, i) => setTimeout(() => this.stone(p), i * 160))
