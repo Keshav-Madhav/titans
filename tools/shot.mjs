@@ -762,6 +762,29 @@ const scenes = {
     await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.18, 5))
     await shot('p2-walk')
   },
+  // The long run: a held sprint over the Green lengthens into ~14 m/s.
+  async run() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.teleport(0, 0)
+      // East, across the open Green.
+      g.setCam(-Math.PI / 2, 0.12, 6)
+      g.input.press('KeyW')
+      g.input.press('ShiftLeft')
+    })
+    const samples = []
+    for (let i = 0; i < 12; i++) {
+      const a = await page.evaluate(() => window.__g.player())
+      await page.waitForTimeout(1000)
+      const b = await page.evaluate(() => window.__g.player())
+      samples.push(Math.hypot(b.x - a.x, b.z - a.z))
+      if (i === 10) await shot('run-long')
+    }
+    const lope = await page.evaluate(() => window.__g.wanderer.lope)
+    await page.evaluate(() => { window.__g.input.release('KeyW'); window.__g.input.release('ShiftLeft') })
+    console.log(`speeds (m/s): ${samples.map((v) => v.toFixed(1)).join(' ')}; lope ${lope.toFixed(2)}`)
+    if (Math.max(...samples) < 12) throw new Error('run gate: the long run never came')
+  },
   // P3 gate: the reel's scale shot — a Wanderer on the plain looking up at a walking Titan.
   async titan() {
     await page.evaluate(() => {

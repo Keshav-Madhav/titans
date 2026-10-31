@@ -12,6 +12,11 @@ import { type Terrain } from '@titans/shared'
 
 const WALK = 4.2
 const SPRINT = 8.5
+/**
+ * The long run: hold a sprint over open, level ground and the stride
+ * lengthens to this (the lands are kilometres across; SotC had a horse).
+ */
+const LONG = 14.5
 const ACCEL = 14
 const JUMP = 5.6
 const GRAVITY = 18
@@ -265,6 +270,8 @@ export class Wanderer {
   stunned = 0
   private tilt = 0
   private stride = 0
+  /** 0 … 1: how far into the long run (see LONG). */
+  lope = 0
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
@@ -386,7 +393,14 @@ export class Wanderer {
       wx /= len
       wz /= len
     }
-    const speed = sprint ? SPRINT : WALK
+    // The long run builds over ~5 s of a steady sprint on ground that isn't
+    // climbing, and falls away when you turn hard, climb, or stop.
+    const vlen = Math.hypot(this.vel.x, this.vel.z)
+    const steady = len > 0 && vlen > SPRINT * 0.8 && (this.vel.x * wx + this.vel.z * wz) / vlen > 0.92
+    const rise = len > 0 ? (terrain.heightAt(this.pos.x + wx * 2, this.pos.z + wz * 2) - terrain.heightAt(this.pos.x, this.pos.z)) / 2 : 0
+    if (sprint && this.grounded && steady && rise < 0.18) this.lope = Math.min(1, this.lope + dt / 5)
+    else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
+    const speed = sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
     const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
     this.vel.x += (wx * speed - this.vel.x) * k
     this.vel.z += (wz * speed - this.vel.z) * k
@@ -499,7 +513,8 @@ export class Wanderer {
     this.t += dt
     const hs = this.climbing ? 0 : this.speed
     this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
-    this.stride += (this.climbing ? this.climbMoving * 2.4 : hs * 1.35) * dt
+    // (Longer strides, not just faster ones, past a sprint.)
+    this.stride += (this.climbing ? this.climbMoving * 2.4 : (hs * 1.35) / (1 + Math.max(0, hs - SPRINT) * 0.06)) * dt
     const s = this.stride
     const run = Math.max(0, this.gait - 1) / 0.6
     const L = this.legs

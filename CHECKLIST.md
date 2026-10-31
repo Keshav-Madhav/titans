@@ -154,7 +154,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
       fog's background, still smaller than giants"): a range 1.5–3 km high from ~13 km out; the
       colossi stand beyond it, 8 km tall at 24.5 km, darkened to silhouettes, chest and head clear
       above its crest; aerial haze thins with height. Gate: `shot.mjs wall`, awakening (stepped)
-- [ ] Travel at this scale: a faster run on open ground; riding a walking giant across a land
+- [x] The long run: a held sprint over open, level ground lengthens over ~5 s from 8.5 to 14.5 m/s
+      (longer strides, not just faster; the view widens a little); it falls away on a hard turn, a
+      climb or a stop. Gate: `shot.mjs run`
+- [ ] Riding a walking giant across a land (call one? a route walker?)
 
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the

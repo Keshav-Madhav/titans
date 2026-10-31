@@ -849,7 +849,15 @@ function frame(now: number): void {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
   } else {
-    rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, 0, focus, terrain)
+    rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
+    // The long run widens the view a little: speed you feel at the edges.
+    if (!awakening.active) {
+      const fov = 58 + 7 * wanderer.lope
+      if (Math.abs(camera.fov - fov) > 0.01) {
+        camera.fov = fov
+        camera.updateProjectionMatrix()
+      }
+    }
     // An awakening takes the camera's gaze (the rig still keeps its place).
     awakening.update(dt, camera)
   }
