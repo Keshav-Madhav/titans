@@ -273,6 +273,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Sounds of the living land (`audio.ts`): crickets at night, cicadas by day (both quieter in rain,
       louder where it is green), birdsong now and then by day, frogs croaking at night
 - [x] Far trees keep a trunk you can see (a crown with a sub-pixel trunk hung in the air)
+- [x] Weather of the lands: in the Dune Sea a storm is a sandstorm — ochre sky, deck and air, thick
+      (fog ×10), grit racing flat on the wind, the grade keeping its warmth; after rain, with the
+      sun low behind you, a rainbow (42° round the anti-sun point); mist thickest in the hollows at
+      dawn and dusk. Gate: `shot.mjs lands_weather`
 - [ ] More plants (ferns, tall flowers, reeds by water); small animals on the ground
 
 ## Design drafts

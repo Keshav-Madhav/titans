@@ -663,6 +663,43 @@ const scenes = {
     console.log(`took the stone: ${took}; ${ends.join(' ')}`)
     if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
   },
+  // Weather of the lands: a sandstorm in the Dune Sea, mist at dawn, a rainbow after rain.
+  async lands_weather() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.sky.setTime(0.45)
+      g.weather.set('storm', true)
+      g.teleport(0, 4600)
+      g.setCam(0.3, 0.08, 7)
+    })
+    await page.waitForTimeout(5000)
+    await shot('weather-sandstorm')
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('clear', true)
+      g.sky.setTime(0.17)
+      g.teleport(300, 400)
+      g.setCam(Math.PI * 0.75, 0.12, 7)
+    })
+    await page.waitForTimeout(1500)
+    await shot('weather-dawn-mist')
+    // A rainbow: rain, then the sun comes back low behind you.
+    await page.evaluate(async () => {
+      const g = window.__g
+      g.sky.setTime(0.8)
+      g.teleport(300, 400)
+      g.weather.set('storm', true)
+      await new Promise((r) => setTimeout(r, 600))
+      g.weather.set('breaking', true)
+      g.weather.now.rain = 0
+      g.weather.now.cover = 0.45
+      const s = g.sky.sunDir
+      g.setCam(Math.atan2(s.x, s.z), -0.05, 7) // facing away from the sun
+    })
+    await page.waitForTimeout(1500)
+    await shot('weather-rainbow')
+    await page.evaluate(() => window.__g.sky.setTime(0.36))
+  },
   // Small life: fireflies at dusk over the Green, butterflies by day, birds round a giant's head.
   async life() {
     await page.evaluate(() => {

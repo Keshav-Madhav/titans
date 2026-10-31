@@ -1472,6 +1472,7 @@ function frame(now: number): void {
   sky.tick(dt)
   sky.advance(dt)
   weather.part = awakening.reveal
+  weather.desert = biome.desert(camera.position.x, camera.position.z)
   weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
   post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night
@@ -1480,7 +1481,10 @@ function frame(now: number): void {
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes)
   clouds.tint(weather.now.dark, Math.max(sky.night, sky.dusk))
-  mist.update(sky.fog.color, sky.sunDir, weather.now.dark)
+  // Mist lies thickest in the hollows at dawn and at dusk.
+  const t = sky.time
+  const dawnMist = Math.max(1 - Math.abs(t - 0.17) / 0.08, 1 - Math.abs(t - 0.88) / 0.05, 0) * 0.9
+  mist.update(sky.fog.color, sky.sunDir, Math.max(weather.now.dark, dawnMist))
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)

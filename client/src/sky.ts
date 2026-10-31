@@ -122,7 +122,8 @@ export class SkySystem {
     scene.add(this.moon)
     this.sky.material.uniforms.uNight = { value: 0 }
     this.sky.material.uniforms.uDusk = { value: 0 }
-    this.sky.material.fragmentShader = 'uniform float uNight;\nuniform float uDusk;\n' + this.sky.material.fragmentShader.replace(
+    this.sky.material.uniforms.uSand = { value: 0 }
+    this.sky.material.fragmentShader = 'uniform float uNight;\nuniform float uDusk;\nuniform float uSand;\n' + this.sky.material.fragmentShader.replace(
       'gl_FragColor = vec4( skyC, 1.0 );',
       `// Twilight (the physical sky goes black once the sun is down): deep blue-violet
       // overhead, the horizon warm where the sun went, cooler elsewhere.
@@ -133,6 +134,8 @@ export class SkySystem {
       // Night: a deep blue-black, a little lighter at the horizon.
       vec3 nightC = mix( vec3( 0.03, 0.045, 0.08 ), vec3( 0.006, 0.01, 0.024 ), smoothstep( 0.0, 0.5, max( direction.y, 0.0 ) ) );
       skyC = mix( skyC, nightC, uNight );
+      // A sandstorm (weather.ts): the whole sky ochre and thick, a little darker overhead.
+      skyC = mix( skyC, vec3( 0.6, 0.45, 0.28 ) * mix( 1.0, 0.7, max( direction.y, 0.0 ) ), uSand * 0.9 );
       gl_FragColor = vec4( skyC, 1.0 );`,
     )
     this.setTime(this.time)

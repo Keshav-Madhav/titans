@@ -107,6 +107,7 @@ export class Weather {
     uCover: { value: 0.8 },
     uDark: { value: 0.5 },
     uNight: { value: 0 },
+    uSand: { value: 0 },
     uSun: { value: new THREE.Vector3() },
     uFog: { value: new THREE.Color() },
     uFlash: { value: 0 },
@@ -114,7 +115,17 @@ export class Weather {
     uNoise: { value: null as THREE.Texture | null },
     uWind: { value: new THREE.Vector2(1, 0.4) },
   }
-  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 } }
+  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 } }
+  /**
+   * How much of where you stand is the Dune Sea (main.ts sets it): there a
+   * storm brings no rain but sand — ochre air, grit driven flat by the wind.
+   */
+  desert = 0
+  /** 0 … 1: how much of the storm is sand right now. */
+  sand = 0
+  /** Wet air after rain (decays): a rainbow when the sun comes back. */
+  private wet = 0
+  private readonly rainbow: THREE.Mesh
   private readonly deck: THREE.Mesh[] = []
   private readonly rain: THREE.InstancedMesh
   private flashLeft = 0
@@ -152,7 +163,7 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * w;
           }`,
         fragmentShader: /* glsl */ `
-          uniform float uTime, uCover, uDark, uLayer, uFlash, uNight;
+          uniform float uTime, uCover, uDark, uLayer, uFlash, uNight, uSand;
           uniform vec3 uSun, uFog;
           uniform vec2 uFlashAt, uWind;
           uniform sampler2D uNoise;
@@ -182,6 +193,8 @@ export class Weather {
             c = mix(c, vec3(0.05, 0.06, 0.09) + vec3(0.1, 0.12, 0.16) * (1.0 - d), uNight);
             // Lightning inside the cloud.
             c += vec3(0.75, 0.8, 1.0) * uFlash * exp(-distance(vWorld.xz, uFlashAt) / 1400.0) * 2.5;
+            // In a sandstorm the deck is the dust itself: ochre, the colour of the air.
+            c = mix(c, uFog * (0.85 + 0.3 * uLayer), uSand);
             // Far away the deck melts into the haze.
             c = mix(c, uFog, smoothstep(2500.0, 12000.0, dist) * 0.85);
             float a = d * 0.42 * (1.0 - smoothstep(10000.0, 14500.0, dist));
@@ -207,20 +220,22 @@ export class Weather {
       new THREE.ShaderMaterial({
         uniforms: this.rainUniforms,
         vertexShader: /* glsl */ `
-          uniform float uTime, uRain, uWind, uRoof;
+          uniform float uTime, uRain, uWind, uRoof, uSand;
           varying float vA;
           float h(float n) { return fract(sin(n) * 43758.5453); }
           void main() {
             float id = float(gl_InstanceID);
             vec3 o = vec3(h(id) - 0.5, h(id * 1.7 + 3.1), h(id * 2.3 + 7.7) - 0.5) * vec3(140.0, 60.0, 140.0);
             // Fall, and wrap round the camera.
-            float y = mod(o.y - uTime * (24.0 + 6.0 * h(id * 3.7)), 60.0) - 20.0;
+            // (Sand: barely falls, low to the ground, and races sideways with the wind.)
+            float y = mix(mod(o.y - uTime * (24.0 + 6.0 * h(id * 3.7)), 60.0) - 20.0, mod(o.y * 0.25 - uTime * 1.5, 14.0) - 3.0, uSand);
+            o.x += uTime * uSand * (26.0 + 10.0 * h(id * 9.3));
             // Fixed in the world, wrapped to a 140 m column round the camera.
             vec3 base = vec3(cameraPosition.x + mod(o.x - cameraPosition.x + 70.0, 140.0) - 70.0, cameraPosition.y + y, cameraPosition.z + mod(o.z - cameraPosition.z + 70.0, 140.0) - 70.0);
             // Face the camera about the vertical; lean with the wind.
             vec3 toCam = normalize(vec3(cameraPosition.x - base.x, 0.0, cameraPosition.z - base.z));
             vec3 side = vec3(toCam.z, 0.0, -toCam.x);
-            vec3 p = base + side * position.x + vec3(uWind * 0.35, 1.0, 0.0) * position.y;
+            vec3 p = base + side * position.x + mix(vec3(uWind * 0.35, 1.0, 0.0), vec3(1.6, 0.12, 0.2), uSand) * position.y;
             vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(25.0, 70.0, distance(base, cameraPosition)));
             // No rain under the Undercroft's roof.
             vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
@@ -228,16 +243,41 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
+          uniform float uSand;
           varying float vA;
           void main() {
             if (vA < 0.01) discard;
-            gl_FragColor = vec4(0.72, 0.77, 0.82, 0.22 * vA);
+            gl_FragColor = vec4(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), (0.22 + 0.4 * uSand) * vA);
           }`,
         transparent: true,
         depthWrite: false,
       }),
       COUNT,
     )
+    // The rainbow: a ring 42° round the point opposite the sun, red outside, violet in.
+    const R = 6000 * Math.tan((42 * Math.PI) / 180)
+    this.rainbow = new THREE.Mesh(
+      new THREE.RingGeometry(R * 0.955, R * 1.0, 96, 1),
+      new THREE.ShaderMaterial({
+        uniforms: { uA: { value: 0 } },
+        vertexShader: 'varying vec2 vP; void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `
+          uniform float uA;
+          varying vec2 vP;
+          vec3 spectrum(float t) { return clamp(vec3(1.5 - abs(t * 4.0 - 3.0), 1.5 - abs(t * 4.0 - 2.0), 1.5 - abs(t * 4.0 - 1.0)), 0.0, 1.0); }
+          void main() {
+            float t = (length(vP) / ${R.toFixed(1)} - 0.955) / 0.045;
+            float edge = smoothstep(0.0, 0.15, t) * smoothstep(1.0, 0.85, t);
+            gl_FragColor = vec4(spectrum(t), uA * edge * 0.6);
+          }`,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      }),
+    )
+    this.rainbow.visible = false
+    scene.add(this.rainbow)
     this.rain.frustumCulled = false
     this.rain.renderOrder = 3
     this.group.add(this.rain)
@@ -297,8 +337,11 @@ export class Weather {
     u.uWind.value.set(1, 0.4).multiplyScalar(0.5 + w.wind)
     this.deck.forEach((m, i) => m.position.set(camera.position.x, w.base + i * CLOUD_GAP, camera.position.z))
     this.rainUniforms.uTime.value += dt
-    this.rainUniforms.uRain.value = w.rain
+    // In the Dune Sea a storm's rain is sand.
+    this.sand += (this.desert * THREE.MathUtils.smoothstep(w.rain, 0.3, 0.9) - this.sand) * Math.min(1, dt * 0.5)
+    this.rainUniforms.uRain.value = Math.max(w.rain, this.sand)
     this.rainUniforms.uWind.value = w.wind
+    this.rainUniforms.uSand.value = this.sand
     this.rain.visible = w.rain > 0.02
 
     // Light: the sun dims and greys under the cloud; the sky's diffuse light
@@ -312,13 +355,28 @@ export class Weather {
     sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
     sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
-    sky.fog.density = b.fog * w.fog
+    sky.fog.density = b.fog * w.fog * (1 + this.sand * 9)
+    u.uSand.value = this.sand
+    sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
     // In a flash the cloud goes thin for an instant: whatever stands in it
     // (and beyond the Wall) shows as a shape, then is gone again.
     sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
     sky.fog.base = w.base
     sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(0.12 + 0.88 * day), w.dark)
+    // A sandstorm: the air thick and ochre (dimmer as the day goes).
+    sky.fog.color.lerp(new THREE.Color(0.62, 0.46, 0.29).multiplyScalar(0.15 + 0.85 * day), this.sand * 0.92)
+    // After rain, with the sun back low behind you: a rainbow opposite it.
+    this.wet = Math.max(this.wet - dt / 150, w.rain > 0.3 && this.sand < 0.3 ? 1 : 0)
+    const sunUp = sky.sunDir.y
+    const bow = this.wet * (1 - THREE.MathUtils.smoothstep(w.rain, 0.05, 0.2)) * THREE.MathUtils.smoothstep(sunUp, 0.05, 0.15) * (1 - THREE.MathUtils.smoothstep(sunUp, 0.55, 0.7)) * (1 - THREE.MathUtils.smoothstep(w.cover, 0.6, 0.85))
+    this.rainbow.visible = bow > 0.02
+    if (this.rainbow.visible) {
+      const anti = sky.sunDir.clone().negate()
+      this.rainbow.position.copy(camera.position).addScaledVector(anti, 6000)
+      this.rainbow.lookAt(camera.position)
+      ;(this.rainbow.material as THREE.ShaderMaterial).uniforms.uA.value = bow * 0.5
+    }
     u.uNight.value = Math.max(sky.night, sky.dusk * 0.75)
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms
@@ -328,7 +386,8 @@ export class Weather {
     // The grade and the sun's shafts.
     if (this.post) {
       const g = this.post.grade.uniforms
-      g.mood.value = w.dark
+      // (A sandstorm is not a grey storm: the grade keeps its colour, warm and thick.)
+      g.mood.value = w.dark * (1 - 0.75 * this.sand)
       g.flash.value = flash
       g.rayStrength.value = 0.32 * w.rays
     }
