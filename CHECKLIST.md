@@ -170,6 +170,17 @@ Each phase ends playable. Phases are in PLAN.md §6.
       the faster they go (`effects.shed`)
 - [x] Gate: `shot.mjs giant`, herd, climb (peak 242 m, rides), single
 
+## A3d — Dread at this scale (user: "more scary without jumpscares")
+- [x] The cloud comes down in a storm: the deck's base moves with the weather (clear 330 m,
+      breaking 275, overcast 250, storm 185 — packed with the cover into the fog's `far`), so in a
+      storm the giants walk with their heads in cloud and the high ground is lost
+- [x] Lightning reveals: in a flash the cloud goes thin for an instant — whatever stands in it, and
+      the colossi beyond the Wall, show as shapes and are gone again
+- [x] The presence (`audio.presenceBed`): a low, slow-breathing hum and rumble that rises over
+      seconds when something enormous is near (giants, the herd, the colossi), louder in the murk
+      where you can't see it — never a sting
+- [x] Gate: `shot.mjs weather` (storm swallows the Sentinel to the waist)
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

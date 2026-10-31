@@ -32,6 +32,7 @@ export class Sound {
   private padVoices: OscillatorNode[] = []
   private rainGain: GainNode | null = null
   private windGain: GainNode | null = null
+  private presenceGain: GainNode | null = null
   private state = { dark: 0.5, rain: 0, wind: 0.5, awe: 0 }
   private chord = 0
   private nextChord = 0
@@ -77,6 +78,7 @@ export class Sound {
     this.wind()
     this.pad()
     this.rainBed()
+    this.presenceBed()
     // Run the score on its own clock.
     setInterval(() => this.score(), 250)
   }
@@ -161,7 +163,56 @@ export class Sound {
     this.windGain?.gain.setTargetAtTime(0.03 + wind * 0.07, t, 3)
     // The drone swells under storm and near the colossi.
     this.padGain?.gain.setTargetAtTime(0.05 + dark * 0.05 + awe * 0.09, t, 4)
+    // Something enormous near: felt more than heard, more in the murk, where you can't see it.
+    this.presenceGain?.gain.setTargetAtTime(awe * awe * (0.35 + 0.65 * dark) * 0.3, t, 2.5)
     this.padFilter?.frequency.setTargetAtTime(380 + (1 - dark) * 420 + awe * 300, t, 4)
+  }
+
+  /**
+   * The presence: a low, slow-breathing hum and a rumble under it, for when
+   * something enormous is close (silent otherwise). Never a sting, never
+   * sudden: it rises over seconds, the way a shape comes out of fog.
+   */
+  private presenceBed(): void {
+    const ctx = this.ctx!
+    const gain = ctx.createGain()
+    gain.gain.value = 0
+    this.presenceGain = gain
+    const low = ctx.createBiquadFilter()
+    low.type = 'lowpass'
+    low.frequency.value = 160
+    for (const [f, g] of [
+      [41, 0.5],
+      [41.6, 0.4],
+      [82.4, 0.18],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.frequency.value = f
+      const og = ctx.createGain()
+      og.gain.value = g
+      o.connect(og).connect(low)
+      o.start()
+    }
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    const rumble = ctx.createBiquadFilter()
+    rumble.type = 'lowpass'
+    rumble.frequency.value = 110
+    const rg = ctx.createGain()
+    rg.gain.value = 0.9
+    src.connect(rumble).connect(rg).connect(low)
+    src.start()
+    // Breathing: slow swells, ~20 s apart.
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 0.05
+    const depth = ctx.createGain()
+    depth.gain.value = 0.35
+    const breath = ctx.createGain()
+    breath.gain.value = 0.65
+    lfo.connect(depth).connect(breath.gain)
+    lfo.start()
+    low.connect(breath).connect(gain).connect(this.master!)
   }
 
   /** Every quarter second: chord changes, the odd high note, a far horn. */

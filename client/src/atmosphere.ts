@@ -24,8 +24,11 @@ export interface DarkHall {
  * fade tall things into the cloud as they rise into it.
  */
 export class AirFog extends THREE.Fog {
+  private cover = 0
+  private baseY = 255
   constructor(color: THREE.ColorRepresentation, density: number) {
     super(color, density, 0)
+    this.pack()
   }
   get density(): number {
     return this.near
@@ -35,10 +38,23 @@ export class AirFog extends THREE.Fog {
   }
   /** 0 clear … 1 storm: how much of a tall thing the cloud deck swallows. */
   get cloud(): number {
-    return this.far
+    return this.cover
   }
   set cloud(v: number) {
-    this.far = v
+    this.cover = Math.min(0.999, Math.max(0, v))
+    this.pack()
+  }
+  /** The cloud deck's underside (metres): it comes down in a storm. */
+  get base(): number {
+    return this.baseY
+  }
+  set base(v: number) {
+    this.baseY = v
+    this.pack()
+  }
+  /** Both ride in `far` (whole metres of base, the cover in the fraction): the shader unpacks them. */
+  private pack(): void {
+    this.far = Math.floor(this.baseY) + this.cover
   }
 }
 
@@ -116,10 +132,12 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   #ifdef FOG_EXP2
     float fogDens = fogDensity * fogFall;
     float cloudCover = 0.0;
+    float cloudY = ${cloudBase};
   #else
-    // AirFog: near is the density, far the cloud deck's weight.
+    // AirFog: near is the density; far packs the deck's base (whole metres) and weight (fraction).
     float fogDens = fogNear * fogFall;
-    float cloudCover = fogFar;
+    float cloudCover = fract( fogFar );
+    float cloudY = floor( fogFar );
   #endif
   float fogFactor = 1.0 - exp( - fogDens * fogDist );
   // However clear the day, kilometres of air between: the far mountains,
@@ -135,7 +153,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   // Up into the cloud deck, a tall thing fades into it (no hard band where a cloud layer cuts it).
   // Never quite all the way, and over a deep band: a flat fog-coloured
   // cut-out reads as a hole in the picture, a faint form inside reads as cloud.
-  float cloudIn = smoothstep( ${cloudBase} - 15.0, ${cloudBase} + 220.0, vFogWorld.y ) * cloudCover * 0.86;
+  float cloudIn = smoothstep( cloudY - 15.0, cloudY + 220.0, vFogWorld.y ) * cloudCover * 0.86;
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor * vec3( 0.92, 0.95, 0.97 ), cloudIn );
 #endif`
 

@@ -927,6 +927,7 @@ function awe(): number {
   let a = 0
   for (const f of colossusAvoid) a = Math.max(a, 1 - Math.hypot(f.x - p.x, f.z - p.z) / (f.r * 3))
   for (const t of titans.values()) a = Math.max(a, 1 - Math.hypot(t.titan.gait.x - p.x, t.titan.gait.z - p.z) / 900)
+  for (const t of herd.giants) a = Math.max(a, 1 - Math.hypot(t.gait.x - p.x, t.gait.z - p.z) / (t.H * 3))
   return Math.max(0, a)
 }
 /** Tools: a camera placed anywhere, looking at anything (null: the rig follows the wanderer). */

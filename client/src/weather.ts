@@ -30,13 +30,19 @@ interface State {
   wind: number
   /** How strongly the sun's shafts come through. */
   rays: number
+  /**
+   * The deck's underside (metres). It comes down in a storm until the giants
+   * walk with their heads in it and the high ground is lost (the reference
+   * images: "getting cut off by storm clouds").
+   */
+  base: number
 }
 
 const PRESETS: Record<WeatherName, State> = {
-  clear: { cover: 0.22, dark: 0, rain: 0, fog: 1, wind: 0.3, rays: 0.6 },
-  overcast: { cover: 0.8, dark: 0.55, rain: 0, fog: 2.2, wind: 0.5, rays: 0.25 },
-  storm: { cover: 0.97, dark: 0.85, rain: 1, fog: 3.4, wind: 1, rays: 0.1 },
-  breaking: { cover: 0.62, dark: 0.35, rain: 0.05, fog: 1.8, wind: 0.6, rays: 1.4 },
+  clear: { cover: 0.22, dark: 0, rain: 0, fog: 1, wind: 0.3, rays: 0.6, base: 330 },
+  overcast: { cover: 0.8, dark: 0.55, rain: 0, fog: 2.2, wind: 0.5, rays: 0.25, base: 250 },
+  storm: { cover: 0.97, dark: 0.85, rain: 1, fog: 3.4, wind: 1, rays: 0.1, base: 185 },
+  breaking: { cover: 0.62, dark: 0.35, rain: 0.05, fog: 1.8, wind: 0.6, rays: 1.4, base: 275 },
 }
 
 /** How long each state holds (seconds), and what follows it. */
@@ -49,10 +55,9 @@ const CYCLE: Array<[WeatherName, number]> = [
 ]
 
 /** The sky an awakening opens: the deck thinned to rags, the air clear, the sun through. */
-const PARTED: State = { cover: 0.3, dark: 0.2, rain: 0, fog: 1, wind: 0.2, rays: 0.8 }
+const PARTED: State = { cover: 0.3, dark: 0.2, rain: 0, fog: 1, wind: 0.2, rays: 0.8, base: 340 }
 
-/** The cloud deck: its base, and how thick it is. */
-export const CLOUD_BASE = 255
+/** The cloud deck: how thick it is (its base moves with the weather: State.base). */
 const CLOUD_LAYERS = 7
 const CLOUD_GAP = 26
 
@@ -287,7 +292,7 @@ export class Weather {
     u.uSun.value.copy(this.sky.sunDir)
     u.uFlash.value = flash
     u.uWind.value.set(1, 0.4).multiplyScalar(0.5 + w.wind)
-    this.deck.forEach((m, i) => m.position.set(camera.position.x, CLOUD_BASE + i * CLOUD_GAP, camera.position.z))
+    this.deck.forEach((m, i) => m.position.set(camera.position.x, w.base + i * CLOUD_GAP, camera.position.z))
     this.rainUniforms.uTime.value += dt
     this.rainUniforms.uRain.value = w.rain
     this.rainUniforms.uWind.value = w.wind
@@ -303,7 +308,10 @@ export class Weather {
     this.scene.environmentIntensity = b.env * (1 - 0.35 * w.dark)
     sky.fog.density = b.fog * w.fog
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
-    sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45))
+    // In a flash the cloud goes thin for an instant: whatever stands in it
+    // (and beyond the Wall) shows as a shape, then is gone again.
+    sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
+    sky.fog.base = w.base
     sky.fog.color.copy(b.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43), w.dark)
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms
