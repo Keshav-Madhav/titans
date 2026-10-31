@@ -311,6 +311,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       chest, a drawn-up knee and one lifted hand, fingers half curled, above the black water. The
       free-floating stones are bare dark rock (mossy, they read as floating trees); far trees settle
       a little into the ground (the coarser far mesh sags under a hill's crest)
+- [x] Trees have trunks: every trunk and limb had sampled the leaf texture's transparent corner (the
+      canvas is flipped on upload) and was cut away, so all crowns floated; both corners opaque now.
+      Conifers fuller (13 tiers of wide boughs); giant trees crown halfway along each limb too
 - [ ] The Shore (beyond the Dune Sea), the High Places (beyond the Steps)
 
 ## Design drafts

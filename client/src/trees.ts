@@ -186,15 +186,17 @@ export function coniferGeometry(seed: number, far = false): THREE.BufferGeometry
   const rand = mulberry32(seed)
   const parts: THREE.BufferGeometry[] = [trunk(0.3, 0.08, 12.5, 0x4a3828, far ? 4 : 7)]
   const branches: THREE.BufferGeometry[] = []
-  const tiers = far ? 4 : 9
+  // (Full: tier on tier of wide, overlapping boughs, so it reads as a dark
+  // green spire, not a pole with a few fronds — it did, once its trunk showed.)
+  const tiers = far ? 6 : 13
   for (let t = 0; t < tiers; t++) {
     const k = t / (tiers - 1)
-    const y = 2.6 + k * 9.2
-    const reach = (3.1 * (1 - k) + 0.6) * (far ? 1.15 : 1)
-    const n = far ? 4 : Math.max(4, Math.round(8 - k * 4))
+    const y = 2.2 + k * 9.8
+    const reach = (3.5 * (1 - k) + 0.7) * (far ? 1.2 : 1)
+    const n = far ? 6 : Math.max(5, Math.round(10 - k * 5))
     for (let i = 0; i < n; i++) {
       // A branch card hanging from the trunk, tipped down at the end.
-      const b = card(reach * (far ? 1.3 : 0.9), reach * (far ? 1.5 : 1.25), NEEDLES, true)
+      const b = card(reach * (far ? 1.5 : 1.25), reach * (far ? 1.6 : 1.35), NEEDLES, true)
       b.rotateX(-Math.PI / 2 + 0.35 + rand() * 0.2) // lying out, drooping
       b.rotateY((i / n) * Math.PI * 2 + t * 0.6 + rand() * 0.3)
       b.translate(0, y + 0.2, 0)
