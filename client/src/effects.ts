@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import { mulberry32 } from '@titans/shared'
 
 const DUST = 260
-const ROCKS = 140
+const ROCKS = 360
 
 function dustMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -149,6 +149,30 @@ export class Effects {
       s.age = 0
       s.life = 6 + r() * 3
     }
+  }
+
+  /**
+   * A stone shaken loose from a walking giant at (x, y, z), carried along at
+   * its pace (vx, vz), trailing a little dust as it falls (the concept: a
+   * colossus that crumbles as it moves).
+   */
+  shed(x: number, y: number, z: number, vx: number, vz: number, scale: number): void {
+    const r = this.rand
+    const s = this.stones[this.nextRock]
+    this.nextRock = (this.nextRock + 1) % ROCKS
+    s.x = x
+    s.y = y
+    s.z = z
+    s.vx = vx + (r() - 0.5) * scale * 0.02
+    s.vz = vz + (r() - 0.5) * scale * 0.02
+    s.vy = scale * r() * 0.01
+    s.rx = r() * 6
+    s.ry = r() * 6
+    s.spin = (r() - 0.5) * 3
+    s.size = scale * (0.004 + r() * r() * 0.012)
+    s.age = 0
+    s.life = 16 + r() * 4
+    this.puff(x, y, z, vx * 0.6, -scale * 0.005, vz * 0.6, scale * 0.02, scale * 0.03, 3 + r() * 2, 0.35)
   }
 
   /** A stomp: a fast, wide ring of dust racing outward, and twice the rock. */

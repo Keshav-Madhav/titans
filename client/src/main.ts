@@ -763,6 +763,29 @@ function goDormant(id = 't1'): void {
   t.restBlend = 0
 }
 
+/**
+ * Walking giants crumble: stones shaken loose from the body fall, faster the
+ * faster it goes (a slow trickle even standing).
+ */
+const shedClock = new Map<Titan, number>()
+function shedRubble(dt: number): void {
+  for (const t of [...[...titans.values()].map((a) => a.titan), ...herd.giants]) {
+    if (t.gait.resting) continue
+    const pace = t.gait.speed / t.gait.maxSpeed
+    let c = (shedClock.get(t) ?? 0) + dt * (0.15 + 1.6 * pace)
+    while (c >= 1) {
+      c -= 1
+      const k = Math.random()
+      const a = Math.random() * Math.PI * 2
+      const r = t.H * (0.05 + Math.random() * 0.1)
+      const fx = Math.sin(t.gait.heading) * t.gait.speed
+      const fz = Math.cos(t.gait.heading) * t.gait.speed
+      effects.shed(t.gait.x + Math.cos(a) * r, t.pelvis.y + (t.chest.y - t.pelvis.y) * (0.2 + k), t.gait.z + Math.sin(a) * r, fx, fz, t.H)
+    }
+    shedClock.set(t, c)
+  }
+}
+
 function frame(now: number): void {
   requestAnimationFrame(frame)
   if (document.hidden) {
@@ -785,6 +808,7 @@ function frame(now: number): void {
     a.titan.setLodFor(camera.position)
   }
   mountains.update(terrain, camera)
+  shedRubble(dt)
   for (const t of [...farGiants, ...herd.giants]) {
     t.pose(terrain, dt)
     t.group.updateMatrixWorld(true)

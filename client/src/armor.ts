@@ -27,9 +27,6 @@ interface PlateSpec {
   side?: boolean
 }
 
-const AROUND = (lump: number, n: number, a: number, b: number, y = 0, t?: number): PlateSpec[] =>
-  Array.from({ length: n }, (_, i) => ({ lump, dir: [Math.sin((i / n) * Math.PI * 2), y, Math.cos((i / n) * Math.PI * 2)] as [number, number, number], a, b, t }))
-
 const PLATES: Record<string, PlateSpec[]> = {
   torso: [
     { lump: 3, dir: [0, 0.15, 1], a: 0.55, b: 0.5 }, // breastplate
@@ -42,32 +39,19 @@ const PLATES: Record<string, PlateSpec[]> = {
     { lump: 6, dir: [0, 0, -1], a: 0.46, b: 0.34 },
     { lump: 1, dir: [0.35, 1, 0.05], a: 0.75, b: 0.75, t: 0.016 }, // pauldrons
     { lump: 2, dir: [-0.35, 1, 0.05], a: 0.75, b: 0.75, t: 0.016 },
-    ...AROUND(7, 8, 0.3, 0.28, -0.1, 0.01), // the girdle
   ],
+  // (Fewer plates on the limbs than there were: banded all over, it read as a
+  // machine; the body should be rock and hide, the armour a few great pieces.)
   head: [
     { lump: 0, dir: [0, -0.05, 1], a: 0.78, b: 0.7, t: 0.006 }, // the mask
     { lump: 0, dir: [0, 1, -0.35], a: 0.7, b: 0.6, t: 0.006 }, // helm
   ],
-  upperArm: [
-    { lump: 1, dir: [1, 0.1, 0.2], a: 0.62, b: 0.55, side: true },
-    ...AROUND(2, 4, 0.36, 0.3, 0, 0.007),
-  ],
-  forearm: [...AROUND(1, 6, 0.44, 0.62, 0, 0.01), { lump: 0, dir: [0, 0.2, 1], a: 0.5, b: 0.45 }],
-  hand: [{ lump: 0, dir: [0, 0.2, 1], a: 0.62, b: 0.45, t: 0.006 }],
-  thigh: [
-    { lump: 0, dir: [0, 0.1, 1], a: 0.6, b: 0.5 },
-    { lump: 0, dir: [1, 0, 0.3], a: 0.45, b: 0.5, side: true },
-    { lump: 2, dir: [0, -0.2, 1], a: 0.58, b: 0.55, t: 0.012 }, // knee
-  ],
-  shin: [
-    { lump: 1, dir: [0, 0, 1], a: 0.66, b: 0.72 }, // greave
-    { lump: 1, dir: [1, 0, 0.35], a: 0.4, b: 0.6, side: true },
-    { lump: 0, dir: [0, 0.3, 1], a: 0.5, b: 0.42 },
-  ],
-  foot: [
-    { lump: 0, dir: [0, 1, 0.3], a: 0.6, b: 0.6, t: 0.006 },
-    { lump: 1, dir: [0, 0.5, 1], a: 0.5, b: 0.42, t: 0.006 },
-  ],
+  upperArm: [{ lump: 1, dir: [1, 0.1, 0.2], a: 0.62, b: 0.55, side: true }],
+  forearm: [{ lump: 1, dir: [1, 0.15, 0.3], a: 0.5, b: 0.7, side: true }],
+  hand: [],
+  thigh: [{ lump: 2, dir: [0, -0.2, 1], a: 0.58, b: 0.55, t: 0.012 }], // knee
+  shin: [{ lump: 1, dir: [0, 0, 1], a: 0.66, b: 0.72 }], // greave
+  foot: [],
 }
 
 /** Where fur grows: lump index and a test on the (lump-normalised) direction. */
@@ -187,20 +171,32 @@ function furTexture(): THREE.CanvasTexture {
   c.height = Hh
   const g = c.getContext('2d')!
   const rand = mulberry32(5150)
-  for (let i = 0; i < 110; i++) {
-    const x = 4 + rand() * (W - 8)
-    const len = Hh * (0.55 + rand() * 0.45)
-    const bend = (rand() - 0.5) * 30
-    const grad = g.createLinearGradient(0, 0, 0, len)
-    grad.addColorStop(0, `hsl(${25 + rand() * 15}, 22%, ${14 + rand() * 6}%)`)
-    grad.addColorStop(1, `hsl(${30 + rand() * 15}, 18%, ${34 + rand() * 14}%)`)
-    g.strokeStyle = grad
-    g.lineWidth = 2 + rand() * 3
-    g.lineCap = 'round'
-    g.beginPath()
-    g.moveTo(x, 0)
-    g.quadraticCurveTo(x + bend * 0.4, len * 0.5, x + bend, len)
-    g.stroke()
+  // Locks of hair, not a sheet of it: strands rooted along the bottom (v = 0,
+  // the root, is the canvas's bottom row) gathering toward a shared tip and
+  // thinning out to nothing, with gaps between the locks. (Drawn the other
+  // way up, every card ended in a hard, full edge — rows of tiles.)
+  for (let lock = 0; lock < 9; lock++) {
+    const rootX = 10 + rand() * (W - 20)
+    const tipX = rootX + (rand() - 0.5) * 34
+    const reach = Hh * (0.6 + rand() * 0.38)
+    const hue = 24 + rand() * 14
+    const strands = 7 + Math.floor(rand() * 7)
+    for (let i = 0; i < strands; i++) {
+      const x0 = rootX + (rand() - 0.5) * 22
+      const len = reach * (0.7 + rand() * 0.3)
+      const x1 = tipX + (rand() - 0.5) * 8
+      const grad = g.createLinearGradient(0, Hh, 0, Hh - len)
+      grad.addColorStop(0, `hsla(${hue}, 24%, ${12 + rand() * 6}%, 1)`)
+      grad.addColorStop(0.55, `hsla(${hue + 4}, 20%, ${24 + rand() * 10}%, 1)`)
+      grad.addColorStop(1, `hsla(${hue + 6}, 16%, ${36 + rand() * 12}%, 0)`)
+      g.strokeStyle = grad
+      g.lineWidth = 2.4 + rand() * 2.8
+      g.lineCap = 'round'
+      g.beginPath()
+      g.moveTo(x0, Hh)
+      g.quadraticCurveTo(x0 + (x1 - x0) * 0.2 + (rand() - 0.5) * 10, Hh - len * 0.55, x1, Hh - len)
+      g.stroke()
+    }
   }
   furTex = new THREE.CanvasTexture(c)
   furTex.colorSpace = THREE.SRGBColorSpace
@@ -220,7 +216,7 @@ function fur(lumps: LumpSurface[], zones: Array<[number, (d: THREE.Vector3) => b
     const L = lumps[li]
     if (!L) continue
     const area = (L.r.x * L.r.y + L.r.y * L.r.z + L.r.x * L.r.z) / (H * H)
-    const tufts = Math.round(area * 13000)
+    const tufts = Math.round(area * 19000)
     for (let k = 0; k < tufts; k++) {
       _d.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1)
       if (_d.lengthSq() > 1 || _d.lengthSq() < 0.01) continue
@@ -235,7 +231,7 @@ function fur(lumps: LumpSurface[], zones: Array<[number, (d: THREE.Vector3) => b
       side.crossVectors(n, down).normalize()
       // Long, heavy and combed down by its own weight: it hangs, it doesn't bristle.
       const len = (0.028 + rand() * 0.035) * H
-      const w = len * 0.62
+      const w = len * 0.42
       for (const turn of [0, 1]) {
         const across = turn ? n.clone().multiplyScalar(0.35).addScaledVector(side, 0.65).normalize() : side
         const dir = down.clone().multiplyScalar(0.94).addScaledVector(n, 0.2 + rand() * 0.08).normalize()
@@ -307,7 +303,7 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
   const specs = PLATES[shape] ?? []
   const plates = specs.filter((s) => lumps[s.lump]).map((s, i) => plate(lumps[s.lump], s, H, mirror, seed + i * 17))
   const mk = petrified ? 'plate-red' : 'plate'
-  if (!materials.has(mk)) materials.set(mk, plateMaterial(tex, petrified ? new THREE.Color(0.9, 0.7, 0.6) : new THREE.Color(0.78, 0.76, 0.7)))
+  if (!materials.has(mk)) materials.set(mk, plateMaterial(tex, petrified ? new THREE.Color(0.7, 0.55, 0.47) : new THREE.Color(0.56, 0.54, 0.5)))
   if (plates.length) {
     const m = new THREE.Mesh(mergeGeometries(plates)!, materials.get(mk))
     m.castShadow = true
@@ -320,7 +316,7 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
   if (furGeo) {
     const fk = petrified ? 'fur-red' : 'fur'
     if (!materials.has(fk)) {
-      const fm = new THREE.MeshStandardMaterial({ map: furTexture(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1, color: petrified ? new THREE.Color(0.75, 0.6, 0.5) : new THREE.Color(0.85, 0.82, 0.76) })
+      const fm = new THREE.MeshStandardMaterial({ map: furTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, color: petrified ? new THREE.Color(0.75, 0.6, 0.5) : new THREE.Color(0.85, 0.82, 0.76) })
       fm.alphaToCoverage = true
       fm.onBeforeCompile = (sh) => {
         sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif')

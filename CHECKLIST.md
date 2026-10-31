@@ -159,6 +159,17 @@ Each phase ends playable. Phases are in PLAN.md §6.
       climb or a stop. Gate: `shot.mjs run`
 - [ ] Riding a walking giant across a land (call one? a route walker?)
 
+## A3c — Colossi of eroded rock (user: "comprehensible giants… like the gemini inspiration shots")
+- [x] Held to `concept/awakening.jpg`: the body is eroded rock — broad swellings, folded ridges,
+      grit (bulge noise ~4× what it was; climbing walks the same surface) — under the weathered,
+      cracked hide whether awake or asleep (dressed masonry read as a building that walks); darker
+      stone; armour cut to a few great pieces (breastplate, pauldrons, spine shells, mask, knee,
+      greave, one bracer) in darker weathered stone; fur drawn as tapering locks (it was drawn
+      upside down: every card ended in a hard full edge, rows of tiles)
+- [x] Walking giants crumble: stones shaken loose fall from the body with a little dust, faster
+      the faster they go (`effects.shed`)
+- [x] Gate: `shot.mjs giant`, herd, climb (peak 242 m, rides), single
+
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
       Three Bells refined, side quests, progression without levels (grip from Echoes; lantern,

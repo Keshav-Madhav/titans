@@ -99,8 +99,9 @@ const SHAPES: Record<string, { len: number; lumps: LumpSpec[] }> = {
 }
 
 // Beige sandstone with olive moss (awake); red sandstone under snow (a mountain).
-const STONE = new THREE.Color(0x857d70)
-const STONE_DARK = new THREE.Color(0x5e584f)
+// (Darker than they were: the concept's colossus is a dark weathered mass.)
+const STONE = new THREE.Color(0x6e6a60)
+const STONE_DARK = new THREE.Color(0x46433d)
 const MOSS = new THREE.Color(0x6a7340)
 const RED = new THREE.Color(0xb3684c)
 const RED_DARK = new THREE.Color(0x8a4834)
@@ -226,9 +227,14 @@ function boulderNoise(seed: number): { bulge: Bulge; noise3: (x: number, y: numb
   const n2 = makeSimplex2(seed + 7)
   const noise3 = (x: number, y: number, z: number) => (n1(x, y) + n1(y + 3.1, z) + n2(z - 1.7, x)) / 3
   const P = BLOCK_P
+  // Eroded rock, not dressed stone (the concept: crags, hollows, broken edges):
+  // broad swellings, then ridges where a noise folds (1 − |n|), then grit.
   const bulge: Bulge = (x, y, z) =>
     (1 / Math.pow(Math.pow(Math.abs(x), P) + Math.pow(Math.abs(y), P) + Math.pow(Math.abs(z), P), 1 / P)) *
-    (1 + 0.035 * noise3(x * 1.6, y * 1.6, z * 1.6) + 0.015 * noise3(x * 5 + 9, y * 5, z * 5))
+    (1 +
+      0.17 * noise3(x * 1.3, y * 1.3, z * 1.3) +
+      0.14 * (0.35 - Math.abs(noise3(x * 3.1 + 4, y * 3.1, z * 3.1))) +
+      0.04 * noise3(x * 8 + 9, y * 8, z * 8))
   return { bulge, noise3 }
 }
 
@@ -385,8 +391,9 @@ export class Titan {
     this.H = height
     this.body = titanBody(height)
     this.gait = new TitanGait(this.body, x, z, heading)
-    // Awake: dressed, carved stone. Asleep (a mountain): the weathered hide.
-    addStoneDetail(this.material, mossiness > 0 ? LAYER.hide : LAYER.carved)
+    // Weathered rock and hide, awake or asleep (the concept: eroded, mossy,
+    // crumbling — dressed masonry blocks read as a building that walks).
+    addStoneDetail(this.material, LAYER.hide)
     const add = (key: string, shape: string, s: number) => {
       const { lods, lumps } = segment(shape, height, seed + s, mossiness)
       const m = new THREE.Mesh(lods[0], this.material)
