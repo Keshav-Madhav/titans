@@ -220,6 +220,9 @@ export type Bulge = (dx: number, dy: number, dz: number) => number
  * job, the body under it should read as a body. Climbing walks the same
  * surface (it uses this bulge), so what you hold is what you see.
  */
+const _inv = new THREE.Matrix4()
+const _pt = new THREE.Vector3()
+
 export const BLOCK_P = 2.7
 
 function boulderNoise(seed: number): { bulge: Bulge; noise3: (x: number, y: number, z: number) => number } {
@@ -436,6 +439,26 @@ export class Titan {
     if (lod === this.lod) return
     this.lod = lod
     for (const p of this.parts) p.mesh.geometry = p.lods[lod]
+  }
+
+  /**
+   * Roughly how far (metres) a world point is outside the body (negative
+   * inside): each lump as its ellipsoid, the nearest one. Cheap enough for the
+   * camera to march through (it keeps the camera out of a giant you ride).
+   */
+  roughSdf(x: number, y: number, z: number): number {
+    // Far from it entirely: skip the parts.
+    if (Math.hypot(x - this.gait.x, z - this.gait.z) > this.H * 0.8 || y > this.head.y + this.H * 0.15) return Infinity
+    let best = Infinity
+    for (const p of this.parts) {
+      _inv.copy(p.mesh.matrixWorld).invert()
+      _pt.set(x, y, z).applyMatrix4(_inv)
+      for (const L of p.lumps) {
+        const k = Math.hypot((_pt.x - L.c.x) / L.r.x, (_pt.y - L.c.y) / L.r.y, (_pt.z - L.c.z) / L.r.z)
+        best = Math.min(best, (k - 1) * Math.min(L.r.x, L.r.y, L.r.z))
+      }
+    }
+    return best
   }
 
   part(key: string): TitanPart | undefined {

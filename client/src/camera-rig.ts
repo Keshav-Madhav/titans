@@ -15,6 +15,8 @@ export interface CameraProfile {
 }
 
 export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 5.5, focusHeight: 1.55, follow: 18 }
+/** Riding a walking giant: pulled back and up, smoothed against its sway, so you see the land go by under it. */
+export const RIDE_CAM: CameraProfile = { minDist: 6, maxDist: 60, dist: 26, focusHeight: 4, follow: 4 }
 
 export class CameraRig {
   yaw = 0
@@ -40,6 +42,22 @@ export class CameraRig {
     this.snapped = false
   }
 
+  /** Change profile without a cut: the distance eases over (riding on and off). */
+  blendTo(p: CameraProfile): void {
+    if (p === this.profile) return
+    this.profile = p
+    this.userDist = false
+  }
+
+  /** Ease the distance toward the profile's own (called each frame after blendTo). */
+  ease(dt: number): void {
+    const want = THREE.MathUtils.clamp(this.profile.dist, this.profile.minDist, this.profile.maxDist)
+    if (Math.abs(this.dist - want) > 0.01 && !this.userDist) this.dist += (want - this.dist) * Math.min(1, dt * 1.5)
+  }
+
+  /** The player has zoomed by hand (then the profile's distance no longer pulls). */
+  private userDist = false
+
   /** Signed distance to solid rock (negative inside), so the camera stays out of it. */
   occluder: ((x: number, y: number, z: number) => number) | null = null
   /** How far out the camera may go now (eases back out after being pulled in). */
@@ -56,7 +74,10 @@ export class CameraRig {
   update(dt: number, dx: number, dy: number, wheel: number, subject: THREE.Vector3, terrain: Terrain): void {
     this.yaw -= dx * 0.0024
     this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.0024, -0.75, 1.4)
-    if (wheel !== 0) this.distance = this.dist * Math.pow(1.12, wheel)
+    if (wheel !== 0) {
+      this.distance = this.dist * Math.pow(1.12, wheel)
+      this.userDist = true
+    }
 
     const p = this.profile
     const fy = subject.y + p.focusHeight

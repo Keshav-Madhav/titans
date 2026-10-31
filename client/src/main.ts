@@ -37,7 +37,7 @@ import { Wanderer } from './wanderer'
 import { setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
-import { CameraRig, WANDERER_CAM } from './camera-rig'
+import { CameraRig, RIDE_CAM, WANDERER_CAM } from './camera-rig'
 import { Hud } from './hud'
 import { Narration } from './narration'
 import { Climber } from './climb'
@@ -681,7 +681,11 @@ vegetation.onRegrow = (x0, z0, x1, z1) => terrainView.markDirty(x0, z0, x1, z1)
 const input = new Input(canvas)
 const rig = new CameraRig(camera)
 // The camera stays out of rock (formations, colossi, the Undercroft).
-rig.occluder = (x, y, z) => rocks.sdfAt(x, y, z)
+// (And the giant you hold: riding pulls the camera back, and it must not end up inside a leg.)
+rig.occluder = (x, y, z) => {
+  const held = climber.active ? heldAwake() : undefined
+  return Math.min(rocks.sdfAt(x, y, z), held ? held.roughSdf(x, y, z) : Infinity)
+}
 rig.setProfile(WANDERER_CAM)
 sky.setShadowRadius(260)
 const hud = new Hud()
@@ -1588,6 +1592,19 @@ function frame(now: number): void {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
   } else {
+    // Riding: standing on a walking giant's back — the camera pulls back and up and turns,
+    // slowly, to look the way it walks (until you look about yourself).
+    const ridden = climber.active ? heldAwake() : undefined
+    const riding = !!ridden && ridden.gait.speed > 0.4
+    rig.blendTo(riding ? RIDE_CAM : WANDERER_CAM)
+    rig.ease(dt)
+    if (riding && Math.abs(look.dx) < 1) {
+      let dy = ridden!.gait.heading + Math.PI - rig.yaw
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy))
+      rig.yaw += dy * Math.min(1, dt * 0.35)
+      // …and from a little above, looking down over the land going by.
+      if (Math.abs(look.dy) < 1) rig.pitch += (0.32 - rig.pitch) * Math.min(1, dt * 0.5)
+    }
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
     if (wanderer.gliding) {

@@ -977,7 +977,7 @@ const scenes = {
       g.clock.scale = 1
       return { grabbed: true, moved: [Math.round(t.gait.x - x0), Math.round(t.gait.z - z0)], holding: g.climbState().active }
     })
-    await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw, 0.35, 14))
+    // (The riding camera takes over on its own: no setCam.)
     await page.waitForTimeout(600)
     await shot('horn-ride')
     console.log(`page: ${got.page}, horn: ${got.horn}; called from ${call.d0} m → ${call.d} m (order ${call.order}); ride: ${JSON.stringify(ride)}`)
@@ -1937,6 +1937,15 @@ const scenes = {
     })
     console.log(`rode ${ride.carried.toFixed(1)} m while the Titan walked ${ride.titanMoved.toFixed(1)} m; still holding: ${ride.held}; grip ${ride.grip.toFixed(2)}`)
     await shot('p8-ride')
+    // And while it walks, standing on its back: the riding camera (no setCam).
+    await page.evaluate(() => {
+      window.__g.autopilot.forward = 1
+    })
+    await page.waitForTimeout(7000)
+    await shot('p8-riding')
+    await page.evaluate(() => {
+      window.__g.autopilot.forward = 0
+    })
     if (route.best < 0.7 * route.H) throw new Error('climb gate: never reached the shoulders')
     if (!ride.held || ride.carried < ride.titanMoved * 0.6) throw new Error('climb gate: not carried by the Titan')
   },
