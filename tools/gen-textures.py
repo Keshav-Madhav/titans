@@ -26,6 +26,33 @@ from PIL import Image, ImageFilter
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'tools', '.cache', 'gen')
 MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image']
+# Spend: the user's cap is $10 (2026-10-31). Each 1K image is estimated at $0.05; the
+# running total is kept in tools/.cache/gen/spend.json and checked before every call.
+CAP = 10.0
+PER_IMAGE = 0.05
+LEDGER = os.path.join(OUT, 'spend.json')
+
+
+def spent():
+    try:
+        with open(LEDGER) as f:
+            return json.load(f)['total']
+    except (OSError, ValueError, KeyError):
+        return 0.0
+
+
+def charge(what):
+    os.makedirs(OUT, exist_ok=True)
+    try:
+        with open(LEDGER) as f:
+            led = json.load(f)
+    except (OSError, ValueError):
+        led = {'total': 0.0, 'items': []}
+    led['total'] = round(led['total'] + PER_IMAGE, 3)
+    led['items'].append(what)
+    with open(LEDGER, 'w') as f:
+        json.dump(led, f, indent=1)
+    return led['total']
 
 STYLE = (
     'Seamless tileable texture for a video game. A perfectly flat surface seen exactly front-on '
@@ -50,6 +77,9 @@ TEXTURES = {
     'tiny highlights of lighter tips, a few dark gaps where stone shows through.',
     'basalt': 'A slab of very dark slate-grey igneous rock, almost black, rough-hewn and pitted, with '
     'sparse pale mineral specks, faint cracks running in one direction and a dull weathered sheen.',
+    'hide': 'The stone skin of a colossal ancient giant, like the body of a colossus in Shadow of the '
+    'Colossus: rough eroded grey-brown rock with deep winding cracks and fissures, pitted and worn, '
+    'patches of pale lichen, and clumps of coarse matted dark moss growing in the cracks like fur.',
     'relief': 'Weathered warm sandstone carved with a worn, shallow relief frieze of interlocking '
     'geometric bands and abstract giant figures, eroded by sand and wind until barely legible, fine '
     'grain, pale ochre with darker weathering in the grooves.',
@@ -64,10 +94,12 @@ def key():
     raise SystemExit('GEMINI_API_KEY missing from .env.local')
 
 
-def generate(prompt):
+def generate(prompt, what='image', aspect='1:1'):
+    if spent() + PER_IMAGE > CAP:
+        raise SystemExit(f'spend cap reached (${spent():.2f} of ${CAP:.2f})')
     body = json.dumps({
-        'contents': [{'parts': [{'text': f'{STYLE} Subject: {prompt}'}]}],
-        'generationConfig': {'responseModalities': ['IMAGE'], 'imageConfig': {'aspectRatio': '1:1', 'imageSize': '1K'}},
+        'contents': [{'parts': [{'text': prompt}]}],
+        'generationConfig': {'responseModalities': ['IMAGE'], 'imageConfig': {'aspectRatio': aspect, 'imageSize': '1K'}},
     }).encode()
     for model in MODELS:
         url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key()}'
@@ -80,6 +112,8 @@ def generate(prompt):
             raise SystemExit(f'{model}: HTTP {e.code}: {msg}')
         for part in res.get('candidates', [{}])[0].get('content', {}).get('parts', []):
             if 'inlineData' in part:
+                total = charge(f'{what} ({model})')
+                print(f'  spent so far ≈ ${total:.2f} of ${CAP:.2f}')
                 return base64.b64decode(part['inlineData']['data']), model
         raise SystemExit(f'{model}: no image in the response: {json.dumps(res)[:300]}')
     raise SystemExit('no image model answered')
@@ -118,7 +152,7 @@ def main():
         os.makedirs(folder, exist_ok=True)
         raw = os.path.join(folder, 'raw.png')
         if not os.path.exists(raw):
-            data, model = generate(TEXTURES[name])
+            data, model = generate(f'{STYLE} Subject: {TEXTURES[name]}', name)
             with open(raw, 'wb') as f:
                 f.write(data)
             print(f'{name}: generated with {model}')

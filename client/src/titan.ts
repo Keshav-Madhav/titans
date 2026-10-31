@@ -11,6 +11,7 @@
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { makeDetailTexture } from './detail-texture'
+import { LAYER, type TerrainTextures } from './terrain-material'
 import { makeSimplex2, titanBody, TitanGait, type GaitEvent, type GaitInput, type Terrain, type TitanBody } from '@titans/shared'
 
 type V3 = THREE.Vector3
@@ -112,10 +113,19 @@ let stoneTex: THREE.DataTexture | null = null
  * colour variation, thin dark cracks, and a bump from the same texture's
  * screen-space slope (perturbed normal, as three's bumpMap does it).
  */
+/** The giants' skin (the 'hide' layer of the texture arrays): set once before any giant is made. */
+let hideTex: TerrainTextures | null = null
+export function setGiantSkin(tex: TerrainTextures): void {
+  hideTex = tex
+}
+
 function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
   stoneTex ??= makeDetailTexture(4242)
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.stoneMap = { value: stoneTex }
+    shader.uniforms.tLayerColor = { value: hideTex?.color ?? null }
+    shader.uniforms.tLayerNormal = { value: hideTex?.normal ?? null }
+    shader.defines = { ...(shader.defines ?? {}), ...(hideTex ? { HIDE: 1, HIDE_LAYER: `${LAYER.hide}.0` } : {}) }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStonePos;\nvarying vec3 vStoneNrm;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStonePos = position;\nvStoneNrm = normal;')
@@ -126,6 +136,22 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
         uniform sampler2D stoneMap;
         varying vec3 vStonePos;
         varying vec3 vStoneNrm;
+        #ifdef HIDE
+        uniform highp sampler2DArray tLayerColor;
+        uniform highp sampler2DArray tLayerNormal;
+        vec3 hideN;
+        // The hide, tri-planar in the part's own space (it moves with the limb), at two scales.
+        vec3 hideTri(vec3 p, vec3 w, float s, out vec3 nrm) {
+          vec3 cx = texture(tLayerColor, vec3(p.zy * s, HIDE_LAYER)).rgb;
+          vec3 cy = texture(tLayerColor, vec3(p.xz * s, HIDE_LAYER)).rgb;
+          vec3 cz = texture(tLayerColor, vec3(p.xy * s, HIDE_LAYER)).rgb;
+          vec2 nx = texture(tLayerNormal, vec3(p.zy * s, HIDE_LAYER)).rg * 2.0 - 1.0;
+          vec2 ny = texture(tLayerNormal, vec3(p.xz * s, HIDE_LAYER)).rg * 2.0 - 1.0;
+          vec2 nz = texture(tLayerNormal, vec3(p.xy * s, HIDE_LAYER)).rg * 2.0 - 1.0;
+          nrm = vec3(nx.x * w.x + ny.x * w.y + nz.x * w.z, nx.y * w.x + ny.y * w.y + nz.y * w.z, 0.0);
+          return cx * w.x + cy * w.y + cz * w.z;
+        }
+        #endif
         float stoneTri(vec3 p, vec3 w, float s) {
           return texture2D(stoneMap, p.yz * s).r * w.x + texture2D(stoneMap, p.xz * s).r * w.y + texture2D(stoneMap, p.xy * s).r * w.z;
         }`,
@@ -145,7 +171,20 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
         float crackLine = 1.0 - smoothstep(cw, cw * 2.0 + 0.025, abs(sd2 - 0.5));
         float crack = 1.0 - crackLine * 0.38 * stoneNear;
         diffuseColor.rgb *= (0.78 + 0.44 * sd1) * (0.88 + 0.24 * sd3) * crack;
-        float stoneH = sd1 * stoneNear;`,
+        float stoneH = sd1 * stoneNear;
+        #ifdef HIDE
+        {
+          // The colossus hide over the body's own colours: cracks, lichen, matted moss.
+          vec3 hn1; vec3 hn2;
+          vec3 h1 = hideTri(vStonePos, sw, 1.0 / 9.0, hn1);
+          vec3 h2 = hideTri(vStonePos + 31.0, sw, 1.0 / 46.0, hn2);
+          vec3 hide = mix(h2, h1, 0.4 + 0.6 * stoneNear);
+          float hl = dot(hide, vec3(0.299, 0.587, 0.114));
+          // Keep the body's hue (sandstone, moss), take the hide's light and dark and its moss.
+          diffuseColor.rgb = mix(diffuseColor.rgb * hl * 2.1, hide * 1.15, 0.45);
+          hideN = mix(hn2, hn1, stoneNear) * 0.8;
+        }
+        #endif`,
       )
       .replace(
         '#include <normal_fragment_maps>',
@@ -159,6 +198,10 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial): void {
           float det = dot(sx, r1) * faceDirection;
           vec3 grad = sign(det) * (dH.x * r1 + dH.y * r2);
           normal = normalize(abs(det) * normal - grad);
+          #ifdef HIDE
+          // The hide's relief, nudging the normal in view space (approximate, but it moves with the light).
+          normal = normalize(normal + vec3(hideN.xy, 0.0));
+          #endif
         }`,
       )
   }

@@ -33,7 +33,7 @@ import { loadTerrainTextures } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input } from './input'
 import { Wanderer } from './wanderer'
-import { Titan } from './titan'
+import { setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
 import { CameraRig, WANDERER_CAM } from './camera-rig'
@@ -97,6 +97,7 @@ const terrain = new Terrain(WORLD_SEED)
 // The ground's textures load under the loading screen, before anything is built.
 const terrainTex = await loadTerrainTextures(renderer)
 const terrainView = new TerrainView(terrain, WORLD_SEED, terrainTex)
+setGiantSkin(terrainTex)
 scene.add(terrainView.group)
 const biome = new Biome(WORLD_SEED, terrain.base.regions)
 const paint = new PaintField()

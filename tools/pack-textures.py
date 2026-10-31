@@ -38,6 +38,7 @@ LAYERS = [
     ('flagstone', 'gen:flagstone'),
     ('moss', 'gen:moss'),
     ('basalt', 'gen:basalt'),
+    ('hide', 'gen:hide'),
 ]
 SIZE = 1024
 # Poly Haven refuses Python's default user agent.

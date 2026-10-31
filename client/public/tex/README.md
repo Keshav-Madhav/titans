@@ -27,3 +27,4 @@ derived from luminance) — the colossi's surfaces:
 | flagstone | paving with grass in the joints (the plaza, the stair's treads) |
 | moss | thick moss (tops of stone) |
 | basalt | dark stone (the floating monoliths, the sword) |
+| hide | a colossus's stone skin: cracks, lichen, matted moss (the giants) |
