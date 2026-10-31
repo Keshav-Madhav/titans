@@ -10,13 +10,12 @@ CC0 (public domain) textures from [Poly Haven](https://polyhaven.com), packed by
 | drygrass | withered_grass |
 | forest | forest_leaves_04 |
 | mud | brown_mud_leaves_01 |
-| sand | sand_01 |
 | redrock | cliff_side |
 | rock | rock_face_03 |
 | snow | snow_02 |
 
 Generated with Gemini image models by `tools/gen-textures.py` (made seamless, normal and height
-derived from luminance) — the colossi's surfaces:
+derived from luminance) — the colossi's surfaces, and the Dune Sea's sand:
 
 | Layer | What |
 | --- | --- |
@@ -28,3 +27,4 @@ derived from luminance) — the colossi's surfaces:
 | moss | thick moss (tops of stone) |
 | basalt | dark stone (the floating monoliths, the sword) |
 | hide | a colossus's stone skin: cracks, lichen, matted moss (the giants) |
+| sand | wind-rippled dune sand (Poly Haven's sand_01 read as cracked plaster) |

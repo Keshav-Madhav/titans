@@ -25,7 +25,7 @@ LAYERS = [
     ('drygrass', 'withered_grass'),
     ('forest', 'forest_leaves_04'),
     ('mud', 'brown_mud_leaves_01'),
-    ('sand', 'sand_01'),
+    ('sand', 'gen:dunesand'),  # (sand_01 read as cracked plaster)
     ('redrock', 'cliff_side'),
     ('rock', 'rock_face_03'),
     ('snow', 'snow_02'),

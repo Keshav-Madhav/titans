@@ -80,6 +80,9 @@ TEXTURES = {
     'hide': 'The stone skin of a colossal ancient giant, like the body of a colossus in Shadow of the '
     'Colossus: rough eroded grey-brown rock with deep winding cracks and fissures, pitted and worn, '
     'patches of pale lichen, and clumps of coarse matted dark moss growing in the cracks like fur.',
+    'dunesand': 'Fine desert sand seen from straight above: soft, regular wind ripples running in '
+    'one direction across the whole image, warm pale golden ochre, very fine grain, a few darker '
+    'coarse grains gathered in the ripple troughs, gentle and even, no footprints, no stones.',
     'relief': 'Weathered warm sandstone carved with a worn, shallow relief frieze of interlocking '
     'geometric bands and abstract giant figures, eroded by sand and wind until barely legible, fine '
     'grain, pale ochre with darker weathering in the grooves.',

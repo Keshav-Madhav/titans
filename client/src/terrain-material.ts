@@ -22,7 +22,7 @@ export type Layer = (typeof LAYERS)[number]
 export const LAYER = Object.fromEntries(LAYERS.map((l, i) => [l, i])) as Record<Layer, number>
 
 /** Metres per texture tile, up close. */
-const SCALE = [3.2, 3.4, 2.8, 3.0, 4.5, 24.0, 9.0, 7.0, 10, 14, 8, 6, 6, 4, 10, 8]
+const SCALE = [3.2, 3.4, 2.8, 3.0, 6.0, 24.0, 9.0, 7.0, 10, 14, 8, 6, 6, 4, 10, 8]
 /**
  * Art direction per layer: each texture's colour pulled toward the palette
  * (muted greens, pale warm sand, grey stone), as linear multipliers.
@@ -32,7 +32,7 @@ const TINT = [
   [0.982, 1.134, 0.777], // dry grass: straw
   [0.717, 0.937, 1.101], // forest floor
   [0.883, 1.052, 1.186], // mud
-  [1.544, 1.514, 1.518], // sand: paler, warm
+  [1.04, 0.98, 0.93], // sand (generated: rippled, already coloured; a touch paler)
   [1.45, 1.369, 1.496], // red rock
   [1.12, 1.38, 1.65], // rock: toward grey
   [2.139, 2.205, 2.246], // snow: brighter
