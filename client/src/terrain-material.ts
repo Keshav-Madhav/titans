@@ -22,7 +22,7 @@ export type Layer = (typeof LAYERS)[number]
 export const LAYER = Object.fromEntries(LAYERS.map((l, i) => [l, i])) as Record<Layer, number>
 
 /** Metres per texture tile, up close. */
-const SCALE = [3.2, 3.4, 2.8, 3.0, 4.5, 14.0, 9.0, 7.0, 10, 14, 8, 6, 6, 4, 10, 8]
+const SCALE = [3.2, 3.4, 2.8, 3.0, 4.5, 24.0, 9.0, 7.0, 10, 14, 8, 6, 6, 4, 10, 8]
 /**
  * Art direction per layer: each texture's colour pulled toward the palette
  * (muted greens, pale warm sand, grey stone), as linear multipliers.
@@ -249,10 +249,15 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gSum += b;
         }
         gAlb /= max(gSum, 1e-4);
-        // Cliffs in strata: horizontal bands, lighter and darker, wavering a little.
+        // Cliffs in strata: bands lighter and darker, thick and thin together,
+        // dipping and wandering across a wall (evenly ruled stripes read as a
+        // layer cake, not as rock laid down over ages).
         float gRockW = (gW[5] + gW[6]) / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]);
-        float gBand = texture2D(tDetail, vec2(gP.y * 0.021 + texture2D(tDetail, gP.xz * 0.002).r * 0.35, 0.37)).r;
-        gAlb *= mix(1.0, 0.72 + 0.5 * gBand, gRockW * 0.85);
+        float gDip = (texture2D(tDetail, gP.xz * 0.0006).r - 0.5) * 2.4 + (texture2D(tDetail, gP.xz * 0.0041 + 0.3).r - 0.5) * 0.5;
+        float gBandThin = texture2D(tDetail, vec2(gP.y * 0.021 + gDip, 0.37)).r;
+        float gBandThick = texture2D(tDetail, vec2(gP.y * 0.0047 + gDip * 0.6 + 0.2, 0.61)).r;
+        float gBand = mix(gBandThin, gBandThick, 0.55);
+        gAlb *= mix(1.0, 0.74 + 0.46 * gBand, gRockW * 0.8);
         gNorm = normalize(gNorm + gN * 1e-3);
         gRough /= max(gSum, 1e-4);
         // Far away, the normal detail would only shimmer.
