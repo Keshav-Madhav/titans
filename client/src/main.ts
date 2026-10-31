@@ -69,6 +69,7 @@ import { Glyphs } from './glyphs'
 import { hangingSteps } from './parkour'
 import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
+import { Offerings } from './offerings'
 import { carvedStone } from './spots'
 import { Birds } from './life'
 import { Clouds } from './clouds'
@@ -282,6 +283,21 @@ function uncover(instant = false): void {
 // The Hanging Steps: a parkour line on the western Green (hop, climb, up to the top).
 const STEPS_AT = { x: -1700, z: 300 }
 const stepsTop = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
+
+// Offering shrines: each shows a small thing found elsewhere; bring it, and it answers.
+const offerings = (() => {
+  const col = colossi.places.get('colonnade')
+  const rib = colossi.places.get('ribcage')
+  return new Offerings(
+    [
+      ...(col ? [{ id: 'offer-bell', wants: 'bell-grove', x: col.x - 40, z: col.z + 30 }] : []),
+      ...(rib ? [{ id: 'offer-figure', wants: 'figure-stair', x: rib.x + 70, z: rib.z - 40 }] : []),
+      { id: 'offer-feather', wants: 'feather-spire', x: STEPS_AT.x + 22, z: STEPS_AT.z - 8 },
+    ],
+    terrain,
+  )
+})()
+scene.add(offerings.group)
 
 // Chase the light: wisps that lead you somewhere, and leave something there.
 const wisps = new Wisps(
@@ -581,6 +597,7 @@ const arrowHit: ArrowHit = (a, b) => {
   return null
 }
 const aimFwd = new THREE.Vector3()
+let loomK = 0
 const pick: Pick = (from, dir, max) => {
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
@@ -678,6 +695,7 @@ const toolbar = new Toolbar(finds)
 const lush = (x: number, z: number) => 1 - biome.desert(x, z)
 const ambience = new Ambience(terrain, lush)
 scene.add(ambience.group)
+ambience.onFlush = () => sound.flush()
 journal.onToggle = () => input.releaseAll()
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
@@ -794,6 +812,14 @@ const AWAKE_LINES = ['Something very far away moved.', 'It turned toward you. Yo
 /** A herd of smaller giants roaming the eastern Dune Sea together. */
 const herd = new Herd(terrain, WORLD_SEED)
 for (const t of herd.giants) scene.add(t.group)
+// Their footfalls: dust, the ground's shake near them, the sound arriving late.
+herd.onFootfall = (x, z, H) => {
+  const d = Math.hypot(camera.position.x - x, camera.position.z - z)
+  if (d > 2500) return
+  effects.impact(x, terrain.heightAt(x, z), z, H)
+  sound.footfall(Math.hypot(d, camera.position.y - terrain.heightAt(x, z)), false)
+  rig.shake(Math.max(0, 1 - d / (6 * H)) * 0.012 * H)
+}
 const climber = new Climber(() => [
   ...[...titans].map(([id, a]) => ({ id, titan: a.titan })),
   ...herd.giants.map((titan, i) => ({ id: `h${i + 1}`, titan })),
@@ -955,6 +981,7 @@ function loadLocal(): boolean {
   for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
   for (const t of glyphs.trails) if (finds.has(t.def.id)) glyphs.finish(t.def.id)
   if (finds.has('buried-box')) uncover(true)
+  for (const s of offerings.shrines) if (finds.has(s.def.id)) offerings.answer(s.def.id)
   for (const [gid, relic] of Object.entries(RELIC_OF)) {
     const t = giantFor(gid)
     if (t && finds.has(relic)) darkenGlyph(t)
@@ -1168,6 +1195,16 @@ function simulate(dt: number): void {
       camp.take()
       finds.find('bag')
       tipState.bag = true
+    } else if (offerings.near(wanderer.pos) && input.pressed('KeyE')) {
+      const s = offerings.near(wanderer.pos)!
+      const want = CATALOGUE.find((c) => c.id === s.def.wants)
+      if (s.answered) narration.say(CATALOGUE.find((c) => c.id === s.def.id)?.text ?? '')
+      else if (finds.has(s.def.wants)) {
+        offerings.answer(s.def.id)
+        sound.resolve([196, 247, 294, 392])
+        narration.say(`You hold ${want?.name.toLowerCase() ?? 'it'} over the bowl. The carving above it warms.`)
+        setTimeout(() => finds.find(s.def.id), 1800)
+      } else narration.say('Carved above the worn bowl: one small thing. You have nothing like it. Not yet.')
     } else if (resonance.near(wanderer.pos) && input.pressed('KeyE')) {
       const r = resonance.near(wanderer.pos)!
       resonance.strike(r.ring, r.stone)
@@ -1498,7 +1535,7 @@ function frame(now: number): void {
     for (const a of titans.values()) heads.push({ at: a.titan.head, H: a.titan.H })
     heads.push({ at: herd.giants[0].head, H: herd.giants[0].H })
     const dusk = Math.max(sky.dusk, sky.night)
-    ambience.update(dt, camera.position, dusk, 1 - dusk, weather.now.rain, heads)
+    ambience.update(dt, camera.position, dusk, 1 - dusk, weather.now.rain, heads, { pos: wanderer.pos, speed: wanderer.speed, yaw: wanderer.yaw })
     const here = lush(wanderer.pos.x, wanderer.pos.z)
     sound.ambience(Math.max(sky.night, sky.dusk * 0.7), 1 - sky.dusk, weather.now.rain, here, here * 0.6)
   }
@@ -1523,7 +1560,9 @@ function frame(now: number): void {
   const html =
     free && camp.near(wanderer.pos)
       ? `<kbd>E</kbd>Take the bag`
-      : free && resonance.near(wanderer.pos)
+      : free && offerings.near(wanderer.pos)
+        ? `<kbd>E</kbd>${offerings.near(wanderer.pos)!.answered ? 'Listen' : finds.has(offerings.near(wanderer.pos)!.def.wants) ? 'Hold it over the bowl' : 'Look at the carving'}`
+        : free && resonance.near(wanderer.pos)
         ? `<kbd>E</kbd>Strike the stone`
         : spotNear
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
@@ -1564,9 +1603,17 @@ function frame(now: number): void {
       camera.position.lerp(shoulder, bow.draw * 0.9)
       wanderer.yaw = Math.atan2(aimFwd.x, aimFwd.z)
     }
+    // Looming: standing near one of them on the ground, the lens widens a little (a wide lens
+    // makes the near huge thing huger, the way it feels to stand under it).
+    let loom = 0
+    if (!climber.active && wanderer.grounded) {
+      for (const a of titans.values()) loom = Math.max(loom, 1 - Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z) / (a.titan.H * 1.3))
+      for (const t of herd.giants) loom = Math.max(loom, 1 - Math.hypot(t.gait.x - wanderer.pos.x, t.gait.z - wanderer.pos.z) / (t.H * 1.3))
+    }
+    loomK += (Math.max(0, loom) - loomK) * Math.min(1, dt * 0.8)
     // The long run widens the view a little: speed you feel at the edges.
     if (!awakening.active) {
-      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw
+      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + 9 * loomK
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
@@ -1692,6 +1739,7 @@ const g = {
   pick,
   hornOrders,
   uncover,
+  offerings,
   get glyphs() {
     return glyphs
   },

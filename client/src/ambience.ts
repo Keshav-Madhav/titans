@@ -18,6 +18,8 @@ const FIREFLIES = 360
 const FLY_R = 70
 const BUTTERFLIES = 48
 const BUTTER_R = 45
+/** Small birds flushed out of the grass as you run through it. */
+const FLUSH = 14
 
 const _m = new THREE.Matrix4()
 const _q = new THREE.Quaternion()
@@ -34,8 +36,13 @@ export class Ambience {
   private readonly butter: THREE.InstancedMesh
   private readonly butterState: Array<{ x: number; y: number; z: number; a: number; ph: number; hue: number }> = []
   private readonly circlers: THREE.InstancedMesh
+  private readonly flushed: THREE.InstancedMesh
+  private readonly flushState: Array<{ p: THREE.Vector3; v: THREE.Vector3; age: number }> = []
+  private flushClock = 8
   private time = 0
   private readonly rand = mulberry32(8181)
+  /** Birds burst up out of the grass (for their sound). */
+  onFlush: () => void = () => {}
 
   constructor(
     private readonly terrain: Terrain,
@@ -109,14 +116,48 @@ export class Ambience {
     this.circlers = new THREE.InstancedMesh(bird, new THREE.MeshBasicMaterial({ color: 0x1d1c1b, side: THREE.DoubleSide }), 24)
     this.circlers.frustumCulled = false
     this.group.add(this.circlers)
+    this.flushed = new THREE.InstancedMesh(bird, new THREE.MeshBasicMaterial({ color: 0x4a3f33, side: THREE.DoubleSide }), FLUSH)
+    this.flushed.frustumCulled = false
+    this.flushed.count = 0
+    for (let i = 0; i < FLUSH; i++) this.flushState.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99 })
+    this.group.add(this.flushed)
   }
 
   /**
    * Each frame. `dusk` 0 … 1 (fireflies), `day` 0 … 1 and `rain` (butterflies),
    * and the heads to circle (a giant's head, and its height for the size of the circle).
    */
-  update(dt: number, camera: THREE.Vector3, dusk: number, day: number, rain: number, heads: Array<{ at: THREE.Vector3; H: number }>): void {
+  update(dt: number, camera: THREE.Vector3, dusk: number, day: number, rain: number, heads: Array<{ at: THREE.Vector3; H: number }>, runner?: { pos: THREE.Vector3; speed: number; yaw: number }): void {
     this.time += dt
+    // Running through the grass by day: now and then a few small birds burst up ahead of you.
+    if (runner && runner.speed > 6 && day > 0.4 && rain < 0.3 && this.lush(runner.pos.x, runner.pos.z) > 0.5) {
+      this.flushClock -= dt
+      if (this.flushClock <= 0) {
+        this.flushClock = 10 + this.rand() * 16
+        const ax = runner.pos.x + Math.sin(runner.yaw) * 6
+        const az = runner.pos.z + Math.cos(runner.yaw) * 6
+        for (const b of this.flushState) {
+          const a = runner.yaw + (this.rand() - 0.5) * 2
+          b.p.set(ax + (this.rand() - 0.5) * 4, this.terrain.heightAt(ax, az) + 0.3, az + (this.rand() - 0.5) * 4)
+          b.v.set(Math.sin(a) * (6 + this.rand() * 4), 5 + this.rand() * 3, Math.cos(a) * (6 + this.rand() * 4))
+          b.age = 0
+        }
+        this.onFlush()
+      }
+    }
+    let fk = 0
+    for (const b of this.flushState) {
+      if (b.age > 6) continue
+      b.age += dt
+      b.v.y = Math.max(1.2, b.v.y - 1.5 * dt)
+      b.p.addScaledVector(b.v, dt)
+      const flap = Math.sin(this.time * 30 + b.p.x) * 0.5
+      _q.setFromEuler(new THREE.Euler(flap, Math.atan2(b.v.x, b.v.z), 0))
+      _m.compose(b.p, _q, _s.set(0.12, 0.12, 0.12))
+      this.flushed.setMatrixAt(fk++, _m)
+    }
+    this.flushed.count = fk
+    this.flushed.instanceMatrix.needsUpdate = true
     // Fireflies: wrap round the camera, sit 0.4–2.6 m over the ground, drift.
     const on = dusk * (1 - rain)
     this.flyMat.uniforms.uTime.value = this.time

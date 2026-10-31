@@ -280,7 +280,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] More plants: ferns over the Old Wood's floor and along its edges (arching fronds), stands of tall
       flowering stems out on the Green's meadows (four colours); trees and plants grow to 400 m again
       (the lands stand higher since the world grew — a 200 m cap had bared the high woods)
-- [ ] Small animals on the ground (hares, foxes), birds that rise from the grass as you come
+- [x] Small birds burst up out of the grass ahead of you as you run through it by day (wingbeats,
+      alarm chips)
+- [x] The herd's footfalls: dust, the ground shaking near them, the sound arriving late (they were silent)
+- [x] Looming: on the ground near a giant the lens widens a little (up to 9°): the near huge thing huger
+- [x] D13 Offerings (`offerings.ts`): three shrines (the Colonnade, the Fallen, the Hanging Steps), each
+      with a carving of a small thing found elsewhere — the picture is the puzzle; hold it over the
+      bowl and the carving lights and it answers (lore). Gate: `shot.mjs offer`
+- [ ] Small animals on the ground (hares, foxes)
 
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the

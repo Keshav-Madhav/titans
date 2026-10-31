@@ -34,6 +34,8 @@ export class Herd {
   private readonly rand: () => number
   private readonly discard: GaitEvent[] = []
   private time = 0
+  /** A footfall of one of them (for dust, the ground's shake, the sound). */
+  onFootfall: (x: number, z: number, H: number) => void = () => {}
 
   constructor(
     private readonly terrain: Terrain,
@@ -137,6 +139,7 @@ export class Herd {
       }
       this.discard.length = 0
       g.step(dt, { forward, turn }, this.discard)
+      for (const ev of this.discard) if (ev.type === 'footfall') this.onFootfall(ev.x, ev.z, g.H)
     })
   }
 }

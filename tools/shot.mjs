@@ -663,6 +663,46 @@ const scenes = {
     console.log(`took the stone: ${took}; ${ends.join(' ')}`)
     if (!took || ends.some((e) => e.endsWith('MISSED'))) throw new Error('sight gate failed')
   },
+  // Offerings: look at the carving (nothing yet), bring the thing, hold it over the bowl; it answers.
+  async offer() {
+    await page.evaluate(() => {
+      const g = window.__g
+      g.weather.set('breaking', true)
+      g.finds.find('bag')
+    })
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      const press = async () => {
+        g.input.press('KeyE')
+        await new Promise((res) => setTimeout(res, 150))
+        g.input.release('KeyE')
+        await new Promise((res) => setTimeout(res, 120))
+      }
+      const out = []
+      for (const s of g.offerings.shrines) {
+        g.teleport(s.at.x + Math.sin(Math.atan2(-s.at.x, -s.at.z)) * 1.8, s.at.z + Math.cos(Math.atan2(-s.at.x, -s.at.z)) * 1.8)
+        await new Promise((res) => setTimeout(res, 200))
+        await press()
+        const before = s.answered
+        g.finds.find(s.def.wants)
+        await press()
+        await new Promise((res) => setTimeout(res, 2000))
+        out.push(`${s.def.id}: before ${before}, after ${s.answered}, lore ${g.finds.has(s.def.id)}`)
+      }
+      return out
+    })
+    await page.evaluate(() => {
+      const g = window.__g
+      const s = g.offerings.shrines[g.offerings.shrines.length - 1]
+      const a = Math.atan2(-s.at.x, -s.at.z)
+      g.lookFrom([s.at.x + Math.sin(a) * 4 + Math.cos(a) * 1.5, s.at.y + 1.8, s.at.z + Math.cos(a) * 4 - Math.sin(a) * 1.5], [s.at.x, s.at.y + 1, s.at.z])
+    })
+    await page.waitForTimeout(600)
+    await shot('offer')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    console.log(r.join('; '))
+    if (r.some((x) => !x.includes('lore true'))) throw new Error('offer gate failed')
+  },
   // Weather of the lands: a sandstorm in the Dune Sea, mist at dawn, a rainbow after rain.
   async lands_weather() {
     await page.evaluate(() => {

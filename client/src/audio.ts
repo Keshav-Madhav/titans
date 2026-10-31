@@ -297,6 +297,14 @@ export class Sound {
     }
   }
 
+  /** Small birds bursting out of the grass: a flurry of wingbeats and alarm chips. */
+  flush(): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    for (let i = 0; i < 10; i++) this.burst(t + i * 0.035 + Math.random() * 0.02, 0.05, 1600 + Math.random() * 1400, 0.05)
+    setTimeout(() => this.birdsong(), 250)
+  }
+
   /** A frog, near water, at night: a low double croak. */
   private croak(): void {
     const ctx = this.ctx!
