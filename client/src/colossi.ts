@@ -121,7 +121,7 @@ export class Colossi {
     // The Sentinel kneels on the valley floor at its northern edge, facing the
     // start: the first thing you see, and taller than the cliffs behind it.
     const sen = site(0, -640, 110, 260)
-    rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 34, tint: STONE, res: 130 })
+    rocks.addColossus({ kind: 'sentinel', x: sen.x, z: sen.z, y: sen.y - 6, rot: Math.atan2(-sen.x, -sen.z), seed: 7, layers: [LAYER.carved, LAYER.moss], scale: 22, tint: STONE, res: 195 })
     place('sentinel', sen.x, sen.z, sen.y)
 
     // The Dune Sea: a fallen First One — ribs along a buried spine, the skull at its head.
@@ -137,7 +137,7 @@ export class Colossi {
     place('sword', sw.x, sw.z, sw.y)
 
     // The Old Wood's giant trees.
-    const trees: Array<{ x: number; y: number; z: number; h: number }> = []
+    const trees: Array<{ x: number; y: number; z: number; h: number; tips: THREE.Vector3[] }> = []
     for (let tries = 0; tries < 600 && trees.length < 11; tries++) {
       const a = (rand() - 0.5) * 1.3 + Math.atan2(-0.866, -0.5)
       const d = 1050 + rand() * 1300
@@ -153,20 +153,29 @@ export class Colossi {
       }
       if (hi - lo > 18) continue
       const tseed = 100 + trees.length
-      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot: rand() * 6.28, seed: tseed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [1, 1, 1], res: 96 })
+      const rot = rand() * 6.28
+      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot, seed: tseed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [1, 1, 1], res: 120 })
       const f = rocks.formations[rocks.formations.length - 1]
-      trees.push({ x, y: lo - 2, z, h: f.cy + f.hy })
+      // Its crowns: one at each limb's end (local → world: mesh.rotation.y = rot).
+      const c = Math.cos(rot)
+      const sn = Math.sin(rot)
+      const tips = (f.tips ?? []).map(([tx, ty, tz]) => new THREE.Vector3(x + tx * c + tz * sn, lo - 2 + ty, z - tx * sn + tz * c))
+      trees.push({ x, y: lo - 2, z, h: f.cy + f.hy, tips })
       place(`tree-${trees.length}`, x, z, lo)
     }
-    // Their crowns: billows of leaf cards, one instance per tree.
-    const crown = new THREE.InstancedMesh(canopyGeometry(31, 64, 15, 90, 14), foliageMaterial(foliage, time, 0.0004), trees.length)
+    // Their crowns: billows of leaf cards at every limb's end.
+    const count = trees.reduce((n, t) => n + t.tips.length, 0)
+    const crown = new THREE.InstancedMesh(canopyGeometry(31, 64, 15, 90, 14), foliageMaterial(foliage, time, 0.0004), count)
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
-    trees.forEach((t, i) => {
-      const s = 0.85 + rand() * 0.35
-      m.compose(new THREE.Vector3(t.x, t.y + t.h * 0.9, t.z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(s, s * (0.85 + rand() * 0.3), s))
-      crown.setMatrixAt(i, m)
-    })
+    let ci = 0
+    for (const t of trees) {
+      t.tips.forEach((tip, k) => {
+        const s = (k === t.tips.length - 1 ? 0.62 : 0.4) * (0.85 + rand() * 0.35)
+        m.compose(tip, q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(s, s * (0.75 + rand() * 0.3), s))
+        crown.setMatrixAt(ci++, m)
+      })
+    }
     crown.castShadow = true
     crown.receiveShadow = true
     crown.frustumCulled = false

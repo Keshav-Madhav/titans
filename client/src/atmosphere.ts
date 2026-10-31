@@ -17,7 +17,33 @@ export interface DarkHall {
   sky: number
 }
 
-export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall } = {}): void {
+/**
+ * The scene's fog. Three hands every lit material two numbers from a linear
+ * Fog (near, far) and none of our own, so they carry ours: `near` is the haze
+ * density and `far` how heavy the cloud deck is — what the shader needs to
+ * fade tall things into the cloud as they rise into it.
+ */
+export class AirFog extends THREE.Fog {
+  constructor(color: THREE.ColorRepresentation, density: number) {
+    super(color, density, 0)
+  }
+  get density(): number {
+    return this.near
+  }
+  set density(v: number) {
+    this.near = v
+  }
+  /** 0 clear … 1 storm: how much of a tall thing the cloud deck swallows. */
+  get cloud(): number {
+    return this.far
+  }
+  set cloud(v: number) {
+    this.far = v
+  }
+}
+
+export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number } = {}): void {
+  const cloudBase = (opts.cloudBase ?? 255).toFixed(1)
   const H = (opts.heightScale ?? 380).toFixed(1)
   const f = (v: number) => v.toFixed(2)
   const hall = opts.hall
@@ -81,8 +107,11 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   float fogH = 0.5 * ( max( cameraPosition.y, 0.0 ) + max( vFogWorld.y, 0.0 ) );
   #ifdef FOG_EXP2
     float fogDens = fogDensity * exp( - fogH / ${H} );
+    float cloudCover = 0.0;
   #else
-    float fogDens = 1.0 / max( fogFar, 1.0 );
+    // AirFog: near is the density, far the cloud deck's weight.
+    float fogDens = fogNear * exp( - fogH / ${H} );
+    float cloudCover = fogFar;
   #endif
   float fogFactor = 1.0 - exp( - fogDens * fogDist );
   float fogSun = pow( max( dot( fogRay / max( fogDist, 1e-3 ), ${sun} ), 0.0 ), 6.0 );
@@ -90,6 +119,9 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   // Far away, the air goes cool and blue-grey (the paintings' distant mountains).
   fogCol = mix( fogCol, fogCol * vec3( 0.9, 0.98, 1.1 ), smoothstep( 700.0, 6000.0, fogDist ) * ( 1.0 - fogSun ) );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogCol, fogFactor );
+  // Up into the cloud deck, a tall thing fades into it (no hard band where a cloud layer cuts it).
+  float cloudIn = smoothstep( ${cloudBase} - 15.0, ${cloudBase} + 110.0, vFogWorld.y ) * cloudCover;
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor * vec3( 0.92, 0.95, 0.97 ), cloudIn );
 #endif`
 
   // ACES, then the grade: warm, a touch desaturated, a gentle S-curve.

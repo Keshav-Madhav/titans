@@ -292,6 +292,8 @@ export class Weather {
     sky.fill.color.copy(b.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark)
     this.scene.environmentIntensity = b.env * (1 - 0.35 * w.dark)
     sky.fog.density = b.fog * w.fog
+    // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
+    sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45))
     sky.fog.color.copy(b.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43), w.dark)
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms

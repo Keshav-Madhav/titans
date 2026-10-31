@@ -9,6 +9,7 @@ export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 
 /** The colossi: the First Ones' remains and works, hundreds of metres across. */
 export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk'
 export type ShapeKind = FormationKind | ColossusKind
+type THREE3 = [number, number, number]
 
 /** Signed distance (negative inside) at a local point. */
 export type Field = (x: number, y: number, z: number) => number
@@ -50,6 +51,8 @@ const ssub = (a: number, b: number, k: number) => -smin(-a, b, k)
 /** A formation's shape: its field (local metres, y up from the ground) and local bounds. */
 export interface Shape {
   field: Field
+  /** Where crowns of leaves sit (a giant tree's limb ends), in local metres. */
+  tips?: Array<[number, number, number]>
   /** Bounding box half-extents and centre height. */
   hx: number
   hy: number
@@ -384,42 +387,73 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
   const wear = (x: number, y: number, z: number, amp: number) =>
     amp * ((n(x * 0.012, y * 0.012 + z * 0.006) + n(y * 0.011 - 4.1, z * 0.013)) * 0.35 + (n(x * 0.05 + z * 0.02, y * 0.05) + n(z * 0.047, x * 0.05 - y * 0.02)) * 0.15)
   if (kind === 'sentinel') {
-    // A First One, kneeling, robed and hooded, both hands on the pommel of a
-    // sword planted before it. Under the hood: nothing but dark. ~380 m tall.
+    // A First One kneeling: the right knee down, the left raised; a cowled
+    // hood with nothing but dark inside; a cape falling down its back in
+    // folds; armoured chest and shoulders; both gauntlets on the pommel of a
+    // sword driven into the ground before it. ~360 m tall. Facing +z.
+    const rb = (x: number, y: number, z: number, cx: number, cy: number, cz: number, bx: number, by: number, bz: number, r: number) => roundBox(x - cx, y - cy, z - cz, bx, by, bz, r)
     return {
       field: (x, y, z) => {
-        // The robe: a broad cone from the ground to the waist, the knee pushing it forward.
-        const robeR = 95 - Math.max(0, Math.min(1, y / 170)) * 48
-        let d = Math.max(Math.hypot(x, (z + 10) * 0.85) - robeR, y - 175, -y - 10)
-        d = smin(d, ellipsoid(x - 35, y - 55, z - 70, 40, 45, 60), 25)
-        // Torso, leaning a little forward, and the shoulders.
-        d = smin(d, ellipsoid(x, y - 220, z - 8, 55, 75, 42), 30)
-        d = smin(d, ellipsoid(x - 58, y - 268, z - 5, 30, 26, 30), 18)
-        d = smin(d, ellipsoid(x + 58, y - 268, z - 5, 30, 26, 30), 18)
-        // Arms down and forward to the pommel.
+        const ax = Math.abs(x)
+        // Legs. Left (−x): foot forward, knee up. Right (+x): knee on the ground, shin back.
+        let d = capsule(x, y, z, -42, 168, 18, -46, 118, 112, 30) // left thigh
+        d = smin(d, capsule(x, y, z, -46, 118, 112, -48, 8, 122, 25), 10) // left shin
+        d = smin(d, rb(x, y, z, -48, 9, 135, 22, 10, 34, 6), 8) // left foot
+        d = smin(d, capsule(x, y, z, 42, 168, 18, 44, 22, 46, 31), 10) // right thigh
+        d = smin(d, capsule(x, y, z, 44, 18, 46, 44, 12, -78, 25), 10) // right shin, along the ground
+        // The skirt of the robe, flaring to the ground, in folds.
+        const ang = Math.atan2(x, z)
+        const fold = 4.5 * Math.sin(ang * 16 + y * 0.015) * Math.min(1, (182 - y) / 60)
+        const skirtR = 62 + (182 - Math.max(0, Math.min(182, y))) * 0.32 + fold
+        const skirt = Math.max(Math.hypot(x, (z - 8) * 0.9) - skirtR, y - 182, -y - 4)
+        d = smin(d, skirt, 14)
+        // Torso, leaning a little forward; armoured ridges across the chest.
+        const ty = y - 238
+        const tz = z - 4 - ty * 0.1
+        d = smin(d, roundBox(x, ty, tz, 56, 62, 34, 14), 12)
+        d = smin(d, rb(x, y, z, 0, 186, 2, 46, 26, 30, 10), 10)
+        for (const ry of [258, 236, 214]) d = Math.min(d, roundBox(x, y - ry, tz - 33, 52 - (258 - ry) * 0.12, 6, 6, 3))
+        // Pauldrons: a dome over each shoulder, two lames stepping down.
         for (const sx of [-1, 1]) {
-          d = smin(d, capsule(x, y, z, sx * 66, 262, -2, sx * 58, 205, 48, 15), 10)
-          d = smin(d, capsule(x, y, z, sx * 58, 205, 48, sx * 16, 248, 92, 12.5), 8)
-          d = smin(d, ellipsoid(x - sx * 13, y - 250, z - 96, 15, 13, 17), 6)
+          d = smin(d, ellipsoid(x - sx * 70, y - 284, z - 2, 42, 25, 40), 6)
+          d = Math.min(d, rb(x, y, z, sx * 76, 262, 2, 34, 6, 36, 4))
+          d = Math.min(d, rb(x, y, z, sx * 80, 249, 2, 30, 6, 33, 4))
+          // Arms: down and forward to the pommel; gauntlets.
+          d = smin(d, capsule(x, y, z, sx * 72, 272, 2, sx * 64, 212, 54, 17), 8)
+          d = smin(d, capsule(x, y, z, sx * 64, 212, 54, sx * 16, 248, 92, 14), 7)
+          d = smin(d, rb(x, y, z, sx * 13, 250, 98, 12, 15, 16, 5), 4)
         }
-        // The hood, hollow toward the front: a cave of shadow where the face would be.
-        let hood = ellipsoid(x, y - 318, z - 10, 38, 44, 40)
-        hood = ssub(hood, ellipsoid(x, y - 312, z - 34, 24, 30, 30), 5)
-        d = smin(d, hood, 14)
-        // The sword: grip and pommel under the hands, crossguard, a blade into the ground.
-        let sw = capsule(x, y, z, 0, 205, 98, 0, 262, 96, 6)
-        sw = Math.min(sw, len3(x, y - 266, z - 96) - 10)
-        sw = Math.min(sw, roundBox(x, y - 200, z - 98, 46, 6, 8, 2))
-        sw = Math.min(sw, roundBox(x, y - 95, z - 99 - (y - 95) * 0.04, 13 - Math.max(0, 40 - y) * 0.2, 105, 3.2, 1))
+        // A mantle round the neck, the hood rising out of it.
+        d = smin(d, ellipsoid(x, y - 300, z + 2, 74, 18, 50), 12)
+        let hood = ellipsoid(x, y - 326, z - 6, 34, 42, 37)
+        hood = smin(hood, capsule(x, y, z, 0, 340, -8, 0, 362, -34, 14), 10) // its point, drawn back
+        // The cowl: open at the front, deep — the dark inside it.
+        hood = ssub(hood, ellipsoid(x, y - 322, z - 34, 22, 29, 30), 4)
+        d = smin(d, hood, 12)
+        // The cape down the back, in folds, to the ground.
+        const cz = z + 40 + 5 * Math.sin(x * 0.11) + Math.max(0, 200 - y) * 0.12
+        d = smin(d, Math.max(roundBox(x, y - 160, cz, 74 - Math.max(0, 300 - y) * 0.02, 140, 5, 3), -y - 2), 10)
+        // The sword: pommel, ringed grip, crossguard, a blade with a fuller, driven in.
+        let sw = len3(x, y - 268, z - 98) - 9
+        sw = Math.min(sw, capsule(x, y, z, 0, 260, 98, 0, 228, 98, 5.5))
+        for (const gy of [254, 244, 236]) sw = Math.min(sw, torus(x, z - 98, y - gy, 6.2, 1.6))
+        sw = Math.min(sw, rb(x, y, z, 0, 222, 98, 50, 6, 8, 3))
+        sw = Math.min(sw, len3(ax - 50, y - 222, z - 98) - 8)
+        const taper = Math.max(0, Math.min(1, (y + 40) / 260))
+        const bz = 98 - (y - 88) * 0.03
+        let blade = rb(x, y, z, 0, 88, bz, 8 + 8 * taper, 128, 3.6, 1.2)
+        // The fuller: a shallow groove down each face.
+        for (const fz of [-3.6, 3.6]) blade = Math.max(blade, -rb(x, y, z, 0, 120, bz + fz, 2.4, 92, 1.1, 0.4))
+        sw = Math.min(sw, blade)
         d = Math.min(d, sw)
-        // A shoulder broken away; the ground holds it.
-        d = ssub(d, len3(x + 75, y - 290, z + 20) - 30, 8)
-        return Math.max(d, -(y + 12)) + wear(x, y, z, 4)
+        // Rubble at its knee.
+        d = smin(d, ellipsoid(x - 60, y + 2, z - 70, 24, 10, 20), 6)
+        return Math.max(d, -(y + 14)) + wear(x, y, z, 1.3)
       },
       hx: 135,
-      hy: 200,
-      hz: 135,
-      cy: 188,
+      hy: 202,
+      hz: 162,
+      cy: 186,
     }
   }
   if (kind === 'ribcage') {
@@ -514,34 +548,56 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       cy: 0,
     }
   }
-  // A giant tree's trunk: roots buttressing out like ridges of hills.
+  // A giant tree: a leaning, gnarled trunk; roots arching out of the ground
+  // like ridges; six to eight great limbs reaching out at different heights,
+  // each ending where a crown of leaves sits (`tips`, for colossi.ts).
   const h = 150 + rand() * 90
   const r = 11 + rand() * 6
-  const roots = 6 + Math.floor(rand() * 3)
+  const roots = 7 + Math.floor(rand() * 4)
   const twist = rand() * 6.28
+  const lean = (rand() - 0.5) * 0.12
+  const rootArcs: Array<[number, number, number, number, number, number, number, number, number, number]> = []
+  for (let i = 0; i < roots; i++) {
+    const a = (i / roots) * Math.PI * 2 + twist + (rand() - 0.5) * 0.4
+    const reach = r * (3.5 + rand() * 2.5)
+    // From up the trunk, out through a raised knee, down into the ground.
+    rootArcs.push([0, r * (1.6 + rand()), 0, Math.cos(a) * reach * 0.55, r * (0.9 + rand() * 0.6), Math.sin(a) * reach * 0.55, Math.cos(a) * reach, -4, Math.sin(a) * reach, r * (0.38 + rand() * 0.15)])
+  }
+  const limbs: Array<{ a: THREE3; b: THREE3; r: number }> = []
+  const tips: Array<[number, number, number]> = []
+  const nl = 6 + Math.floor(rand() * 3)
+  for (let i = 0; i < nl; i++) {
+    const a = (i / nl) * Math.PI * 2 + twist * 1.7 + (rand() - 0.5) * 0.5
+    const y0 = h * (0.55 + 0.35 * rand())
+    const out = r * (4.5 + rand() * 4)
+    const mid: THREE3 = [Math.cos(a) * out * 0.5 + lean * y0, y0 + h * 0.08, Math.sin(a) * out * 0.5]
+    const end: THREE3 = [Math.cos(a) * out + lean * y0, y0 + h * (0.14 + rand() * 0.1), Math.sin(a) * out]
+    const base: THREE3 = [lean * y0, y0, 0]
+    limbs.push({ a: base, b: mid, r: r * 0.42 })
+    limbs.push({ a: mid, b: end, r: r * 0.28 })
+    tips.push(end)
+  }
+  tips.push([lean * h, h * 1.05, 0])
   return {
     field: (x, y, z) => {
       const k = Math.max(0, Math.min(1, y / h))
-      let d = Math.hypot(x + Math.sin(y * 0.012 + twist) * 6, z) - r * (1.6 - 0.9 * k)
-      d = Math.max(d, y - h, -y - 10)
-      for (let i = 0; i < roots; i++) {
-        const a = (i / roots) * Math.PI * 2 + twist
-        const ex = Math.cos(a) * r * 4.5
-        const ez = Math.sin(a) * r * 4.5
-        d = smin(d, capsule(x, y, z, 0, r * 2.2, 0, ex, -3, ez, r * 0.45), r * 0.9)
+      const cx = x - lean * y + Math.sin(y * 0.012 + twist) * 6
+      let d = Math.hypot(cx, z) - r * (1.7 - 0.95 * k)
+      d = Math.max(d, y - h * 1.02, -y - 10)
+      for (const [x0, y0, z0, x1, y1, z1, x2, y2, z2, rr] of rootArcs) {
+        d = smin(d, capsule(x, y, z, x0, y0, z0, x1, y1, z1, rr * 1.2), r * 0.7)
+        d = smin(d, capsule(x, y, z, x1, y1, z1, x2, y2, z2, rr * 0.8), r * 0.5)
       }
-      // Great limbs at the crown.
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + twist * 2
-        d = smin(d, capsule(x, y, z, 0, h * 0.82, 0, Math.cos(a) * r * 3.5, h * 1.02, Math.sin(a) * r * 3.5, r * 0.5), r * 0.6)
-      }
-      // Bark: deep vertical furrows.
-      const fur = Math.sin(Math.atan2(z, x) * 26 + n(x * 0.05, z * 0.05) * 2) * 0.6
-      return d + fur + wear(x, y, z, 0.8)
+      for (const l of limbs) d = smin(d, capsule(x, y, z, l.a[0], l.a[1], l.a[2], l.b[0], l.b[1], l.b[2], l.r), r * 0.5)
+      // Bark: deep twisting furrows, and knots.
+      const furrow = Math.sin(Math.atan2(z, cx) * 18 + y * 0.04 + n(x * 0.04, z * 0.04) * 3) * 1.6
+      return d + furrow + wear(x, y, z, 1.2)
     },
-    hx: r * 6,
-    hy: (h * 1.08 + 12) / 2,
-    hz: r * 6,
-    cy: (h * 1.08 - 12) / 2,
+    hx: r * 9.5 + h * 0.07,
+    hy: (h * 1.32 + 12) / 2,
+    hz: r * 9.5,
+    cy: (h * 1.32 - 12) / 2,
+    tips,
   }
+
 }

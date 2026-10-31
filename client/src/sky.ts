@@ -3,12 +3,13 @@
 
 import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
+import { AirFog } from './atmosphere'
 
 export class SkySystem {
   readonly sky = new Sky()
   readonly sun = new THREE.DirectionalLight(0xffe6c2, 3.1)
   readonly sunDir = new THREE.Vector3()
-  readonly fog: THREE.FogExp2
+  readonly fog: AirFog
   readonly fill: THREE.HemisphereLight
   readonly counter: THREE.DirectionalLight
   private shadowRadius = 140
@@ -53,7 +54,7 @@ export class SkySystem {
     scene.add(this.sky)
 
     // Density for the height haze in atmosphere.ts (linear, per metre at ground level).
-    this.fog = new THREE.FogExp2(0xa9bccf, 0.00017)
+    this.fog = new AirFog(0xa9bccf, 0.00017)
     scene.fog = this.fog
 
     const s = this.sun
