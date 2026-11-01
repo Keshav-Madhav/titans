@@ -82,7 +82,10 @@ export class WorldMap {
   private readonly ink = document.createElement('canvas')
   private readonly tiles = new Map<string, HTMLCanvasElement>()
   private wanted: string[] = []
-  private building: { key: string; L: number; tx: number; tz: number; canvas: HTMLCanvasElement; row: number } | null = null
+  private building: { key: string; L: number; tx: number; tz: number; canvas: HTMLCanvasElement; row: number; rowZ?: number } | null = null
+  /** A row of heights, and the next (shared between neighbouring pixels while painting). */
+  private readonly rowA = new Float64Array(TILE + 1)
+  private readonly rowB = new Float64Array(TILE + 1)
   private lakeSigs = new Map<number, string>()
   private lakes: readonly Lake[] = []
   private lastReveal = new THREE.Vector3(1e9, 0, 0)
@@ -274,16 +277,17 @@ export class WorldMap {
   }
 
   /** One pixel of the map: the land's wash, hill shading, contours, water. */
-  private paint(x: number, z: number, m: number, lakes: readonly Lake[]): [number, number, number] {
+  /** `h`, `hE`, `hS`: the heights here and one step east and south, when the caller has them. */
+  private paint(x: number, z: number, m: number, lakes: readonly Lake[], h0?: number, hE?: number, hS?: number): [number, number, number] {
     const T = this.terrain
-    const h = T.heightAt(x, z)
+    const h = h0 ?? T.heightAt(x, z)
     for (const l of lakes) {
       const b = l.basin
       if (x >= b.x0 && z >= b.z0 && x < b.x0 + b.w && z < b.z0 + b.h && inBasin(b, Math.round(x), Math.round(z))) return WATER
     }
     const e = Math.max(m, 2)
-    const hx = T.heightAt(x + e, z) - h
-    const hz = T.heightAt(x, z + e) - h
+    const hx = (hE ?? T.heightAt(x + e, z)) - h
+    const hz = (hS ?? T.heightAt(x, z + e)) - h
     // Light from the north-west: a wash, not a photograph — but the land's shape must read
     // (at 0.32 the Green came out one flat olive disc).
     const shade = THREE.MathUtils.clamp(1 - ((hx + hz) / e) * 0.62, 0.62, 1.14)
@@ -321,11 +325,21 @@ export class WorldMap {
       const z0 = -WORLD_HALF + b.tz * span
       const lakes = this.lakes.filter((l) => l.level > l.basin.bottom + 0.3 && l.basin.x0 < x0 + span && l.basin.x0 + l.basin.w > x0 && l.basin.z0 < z0 + span && l.basin.z0 + l.basin.h > z0)
       const ctx = b.canvas.getContext('2d')!
+      // (A step of at least 2 m is one pixel: the east and south neighbours' heights are the
+      // next pixel's and the next row's — sampled once and shared, not three times a pixel.)
+      const share = m >= 2
       while (b.row < TILE && performance.now() - t0 < budgetMs) {
         const img = ctx.createImageData(TILE, 1)
         const z = z0 + (b.row + 0.5) * m
+        if (share) {
+          if (b.rowZ !== z) {
+            for (let i = 0; i <= TILE; i++) this.rowA[i] = this.terrain.heightAt(x0 + (i + 0.5) * m, z)
+          } else this.rowA.set(this.rowB)
+          for (let i = 0; i <= TILE; i++) this.rowB[i] = this.terrain.heightAt(x0 + (i + 0.5) * m, z + m)
+          b.rowZ = z + m
+        }
         for (let i = 0; i < TILE; i++) {
-          const [r, g, bl] = this.paint(x0 + (i + 0.5) * m, z, m, lakes)
+          const [r, g, bl] = share ? this.paint(x0 + (i + 0.5) * m, z, m, lakes, this.rowA[i], this.rowA[i + 1], this.rowB[i]) : this.paint(x0 + (i + 0.5) * m, z, m, lakes)
           img.data[i * 4] = r
           img.data[i * 4 + 1] = g
           img.data[i * 4 + 2] = bl
