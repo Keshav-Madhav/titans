@@ -174,7 +174,9 @@ export class SkySystem {
     // Key light: whichever of the two is brighter.
     const low = THREE.MathUtils.smoothstep(elev, 2, 30)
     const sunI = (0.8 + 3.5 * low) * THREE.MathUtils.smoothstep(elev, -3, 6)
-    const moonI = 0.7 * Math.max(this.night, this.dusk * 0.4)
+    // (The moon takes over only once the sun's light is all gone — under the horizon by
+    // 3° — and grows from nothing: the key light hands over with no jump in direction or colour.)
+    const moonI = 0.7 * (1 - THREE.MathUtils.smoothstep(elev, -14, -3))
     const lb = this.lightBase
     if (sunI >= moonI) {
       this.keyDir.copy(this.sunDir)

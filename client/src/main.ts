@@ -138,9 +138,10 @@ installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pi
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
 const post = new Post(renderer, scene, camera)
-const LOWEST = 2
-quality.onApply = (level) => {
-  post.enabled = params.get('post') !== '0' && level < LOWEST
+// (The post pipeline is the look — tone, grade, haze, shafts — and stays on at every level:
+// switching it off with the quality level changed the whole picture in one frame.)
+quality.onApply = () => {
+  post.enabled = params.get('post') !== '0'
   post.resize()
 }
 quality.onApply(quality.level)
@@ -1783,12 +1784,15 @@ function shedRubble(dt: number): void {
   }
 }
 
+/** The main thread's work per frame, the last 1200 (ms; tools read it to find hitches). */
+const work: number[] = []
 function frame(now: number): void {
   requestAnimationFrame(frame)
   if (document.hidden) {
     last = now
     return
   }
+  const t0 = performance.now()
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   acc += dt * clock.scale
@@ -2070,6 +2074,8 @@ function frame(now: number): void {
   sky.follow(focus, camera)
   renderer.info.reset()
   post.render(dt, sky.sunDir)
+  work.push(performance.now() - t0)
+  if (work.length > 1200) work.shift()
 
   if (!ready && terrainView.settled()) {
     ready = true
@@ -2150,6 +2156,7 @@ const g = {
   get opening() {
     return opening
   },
+  work,
   ledgeAhead,
   get mantling() {
     return mantle.t >= 0

@@ -354,7 +354,7 @@ export class Weather {
     this.deck.forEach((m, i) => m.position.set(camera.position.x, w.base + i * CLOUD_GAP, camera.position.z))
     this.rainUniforms.uTime.value += dt
     // In the Dune Sea a storm's rain is sand.
-    this.sand += (this.desert * THREE.MathUtils.smoothstep(w.rain, 0.3, 0.9) - this.sand) * Math.min(1, dt * 0.5)
+    this.sand += (this.desert * THREE.MathUtils.smoothstep(w.rain, 0.3, 0.9) - this.sand) * Math.min(1, dt * 0.15)
     this.rainUniforms.uRain.value = Math.max(w.rain, this.sand)
     this.rainUniforms.uWind.value = w.wind
     this.rainUniforms.uSand.value = this.sand
@@ -371,7 +371,7 @@ export class Weather {
     sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
     sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
-    this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.4)
+    this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
     sky.fog.density = b.fog * w.fog * (1 + this.sand * 9) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
     sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
