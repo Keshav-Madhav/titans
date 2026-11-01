@@ -53,6 +53,8 @@ const _cz = new THREE.Vector3()
 const _cm = new THREE.Matrix4()
 const _v = new THREE.Vector3()
 const _w = new THREE.Vector3()
+const _a = new THREE.Vector3()
+const _b = new THREE.Vector3()
 
 const RED = 0xa3241c
 const TUNIC = 0x5e4c3a
@@ -222,6 +224,8 @@ class Cloth {
   private readonly p: Float32Array
   private readonly q: Float32Array
   private ready = false
+  /** How deep the folds it remembers are, at the hem (metres; 0: none). */
+  pleats = 0
   /** The pinned spacing between neighbouring columns (set from the first pins). */
   private widths: number[] = []
 
@@ -288,6 +292,10 @@ class Cloth {
     }
     const steps = 3
     const h = Math.min(dt, 1 / 30) / steps
+    // A memory of how it hangs: in folds (pleats across it, deeper toward the hem), not a flat
+    // sheet. A gentle pull toward that shape — wind and running still have their way with it.
+    _a.subVectors(pins[cols - 1], pins[0]).normalize()
+    _b.crossVectors(_a, hang).normalize()
     for (let s = 0; s < steps; s++) {
       // Integrate: inertia (damped), gravity, the wind (gustier toward the hem).
       for (let row = 1; row < rows; row++) {
@@ -303,6 +311,21 @@ class Cloth {
           p[k] += vx + wind.x * h * h * flutter
           p[k + 1] += vy - 9.8 * h * h + wind.y * h * h * flutter
           p[k + 2] += vz + wind.z * h * h * flutter
+        }
+      }
+      if (this.pleats > 0) {
+        for (let row = 1; row < rows; row++) {
+          const depth = this.pleats * (row / (rows - 1))
+          for (let c = 0; c < cols; c++) {
+            const k = (row * cols + c) * 3
+            const fold = Math.sin(c * 2.1 + 0.6) * depth
+            const tx = pins[c].x + hang.x * this.seg * row + _b.x * fold
+            const ty = pins[c].y + hang.y * this.seg * row + _b.y * fold
+            const tz = pins[c].z + hang.z * this.seg * row + _b.z * fold
+            p[k] += (tx - p[k]) * 0.012
+            p[k + 1] += (ty - p[k + 1]) * 0.012
+            p[k + 2] += (tz - p[k + 2]) * 0.012
+          }
         }
       }
       for (let c = 0; c < cols; c++) {
@@ -675,6 +698,7 @@ export class Wanderer {
     this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
     // (Flaring toward the hem: a cloak, not a plank.)
     this.cape = new Cloth(7, 9, 0.135, red, (row) => 1 + 0.42 * (row / 8))
+    this.cape.pleats = 0.09
     this.scarf = new Cloth(2, 8, 0.15, red, (row) => 1 - row / 12)
     this.world.add(this.cape.mesh, this.scarf.mesh)
   }
