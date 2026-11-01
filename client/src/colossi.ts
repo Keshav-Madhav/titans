@@ -202,7 +202,13 @@ export class Colossi {
     crown.castShadow = true
     crown.receiveShadow = true
     crown.count = ci
-    this.group.add(splitByTile(crown, 400))
+    // (Far off, the same crowns from fewer, bigger cards: 2,520 triangles each to 720, then 240.)
+    this.group.add(
+      splitByTile(crown, 400, [
+        [canopyGeometry(31, 64, 24, 90, 4), 900],
+        [canopyGeometry(31, 64, 32, 60, 2), 2200],
+      ]),
+    )
 
     // The Steps: a colonnade rising into the clouds, some pillars broken.
     const cx0 = 1180 * SPREAD
