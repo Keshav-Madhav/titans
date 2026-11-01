@@ -35,11 +35,11 @@ kbd {
 /* The key strip along the bottom: quiet, no box. */
 #hint {
   position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
-  font: 14px/1 var(--serif); letter-spacing: 0.02em; color: rgba(246, 240, 228, 0.72);
+  font: 14px/1 var(--serif); letter-spacing: 0.02em; color: rgba(246, 240, 228, 0.86);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); pointer-events: none; transition: opacity 0.8s;
   padding: 10px 28px 6px;
   /* (A soft band of shade behind it: it has to read over bright grass.) */
-  background: radial-gradient(ellipse at 50% 70%, rgba(10, 8, 6, 0.45), rgba(10, 8, 6, 0.2) 55%, transparent 75%);
+  background: radial-gradient(ellipse at 50% 70%, rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0.26) 55%, transparent 75%);
 }
 #hint kbd.news { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.85), 0 0 12px rgba(232, 160, 80, 0.6); animation: glint 2.4s ease-in-out infinite; }
 @keyframes glint { 50% { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.35), 0 0 4px rgba(232, 160, 80, 0.2); } }
