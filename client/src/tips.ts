@@ -11,6 +11,9 @@ export interface TipState {
   bag: boolean // has found the bag
   looked: boolean // has opened it
   out: boolean // has climbed out of the Undercroft into the light
+  mapped: boolean // has looked at the map after standing high on a giant
+  page2: boolean // has found the traveller's second camp
+  found: number // how many things (places, giants, words, relics…) found
 }
 
 const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
@@ -20,6 +23,10 @@ const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
   { text: 'In the bag, a map and an empty notebook. <kbd>I</kbd> the bag · <kbd>J</kbd> what you have found · <kbd>M</kbd> the map.', done: (s) => s.looked },
   { text: 'One of them walks the Green. Go to it — at its foot, <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
   { text: 'Climb with <kbd>W A S D</kbd>. Your grip tires: rest where you can stand. Reach its shoulders.', done: (s) => s.high > 150 },
+  // The first hour: on, without a plot — the traveller's trail, and then the land itself.
+  { text: 'From up here the land opens out. All you can see goes on your map: <kbd>M</kbd>.', done: (s) => s.mapped },
+  { text: "The traveller's page said they went on. Their red cloth flies over their next camp — look for it from somewhere high.", done: (s) => s.page2 },
+  { text: 'Stones with words on them, giants asleep under the grass, things left where no one would leave them. The land is full of what came before. Wander.', done: (s) => s.found >= 14 },
 ]
 
 export class Tips {

@@ -218,6 +218,7 @@ const mapPlaces: MapPlace[] = [
 const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = (open?: boolean) => {
   input.releaseAll()
+  if (open && tipState.high > 150) tipState.mapped = true
   sound.ui(open === false ? 'close' : 'page')
 }
 worldMap.allowed = () => toolMode || finds.has('bag')
@@ -1132,7 +1133,7 @@ let wild = !toolMode || params.has('wild')
 let localSave = !toolMode
 const sound = new Sound(settings.sound)
 const tips = new Tips(!toolMode)
-const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false, out: false }
+const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false, out: false, mapped: false, page2: false, found: 0 }
 let lastTip = 0
 
 // ---------------------------------------------------------------------------
@@ -2173,6 +2174,8 @@ function frame(now: number): void {
   }
   if (now - lastTip > 500) {
     lastTip = now
+    tipState.page2 = finds.has('page-2')
+    tipState.found = finds.save().length
     tips.update(tipState)
   }
 }
