@@ -297,7 +297,9 @@ function uncover(instant = false): void {
 
 // The Hanging Steps: a parkour line on the western Green (hop, climb, up to the top).
 const STEPS_AT = { x: -1700, z: 300 }
-const stepsTop = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
+const hanging = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
+scene.add(hanging.decor)
+const stepsTop = hanging.top
 
 // Offering shrines: each shows a small thing found elsewhere; bring it, and it answers.
 const offerings = (() => {
