@@ -60,7 +60,7 @@ export class Bag {
       const cell = document.createElement('button')
       cell.className = 'bag-cell'
       cell.title = item.name
-      cell.appendChild(drawIcon(item.icon ?? 'stone', item.tint ?? '#b9ab8f'))
+      cell.appendChild(drawIcon(item.icon ?? 'stone', item.tint ?? '#b9ab8f', 128))
       if (this.finds.unseen.has(item.id)) cell.classList.add('new')
       cell.addEventListener('click', () => this.show(item, cell))
       this.grid.appendChild(cell)
@@ -299,5 +299,26 @@ export function drawIcon(icon: string, tint: string, size = 64): HTMLCanvasEleme
       }, false)
     }
   }
+  // Light on it: from the top left, over the drawing only — a highlight, a shaded side,
+  // and a little grain, so it reads as a thing and not a flat sticker.
+  g.setTransform(1, 0, 0, 1, 0, 0)
+  g.globalCompositeOperation = 'source-atop'
+  const light = g.createLinearGradient(0, 0, size, size)
+  light.addColorStop(0, 'rgba(255, 248, 230, 0.38)')
+  light.addColorStop(0.45, 'rgba(255, 248, 230, 0)')
+  light.addColorStop(0.6, 'rgba(30, 18, 6, 0)')
+  light.addColorStop(1, 'rgba(30, 18, 6, 0.32)')
+  g.fillStyle = light
+  g.fillRect(0, 0, size, size)
+  let seed = icon.length * 7919 + tint.length
+  for (let i = 0; i < size * size * 0.18; i++) {
+    seed = (seed * 16807) % 2147483647
+    const x = seed % size
+    seed = (seed * 16807) % 2147483647
+    const y = seed % size
+    g.fillStyle = seed % 2 ? 'rgba(255, 245, 220, 0.07)' : 'rgba(20, 12, 4, 0.08)'
+    g.fillRect(x, y, 1, 1)
+  }
+  g.globalCompositeOperation = 'source-over'
   return c
 }

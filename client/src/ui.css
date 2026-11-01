@@ -1,0 +1,236 @@
+/* The interface (user, 2026-11-01: "inventory and ui… very flat basic AI
+   generated and not polished"). Made of things the traveller would carry:
+   the bag is tooled leather with stitching; the journal an open notebook;
+   the map old paper inked where you have been; what the game says to you is
+   a caption over the world, not a box. Textures: ui-skin.ts. */
+
+:root {
+  --serif-title: 'IM Fell English', 'Iowan Old Style', Georgia, serif;
+  --serif: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --ink-brown: #2f261b;
+  --ink-soft: #5e5240;
+  --pencil: #8b816d;
+  --gilt: #e8d1a0;
+  --seal: #a8412a;
+}
+
+/* ── Over the world ───────────────────────────────────────────────── */
+
+/* The mode badge is for tools only. */
+#role { display: none; }
+body.debug #role {
+  display: block; position: fixed; top: 12px; right: 14px; font: 600 11px var(--serif); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink); pointer-events: none;
+}
+
+/* Keys: small worn keycaps. */
+kbd {
+  display: inline-block; min-width: 18px; padding: 1px 5px 0; margin: 0 2px; text-align: center;
+  font: 600 11px/16px ui-monospace, 'SF Mono', Menlo, monospace; color: #f6efe2;
+  background: linear-gradient(rgba(60, 52, 40, 0.75), rgba(28, 24, 18, 0.8));
+  border: 1px solid rgba(240, 225, 195, 0.32); border-bottom-width: 2px; border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* The key strip along the bottom: quiet, no box. */
+#hint {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font: 14px/1 var(--serif); letter-spacing: 0.02em; color: rgba(246, 240, 228, 0.72);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); pointer-events: none; transition: opacity 0.8s;
+  padding: 10px 28px 6px;
+  /* (A soft band of shade behind it: it has to read over bright grass.) */
+  background: radial-gradient(ellipse at 50% 70%, rgba(10, 8, 6, 0.45), rgba(10, 8, 6, 0.2) 55%, transparent 75%);
+}
+#hint kbd.news { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.85), 0 0 12px rgba(232, 160, 80, 0.6); animation: glint 2.4s ease-in-out infinite; }
+@keyframes glint { 50% { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.35), 0 0 4px rgba(232, 160, 80, 0.2); } }
+
+/* What the game tells you (the tips): a slim card, a gilt edge. */
+#tips {
+  position: fixed; bottom: 128px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 12px;
+  max-width: min(560px, 40vw, calc(100vw - 32px)); padding: 10px 12px 10px 16px;
+  font: 16px/1.4 var(--serif); color: #f6f0e4; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(90deg, rgba(14, 12, 9, 0.72), rgba(14, 12, 9, 0.5));
+  border-left: 2px solid rgba(232, 209, 160, 0.8); border-radius: 2px 8px 8px 2px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); animation: rise-c 0.6s ease-out;
+}
+#tips button { flex: none; border: 0; background: none; color: rgba(246, 240, 228, 0.5); cursor: pointer; font-size: 14px; }
+#tips button:hover { color: #f6f0e4; }
+
+/* The narration: captions over the world, bottom left, fading as they age. */
+#narration {
+  position: fixed; left: 22px; bottom: 58px; width: min(440px, 28vw, calc(100vw - 44px)); min-width: min(300px, calc(100vw - 44px));
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+#narration::before {
+  /* A soft darkening behind the captions (not a box): they read over bright grass and sky. */
+  content: ''; position: fixed; left: 0; bottom: 0; width: min(620px, 42vw); height: 260px; z-index: -1;
+  background: radial-gradient(ellipse at 0% 100%, rgba(10, 8, 6, 0.42), transparent 70%);
+}
+#narration .line {
+  font: italic 17px/1.38 var(--serif); color: #f7f1e5; overflow-wrap: anywhere;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 0, 0, 0.45);
+  transition: opacity 1.6s, transform 1.6s; animation: rise 0.9s ease-out;
+}
+#narration .line.old { opacity: 0; transform: translateY(-4px); }
+#narration .line b { font-style: normal; color: var(--gilt); }
+
+/* The prompt: what E does here. */
+#prompt {
+  position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); display: none;
+  font: 600 16px var(--serif); letter-spacing: 0.03em; color: #f8f2e6; white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 14px rgba(0, 0, 0, 0.5); animation: rise-c 0.35s ease-out;
+}
+#prompt kbd { margin-right: 9px; font-size: 12px; background: linear-gradient(#f4ead6, #d6c7a6); color: #2a2218; border-color: rgba(0, 0, 0, 0.35); }
+
+/* A find: its kind in small caps, its name large, between two thin rules. */
+#found {
+  position: fixed; top: 15%; left: 50%; transform: translate(-50%, 8px); text-align: center;
+  opacity: 0; transition: opacity 1.4s, transform 1.4s; pointer-events: none; color: #fbf6ec;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+#found.on { opacity: 1; transform: translate(-50%, 0); }
+#found small {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  font: 600 12px var(--serif); letter-spacing: 0.42em; text-transform: uppercase; opacity: 0.85;
+}
+#found small::before, #found small::after { content: ''; width: 46px; height: 1px; background: currentColor; opacity: 0.6; }
+#found b { display: block; margin-top: 8px; font: italic 42px/1.05 var(--serif-title); letter-spacing: 0.01em; }
+
+/* Tools in hand: small medallions, top left. */
+#tools { position: fixed; left: 16px; top: 16px; display: flex; gap: 12px; pointer-events: none; }
+.tool {
+  position: relative; width: 50px; height: 50px; border-radius: 50%; padding: 5px;
+  background: radial-gradient(circle at 40% 35%, #e9dcc0, #c4b08a 70%, #a8916a);
+  box-shadow: inset 0 0 0 1px rgba(60, 44, 24, 0.45), 0 0 0 2px rgba(30, 22, 14, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+  opacity: 0.82; transition: transform 0.25s, opacity 0.25s, box-shadow 0.25s;
+}
+.tool canvas { width: 40px; height: 40px; display: block; }
+.tool kbd { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); font-size: 9px; line-height: 13px; padding: 0 4px; }
+.tool.on {
+  opacity: 1; transform: translateY(-2px) scale(1.08);
+  box-shadow: inset 0 0 0 1px rgba(60, 44, 24, 0.45), 0 0 0 2px rgba(232, 190, 110, 0.9), 0 0 18px rgba(232, 190, 110, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* The minimap: a disc of the map in a brass ring. */
+#minimap {
+  position: fixed; right: 20px; bottom: 20px; width: 168px; height: 168px; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 2px #2a1f14, 0 0 0 5px #a3824f, 0 0 0 6px #3a2a18, 0 8px 26px rgba(0, 0, 0, 0.45);
+}
+
+/* ── The bag, the journal, the map ────────────────────────────────── */
+
+#bag, #journal, #map {
+  position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 6;
+  background: radial-gradient(ellipse at center, rgba(14, 12, 10, 0.45), rgba(6, 5, 4, 0.78));
+  backdrop-filter: blur(5px) saturate(0.75); -webkit-backdrop-filter: blur(5px) saturate(0.75);
+}
+#journal, #map { cursor: pointer; }
+#bag-frame, #journal-frame, #map-frame { cursor: default; animation: open 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes open { from { opacity: 0; transform: translateY(14px) scale(0.975); } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes rise-c { from { opacity: 0; transform: translate(-50%, 6px); } }
+
+/* The bag: tooled leather, stitched round, the things in it laid in soft hollows. */
+#bag-frame {
+  position: relative; width: min(820px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 30px 34px 32px;
+  display: grid; grid-template-columns: 1fr 260px; gap: 26px; color: var(--gilt);
+  background: var(--tex-leather), #4f3522; background-size: 256px;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.08), inset 0 2px 0 rgba(255, 225, 180, 0.12), inset 0 -24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 0 90px rgba(0, 0, 0, 0.35), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+#bag-frame::before {
+  /* The stitching. */
+  content: ''; position: absolute; inset: 10px; border-radius: 10px; pointer-events: none;
+  border: 2px dashed rgba(226, 196, 146, 0.42); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55));
+}
+#bag-frame h1 {
+  grid-column: 1 / -1; margin: 0; display: flex; justify-content: space-between; align-items: baseline;
+  font: italic 32px/1 var(--serif-title); letter-spacing: 0.01em; color: #efd9aa;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.65), 0 1px 0 rgba(255, 230, 190, 0.18);
+}
+#bag-frame h1 small { font: 14px var(--serif); font-variant: small-caps; letter-spacing: 0.08em; color: rgba(232, 209, 160, 0.72); text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5); }
+#bag-grid { display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; min-height: 200px; }
+.bag-cell {
+  position: relative; width: 84px; height: 84px; padding: 10px; border: 0; border-radius: 50%; cursor: pointer;
+  /* A hollow pressed into the leather, a scrap of linen in it. */
+  background: radial-gradient(circle at 50% 42%, #d9c9a6, #bba57c 62%, #8f7752 72%, rgba(0, 0, 0, 0.35) 74%, transparent 78%);
+  box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 225, 180, 0.12);
+  transition: transform 0.2s, box-shadow 0.25s;
+}
+.bag-cell canvas { width: 64px; height: 64px; display: block; filter: drop-shadow(0 2px 2px rgba(40, 26, 12, 0.45)); transition: transform 0.25s; }
+.bag-cell:hover canvas { transform: translateY(-2px) rotate(-3deg); }
+.bag-cell.on { box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(240, 200, 120, 0.85), 0 0 24px rgba(240, 190, 110, 0.45); }
+.bag-cell.on canvas { transform: scale(1.06); }
+.bag-cell.new::after {
+  /* A red wax seal: new since you last looked. */
+  content: ''; position: absolute; top: 4px; right: 4px; width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e07a5a, var(--seal) 55%, #6e2414); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+/* What it is: a paper tag tied to it. */
+#bag-detail {
+  position: relative; align-self: start; margin-top: 4px; padding: 26px 22px 22px; color: var(--ink-brown);
+  font: 16px/1.5 var(--serif); background: var(--tex-paper), #d8c9a8; background-size: 256px;
+  border-radius: 3px 3px 3px 3px; transform: rotate(-1.4deg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 28px rgba(110, 80, 40, 0.28);
+  clip-path: polygon(14% 0, 86% 0, 100% 9%, 100% 100%, 0 100%, 0 9%);
+}
+#bag-detail::before {
+  /* The tag's eyelet. */
+  content: ''; position: absolute; top: 9px; left: 50%; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%;
+  background: #3a2c1c; box-shadow: 0 0 0 2px #b59a6a;
+}
+#bag-detail b { display: block; margin-bottom: 8px; font: italic 22px/1.1 var(--serif-title); color: var(--ink-brown); }
+#bag-detail p { margin: 0; color: #3e3326; }
+@media (max-width: 680px) { #bag-frame { grid-template-columns: 1fr; } #bag-detail { transform: none; } }
+
+/* The journal: an open notebook, a page each side of the gutter. */
+#journal-frame {
+  position: relative; width: min(1040px, calc(100vw - 40px)); max-height: 86vh; overflow: auto; padding: 34px 48px 40px;
+  color: var(--ink-brown);
+  background:
+    linear-gradient(90deg, transparent 47.5%, rgba(70, 48, 24, 0.2) 49.6%, rgba(40, 26, 12, 0.32) 50%, rgba(70, 48, 24, 0.2) 50.4%, transparent 52.5%),
+    linear-gradient(90deg, rgba(90, 64, 34, 0.18), transparent 6%, transparent 94%, rgba(90, 64, 34, 0.18)),
+    var(--tex-page), #e2d6bc;
+  background-size: auto, auto, 256px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 9px #4a321f, 0 0 0 10px #2a1c10, inset 0 0 50px rgba(120, 90, 50, 0.25), 0 30px 80px rgba(0, 0, 0, 0.6);
+  scrollbar-width: thin; scrollbar-color: rgba(90, 64, 34, 0.45) transparent;
+}
+#journal-frame h1 {
+  margin: 0 0 2px; display: flex; justify-content: space-between; align-items: baseline;
+  font: italic 34px/1 var(--serif-title); color: var(--ink-brown);
+}
+#journal-frame h1 small, #journal-frame h2 small { font: 14px var(--serif); font-variant: small-caps; letter-spacing: 0.08em; color: var(--ink-soft); }
+#journal-body { columns: 2 380px; column-gap: 96px; }
+#journal-body section { break-inside: avoid; margin-top: 22px; }
+#journal-body h2 {
+  margin: 0 0 10px; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: baseline;
+  font: 600 13px var(--serif); letter-spacing: 0.2em; text-transform: uppercase; color: #4a3c2a;
+  border-bottom: 1px solid rgba(58, 42, 24, 0.35); box-shadow: 0 2px 0 -1px rgba(58, 42, 24, 0.15);
+}
+#journal-body ul { list-style: none; margin: 0; padding: 0; }
+#journal-body li { margin: 0 0 12px; font: 15.5px/1.45 var(--serif); color: #3a2f22; overflow: hidden; }
+#journal-body li b { display: block; font: italic 19px/1.15 var(--serif-title); color: var(--ink-brown); margin-bottom: 2px; }
+#journal-body li img { float: left; width: 34px; height: 34px; margin: 2px 10px 0 0; mix-blend-mode: multiply; opacity: 0.9; }
+#journal-body li em {
+  margin-left: 6px; font: italic 14px var(--serif-title); color: var(--seal); background: none; padding: 0; text-transform: none; letter-spacing: 0;
+}
+/* Not found yet: a pencilled note of where it might be. */
+#journal-body li.unfound { margin-bottom: 7px; font: italic 14px/1.4 var(--serif); color: var(--pencil); }
+#journal-body li.unfound b { display: none; }
+#journal-body li.unfound span::before { content: '— '; opacity: 0.6; }
+
+/* The map: old paper; the land inked in where you have seen it. */
+#map-frame {
+  position: relative; padding: 18px 20px 20px; border-radius: 3px;
+  background: var(--tex-paper), #d8c9a8; background-size: 256px;
+  box-shadow: inset 0 0 60px rgba(110, 76, 36, 0.4), 0 0 0 1px rgba(60, 40, 20, 0.35), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+#map-canvas { display: block; width: min(78vh, 78vw); height: min(78vh, 78vw); mix-blend-mode: multiply; }
+#map-title { margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; font: italic 30px/1 var(--serif-title); color: var(--ink-brown); }
+#map-title small { font: 14px var(--serif); font-variant: small-caps; letter-spacing: 0.08em; color: var(--ink-soft); }
+
+/* ── The title ─────────────────────────────────────────────────────── */
+#loading h1 { font: 400 clamp(48px, 10vw, 112px)/1 var(--serif-title); letter-spacing: 0.24em; margin-right: -0.24em; }
+#loading p { font: italic 18px var(--serif); }

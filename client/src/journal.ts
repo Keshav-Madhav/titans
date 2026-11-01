@@ -51,7 +51,7 @@ export class Journal {
       const all = CATALOGUE.filter((c) => c.kind === kind)
       if (!all.length) return ''
       const got = all.filter((c) => this.finds.has(c.id)).length
-      const icon = KIND_ICON[kind] ? drawIcon(KIND_ICON[kind]![0], KIND_ICON[kind]![1], 56).toDataURL() : ''
+      const icon = KIND_ICON[kind] ? drawIcon(KIND_ICON[kind]![0], KIND_ICON[kind]![1], 96).toDataURL() : ''
       const rows = all
         .map((c) =>
           this.finds.has(c.id)

@@ -29,134 +29,12 @@
         background: var(--panel); font: 11px/1.45 ui-monospace, 'SF Mono', Menlo, monospace;
         color: var(--ink-dim); white-space: pre; pointer-events: none;
       }
-      #role {
-        position: fixed; top: 12px; right: 14px; padding: 5px 11px; border-radius: 999px;
-        background: var(--panel); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-        font-size: 11px; pointer-events: none;
-      }
-      #role b { color: var(--accent); font-weight: 700; }
-      #hint {
-        position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-        padding: 7px 14px; border-radius: 8px; background: var(--panel); color: var(--ink-dim);
-        pointer-events: none; transition: opacity 0.6s; white-space: nowrap;
-      }
-      #hint kbd {
-        font: 600 11px ui-monospace, Menlo, monospace; color: var(--ink);
-        padding: 1px 5px; border: 1px solid rgba(244, 239, 230, 0.35); border-radius: 4px;
-      }
-
       #grip {
         position: fixed; left: 50%; bottom: 62px; width: 160px; height: 6px; margin-left: -80px; border-radius: 3px;
         background: rgba(18, 20, 26, 0.45); display: none; overflow: hidden;
       }
       #grip i { display: block; height: 100%; width: 100%; background: #f2c14e; transition: background 0.3s; }
       #grip.low i { background: #e0573f; }
-      #tips {
-        /* Low, over the grass: up top it sat across the Sentinel, the first thing you see. */
-        position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
-        /* (Narrow enough to clear the narration down the left side.) */
-        max-width: min(560px, 40vw, calc(100vw - 32px)); padding: 9px 12px 9px 14px; border-radius: 10px;
-        background: rgba(18, 20, 26, 0.6); color: var(--ink); line-height: 1.45;
-      }
-      #tips kbd {
-        font: 600 11px ui-monospace, Menlo, monospace; padding: 1px 5px; border-radius: 4px;
-        border: 1px solid rgba(244, 239, 230, 0.35);
-      }
-      #tips button { flex: none; border: 0; background: none; color: var(--ink-dim); cursor: pointer; font-size: 14px; }
-      #narration {
-        position: fixed; left: 14px; bottom: 64px; width: min(420px, 27vw, calc(100vw - 28px)); min-width: min(280px, calc(100vw - 28px));
-        display: flex; flex-direction: column; gap: 4px; pointer-events: none;
-      }
-      #narration .line {
-        align-self: flex-start; max-width: 100%; padding: 4px 10px; border-radius: 6px;
-        background: var(--panel); color: var(--ink); transition: opacity 1.2s; overflow-wrap: anywhere;
-      }
-      #narration .line.old { opacity: 0; }
-      #narration .line b { color: var(--accent); }
-      #minimap {
-        position: fixed; right: 16px; bottom: 16px; width: 168px; height: 168px; border-radius: 50%;
-        pointer-events: none; opacity: 0.92; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-      }
-      #map {
-        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-        background: rgba(12, 12, 14, 0.62); cursor: pointer;
-      }
-      #map-frame {
-        padding: 14px; border-radius: 6px; background: #d6ccb4; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      }
-      #map-canvas { display: block; width: min(78vh, 78vw); height: min(78vh, 78vw); border-radius: 3px; }
-      #map-title {
-        margin: 0 0 8px; font: italic 700 18px/1 ui-serif, Georgia, serif; color: #3a3226; letter-spacing: 0.06em;
-        display: flex; justify-content: space-between;
-      }
-      #map-title small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
-      #journal {
-        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-        background: rgba(12, 12, 14, 0.62); cursor: pointer; z-index: 6;
-      }
-      #journal-frame {
-        width: min(980px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 22px 26px;
-        border-radius: 6px; background: #d6ccb4; color: #3a3226; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      }
-      #journal-frame h1 {
-        margin: 0 0 4px; font: italic 700 22px/1 ui-serif, Georgia, serif; letter-spacing: 0.06em;
-        display: flex; justify-content: space-between; align-items: baseline;
-      }
-      #journal-frame h1 small, #journal-frame h2 small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
-      #journal-body { columns: 2 380px; column-gap: 28px; }
-      #journal-body section { break-inside: avoid; margin-top: 16px; }
-      #journal-body h2 {
-        margin: 0 0 6px; font: 700 12px ui-sans-serif, system-ui; letter-spacing: 0.14em; text-transform: uppercase;
-        border-bottom: 1px solid rgba(58, 50, 38, 0.3); padding-bottom: 4px; display: flex; justify-content: space-between;
-      }
-      #journal-body ul { list-style: none; margin: 0; padding: 0; }
-      #journal-body li { margin: 0 0 9px; font: 13px/1.45 ui-serif, Georgia, serif; }
-      #journal-body li b { display: block; font: italic 700 14px ui-serif, Georgia, serif; }
-      #journal-body li.unfound { color: #8a7f6b; }
-      #journal-body li img { float: left; width: 28px; height: 28px; margin: 2px 8px 0 0; }
-      #journal-body li em, .bag-cell.new::after {
-        font: 700 9px ui-sans-serif, system-ui; letter-spacing: 0.1em; text-transform: uppercase; font-style: normal;
-        color: #fff; background: #b5532c; padding: 1px 5px; border-radius: 3px; vertical-align: 2px;
-      }
-      .bag-cell { position: relative; }
-      .bag-cell.new::after { content: 'new'; position: absolute; top: -6px; right: -6px; }
-      #hint kbd.news { box-shadow: 0 0 0 2px #e0903a; }
-      #bag {
-        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-        background: rgba(12, 12, 14, 0.62); z-index: 6;
-      }
-      #bag-frame {
-        width: min(760px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 22px 26px;
-        border-radius: 6px; background: #d6ccb4; color: #3a3226; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        display: grid; grid-template-columns: 1fr 240px; gap: 22px;
-      }
-      #bag-frame h1 {
-        grid-column: 1 / -1; margin: 0; font: italic 700 22px/1 ui-serif, Georgia, serif; letter-spacing: 0.06em;
-        display: flex; justify-content: space-between; align-items: baseline;
-      }
-      #bag-frame h1 small { font: 600 11px ui-sans-serif, system-ui; color: #6b604e; letter-spacing: 0.08em; }
-      #bag-grid { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; min-height: 160px; }
-      .bag-cell {
-        width: 72px; height: 72px; padding: 4px; border: 1px solid rgba(58, 50, 38, 0.35); border-radius: 6px;
-        background: rgba(255, 250, 238, 0.35); cursor: pointer;
-      }
-      .bag-cell.on { background: rgba(255, 250, 238, 0.85); border-color: #3a3226; }
-      .bag-cell canvas { width: 62px; height: 62px; display: block; }
-      #bag-detail { font: 13px/1.5 ui-serif, Georgia, serif; border-left: 1px solid rgba(58, 50, 38, 0.3); padding-left: 18px; }
-      #bag-detail b { display: block; font: italic 700 16px ui-serif, Georgia, serif; margin-bottom: 6px; }
-      #bag-detail p { margin: 0; }
-      @media (max-width: 640px) { #bag-frame { grid-template-columns: 1fr; } #bag-detail { border: 0; padding: 0; } }
-      #tools { position: fixed; left: 14px; top: 14px; display: flex; gap: 8px; pointer-events: none; }
-      .tool {
-        position: relative; width: 52px; height: 52px; border-radius: 10px; padding: 2px;
-        background: rgba(214, 204, 180, 0.82); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); transition: transform 0.2s, background 0.2s;
-      }
-      .tool canvas { width: 48px; height: 48px; display: block; }
-      .tool kbd {
-        position: absolute; right: -4px; bottom: -6px; padding: 0 5px; border-radius: 4px;
-        font: 700 10px ui-monospace, Menlo, monospace; background: #2a2620; color: #f4efe6;
-      }
-      .tool.on { background: rgba(255, 236, 196, 0.98); transform: translateY(-2px) scale(1.06); }
       #sight {
         position: fixed; inset: 0; pointer-events: none; opacity: 0;
         background: radial-gradient(ellipse at center, rgba(40, 90, 100, 0.06) 35%, rgba(6, 22, 28, 0.62) 100%);
@@ -168,23 +46,6 @@
       }
       #aim::after { content: ''; position: absolute; left: 6px; top: 6px; width: 2px; height: 2px; background: #f4efe6; border-radius: 1px; }
       #aim.on { opacity: 1; }
-      #found {
-        position: fixed; top: 16%; left: 50%; transform: translate(-50%, 6px); text-align: center;
-        opacity: 0; transition: opacity 1.4s, transform 1.4s; pointer-events: none; color: #f4efe6;
-        text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
-      }
-      #found.on { opacity: 1; transform: translate(-50%, 0); }
-      #found small { display: block; font: 600 11px ui-sans-serif, system-ui; letter-spacing: 0.32em; text-transform: uppercase; opacity: 0.8; }
-      #found b { display: block; margin-top: 6px; font: italic 700 30px/1.1 ui-serif, Georgia, serif; letter-spacing: 0.04em; }
-      #prompt {
-        position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); display: none;
-        padding: 7px 14px; border-radius: 8px; background: rgba(18, 20, 26, 0.6); color: var(--ink);
-        font-weight: 600; letter-spacing: 0.04em;
-      }
-      #prompt kbd {
-        font: 700 11px ui-monospace, Menlo, monospace; padding: 1px 6px; margin-right: 8px; border-radius: 4px;
-        background: var(--ink); color: #1b1b1b;
-      }
       #bars::before, #bars::after {
         content: ''; position: fixed; left: 0; right: 0; height: 0; background: #050505;
         transition: height 2.2s ease-in-out; z-index: 5; pointer-events: none;

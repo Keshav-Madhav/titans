@@ -25,7 +25,7 @@ export class Toolbar {
         const cell = document.createElement('div')
         cell.className = 'tool'
         cell.title = t.name
-        cell.appendChild(drawIcon(t.icon ?? 'stone', t.tint ?? '#b9ab8f', 48))
+        cell.appendChild(drawIcon(t.icon ?? 'stone', t.tint ?? '#b9ab8f', 96))
         const k = document.createElement('kbd')
         k.textContent = KEYS[t.id] ?? ''
         cell.appendChild(k)

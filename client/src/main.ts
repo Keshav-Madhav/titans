@@ -87,6 +87,7 @@ import { Vegetation } from './vegetation'
 import { foliageFocus } from './trees'
 import { Grass } from './grass'
 import { Sound, type Surface } from './audio'
+import { installSkin } from './ui-skin'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
@@ -95,6 +96,7 @@ import { Weather } from './weather'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
 
 const STEP = 1 / 60
+installSkin()
 const params = new URLSearchParams(location.search)
 /** Tools open ?offline: a fresh, unsaved world whose giants stand still unless ?wild. */
 const toolMode = params.has('offline')
@@ -210,7 +212,10 @@ const mapPlaces: MapPlace[] = [
   { name: 'The Undercroft', kind: 'hall', x: HALL.x, z: HALL.z },
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
-worldMap.onToggle = () => input.releaseAll()
+worldMap.onToggle = (open?: boolean) => {
+  input.releaseAll()
+  sound.ui(open === false ? 'close' : 'page')
+}
 worldMap.allowed = () => toolMode || finds.has('bag')
 
 // Cairns on the hardest high places: light one and the land below is uncovered.
@@ -865,12 +870,16 @@ function dreadWorld() {
     busy: awakening.active || climber.active || toolMode,
   }
 }
-journal.onToggle = () => input.releaseAll()
+journal.onToggle = (open?: boolean) => {
+  input.releaseAll()
+  sound.ui(open === false ? 'close' : 'page')
+}
 journal.allowed = () => toolMode || bag.have
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
 bag.onToggle = (open) => {
   input.releaseAll()
+  sound.ui(open ? 'open' : 'close')
   if (open) tipState.looked = true
 }
 bag.onNoBag = () => narration.say('You have nothing to carry things in. Not yet.')
