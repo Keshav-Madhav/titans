@@ -172,14 +172,14 @@ function finish(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
  * A broadleaf tree about 9–11 m tall (scaled per instance). `far`: the
  * middle-distance version — the same crown in a few big cards, a plain trunk.
  */
-export function broadleafGeometry(seed: number, far = false): THREE.BufferGeometry {
+export function broadleafGeometry(seed: number, far = false, faint = false): THREE.BufferGeometry {
   const rand = mulberry32(seed)
   // A stout trunk standing clear under the crown: from across a field a tree
   // with no visible trunk reads as a dark blob hanging in the air.
   // (Far off, thicker than true: a trunk thinner than a pixel leaves the crown hanging in the air.)
-  const parts: THREE.BufferGeometry[] = [far ? trunk(1.15, 0.7, 6.9, 0x5c4836, 5) : trunk(0.62, 0.32, 6.6, 0x6b5440, 7)]
+  const parts: THREE.BufferGeometry[] = [far ? trunk(1.15, 0.7, 6.9, 0x5c4836, faint ? 3 : 5) : trunk(0.62, 0.32, 6.6, 0x6b5440, 7)]
   // A few limbs reaching up into the crown.
-  for (let i = 0; i < (far ? 2 : 5); i++) {
+  for (let i = 0; i < (faint ? 0 : far ? 2 : 5); i++) {
     const a = (i / 5) * Math.PI * 2 + rand()
     const limb = trunk(0.22, 0.08, 3.8, 0x6b5440, 5)
     limb.rotateZ(0.75).rotateY(a).translate(0, 5.2 + rand() * 0.8, 0)
@@ -189,7 +189,8 @@ export function broadleafGeometry(seed: number, far = false): THREE.BufferGeomet
   const crown: THREE.BufferGeometry[] = []
   // Clusters on an egg-shaped shell; each a fan of crossed leaf cards.
   // A broad, flattened dome (wider than tall), so the outline is a crown, not a heart.
-  const clusters = far ? 8 : 18
+  // (Faint: a few hundred metres off, a tree is a few pixels: half the cards, bigger.)
+  const clusters = faint ? 5 : far ? 8 : 18
   for (let c = 0; c < clusters; c++) {
     const u = rand() * 1.6 - 0.6
     const t = rand() * Math.PI * 2
@@ -197,8 +198,8 @@ export function broadleafGeometry(seed: number, far = false): THREE.BufferGeomet
     const px = Math.cos(t) * s * (far ? 3.3 : 3.9)
     const py = u * 1.7 + 0.3
     const pz = Math.sin(t) * s * (far ? 3.3 : 3.9)
-    for (let k = 0; k < (far ? 3 : 9); k++) {
-      const q = card(far ? 4.6 : 3.0, far ? 4.6 : 3.0, LEAVES)
+    for (let k = 0; k < (faint ? 2 : far ? 3 : 9); k++) {
+      const q = card(faint ? 5.6 : far ? 4.6 : 3.0, faint ? 5.6 : far ? 4.6 : 3.0, LEAVES)
       q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2).rotateZ((rand() - 0.5) * 0.8)
       q.translate(centre.x + px + (rand() - 0.5) * 1.1, centre.y + py + (rand() - 0.5) * 1.0, centre.z + pz + (rand() - 0.5) * 1.1)
       crown.push(q)
@@ -212,18 +213,18 @@ export function broadleafGeometry(seed: number, far = false): THREE.BufferGeomet
 }
 
 /** A fir about 11–13 m tall (scaled per instance). `far`: fewer, bigger branch cards. */
-export function coniferGeometry(seed: number, far = false): THREE.BufferGeometry {
+export function coniferGeometry(seed: number, far = false, faint = false): THREE.BufferGeometry {
   const rand = mulberry32(seed)
-  const parts: THREE.BufferGeometry[] = [trunk(0.3, 0.08, 12.5, 0x4a3828, far ? 4 : 7)]
+  const parts: THREE.BufferGeometry[] = [trunk(0.3, 0.08, 12.5, 0x4a3828, faint ? 3 : far ? 4 : 7)]
   const branches: THREE.BufferGeometry[] = []
   // (Full: tier on tier of wide, overlapping boughs, so it reads as a dark
   // green spire, not a pole with a few fronds — it did, once its trunk showed.)
-  const tiers = far ? 6 : 13
+  const tiers = faint ? 4 : far ? 6 : 13
   for (let t = 0; t < tiers; t++) {
     const k = t / (tiers - 1)
     const y = 2.2 + k * 9.8
-    const reach = (3.5 * (1 - k) + 0.7) * (far ? 1.2 : 1)
-    const n = far ? 6 : Math.max(5, Math.round(10 - k * 5))
+    const reach = (3.5 * (1 - k) + 0.7) * (faint ? 1.35 : far ? 1.2 : 1)
+    const n = faint ? 4 : far ? 6 : Math.max(5, Math.round(10 - k * 5))
     for (let i = 0; i < n; i++) {
       // A branch card hanging from the trunk, tipped down at the end.
       const b = card(reach * (far ? 1.5 : 1.25), reach * (far ? 1.6 : 1.35), NEEDLES, true)

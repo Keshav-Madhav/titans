@@ -18,16 +18,21 @@ import type { Biome } from './biome'
 import type { PaintField } from './paint'
 
 const CELL = 96
+/** Wedges round you for the distant kinds (each frustum-culled on its own). */
+const SECTORS = 8
+const SECTORED: Kind[] = ['coniferMid', 'coniferFar', 'broadMid', 'broadFar', 'bush', 'shrub', 'rock']
 /** Seconds of game time before churned ground greens over. */
 const REGROW = 300
 const GCELL = 24 // grass cells
 
-type Kind = 'coniferNear' | 'coniferMid' | 'broadNear' | 'broadMid' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
+type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
   coniferNear: 7000,
-  coniferMid: 26000,
+  coniferMid: 12000,
+  coniferFar: 26000,
   broadNear: 7000,
-  broadMid: 26000,
+  broadMid: 12000,
+  broadFar: 26000,
   rock: 5000,
   bush: 9000,
   grass: 34000,
@@ -91,8 +96,10 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   // Up close: leaf-card trees (trees.ts). Farther: simple shapes in the same colours.
   coniferNear: () => coniferGeometry(41),
   coniferMid: () => coniferGeometry(41, true),
+  coniferFar: () => coniferGeometry(41, true, true),
   broadNear: () => broadleafGeometry(11),
   broadMid: () => broadleafGeometry(11, true),
+  broadFar: () => broadleafGeometry(11, true, true),
   // Boulders: lumpy, flattened, textured as rock (rocks.ts' tri-planar material).
   rock: () => rockLayers(colored(lumpy(lumpy(new THREE.IcosahedronGeometry(1, 3), 21, 0.22), 22, 0.08).scale(1.1, 0.68, 0.95), 0xffffff)),
   // Bushes and scrub: clumps of leaf cards, as the trees are.
@@ -195,7 +202,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   },
 }
 
-const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, broadNear: 0.014, broadMid: 0.01, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
+const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, coniferFar: 0, broadNear: 0.014, broadMid: 0.01, broadFar: 0, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
 
 export class Vegetation {
   readonly group = new THREE.Group()
@@ -203,6 +210,8 @@ export class Vegetation {
   midR = 750
   grassR = 70
   private readonly meshes = {} as Record<Kind, THREE.InstancedMesh>
+  /** The distant kinds' wedges (the first is meshes[kind]). */
+  private readonly sectors = new Map<Kind, THREE.InstancedMesh[]>()
   private readonly cells = new Map<number, CellData>()
   private readonly grassCells = new Map<number, Batch>()
   private readonly time = { value: 0 }
@@ -242,20 +251,39 @@ export class Vegetation {
     const foliage = foliageTexture()
     for (const k of Object.keys(GEOMS) as Kind[]) {
       let mat: THREE.MeshStandardMaterial
-      if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid' || k === 'bush' || k === 'shrub') mat = foliageMaterial(foliage, this.time, SWAY[k] || 0.004)
+      if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid' || k === 'coniferFar' || k === 'broadFar' || k === 'bush' || k === 'shrub') mat = foliageMaterial(foliage, this.time, SWAY[k] || 0.004)
       else if (k === 'rock') mat = rockMat
       else {
         mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
         if (SWAY[k] > 0) this.sway(mat, SWAY[k])
       }
-      const mesh = new THREE.InstancedMesh(GEOMS[k](), mat, CAP[k])
+      const geo = GEOMS[k]()
+      const sectored = SECTORED.includes(k)
+      // (Distant kinds come in wedges round you, each culled on its own: the
+      // trees behind you were all drawn every frame.)
+      const cap = sectored ? Math.ceil(CAP[k] / 3) : CAP[k]
+      const mesh = new THREE.InstancedMesh(geo, mat, cap)
       mesh.count = 0
-      mesh.frustumCulled = false
+      mesh.frustumCulled = sectored
       mesh.castShadow = k === 'coniferNear' || k === 'broadNear' || k === 'rock'
-      mesh.receiveShadow = k !== 'coniferMid' && k !== 'broadMid'
+      mesh.receiveShadow = k !== 'coniferMid' && k !== 'broadMid' && k !== 'coniferFar' && k !== 'broadFar'
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP[k] * 3), 3)
       this.meshes[k] = mesh
       this.group.add(mesh)
+      if (sectored) {
+        const list = [mesh]
+        for (let s = 1; s < SECTORS; s++) {
+          const m2 = new THREE.InstancedMesh(geo, mat, cap)
+          m2.count = 0
+          m2.frustumCulled = true
+          m2.castShadow = mesh.castShadow
+          m2.receiveShadow = mesh.receiveShadow
+          m2.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3)
+          this.group.add(m2)
+          list.push(m2)
+        }
+        this.sectors.set(k, list)
+      }
     }
   }
 
@@ -327,16 +355,23 @@ export class Vegetation {
   }
 
   private rebuild(cam: THREE.Vector3): void {
-    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, broadNear: 0, broadMid: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
+    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
+    const sn = new Map<Kind, number[]>()
+    for (const [k, list] of this.sectors) sn.set(k, list.map(() => 0))
+    let sector = 0
     const push = (kind: Kind, b: Batch) => {
-      const fit = Math.min(b.n, CAP[kind] - n[kind])
+      const list = this.sectors.get(kind)
+      const mesh = list ? list[sector] : this.meshes[kind]
+      const counts = list ? sn.get(kind)! : null
+      const at = counts ? counts[sector] : n[kind]
+      const fit = Math.min(b.n, mesh.instanceMatrix.count - at)
       if (fit <= 0) return
-      const mesh = this.meshes[kind]
       const m = b.m as Float32Array
       const c = b.c as Float32Array
-      mesh.instanceMatrix.array.set(fit === b.n ? m : m.subarray(0, fit * 16), n[kind] * 16)
-      mesh.instanceColor!.array.set(fit === b.n ? c : c.subarray(0, fit * 3), n[kind] * 3)
+      mesh.instanceMatrix.array.set(fit === b.n ? m : m.subarray(0, fit * 16), at * 16)
+      mesh.instanceColor!.array.set(fit === b.n ? c : c.subarray(0, fit * 3), at * 3)
+      if (counts) counts[sector] += fit
       n[kind] += fit
     }
     // Trees, rocks, bushes, reeds: by cell, nearest first.
@@ -354,18 +389,23 @@ export class Vegetation {
     }
     order.sort((a, b) => a[0] - b[0])
     for (const [d, cx, cz] of order) {
+      // Which wedge round you this cell lies in.
+      const ang = Math.atan2((cz + 0.5) * CELL - cam.z, (cx + 0.5) * CELL - cam.x)
+      sector = Math.min(SECTORS - 1, Math.floor(((ang + Math.PI) / (Math.PI * 2)) * SECTORS))
       let c = this.cells.get(key(cx, cz))
       if (!c) {
         c = this.genCell(cx, cz)
         this.cells.set(key(cx, cz), c)
       }
       const near = d < this.nearR
-      for (const [src, nearKind, midKind] of [
-        ['conifer', 'coniferNear', 'coniferMid'],
-        ['broad', 'broadNear', 'broadMid'],
+      // (Three looks: detailed, simple, and faint — half the cards — past a few hundred metres.)
+      const faint = d > Math.max(this.nearR * 1.6, this.midR * 0.45)
+      for (const [src, nearKind, midKind, farKind] of [
+        ['conifer', 'coniferNear', 'coniferMid', 'coniferFar'],
+        ['broad', 'broadNear', 'broadMid', 'broadFar'],
       ] as const) {
         const b = c[src]
-        if (b) push(near ? nearKind : midKind, b)
+        if (b) push(near ? nearKind : faint ? farKind : midKind, b)
       }
       if (d < this.midR * 0.55) {
         if (c.rock) push('rock', c.rock)
@@ -394,6 +434,18 @@ export class Vegetation {
       }
     }
     for (const k of Object.keys(n) as Kind[]) {
+      const list = this.sectors.get(k)
+      if (list) {
+        const counts = sn.get(k)!
+        list.forEach((mesh, s) => {
+          mesh.count = counts[s]
+          mesh.instanceMatrix.needsUpdate = true
+          mesh.instanceColor!.needsUpdate = true
+          // (Its bounds, for the culling: computed over the instances it holds now.)
+          if (counts[s] > 0) mesh.computeBoundingSphere()
+        })
+        continue
+      }
       const mesh = this.meshes[k]
       mesh.count = n[k]
       mesh.instanceMatrix.needsUpdate = true
