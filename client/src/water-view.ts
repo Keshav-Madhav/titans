@@ -31,10 +31,12 @@ function rippleNormals(size = 256): THREE.DataTexture {
     for (let x = 0; x < size; x++) {
       const dx = h[y * size + ((x + 1) % size)] - h[y * size + ((x - 1 + size) % size)]
       const dy = h[((y + 1) % size) * size + x] - h[((y - 1 + size) % size) * size + x]
-      const len = Math.hypot(dx * 3, dy * 3, 1)
+      // (Gentle slopes: the steepest spots tilted the reflection under the horizon and
+      // showed as small black ovals on the water.)
+      const len = Math.hypot(dx * 1.6, dy * 1.6, 1)
       const i = (y * size + x) * 4
-      data[i] = Math.round(((-dx * 3) / len) * 127.5 + 127.5)
-      data[i + 1] = Math.round(((-dy * 3) / len) * 127.5 + 127.5)
+      data[i] = Math.round(((-dx * 1.6) / len) * 127.5 + 127.5)
+      data[i + 1] = Math.round(((-dy * 1.6) / len) * 127.5 + 127.5)
       data[i + 2] = Math.round((1 / len) * 127.5 + 127.5)
       data[i + 3] = 255
     }
@@ -69,7 +71,7 @@ export class WaterView {
     // only its dark body colour and read as a hole.
     emissive: 0x0d2a40,
     normalMap: this.ripples,
-    normalScale: new THREE.Vector2(0.14, 0.14),
+    normalScale: new THREE.Vector2(0.2, 0.2),
     transparent: true,
     opacity: 0.95,
   })

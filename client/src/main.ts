@@ -88,6 +88,7 @@ import { foliageFocus } from './trees'
 import { Grass } from './grass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
+import { Wake } from './wake'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
@@ -157,6 +158,8 @@ if (params.get('weather')) weather.set(params.get('weather') as Parameters<Weath
 // New pools only in hollows a giant dug (natural hollows stay dry).
 const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
 const water = new WaterView()
+const wake = new Wake()
+scene.add(wake.group)
 scene.add(water.group)
 const effects = new Effects((x, z) => terrain.heightAt(x, z))
 scene.add(effects.group)
@@ -1861,6 +1864,7 @@ function frame(now: number): void {
   water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
+  wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
   effects.update(dt)
   clouds.update(dt, camera.position)
   birdSpots.length = 0
