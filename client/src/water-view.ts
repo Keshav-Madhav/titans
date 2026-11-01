@@ -69,11 +69,12 @@ export class WaterView {
     // only its dark body colour and read as a hole.
     emissive: 0x0d2a40,
     normalMap: this.ripples,
-    normalScale: new THREE.Vector2(0.22, 0.22),
+    normalScale: new THREE.Vector2(0.14, 0.14),
     transparent: true,
     opacity: 0.95,
   })
   private t = 0
+  private readonly time = { value: 0 }
 
   constructor() {
     this.group.name = 'water'
@@ -114,10 +115,11 @@ export class WaterView {
   /** Drift the ripples. */
   update(dt: number): void {
     this.t += dt
+    this.time.value = this.t
     this.ripples.offset.set(this.t * 0.012, this.t * 0.007)
   }
 
-  sync(lakes: readonly Lake[]): void {
+  sync(lakes: readonly Lake[], heightAt: (x: number, z: number) => number): void {
     const live = new Set<number>()
     for (const lake of lakes) {
       live.add(lake.id)
@@ -126,8 +128,9 @@ export class WaterView {
         if (e) {
           this.group.remove(e.mesh)
           e.mesh.geometry.dispose()
+          disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
         }
-        const mesh = new THREE.Mesh(surface(lake), this.material)
+        const mesh = new THREE.Mesh(surface(lake), this.lakeMaterial(lake, heightAt))
         mesh.receiveShadow = true
         mesh.renderOrder = 1
         this.group.add(mesh)
@@ -141,9 +144,87 @@ export class WaterView {
       if (live.has(id)) continue
       this.group.remove(e.mesh)
       e.mesh.geometry.dispose()
+      disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
       this.entries.delete(id)
     }
   }
+
+  /**
+   * A lake's own water (user, 2026-11-01: water read as a flat painted sheet).
+   * Each lake knows the bed under it — a small texture of the ground's height —
+   * so the water knows its depth everywhere: clear and green over the shallows
+   * (the bed showing through), deep blue further out, and a soft broken line of
+   * foam where it laps the shore.
+   */
+  private lakeMaterial(lake: Lake, heightAt: (x: number, z: number) => number): THREE.MeshStandardMaterial {
+    const b = lake.basin
+    const W = b.w + 2
+    const H = b.h + 2
+    // (Stored above the lake's lowest point, as half floats: centimetres near the shore.)
+    const data = new Uint16Array(W * H)
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) data[j * W + i] = THREE.DataUtils.toHalfFloat(heightAt(b.x0 + i - 1, b.z0 + j - 1) - b.bottom)
+    const bed = new THREE.DataTexture(data, W, H, THREE.RedFormat, THREE.HalfFloatType)
+    bed.magFilter = bed.minFilter = THREE.LinearFilter
+    bed.needsUpdate = true
+    const m = this.material.clone()
+    m.opacity = 1
+    m.userData.bed = bed
+    const u = {
+      uBed: { value: bed },
+      uBedO: { value: new THREE.Vector2(b.x0 - 1 - 0.5, b.z0 - 1 - 0.5) },
+      uBedS: { value: new THREE.Vector2(W, H) },
+      uBottom: { value: b.bottom },
+      uTime: this.time,
+    }
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, u)
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWaterW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvWaterW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+      sh.fragmentShader = sh.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+          varying vec3 vWaterW;
+          uniform sampler2D uBed;
+          uniform vec2 uBedO, uBedS;
+          uniform float uBottom, uTime;
+          float wHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float wNoise(vec2 p) {
+            vec2 i = floor(p), f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(wHash(i), wHash(i + vec2(1, 0)), f.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), f.x), f.y);
+          }`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          float wDepth = vWaterW.y - (texture2D(uBed, (vWaterW.xz - uBedO) / uBedS).r + uBottom);
+          float wDeep = smoothstep(0.15, 4.0, wDepth);
+          // Shallows: clear, green over the bed; further out the deep blue.
+          diffuseColor.rgb = mix(vec3(0.24, 0.42, 0.36), diffuseColor.rgb, wDeep);
+          diffuseColor.a = mix(0.18, 0.95, smoothstep(0.0, 2.4, wDepth));
+          // Foam where it laps the shore: a soft line, broken and moving.
+          float wFoamN = wNoise(vWaterW.xz * 0.9 + vec2(uTime * 0.15, uTime * 0.1)) * 0.6 + wNoise(vWaterW.xz * 2.7 - uTime * 0.2) * 0.4;
+          float wFoam = (1.0 - smoothstep(0.0, 0.32, wDepth)) * smoothstep(0.35, 0.65, wFoamN + (0.32 - wDepth) * 0.6) * step(-0.05, wDepth);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.92), wFoam * 0.8);
+          diffuseColor.a = max(diffuseColor.a, wFoam * 0.85);`,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          // The light inside the water: only where it is deep enough to hold some.
+          totalEmissiveRadiance *= wDeep;`,
+        )
+    }
+    m.customProgramCacheKey = () => 'lake-water'
+    return m
+  }
+}
+
+function disposeLakeMaterial(m: THREE.MeshStandardMaterial): void {
+  ;(m.userData.bed as THREE.Texture | undefined)?.dispose()
+  m.dispose()
 }
 
 /** Quads over the dilated bed mask, merged into horizontal runs per row. */
@@ -177,8 +258,8 @@ function surface(lake: Lake): THREE.BufferGeometry {
       const zb = za + 1
       const v = pos.length / 3
       pos.push(xa, 0, za, xb, 0, za, xa, 0, zb, xb, 0, zb)
-      // Ripples in world space (one tile per 30 m), continuous across quads and lakes.
-      uv.push(xa / 30, za / 30, xb / 30, za / 30, xa / 30, zb / 30, xb / 30, zb / 30)
+      // Ripples in world space (one tile per 13 m: finer, not big dark blobs), continuous across quads and lakes.
+      uv.push(xa / 13, za / 13, xb / 13, za / 13, xa / 13, zb / 13, xb / 13, zb / 13)
       idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3)
     }
   }

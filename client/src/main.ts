@@ -1855,7 +1855,7 @@ function frame(now: number): void {
     hud.news(j, b)
   } else hud.news(false, false)
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
-  water.sync(lakes.lakes)
+  water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
   effects.update(dt)
