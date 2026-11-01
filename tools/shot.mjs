@@ -1656,10 +1656,15 @@ const scenes = {
       g.finds.find('bag')
       const out = []
       for (const s of g.spots.spots.filter((s) => s.kind === 'trinket' && !s.hidden)) {
+        // (Lighting the first cairn wakes something far off a few seconds later, and you watch:
+        // input waits while it plays.)
+        while (g.awakening.active) await new Promise((r) => setTimeout(r, 200))
         g.teleport(s.at.x + 0.6, s.at.z, s.at.y + 0.1)
         await new Promise((r) => setTimeout(r, 120))
         // (Twice: where a cairn stands beside it, the first E lights the cairn.)
-        for (let k = 0; k < 2 && !g.finds.has(s.id); k++) {
+        for (let k = 0; k < 4 && !g.finds.has(s.id); k++) {
+          // (It may begin on its timer while we are here.)
+          while (g.awakening.active) await new Promise((r) => setTimeout(r, 200))
           g.input.press('KeyE')
           await new Promise((r) => setTimeout(r, 120))
           g.input.release('KeyE')
