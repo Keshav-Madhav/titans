@@ -465,6 +465,8 @@ export class Wanderer {
   canGlide = false
   /** Falling with the cloak open. */
   gliding = false
+  /** The wing's shape at rest (it billows from this). */
+  private wingRest = new Float32Array(0)
   /** In flight: airspeed (m/s), flight-path angle (rad, + up), heading, bank (rad, + right). */
   airspeed = 0
   private gamma = 0
@@ -530,10 +532,23 @@ export class Wanderer {
       wp.setZ(i, -0.3 * (1 - nx * nx) * t - 0.25 * (1 - t))
     }
     wg.computeVertexNormals()
+    this.wingRest = (wg.getAttribute('position').array as Float32Array).slice()
     this.wing = new THREE.Mesh(wg, red)
     this.wing.position.set(0, 0.08, -0.2)
     this.wing.visible = false
     this.wing.castShadow = true
+    // Seams along its ribs, a shade darker, fanning out from the back with the cloth:
+    // it is a made thing, a cloak stiffened along its ribs, not a flat red sheet.
+    const cols = new Float32Array(wp.count * 3)
+    for (let i = 0; i < wp.count; i++) {
+      const col = i % 13 // (the plane's column: 12 segments across, before the fan)
+      const seam = col % 2 === 0 && col > 0 && col < 12 ? 0.72 : 1
+      cols.set([seam, seam, seam], i * 3)
+    }
+    wg.setAttribute('color', new THREE.BufferAttribute(cols, 3))
+    const wingMat = red.clone()
+    wingMat.vertexColors = true
+    this.wing.material = wingMat
 
     // Pelvis at the hips; the chest, head and arms hang from it.
     this.pelvis.position.y = 0.92
@@ -895,7 +910,23 @@ export class Wanderer {
     this.scrambleLean += ((this.scrambling ? 1 : 0) - this.scrambleLean) * Math.min(1, dt * 6)
     this.swimLean += ((this.swimming ? 0.25 + 0.7 * Math.min(1, this.speed / SWIM) : 0) - this.swimLean) * Math.min(1, dt * 4)
     this.wing.visible = this.gliding
-    if (this.gliding) this.wing.rotation.x = Math.sin(this.t * 9) * 0.03
+    if (this.gliding) {
+      this.wing.rotation.x = Math.sin(this.t * 9) * 0.03
+      // The cloth between the battens billows, and its trailing edge flutters harder the faster you go.
+      const pos = this.wing.geometry.getAttribute('position') as THREE.BufferAttribute
+      const a = pos.array as Float32Array
+      const r = this.wingRest
+      const v = THREE.MathUtils.clamp(this.airspeed / 25, 0.2, 1.4)
+      for (let i = 0; i < a.length; i += 3) {
+        const x = r[i] / 1.15
+        const t = (r[i + 1] / 0.575 + 1) / 2 // 1 along the arms, 0 at the trailing edge
+        const between = Math.abs(Math.sin(x * Math.PI * 2.7))
+        const flutter = (1 - t) * (1 - t) * Math.sin(this.t * (14 + 10 * v) + x * 7) * 0.05 * v
+        a[i + 2] = r[i + 2] - between * 0.06 * (0.6 + 0.4 * v) * (1 - t * 0.6) + flutter
+      }
+      pos.needsUpdate = true
+      this.wing.geometry.computeVertexNormals()
+    }
     const hs = this.climbing ? 0 : this.speed
     this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
     // (Longer strides, not just faster ones, past a sprint.)
@@ -942,6 +973,19 @@ export class Wanderer {
       this.chest.rotation.x = 0
       // Head up out of the water, whatever the body is doing.
       this.head.rotation.x = -0.75 * this.swimLean
+    } else if (this.gliding) {
+      // Flying: arms spread wide, holding the wing's leading edge out, one dipping with the bank;
+      // legs trailing together.
+      for (let i = 0; i < 2; i++) {
+        const side = i ? 1 : -1
+        A[i].shoulder.rotation.set(-0.15, 0, side * (1.38 + side * this.bank * 0.35))
+        A[i].elbow.rotation.x = -0.12
+        L[i].hip.rotation.x = 0.12 + Math.sin(this.t * 3 + i) * 0.03
+        L[i].knee.rotation.x = 0.18
+      }
+      this.pelvis.position.y = 0.92
+      this.chest.rotation.x = 0
+      this.head.rotation.x = -0.5
     } else if (!this.grounded && !this.sliding) {
       // In the air: knees up, arms out.
       L[0].hip.rotation.x = -0.5
