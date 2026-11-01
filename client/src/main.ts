@@ -1948,7 +1948,7 @@ function frame(now: number): void {
   rocks.update(camera.position)
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
-  for (const c of travellerCamps) c.update(dt, weather.now.wind)
+  for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
   dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)

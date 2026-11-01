@@ -13,13 +13,19 @@ import { carvedStone } from './spots'
  */
 export const CAMP = { x: -232, z: 1518 }
 
+const _p = new THREE.Vector3()
+const _s = new THREE.Vector3()
+const _m = new THREE.Matrix4()
+
 export class Camp {
   readonly group = new THREE.Group()
   private readonly bag: THREE.Group
   private readonly cloth: THREE.Mesh
   /** The fire ring's middle, and the smoke over it (later camps only). */
   private readonly fire: THREE.Vector3
-  private readonly smoke: THREE.Sprite[] = []
+  /** The smoke: one camera-facing quad per puff, drawn at once (40 sprites were 40 draws). */
+  private smoke: THREE.InstancedMesh | null = null
+  private smokeAlpha: THREE.InstancedBufferAttribute | null = null
   private readonly rest: Float32Array
   readonly bagAt = new THREE.Vector3()
   private time = 0
@@ -38,13 +44,20 @@ export class Camp {
     // At the traveller's later camps the fire is not quite out: a thin column of smoke
     // still rises from it — seen from far off, from anywhere high (nobody is there).
     if (!withBag) {
-      const tex = smokeTexture()
-      for (let i = 0; i < 40; i++) {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0x6c665e, transparent: true, depthWrite: false, opacity: 0, fog: false }))
-        sp.renderOrder = 3
-        this.smoke.push(sp)
-        this.group.add(sp)
+      const PUFFS = 40
+      const mat = new THREE.MeshBasicMaterial({ map: smokeTexture(), color: 0x6c665e, transparent: true, depthWrite: false, fog: false })
+      mat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aAlpha;\nvarying float vAlpha;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvAlpha = aAlpha;')
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vAlpha;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a *= vAlpha;')
       }
+      const geo = new THREE.PlaneGeometry(1, 1)
+      this.smokeAlpha = new THREE.InstancedBufferAttribute(new Float32Array(PUFFS), 1)
+      geo.setAttribute('aAlpha', this.smokeAlpha)
+      this.smoke = new THREE.InstancedMesh(geo, mat, PUFFS)
+      this.smoke.renderOrder = 3
+      // (The column moves every frame; its bounds are set round all of it, below.)
+      this.smoke.frustumCulled = false
+      this.group.add(this.smoke)
     }
     // The fire ring, cold.
     for (let i = 0; i < 9; i++) {
@@ -105,17 +118,27 @@ export class Camp {
   }
 
   /** The cloth snaps in the wind. */
-  update(dt: number, wind: number): void {
+  update(dt: number, wind: number, camera?: THREE.Camera): void {
     this.time += dt
     // The smoke: puffs rising and spreading, leaning with the wind, thinning as they go.
-    this.smoke.forEach((sp, i) => {
-      const t = (this.time * 0.03 + i / this.smoke.length) % 1
-      // (Tall, and full where it clears the hills: seen from the first camp 3 km off, only its
-      // top hundred metres show over the land between — it must hold together up there.)
-      sp.position.set(this.fire.x + t * t * 90 * (0.4 + wind), this.fire.y + 1 + t * 340, this.fire.z + Math.sin(t * 5 + i) * 4)
-      sp.scale.setScalar(4 + t * 62)
-      ;(sp.material as THREE.SpriteMaterial).opacity = 0.6 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t * t)
-    })
+    if (this.smoke && this.smokeAlpha && camera) {
+      const n = this.smoke.count
+      for (let i = 0; i < n; i++) {
+        const t = (this.time * 0.03 + i / n) % 1
+        // (Tall, and full where it clears the hills: seen from the first camp 3 km off, only its
+        // top hundred metres show over the land between — it must hold together up there.)
+        _p.set(this.fire.x + t * t * 90 * (0.4 + wind), this.fire.y + 1 + t * 340, this.fire.z + Math.sin(t * 5 + i) * 4)
+        _s.setScalar(4 + t * 62)
+        // (Each puff faces you, as a sprite would.)
+        _m.compose(_p, camera.quaternion, _s)
+        this.smoke.setMatrixAt(i, _m)
+        this.smokeAlpha.setX(i, 0.6 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t * t))
+      }
+      this.smoke.instanceMatrix.needsUpdate = true
+      this.smokeAlpha.needsUpdate = true
+      // (One colour throughout: the order the puffs blend in hardly shows. Past 9 km, not at all.)
+      this.smoke.visible = camera.position.distanceTo(this.fire) < 9000
+    }
     const pos = this.cloth.geometry.getAttribute('position') as THREE.BufferAttribute
     const a = pos.array as Float32Array
     for (let i = 0; i < pos.count; i++) {

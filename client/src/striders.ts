@@ -118,13 +118,12 @@ export class Striders {
         const shin = new THREE.Mesh(shinGeo, pale)
         const knee = new THREE.Mesh(kneeGeo, pale)
         thigh.castShadow = shin.castShadow = knee.castShadow = true
-        thigh.frustumCulled = shin.frustumCulled = knee.frustumCulled = false
         group.add(thigh, shin, knee)
         legs.push({ thigh, shin, knee, foot: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), swing: -1, angle: (l / LEGS) * Math.PI * 2 + Math.PI / LEGS })
       }
       body.castShadow = neck.castShadow = true
-      for (const m of [body, neck]) m.frustumCulled = false
-      threads.frustumCulled = false
+      // (Culled part by part, as anything else: each is an ordinary posed mesh. Never culled,
+      // all ~90 parts were drawn from anywhere, behind you or kilometres off.)
       const orbit = rand() * Math.PI * 2
       const radius = (1900 + rand() * 900) * SPREAD
       const st: Strider = { group, body, neck, threads, legs, x: 0, z: 0, heading: 0, speed: 3.2 + rand() * 1.6, orbit, radius, phase: rand() * 10 }
