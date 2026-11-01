@@ -405,8 +405,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] UI flat → leather bag, notebook journal, paper slippy map, captions, fonts (OFL), sounds
 - [x] Also: warm low-sun light (no black sunsets), depth-aware water, the wanderer dressed (knit, wraps,
       boots, the bag's strap and satchel), the Hanging Steps as torn-loose rock with chains
-- [ ] Still to look at: the glide wing (a flat fan), the cape standing still (straight), a wake round the
-      swimmer, the Undercroft interior (dark, blocky pillars), GPU-side frame spikes on real hardware
+- [x] Second wave: the glide wing (a pose, billowing, seams); a wake round the swimmer; pillars on bases;
+      a pause with settings (Esc); rushing air; landing dust; first contact (the Walker sees you, comes a
+      little way, waits — camp to its feet in 128 s, was not caught in 2 min); no cloud-layer panels or fur
+      shards on the climb; trees culled in wedges + a faint far tier (forest 8.1M -> 5.9M tris); colossi
+      coarse twins from afar (Green 4.9M -> 3.9M tris)
+- [ ] Still to look at: the cape standing still (straight); GPU-side frame spikes on real hardware; the
+      first hour past the first climb
 
 ## Known issues
 - [ ] The save gate failed once in three (2026-10-31): after a reload one footfall's crater came
