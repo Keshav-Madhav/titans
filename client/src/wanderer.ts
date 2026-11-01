@@ -226,6 +226,8 @@ class Cloth {
   private ready = false
   /** How deep the folds it remembers are, at the hem (metres; 0: none). */
   pleats = 0
+  /** 0 moving … 1 at rest: how firmly it settles into its folds (and flare). */
+  rest = 0
   /** The pinned spacing between neighbouring columns (set from the first pins). */
   private widths: number[] = []
 
@@ -314,17 +316,43 @@ class Cloth {
         }
       }
       if (this.pleats > 0) {
+        // At rest it settles into its folds and flares out over the hem; moving, it only
+        // remembers them faintly. The pull shapes each row about its own middle (it never
+        // holds the cloth in place: the wind and the body still swing it as a whole).
+        const pull = 0.012 + 0.03 * this.rest
+        let px = 0
+        let pz = 0
+        for (let c = 0; c < cols; c++) {
+          px += pins[c].x
+          pz += pins[c].z
+        }
+        px /= cols
+        pz /= cols
+        // (The fold pattern about its own mean: an offset common to the row would walk it away.)
+        let fm = 0
+        for (let c = 0; c < cols; c++) fm += Math.sin(c * 1.9 + 0.5)
+        fm /= cols
         for (let row = 1; row < rows; row++) {
           const depth = this.pleats * (row / (rows - 1))
+          // (Not all the way out: the cloth is wider than the line it hangs on, and the
+          // slack goes into the folds — which a cloth pulled taut across could not make.)
+          const spread = 1 + (this.taper(row) - 1) * 0.3
+          let cx = 0
+          let cz = 0
           for (let c = 0; c < cols; c++) {
             const k = (row * cols + c) * 3
-            const fold = Math.sin(c * 2.1 + 0.6) * depth
-            const tx = pins[c].x + hang.x * this.seg * row + _b.x * fold
-            const ty = pins[c].y + hang.y * this.seg * row + _b.y * fold
-            const tz = pins[c].z + hang.z * this.seg * row + _b.z * fold
-            p[k] += (tx - p[k]) * 0.012
-            p[k + 1] += (ty - p[k + 1]) * 0.012
-            p[k + 2] += (tz - p[k + 2]) * 0.012
+            cx += p[k]
+            cz += p[k + 2]
+          }
+          cx /= cols
+          cz /= cols
+          for (let c = 0; c < cols; c++) {
+            const k = (row * cols + c) * 3
+            const fold = (Math.sin(c * 1.9 + 0.5) - fm) * depth
+            const tx = cx + (pins[c].x - px) * spread + _b.x * fold
+            const tz = cz + (pins[c].z - pz) * spread + _b.z * fold
+            p[k] += (tx - p[k]) * pull
+            p[k + 2] += (tz - p[k + 2]) * pull
           }
         }
       }
@@ -691,14 +719,14 @@ export class Wanderer {
     this.pelvis.add(this.lanternGlow, this.lantern)
 
     // The cape: pinned in an arc across the shoulders and round the back, hanging to the calves.
-    for (let i = 0; i < 7; i++) {
-      const a = Math.PI * (0.1 + (0.8 * i) / 6)
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI * (0.1 + (0.8 * i) / 8)
       this.capeAnchors.push(new THREE.Vector3(-Math.cos(a) * 0.22, 1.44, -Math.sin(a) * 0.15 - 0.03))
     }
     this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
     // (Flaring toward the hem: a cloak, not a plank.)
-    this.cape = new Cloth(7, 9, 0.135, red, (row) => 1 + 0.42 * (row / 8))
-    this.cape.pleats = 0.09
+    this.cape = new Cloth(9, 9, 0.135, red, (row) => 1 + 0.5 * (row / 8))
+    this.cape.pleats = 0.07
     this.scarf = new Cloth(2, 8, 0.15, red, (row) => 1 - row / 12)
     this.world.add(this.cape.mesh, this.scarf.mesh)
   }
@@ -1092,6 +1120,14 @@ export class Wanderer {
     this.windV.addScaledVector(this.vel, this.gliding ? -0.6 : -0.42)
     this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
     this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
+    // Even on a still day the air is never quite still: a slow, wandering breeze, enough
+    // to stir the hem when you stand (a cape hanging dead straight reads as a board).
+    const airA = this.t * 0.05
+    const air = 0.7 * (0.55 + 0.45 * Math.sin(this.t * 0.31) * Math.sin(this.t * 0.83 + 1))
+    this.windV.x += Math.cos(airA) * air
+    this.windV.z += Math.sin(airA) * air
+    const speed = Math.hypot(this.vel.x, this.vel.z)
+    this.cape.rest += ((speed < 0.6 && !this.gliding ? 1 : 0) - this.cape.rest) * Math.min(1, dt * 0.8)
     // The legs, as the cloth sees them (thigh and shin each): it falls round them, not through.
     for (let i = 0; i < 2; i++) {
       const L = this.legs[i]
