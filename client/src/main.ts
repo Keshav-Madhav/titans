@@ -2099,19 +2099,26 @@ function frame(now: number): void {
       // …and off the stone onto the grass for the first time: the land, shown.
       opening = 'reveal'
       tipState.out = true
-      // The nearest of them walking the Green (they are what you came to see); failing
+      // One of them walking the Green (they are what you came to see); failing
       // that, the Sentinel kneeling at its far rim.
       const sen = colossi.places.get('sentinel') ?? new THREE.Vector3(0, 0, -1600)
       const target = sen.clone().setY(sen.y + 210)
+      // (The one striding fastest, within reach of the eye: the Grey One ambling at 3 m/s,
+      // hunched and mossy and seen from behind 1.3 km off, read as a rock pillar. A giant
+      // crossing the land at a stride is what tells you it is alive.)
+      let best = -1
       let near = 4500
       for (const a of titans.values()) {
         const d = a.titan.chest.distanceTo(wanderer.pos)
-        if (d < near) {
+        const pace = a.titan.gait.resting || d > 2500 ? 0 : a.titan.gait.speed
+        if (pace > best + 0.5 || (Math.abs(pace - best) <= 0.5 && d < near)) {
+          best = pace
           near = d
           target.copy(a.titan.chest)
         }
       }
-      reveal.begin(wanderer.pos.clone(), target, (x, z) => terrain.heightAt(x, z), (x, z) => inHall(x, z, 2))
+      if (near >= 4500) target.copy(sen).setY(sen.y + 210)
+      reveal.begin(wanderer.pos.clone(), target, (x, z) => terrain.heightAt(x, z), (x, z) => (inHall(x, z, 2) ? 4 : 0) + (vegetation.treeNear(x, z, 7) ? 1 : 0))
       sound.chime()
     }
     if (reveal.active) reveal.update(dt, camera, camera.fov)

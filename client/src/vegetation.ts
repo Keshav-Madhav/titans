@@ -340,6 +340,23 @@ export class Vegetation {
     return until !== undefined && until > this.clockS
   }
 
+  /** Is there a tree within `r` of (x, z)? (The reveal keeps them out of its shot.) */
+  treeNear(x: number, z: number, r: number): boolean {
+    const cx = Math.floor(x / CELL)
+    const cz = Math.floor(z / CELL)
+    let c = this.cells.get(key(cx, cz))
+    if (!c) {
+      c = this.genCell(cx, cz)
+      this.cells.set(key(cx, cz), c)
+    }
+    for (const b of [c.conifer, c.broad]) {
+      if (!b) continue
+      const m = b.m
+      for (let i = 0; i < b.n; i++) if ((m[i * 16 + 12] - x) ** 2 + (m[i * 16 + 14] - z) ** 2 < r * r) return true
+    }
+    return false
+  }
+
   /** Terrain changed (or something was built) inside the box: regrow those cells. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
     for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) this.cells.delete(key(cx, cz))
