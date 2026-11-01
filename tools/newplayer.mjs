@@ -9,7 +9,9 @@ const out = process.argv[2] ?? 'shots/newplayer'
 const url = process.argv[3] ?? 'http://localhost:4317/'
 mkdirSync(out, { recursive: true })
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
-const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
+// (VIDEO=1 records the whole playthrough to a .webm in the out folder.)
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 }, ...(process.env.VIDEO ? { recordVideo: { dir: out, size: { width: 1280, height: 760 } } } : {}) })
+const page = await ctx.newPage()
 const log = []
 const snap = async (name) => {
   await page.screenshot({ path: `${out}/${name}.png` })
@@ -84,4 +86,5 @@ await page.evaluate(() => window.__g.setCam(window.__g.rig.yaw + Math.PI * 0.7, 
 await page.waitForTimeout(1500)
 await snap('11-looked-round')
 console.log(log.join('\n'))
+await ctx.close()
 await browser.close()

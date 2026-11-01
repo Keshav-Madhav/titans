@@ -389,6 +389,25 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The tip box overlapped the narration column
 - [ ] Reveal in order beyond the opening: what the first hour opens, what is saved for later
 
+## P — The user's playtest (2026-11-01: "way too many issues… self check alot… unoptimized or bad feel or bad look")
+- [x] Stuck on small cliffs: 13/14 hillside risers stopped you → a scramble band (50–62°), a mantle onto
+      ledges up to 2.5 m, an E Climb prompt at real cliffs (3/14 left, all true cliffs)
+- [x] Underwater clear → swimming (float, slower, breaststroke; falls into water are safe), the camera
+      kept above water, an underwater grade as backstop
+- [x] Screenshake → trauma 0–1, squared, smooth, inverse-square falloff (was up to 3.6 m, linear to 2 km)
+- [x] Lighting/weather snapping → post never switched off by the quality level; sun→moon crossfade;
+      sand and marsh air ease over 6–8 s (time-lapse: biggest frame step ~1%)
+- [x] Sounds → your own footsteps by surface, landings, mantle, UI; a limiter (a close stomp clipped)
+- [x] Resolution/quality → dynamic resolution on the median frame; detail drops only at the floor
+- [x] Cape glitches → carried with the body, reach limit, leg collision, woven texture, flare
+- [x] Hitches → measured: travel is smooth on the CPU (1 frame >33 ms in 50 s); teleports spike;
+      shaders warmed behind the title (no measurable change headless; kept)
+- [x] UI flat → leather bag, notebook journal, paper slippy map, captions, fonts (OFL), sounds
+- [x] Also: warm low-sun light (no black sunsets), depth-aware water, the wanderer dressed (knit, wraps,
+      boots, the bag's strap and satchel), the Hanging Steps as torn-loose rock with chains
+- [ ] Still to look at: the glide wing (a flat fan), the cape standing still (straight), a wake round the
+      swimmer, the Undercroft interior (dark, blocky pillars), GPU-side frame spikes on real hardware
+
 ## Known issues
 - [ ] The save gate failed once in three (2026-10-31): after a reload one footfall's crater came
       back 1.2 m shallower (`differs at {foot:1, x:1324.6, z:775.8}`) and three lakes part-filled;
