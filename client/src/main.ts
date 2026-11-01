@@ -76,6 +76,7 @@ import { Dread } from './dread'
 import { Bell } from './bell'
 import { Eerie } from './eerie'
 import { ScaleDirector, type BigThing } from './scale'
+import { Reveal } from './reveal'
 import { isColossus } from './rock-fields'
 import { carvedStone } from './spots'
 import { Birds } from './life'
@@ -209,6 +210,7 @@ const mapPlaces: MapPlace[] = [
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = () => input.releaseAll()
+worldMap.allowed = () => toolMode || finds.has('bag')
 
 // Cairns on the hardest high places: light one and the land below is uncovered.
 const cairnPlaces: CairnPlace[] = []
@@ -863,6 +865,7 @@ function dreadWorld() {
   }
 }
 journal.onToggle = () => input.releaseAll()
+journal.allowed = () => toolMode || bag.have
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
 bag.onToggle = (open) => {
@@ -875,7 +878,7 @@ scene.add(camp.group)
 finds.onFind = (f) => {
   journal.announce(f)
   // Finding one of them (or a colossal place) from the ground: the dolly zoom.
-  if ((f.kind === 'giant' || f.kind === 'place') && wanderer.grounded && !climber.active) scaleDir.vertigo(camera.fov)
+  if ((f.kind === 'giant' || f.kind === 'place') && wanderer.grounded && !climber.active && opening === 'done') scaleDir.vertigo(camera.fov)
   sound.chime()
   setTimeout(() => narration.say(f.text), 1600)
   saveDirty = true
@@ -927,7 +930,21 @@ const sites: Site[] = [
 let visitClock = 0
 
 const wanderer = new Wanderer(0xa8291f)
-wanderer.place(0, terrain.heightAt(0, 0), 0)
+/**
+ * The opening (the new-player pass): a new adventure does not begin on the
+ * Green facing a giant. It begins at the title; a click and you wake on the
+ * floor of the Undercroft, in the dark, light falling through a hole far
+ * above; you find the way up; the first time you step onto the grass the
+ * land is shown to you (reveal.ts). Tools and loaded saves skip it.
+ */
+type Opening = 'title' | 'waking' | 'hall' | 'reveal' | 'done'
+let opening: Opening = toolMode ? 'done' : 'title'
+let openT = 0
+// Under a skylight in the middle of the hall, the stair rising away to the left toward the light.
+const WAKE_AT = { x: HALL.x - 4, z: HALL.z + 54 }
+const reveal = new Reveal()
+if (toolMode) wanderer.place(0, terrain.heightAt(0, 0), 0)
+else wanderer.place(WAKE_AT.x, terrain.heightAt(WAKE_AT.x, WAKE_AT.z), WAKE_AT.z)
 scene.add(wanderer.obj, wanderer.world)
 
 /** The waking giants, by slot id ('t1', 't2'). Slot 1 stands a short walk from spawn (tools rely on it). */
@@ -1091,7 +1108,7 @@ let wild = !toolMode || params.has('wild')
 let localSave = !toolMode
 const sound = new Sound(settings.sound)
 const tips = new Tips(!toolMode)
-const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false }
+const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false, out: false }
 let lastTip = 0
 
 // ---------------------------------------------------------------------------
@@ -1125,6 +1142,7 @@ function saveLocal(): void {
     seen: worldMap.save(),
     cairns: cairns.save(),
     found: finds.save(),
+    opened: opening === 'done' || opening === 'reveal'
   }
   if (!saveWorld(data)) narration.say('Could not save (browser storage is full or blocked).')
   saveDirty = false
@@ -1151,6 +1169,8 @@ function loadLocal(): boolean {
   if (d.seen) worldMap.load(d.seen)
   if (d.cairns) cairns.load(d.cairns)
   if (d.found) finds.load(d.found)
+  // Mid-opening when last saved (still in the hall): pick up from there; otherwise it is over.
+  opening = d.opened === false ? 'hall' : 'done'
   if (finds.has('bag')) {
     camp.take()
     tipState.bag = true
@@ -1344,9 +1364,11 @@ function simulate(dt: number): void {
   watchProgress = watching(dt)
   watchFalls(dt)
   if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
-  if (awakening.active) {
-    // Held: you watch. (Gravity and the world go on.)
+  if (awakening.active || reveal.active || opening === 'title' || (opening === 'waking' && openT < 2.4)) {
+    // Held: you watch. (Gravity and the world go on — and the rock you stand on still holds you.)
     wanderer.step(dt, { x: 0, y: 0 }, false, false, rig.yaw, terrain)
+    climber.pushOut(wanderer.pos)
+    onRock()
     return
   }
   if (climber.active) {
@@ -1382,6 +1404,7 @@ function simulate(dt: number): void {
       camp.take()
       finds.find('bag')
       tipState.bag = true
+      setTimeout(() => narration.say('Folded inside: a map, mostly blank, and an empty notebook.'), 2600)
     } else if (offerings.near(wanderer.pos) && input.pressed('KeyE')) {
       const s = offerings.near(wanderer.pos)!
       const want = CATALOGUE.find((c) => c.id === s.def.wants)
@@ -1558,12 +1581,14 @@ function onRock(): void {
   const p = wanderer.pos
   body.set(p.x, p.y + 0.9, p.z)
   if (rocks.pushOut(body)) p.set(body.x, body.y - 0.9, body.z)
+  wanderer.onStone = false
   if (wanderer.vel.y > 0.5) return // leaving the ground in a jump
   const floor = rocks.floorAt(p.x, p.y, p.z)
   if (floor !== null && floor > terrain.heightAt(p.x, p.z) - 0.05) {
     p.y = floor
     wanderer.vel.y = 0
     wanderer.grounded = true
+    wanderer.onStone = true
   }
 }
 
@@ -1672,6 +1697,9 @@ function frame(now: number): void {
   // What is in your hands: the tool in use (the pose and the prop follow), and the toolbar.
   wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 ? 'sight' : null
   toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : null))
+  // The keys for the map, the journal and the bag show once you have the bag (the map and the notebook are in it).
+  hud.setHave(toolMode || bag.have)
+  document.body.classList.toggle('early', !toolMode && tipState.moved < 25)
   if (finds.unseen.size) {
     let j = false
     let b = false
@@ -1753,7 +1781,7 @@ function frame(now: number): void {
   }
   resonance.update(dt)
   visitClock -= dt
-  if (visitClock <= 0 && ready) {
+  if (visitClock <= 0 && ready && opening !== 'title' && opening !== 'waking' && opening !== 'reveal' && (opening !== 'hall' || tipState.moved > 25)) {
     visitClock = 0.5
     visit(sites, finds, wanderer.pos.x, wanderer.pos.z)
   }
@@ -1847,6 +1875,46 @@ function frame(now: number): void {
         camera.updateProjectionMatrix()
       }
     }
+    // The opening: waking (the camera low on the stone, looking up at the light, rising as you
+    // stand), the hall, and the reveal when you first step out onto the grass.
+    if (opening === 'waking') {
+      const was = openT
+      openT += dt
+      const k = THREE.MathUtils.smoothstep(openT, 0, 4.5)
+      rig.drop = sc.drop + 1.0 * (1 - k)
+      if (openT < 4.5) rig.pitch = -0.3 + 0.42 * k
+      if (was < 1.4 && openT >= 1.4) narration.say('You wake on cold stone, in the dark. Far above, light comes through a hole in the roof.')
+      if (openT >= 4.5) opening = 'hall'
+    } else if (opening === 'hall' && wanderer.grounded && wanderer.pos.y > terrain.base.hallTop - 1.2) {
+      // Up the stair into the light (the hint to find the way up is done)…
+      tipState.out = true
+    }
+    if (opening === 'hall' && wanderer.grounded && !inHall(wanderer.pos.x, wanderer.pos.z, 5)) {
+      // …and off the stone onto the grass for the first time: the land, shown.
+      opening = 'reveal'
+      tipState.out = true
+      // The nearest of them walking the Green (they are what you came to see); failing
+      // that, the Sentinel kneeling at its far rim.
+      const sen = colossi.places.get('sentinel') ?? new THREE.Vector3(0, 0, -1600)
+      const target = sen.clone().setY(sen.y + 210)
+      let near = 4500
+      for (const a of titans.values()) {
+        const d = a.titan.chest.distanceTo(wanderer.pos)
+        if (d < near) {
+          near = d
+          target.copy(a.titan.chest)
+        }
+      }
+      reveal.begin(wanderer.pos.clone(), target, (x, z) => terrain.heightAt(x, z), (x, z) => inHall(x, z, 2))
+      sound.chime()
+    }
+    if (reveal.active) reveal.update(dt, camera, camera.fov)
+    else if (opening === 'reveal') {
+      // (Named once the shot is over: the card would sit right across what it shows.)
+      opening = 'done'
+      saveDirty = true
+      finds.find('green')
+    }
     // An awakening takes the camera's gaze (the rig still keeps its place).
     awakening.update(dt, camera)
   }
@@ -1862,7 +1930,14 @@ function frame(now: number): void {
 
   if (!ready && terrainView.settled()) {
     ready = true
-    hud.loaded()
+    if (opening === 'title')
+      hud.titleReady(() => {
+        hud.loaded()
+        canvas.requestPointerLock?.()
+        opening = 'waking'
+        openT = 0
+      })
+    else hud.loaded()
   }
   hud.frame(now, renderer, terrainView, focus, camera, quality.level)
   if (ready) quality.frame(now)
@@ -1898,11 +1973,12 @@ function awe(): number {
 /** Tools: a camera placed anywhere, looking at anything (null: the rig follows the wanderer). */
 let freeCam: { from: THREE.Vector3; at: THREE.Vector3 } | null = null
 // While the land wakes: the story, a line at a time.
+// (No plot: the land, and why you came.)
 const LORE = [
-  'Before memory, the world was flat and silent.',
-  'Then came the First Ones.',
-  'Where they walked, valleys formed. Where they slept, mountains rose.',
-  'They are walking again.',
+  'You came a long way to see them.',
+  'Nobody knows how old they are.',
+  'Walk carefully. Everything here is bigger than you.',
+  'They do not mind visitors. Mostly.',
 ]
 let loreAt = 0
 const loreEl = document.getElementById('loading-text')!
@@ -1913,10 +1989,12 @@ const lore = setInterval(() => {
   loreEl.textContent = LORE[loreAt]
 }, 2400)
 hud.setMode('wanderer')
-// You wake facing north, across the Green to the Sentinel kneeling on its rim:
-// the first thing you see is the biggest thing you can reach.
-rig.yaw = 0
+// Tools stand at the centre facing north; a new adventure wakes in the Undercroft facing the
+// light at the stair's foot (the camera looks along (−sin yaw, −cos yaw)).
+rig.yaw = toolMode ? 0 : Math.atan2(-((HALL.x - 100) - WAKE_AT.x), -((HALL.z + 125) - WAKE_AT.z))
 if (!(localSave && loadLocal()) && !params.has('noancient')) newWorld()
+// A first visit: the weather at its best for the walk out.
+if (opening === 'title' && !params.get('weather')) weather.opening()
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
@@ -1925,6 +2003,9 @@ requestAnimationFrame(frame)
 const g = {
   get ready() {
     return ready
+  },
+  get opening() {
+    return opening
   },
   THREE,
   shared,

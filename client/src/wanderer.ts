@@ -279,6 +279,8 @@ export class Wanderer {
   grounded = true
   /** On ground too steep to stand on. */
   sliding = false
+  /** Standing on rock (set by the world each step): the land's slope under it is no matter. */
+  onStone = false
   /** Seconds left knocked off your feet (a giant stomped nearby). */
   stunned = 0
   private tilt = 0
@@ -497,7 +499,8 @@ export class Wanderer {
     const gx = terrain.heightAt(this.pos.x + 0.5, this.pos.z) - terrain.heightAt(this.pos.x - 0.5, this.pos.z)
     const gz = terrain.heightAt(this.pos.x, this.pos.z + 0.5) - terrain.heightAt(this.pos.x, this.pos.z - 0.5)
     const steep = Math.hypot(gx, gz)
-    this.sliding = this.grounded && steep > MAX_SLOPE
+    // (Only on the land itself: standing on rock above it — a ledge, the hall's stair — the slope under the rock is no matter.)
+    this.sliding = this.grounded && steep > MAX_SLOPE && !this.onStone && this.pos.y < terrain.heightAt(this.pos.x, this.pos.z) + 0.8
     if (this.sliding) {
       const ux = gx / steep
       const uz = gz / steep

@@ -35,6 +35,8 @@ try {
   console.log(`first hint shown: ${tip0.shown === 'flex'} (step ${tip0.step}); sound started on the first click: ${audio.running}, on: ${audio.on}`)
   if (tip0.shown !== 'flex' || tip0.step !== 0) fail('no first hint')
   if (!audio.running) fail('sound did not start on the first click')
+  // (The first click wakes you from the title: you lie a moment on the hall floor, then stand.)
+  await page.waitForFunction(() => window.__g.opening !== 'title' && window.__g.opening !== 'waking', null, { timeout: 15000 }).catch(() => fail('the first click did not wake you'))
   // Walk a little: the first hint is done.
   await ev(() => {
     window.__g.input.press('KeyW')

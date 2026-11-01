@@ -143,8 +143,10 @@ export class BaseTerrain {
       // The ground meets the Undercroft's roof all round it (its stair lands
       // on the grass, not under a step of roof edge), easing out over 200 m.
       if (out < 220) h += (this.hallTop - h) * (1 - smoothstep(10, 220, out))
-      // The pit: sheer sides, a flat floor.
-      if (inHall(x, z, 4)) h += (this.hallTop - HALL.depth - h) * (1 - smoothstep(-3, 3, out))
+      // The pit: sheer sides, a flat floor. (The drop all inside the hall's walls,
+      // under the roof's edge: outside them the grass is flush with the plaza, no lip
+      // too steep to walk up where the stair comes out.)
+      if (inHall(x, z, 4)) h += (this.hallTop - HALL.depth - h) * (1 - smoothstep(-5, -0.2, out))
     }
     // The Pit: a sinkhole in the Green (user: "a perfectly round hole reads
     // badly — a realistic sinkhole instead"). The ground slumps and cracks

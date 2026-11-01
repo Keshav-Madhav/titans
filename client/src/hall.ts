@@ -100,12 +100,24 @@ export class Undercroft {
     const geo = mergeGeometries(parts.map((p) => p.toNonIndexed()))!
     geo.deleteAttribute('uv')
 
+    // Each hole as a box (centre x, z, half x, z), reaching 3 m out past the roof where it meets the edge.
+    const holeBoxes = holes.map(([cx, cz]) => {
+      const ext = (c: number, half: number) => {
+        const lo = c - TILE / 2 - (c - TILE / 2 <= -half + 0.01 ? 3 : 0.6)
+        const hi = c + TILE / 2 + (c + TILE / 2 >= half - 0.01 ? 3 : 0.6)
+        return [(lo + hi) / 2, (hi - lo) / 2]
+      }
+      const [x, hx] = ext(cx, HALL.hx)
+      const [z, hz] = ext(cz, HALL.hz)
+      return [x, z, hx, hz]
+    })
     const field = (x: number, y: number, z: number) => {
       // Roof slab, minus its open tiles.
       let roof = box(x, y - (1 - ROOF) / 2, z, HALL.hx, (ROOF + 1) / 2, HALL.hz)
-      // (Holes a little wider than their tiles: an open tile at the roof's edge would
-      // otherwise leave the slab's outer face standing in the field, an invisible wall.)
-      for (const [cx, cz] of holes) roof = Math.max(roof, -box(x - cx, y - (1 - ROOF) / 2, z - cz, TILE / 2 + 0.6, ROOF, TILE / 2 + 0.6))
+      // (Holes a little wider than their tiles, and at the roof's edge reaching well
+      // past it: a cut that stops just short leaves the slab's outer face standing
+      // in the field as a thin shell — an invisible wall right where the stair comes out.)
+      for (const h of holeBoxes) roof = Math.max(roof, -box(x - h[0], y - (1 - ROOF) / 2, z - h[1], h[2], ROOF + 4, h[3]))
       let d = roof
       for (const [cx, cz, bx, bz] of walls) d = Math.min(d, box(x - cx, y - 1 - H2 * 0.6, z - cz, bx, H2 * 1.2, bz))
       // Nearest pillar only (they are on a grid).

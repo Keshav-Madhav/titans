@@ -87,7 +87,8 @@ export class Dread {
     seed: number,
   ) {
     this.rand = mulberry32(seed ^ 0xd4ead)
-    this.wait = 6 * 60 + this.rand() * 6 * 60
+    // (Never in a newcomer's first half hour: the land should feel safe before it feels wrong.)
+    this.wait = 28 * 60 + this.rand() * 12 * 60
     // The pale walker: a giant drawn pale and thin against the fog.
     this.walker = new Titan(320, 0, 0, 0, 913, 0)
     this.walker.restBlend = 0

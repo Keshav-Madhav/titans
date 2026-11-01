@@ -298,6 +298,17 @@ export class Weather {
   /** What the sky shows this frame: the weather, parted by `part`. */
   private readonly seen: State = { ...PRESETS.clear }
 
+  /**
+   * A first visit's weather: breaking cloud and shafts of sun for the walk out
+   * (the land shown at its best), a little clear sky, and the first storm held
+   * back until a quarter of an hour in.
+   */
+  opening(): void {
+    this.set('breaking', true)
+    this.left = 420
+    this.step = CYCLE.length - 2
+  }
+
   /** Change the weather (instantly for tools, else eased in over a minute). */
   set(name: WeatherName, instant = false): void {
     this.name = name

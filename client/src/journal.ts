@@ -21,10 +21,12 @@ export class Journal {
   private cardTimer = 0
   /** Opened or closed (the game releases the pointer and keys). */
   onToggle: (open: boolean) => void = () => {}
+  /** Can it be opened yet (it is the notebook in the bag)? */
+  allowed: () => boolean = () => true
 
   constructor(private readonly finds: Discoveries) {
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyJ') this.toggle()
+      if (e.code === 'KeyJ' && this.allowed()) this.toggle()
       else if (e.code === 'Escape' && this.open) this.toggle()
     })
     this.panel.addEventListener('click', () => this.toggle())

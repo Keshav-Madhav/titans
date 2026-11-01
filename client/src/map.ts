@@ -51,6 +51,8 @@ export class WorldMap {
   private sinceMini = 0
   /** Opened or closed (the game releases the pointer and keys). */
   onToggle: (open: boolean) => void = () => {}
+  /** Can it be opened yet (the traveller's map is in the bag)? */
+  allowed: () => boolean = () => true
 
   constructor(
     private readonly terrain: Terrain,
@@ -63,7 +65,7 @@ export class WorldMap {
     this.full = document.getElementById('map-canvas') as HTMLCanvasElement
     this.panel = document.getElementById('map')!
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyM') this.toggle()
+      if (e.code === 'KeyM' && this.allowed()) this.toggle()
       else if (e.code === 'Escape' && this.open) this.toggle()
     })
     this.panel.addEventListener('click', () => this.toggle())

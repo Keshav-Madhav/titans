@@ -360,11 +360,34 @@ Each phase ends playable. Phases are in PLAN.md §6.
 ## it for a new player with typical normal gameplay progressions — how games reveal stuff as you play
 ## more and more. A hint: we start in the middle already facing a giant, no surprise or awe of
 ## discovery." Next, after the scale round.)
-- [ ] Play it from a fresh save as a newcomer would; note every moment the game shows too much too
-      soon, or leaves you lost
-- [ ] The opening: the first giant is found, not handed over (start where it is out of sight; let
-      the land reveal it)
-- [ ] Reveal in order: what the first minutes teach, what the first hour opens, what is saved for later
+- [x] Play it from a fresh save as a newcomer would (`tools/newplayer.mjs`: a fresh browser on the
+      real game, photographed and logged at each moment). Found: old-plot loading lines; the first
+      frame facing the Sentinel with the Green "discovered" before a step; every key on screen,
+      J glowing "new" with nothing in it; the camp missed walking straight ahead; no title, no waking
+- [x] The opening, in order:
+  - [x] A title: TITANS, "click to wake" (nothing else on screen over it)
+  - [x] Waking on the Undercroft's floor under a skylight: the camera low on the stone, rising as you
+        stand; held still a moment; "You wake on cold stone, in the dark…"
+  - [x] The stair toward the light (hint: "There is light at the end of the hall. Find the way up")
+  - [x] The reveal, the first time you step off the stone onto the grass: letterbox bars, the camera
+        rises behind you and shows the nearest giant walking the Green (the Sentinel if none is
+        near), you small at the bottom of the frame; skippable after 2.5 s; once only (saved)
+  - [x] The Green named after the shot (the card would sit across what it shows)
+  - [x] The camp a few steps on at the stair's mouth: the traveller's page, then the bag
+  - [x] The map, the journal and the bag (keys, minimap) only once you have the bag; the key strip
+        waits until you have taken your first steps
+  - [x] The first visit's weather: breaking cloud for the walk out; the first storm ~15 min in
+  - [x] No dread for the first ~half hour
+- [x] Fixes found on the way (all bugs a player would have hit):
+  - [x] Held by the camera (the reveal, an awakening) the wanderer skipped rock collision: fell
+        through the stair, blacked out, woke on the hall floor
+  - [x] An invisible wall where the stair comes out: the roof's holes stopped 0.6 m past the slab,
+        leaving its outer face in the collision field as a thin shell
+  - [x] The ground's drop into the hall reached 3 m past its walls: a lip too steep to walk up
+        (now all inside the walls); and the slope of the land under a rock no longer makes you
+        slide while you stand on the rock
+  - [x] The tip box overlapped the narration column
+- [ ] Reveal in order beyond the opening: what the first hour opens, what is saved for later
 
 ## Known issues
 - [ ] The save gate failed once in three (2026-10-31): after a reload one footfall's crater came

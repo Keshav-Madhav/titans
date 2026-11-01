@@ -36,6 +36,8 @@ export interface SaveData {
   cairns?: string[]
   /** What you have found (discovery.ts ids). */
   found?: string[]
+  /** Whether the opening is over (woken, climbed out, shown the land). Missing: an older save — yes. */
+  opened?: boolean
 }
 
 export interface Settings {

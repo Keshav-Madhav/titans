@@ -7,8 +7,11 @@ import * as THREE from 'three'
 import { mulberry32, type Terrain } from '@titans/shared'
 import { carvedStone } from './spots'
 
-/** Where it is: a little ahead of the start and off to the right, in plain sight (not behind a swell). */
-export const CAMP = { x: 38, z: -105 }
+/**
+ * Where it is: at the top of the Undercroft's stair, a few steps out on the
+ * grass — the first close thing you see when you climb out into the light.
+ */
+export const CAMP = { x: -232, z: 1518 }
 
 export class Camp {
   readonly group = new THREE.Group()

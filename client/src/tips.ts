@@ -2,7 +2,7 @@
 // (walk, climb a giant, stand high on one). Shown once per browser; the ✕
 // dismisses them for good.
 
-const KEY = 'titans.adventure.tips2'
+const KEY = 'titans.adventure.tips3'
 
 export interface TipState {
   moved: number // metres walked
@@ -10,13 +10,15 @@ export interface TipState {
   high: number // highest climbed, metres above the ground
   bag: boolean // has found the bag
   looked: boolean // has opened it
+  out: boolean // has climbed out of the Undercroft into the light
 }
 
 const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
-  { text: 'Click the world to look around. <kbd>W A S D</kbd> to walk, <kbd>Shift</kbd> to run.', done: (s) => s.moved > 25 },
-  { text: 'A strip of red cloth is snapping in the wind, just ahead. Someone camped there.', done: (s) => s.bag },
-  { text: 'Small things you find go in the bag. <kbd>I</kbd> to look in it, <kbd>J</kbd> for what you have learned.', done: (s) => s.looked },
-  { text: 'A giant walks the Green. Go to it, and at its foot press <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
+  { text: 'Click to look around. <kbd>W A S D</kbd> to walk.', done: (s) => s.moved > 25 },
+  { text: 'There is light at the end of the hall. Find the way up, <kbd>Shift</kbd> to run.', done: (s) => s.out },
+  { text: 'A strip of red cloth is snapping in the wind, near the stair. Someone camped there.', done: (s) => s.bag },
+  { text: 'In the bag, a map and an empty notebook. <kbd>I</kbd> the bag · <kbd>J</kbd> what you have found · <kbd>M</kbd> the map.', done: (s) => s.looked },
+  { text: 'One of them walks the Green. Go to it — at its foot, <kbd>E</kbd> to take hold.', done: (s) => s.climbed },
   { text: 'Climb with <kbd>W A S D</kbd>. Your grip tires: rest where you can stand. Reach its shoulders.', done: (s) => s.high > 150 },
 ]
 

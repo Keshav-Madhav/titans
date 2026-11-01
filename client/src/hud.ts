@@ -3,8 +3,9 @@
 import type * as THREE from 'three'
 import type { TerrainView } from './terrain-view'
 
+// (The wanderer's line grows as you find things: see setHave.)
 const HINTS = {
-  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag',
+  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · rest on top to get your grip back',
   flying: '<kbd>W</kbd> dive (speed) · <kbd>S</kbd> pull up (height) · <kbd>A D</kbd> bank · slow too much and you stall · steep ground ahead lifts you · let go of <kbd>Space</kbd> to drop',
 }
@@ -30,7 +31,37 @@ export class Hud {
     if (mode === this.mode) return
     this.mode = mode
     this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : mode === 'flying' ? '<b>Flying</b>' : '<b>Wanderer</b>'
-    this.hint.innerHTML = HINTS[mode]
+    this.hint.innerHTML = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '')
+  }
+
+  private haveBag = false
+  /**
+   * What you have (the hint line and the minimap show only what you can use:
+   * a newcomer is not shown keys for a map and a bag they do not have).
+   */
+  setHave(bag: boolean): void {
+    if (bag === this.haveBag) return
+    this.haveBag = bag
+    document.body.classList.toggle('has-map', bag)
+    const m = this.mode
+    this.mode = ''
+    this.setMode((m || 'wanderer') as 'wanderer')
+  }
+
+  /** The title: the land is ready; wait for a click to wake. */
+  titleReady(onWake: () => void): void {
+    const el = document.getElementById('loading')!
+    el.classList.add('title')
+    document.body.classList.add('titling')
+    document.getElementById('loading-text')!.textContent = 'click to wake'
+    el.addEventListener(
+      'click',
+      () => {
+        document.body.classList.remove('titling')
+        onWake()
+      },
+      { once: true },
+    )
   }
 
   private mode = ''
