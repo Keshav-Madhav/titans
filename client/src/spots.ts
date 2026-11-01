@@ -44,6 +44,20 @@ export class Spots {
   private readonly marks = new Map<string, THREE.Object3D>()
   private readonly glints: Array<{ id: string; sprite: THREE.Sprite; phase: number }> = []
   private time = 0
+  /**
+   * Distance culling: each mark sits in a wrapper drawn only within `r` of you
+   * (a 7 cm pebble or a carved line is nothing past a few hundred metres; the
+   * glints show where things are from afar). The wrapper's visibility is ours
+   * alone; what is found or revealed still shows and hides the mark itself.
+   */
+  private readonly culled: Array<{ wrap: THREE.Group; at: THREE.Object3D; r: number }> = []
+  /** `at`: whose position is the distance's (the mark itself, placed in world coordinates). */
+  private wrap(o: THREE.Object3D, r: number, parent: THREE.Object3D = this.group, at: THREE.Object3D = o): void {
+    const w = new THREE.Group()
+    parent.add(w)
+    w.add(o)
+    this.culled.push({ wrap: w, at, r })
+  }
 
   constructor(readonly spots: Spot[]) {
     const slab = carvedStone()
@@ -63,7 +77,7 @@ export class Spots {
         g.add(sheet, pebble)
         g.position.copy(s.at)
         g.rotation.y = Math.random() * 6.28
-        this.group.add(g)
+        this.wrap(g, 250)
         this.marks.set(s.id, g)
       } else if (s.kind === 'stone') {
         // A standing slab, leaning a little, a carved line catching the light,
@@ -78,24 +92,31 @@ export class Spots {
         line.position.set(0, 0.95, 0.152)
         const line2 = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.06), rune)
         line2.position.set(0, 1.25, 0.152)
-        g.add(body, line, line2)
+        g.add(body)
+        // (The carving and the pebbles: only close by.)
+        const detail = new THREE.Group()
+        detail.add(line, line2)
         for (let k = 0; k < 4; k++) {
           const pb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + k * 0.02, 0), slab)
           pb.position.set(0.55 - k * 0.04, 0.08 + (3 - k) * 0.12, 0.25)
-          g.add(pb)
+          detail.add(pb)
         }
         g.position.copy(s.at)
         g.rotation.set(0.05, Math.atan2(-s.at.x, -s.at.z), 0.04)
         g.traverse((o) => {
           if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
         })
-        this.group.add(g)
+        detail.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
+        })
+        this.wrap(g, 900)
+        this.wrap(detail, 160, g, g)
         this.marks.set(s.id, g)
       } else {
         const m = s.model ?? new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), thing)
         if (s.model) m.position.copy(s.at)
         else m.position.copy(s.at).add(new THREE.Vector3(0, 0.25, 0))
-        this.group.add(m)
+        this.wrap(m, s.model ? 600 : 250)
         this.marks.set(s.id, m)
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: new THREE.Color(7, 6, 4.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false }))
         sprite.position.copy(m.position)
@@ -155,6 +176,7 @@ export class Spots {
   /** The glints: a slow twinkle, a few hundred metres to a couple of kilometres off. */
   update(dt: number, camera: THREE.Camera): void {
     this.time += dt
+    for (const n of this.culled) n.wrap.visible = n.at.position.distanceToSquared(camera.position) < n.r * n.r
     for (const g of this.glints) {
       if (!g.sprite.visible) continue
       const d = g.sprite.position.distanceTo(camera.position)
