@@ -14,6 +14,8 @@ const CELL = 12
 const RADIUS = 52
 const PER_CELL = 420
 const CAP = 30000
+/** New cells laid per frame (the rest wait a frame or two). */
+const FRESH_PER_FRAME = 3
 
 /** The blades: a canvas of thin curved strokes, light at the tips. */
 function bladesTexture(): THREE.CanvasTexture {
@@ -221,8 +223,18 @@ export class Grass {
     let n = 0
     const im = this.mesh.instanceMatrix.array as Float32Array
     const ic = this.mesh.instanceColor!.array as Float32Array
+    // (New cells are laid a few a frame — nearest first — and the rest the frames after: a
+    // whole new ring at once, every blade sampling the land, made a hitch at each cell crossed.)
+    let fresh = 0
     for (const [d2, cx, cz] of order) {
       if (Math.sqrt(d2) * CELL > RADIUS + CELL) continue
+      if (!this.cells.has(key(cx, cz))) {
+        if (fresh >= FRESH_PER_FRAME) {
+          this.dirty = true
+          continue
+        }
+        fresh++
+      }
       const c = this.cell(cx, cz)
       const fit = Math.min(c.n, CAP - n)
       if (fit <= 0) break
