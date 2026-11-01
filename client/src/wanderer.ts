@@ -55,8 +55,9 @@ const _v = new THREE.Vector3()
 const _w = new THREE.Vector3()
 
 const RED = 0xa3241c
-const TUNIC = 0x4a4036
-const LEATHER = 0x2a211a
+const TUNIC = 0x5e4c3a
+const LEATHER = 0x3a2a1c
+const WRAPS = 0x6a604f
 const SKIN = 0x6a4a36
 
 /** A sphere open at the neck, with a round face opening cut toward +Z. */
@@ -102,6 +103,58 @@ function hoodGeometry(): THREE.BufferGeometry {
 }
 
 // --- cloth ------------------------------------------------------------------------
+
+/**
+ * The rest of what the traveller wears, as grey patterns multiplied by each
+ * material's colour: `wool` (a tunic's knit, a seam, a darker patch or two),
+ * `wrap` (cloth wound round the shins, in overlapping bands), `leather` (grain,
+ * scuffs, a stitched edge).
+ */
+function fabricTexture(kind: 'wool' | 'wrap' | 'leather'): THREE.CanvasTexture {
+  const S = 128
+  const c = document.createElement('canvas')
+  c.width = c.height = S
+  const g = c.getContext('2d')!
+  const img = g.createImageData(S, S)
+  let seed = kind.length * 4099 + 17
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const blot = Array.from({ length: 5 }, () => [rnd() * S, rnd() * S, 8 + rnd() * 18])
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) {
+      let l = 1
+      if (kind === 'wool') {
+        // Knit: small v-shaped stitches in columns.
+        const cx = x % 4
+        const cy = (y + (cx < 2 ? cx : 3 - cx)) % 4
+        l = 0.86 + 0.1 * (cy < 2 ? 1 : 0) + 0.04 * Math.sin(x * 0.9)
+        if (Math.abs(x - S * 0.5) < 1) l *= 0.82 // a seam
+      } else if (kind === 'wrap') {
+        // Bands wound on a slant, each edge a shade darker, a weave across them.
+        const t = (y + x * 0.35) % 14
+        l = 0.84 + 0.12 * Math.min(1, t / 3) - (t > 12 ? 0.14 : 0) + 0.04 * ((x + y) % 2)
+      } else {
+        l = 0.8 + 0.2 * rnd()
+        l = 0.88 + (l - 0.88) * 0.5
+        if (y < 3 || y > S - 4) l *= 0.8 // an edge
+        if ((y === 5 || y === S - 6) && x % 6 < 3) l *= 1.25 // stitches
+      }
+      for (const [bx, by, r] of blot) {
+        const d = Math.hypot(x - bx, y - by) / r
+        if (d < 1) l *= 1 - 0.07 * (1 - d)
+      }
+      l *= 0.96 + rnd() * 0.06
+      const k = (y * S + x) * 4
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = Math.min(255, l * 235)
+      img.data[k + 3] = 255
+    }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(3, 3)
+  t.anisotropy = 4
+  return t
+}
 
 /**
  * The cloak's weave: a fine twill, soft lengthwise folds, wear at the edges and
@@ -394,6 +447,11 @@ export class Wanderer {
   private scrambleLean = 0
   /** How far forward the body lies in the water (radians, eased). */
   private swimLean = 0
+  /** The bag's strap and satchel (shown once you have it). */
+  private bagParts: THREE.Object3D[] = []
+  set hasBag(v: boolean) {
+    for (const o of this.bagParts) o.visible = v
+  }
   /** Called as each foot comes down (`pace` 0 … 1, a run). */
   onStep: ((pace: number) => void) | null = null
   private lastHalf = 0
@@ -447,8 +505,10 @@ export class Wanderer {
 
   constructor(cloak: THREE.ColorRepresentation = RED) {
     const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.86, side: THREE.DoubleSide, map: clothTexture() })
-    const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.92 })
-    const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.8 })
+    // (Each with its own weave or grain: a flat colour read as a mannequin.)
+    const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.94, map: fabricTexture('wool') })
+    const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.72, map: fabricTexture('leather') })
+    const wraps = new THREE.MeshStandardMaterial({ color: WRAPS, roughness: 0.95, map: fabricTexture('wrap') })
     const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 })
     const dark = new THREE.MeshStandardMaterial({ color: 0x0c0a09, roughness: 1 })
 
@@ -508,11 +568,17 @@ export class Wanderer {
     for (const side of [-1, 1]) {
       const hip = limb(0.44, 0.09, 0.072, tunic)
       hip.position.set(side * 0.095, 0, 0)
-      const knee = limb(0.44, 0.07, 0.06, leather)
+      const knee = limb(0.44, 0.07, 0.06, wraps)
       knee.position.y = -0.44
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.24).translate(0, -0.47, 0.05), leather)
+      // A boot: a rounded upper over the ankle and a toe, on a darker sole.
+      const boot = mergeGeometries([
+        new THREE.CylinderGeometry(0.068, 0.072, 0.13, 10).translate(0, -0.4, 0).toNonIndexed(),
+        new THREE.SphereGeometry(0.068, 10, 8).scale(0.85, 0.62, 1.75).translate(0, -0.46, 0.07).toNonIndexed(),
+      ])!
+      const foot = new THREE.Mesh(boot, leather)
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.022, 0.25).translate(0, -0.493, 0.06), dark)
       foot.castShadow = true
-      knee.add(foot)
+      knee.add(foot, sole)
       hip.add(knee)
       this.pelvis.add(hip)
       this.legs.push({ hip, knee })
@@ -562,6 +628,24 @@ export class Wanderer {
 
     // The lantern at the left hip: a small warm light.
     this.pelvis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.11, 8).translate(-0.19, -0.12, 0.05), leather))
+    // The traveller's bag, once it is yours: a strap (a loop laid round the body, then tilted)
+    // from the left shoulder across the chest
+    // to a satchel on the right hip.
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.016, 5, 28).rotateX(Math.PI / 2).scale(1.02, 1, 0.8).rotateZ(-0.85).translate(0.02, 0.26, 0.004), leather)
+    const satchel = new THREE.Mesh(
+      mergeGeometries([
+        new THREE.BoxGeometry(0.2, 0.17, 0.08, 2, 2, 1).translate(0, 0, 0).toNonIndexed(),
+        new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, 1, 0.9).translate(0, 0.085, 0).toNonIndexed(),
+      ])!,
+      leather,
+    )
+    // (Out on the side of the hip, over the tunic's flare, a little behind.)
+    satchel.position.set(0.27, -0.12, -0.05)
+    satchel.rotation.set(0, Math.PI / 2 + 0.2, 0.1)
+    strap.castShadow = satchel.castShadow = true
+    this.chest.add(strap)
+    this.pelvis.add(satchel)
+    this.bagParts = [strap, satchel]
     this.lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8).translate(-0.19, -0.12, 0.1), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
     // (Reaching ~26 m: in the dark you see the ground about you, not just your feet.)
     this.lantern = new THREE.PointLight(0xffb066, 0.6, 26, 1.4)

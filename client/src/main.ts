@@ -1843,6 +1843,7 @@ function frame(now: number): void {
   toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : null))
   // The keys for the map, the journal and the bag show once you have the bag (the map and the notebook are in it).
   hud.setHave(toolMode || bag.have)
+  wanderer.hasBag = toolMode || bag.have
   document.body.classList.toggle('early', !toolMode && tipState.moved < 25)
   if (finds.unseen.size) {
     let j = false
