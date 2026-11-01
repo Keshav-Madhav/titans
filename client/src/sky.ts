@@ -104,6 +104,8 @@ export class SkySystem {
     s.shadow.normalBias = 0.04
     s.shadow.camera.near = 1
     s.shadow.camera.far = 6000
+    // (It also sees the shadow-only stand-ins — vegetation.ts' SHADOW_ONLY layer.)
+    s.shadow.camera.layers.enable(2)
     scene.add(s)
     scene.add(s.target)
 

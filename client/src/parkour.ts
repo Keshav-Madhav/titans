@@ -82,7 +82,8 @@ function danglingChains(ends: Array<{ at: THREE.Vector3; len: number }>): THREE.
     }
   }
   mesh.castShadow = true
-  mesh.frustumCulled = false
+  // (Culled on its own bounds: the steps hang far from most of the land.)
+  mesh.computeBoundingSphere()
   return mesh
 }
 

@@ -21,6 +21,7 @@ import { LAYER } from './terrain-material'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
 import { canopyGeometry, foliageMaterial, foliageTexture } from './trees'
+import { splitByTile } from './instancing'
 
 const BONE: [number, number, number] = [1.0, 0.97, 0.9]
 /** Each colossus its own stone, so they never read as one beige material. */
@@ -200,8 +201,8 @@ export class Colossi {
     }
     crown.castShadow = true
     crown.receiveShadow = true
-    crown.frustumCulled = false
-    this.group.add(crown)
+    crown.count = ci
+    this.group.add(splitByTile(crown, 400))
 
     // The Steps: a colonnade rising into the clouds, some pillars broken.
     const cx0 = 1180 * SPREAD
@@ -275,7 +276,7 @@ export class Colossi {
       }
       place(`stone-${i + 1}`, x, z, y)
     })
-    this.group.add(this.chainMesh(chains))
+    this.group.add(splitByTile(this.chainMesh(chains), 400))
   }
 
   /** The Great Stair and the Gate, facing the valley from (x, z). */
@@ -355,7 +356,6 @@ export class Colossi {
     }
     mesh.count = n
     mesh.castShadow = true
-    mesh.frustumCulled = false
     return mesh
   }
 }

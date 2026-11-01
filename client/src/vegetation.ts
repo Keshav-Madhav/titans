@@ -20,6 +20,15 @@ import type { PaintField } from './paint'
 const CELL = 96
 /** Wedges round you for the distant kinds (each frustum-culled on its own). */
 const SECTORS = 8
+/**
+ * Trees nearer than this cast their own leaf-dappled shadows; farther (to the
+ * edge of the shadow map), a simple stand-in's — the shadow pass drew every
+ * near tree's full 2,500 leaf-card triangles (0.9 M in a forest) for shadows
+ * a few texels wide.
+ */
+const SHADE_R = 70
+/** The layer the shadow-only casters live on (the sun's shadow camera sees it; no other camera does). */
+export const SHADOW_ONLY = 2
 const SECTORED: Kind[] = ['coniferMid', 'coniferFar', 'broadMid', 'broadFar', 'bush', 'shrub', 'rock']
 /** Seconds of game time before churned ground greens over. */
 const REGROW = 300
@@ -212,6 +221,8 @@ export class Vegetation {
   private readonly meshes = {} as Record<Kind, THREE.InstancedMesh>
   /** The distant kinds' wedges (the first is meshes[kind]). */
   private readonly sectors = new Map<Kind, THREE.InstancedMesh[]>()
+  /** The near trees' shadow casters: [detailed (close), simple (farther)]. */
+  private readonly shadeCast = new Map<Kind, [THREE.InstancedMesh, THREE.InstancedMesh]>()
   private readonly cells = new Map<number, CellData>()
   private readonly grassCells = new Map<number, Batch>()
   private readonly time = { value: 0 }
@@ -284,6 +295,20 @@ export class Vegetation {
         }
         this.sectors.set(k, list)
       }
+    }
+    for (const [nearK, midK] of [['coniferNear', 'coniferMid'], ['broadNear', 'broadMid']] as const) {
+      const near = this.meshes[nearK]
+      near.castShadow = false
+      const caster = (src: THREE.InstancedMesh) => {
+        const m = new THREE.InstancedMesh(src.geometry, src.material, CAP[nearK])
+        m.count = 0
+        m.frustumCulled = false
+        m.castShadow = true
+        m.layers.set(SHADOW_ONLY)
+        this.group.add(m)
+        return m
+      }
+      this.shadeCast.set(nearK, [caster(near), caster(this.meshes[midK])])
     }
   }
 
@@ -374,6 +399,20 @@ export class Vegetation {
       if (counts) counts[sector] += fit
       n[kind] += fit
     }
+    // The near trees' shadows: each tree to the detailed or the simple caster by its distance.
+    const shadeN = new Map<Kind, [number, number]>()
+    for (const k of this.shadeCast.keys()) shadeN.set(k, [0, 0])
+    const shade = (kind: Kind, b: Batch) => {
+      const casters = this.shadeCast.get(kind)!
+      const counts = shadeN.get(kind)!
+      const m = b.m as Float32Array
+      for (let i = 0; i < b.n; i++) {
+        const j = Math.hypot(m[i * 16 + 12] - cam.x, m[i * 16 + 14] - cam.z) < SHADE_R ? 0 : 1
+        if (counts[j] >= casters[j].instanceMatrix.count) continue
+        casters[j].instanceMatrix.array.set(m.subarray(i * 16, i * 16 + 16), counts[j] * 16)
+        counts[j]++
+      }
+    }
     // Trees, rocks, bushes, reeds: by cell, nearest first.
     const r = Math.ceil(this.midR / CELL)
     const ccx = Math.floor(cam.x / CELL)
@@ -406,6 +445,7 @@ export class Vegetation {
       ] as const) {
         const b = c[src]
         if (b) push(near ? nearKind : faint ? farKind : midKind, b)
+        if (b && near) shade(nearKind, b)
       }
       if (d < this.midR * 0.55) {
         if (c.rock) push('rock', c.rock)
@@ -450,6 +490,12 @@ export class Vegetation {
       mesh.count = n[k]
       mesh.instanceMatrix.needsUpdate = true
       mesh.instanceColor!.needsUpdate = true
+    }
+    for (const [k, casters] of this.shadeCast) {
+      casters.forEach((m, j) => {
+        m.count = shadeN.get(k)![j]
+        m.instanceMatrix.needsUpdate = true
+      })
     }
     this.stats = {
       trees: n.coniferNear + n.coniferMid + n.broadNear + n.broadMid,
