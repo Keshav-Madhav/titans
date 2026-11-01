@@ -318,9 +318,23 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     if (!materials.has(fk)) {
       const fm = new THREE.MeshStandardMaterial({ map: furTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, color: petrified ? new THREE.Color(0.75, 0.6, 0.5) : new THREE.Color(0.85, 0.82, 0.76) })
       fm.alphaToCoverage = true
+      // Close by — climbing through it — the cards show as what they are, flat shards:
+      // there the fur thins away (dithered) and the hide under it is what you hold.
       fm.onBeforeCompile = (sh) => {
-        sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif')
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vFurW;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvFurW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vFurW;')
+          .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif')
+          .replace(
+            '#include <alphatest_fragment>',
+            `#include <alphatest_fragment>
+            float furNear = smoothstep(14.0, 38.0, distance(vFurW, cameraPosition));
+            if (fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) > furNear) discard;`,
+          )
       }
+      fm.customProgramCacheKey = () => 'fur-near-fade'
       materials.set(fk, fm)
     }
     const fm = new THREE.Mesh(furGeo, materials.get(fk))

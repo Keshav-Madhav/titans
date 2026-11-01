@@ -203,6 +203,11 @@ export class Weather {
             // Far away the deck melts into the haze.
             c = mix(c, uFog, smoothstep(2500.0, 12000.0, dist) * 0.85);
             float a = d * 0.42 * (1.0 - smoothstep(10000.0, 14500.0, dist));
+            // (Up among the clouds — on a giant's shoulders, in a long glide — a layer at
+            // your own height passed edge-on through the view as a hard, flat, see-through
+            // panel. A cloud has no surface: each layer thins away as the eye nears its
+            // height, and close by.)
+            a *= smoothstep(6.0, 60.0, abs(cameraPosition.y - vWorld.y)) * smoothstep(15.0, 160.0, dist);
             gl_FragColor = vec4(c, a);
           }`,
         transparent: true,
