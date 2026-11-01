@@ -78,7 +78,15 @@ export class Sound {
     const ctx = this.ctx
     this.master = ctx.createGain()
     this.master.gain.value = this.on ? 0.9 : 0
-    this.master.connect(ctx.destination)
+    // A limiter on the whole mix: a giant's foot coming down close, over rain, wind
+    // and the score, summed past full scale and crackled. Gentle until it is needed.
+    const limit = ctx.createDynamicsCompressor()
+    limit.threshold.value = -10
+    limit.knee.value = 8
+    limit.ratio.value = 8
+    limit.attack.value = 0.003
+    limit.release.value = 0.28
+    this.master.connect(limit).connect(ctx.destination)
     // Two seconds of white noise, reused by everything.
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
     const d = this.noise.getChannelData(0)
