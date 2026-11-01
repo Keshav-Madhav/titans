@@ -2090,6 +2090,15 @@ function frame(now: number): void {
 
   if (!ready && terrainView.settled()) {
     ready = true
+    // Compile every shader now, behind the title (user: "game hitches" — the first sight of
+    // the water, a colossus, the bow, the fireflies at dusk each stalled a frame compiling
+    // its program). Again a little later, for what is still being built then.
+    const warm = () => renderer.compileAsync(scene, camera).catch(() => {})
+    if (!params.has('nowarm')) {
+      warm()
+      setTimeout(warm, 15000)
+      setTimeout(warm, 60000)
+    }
     if (opening === 'title')
       hud.titleReady(() => {
         hud.loaded()
