@@ -19,6 +19,30 @@ import { inBasin, WORLD_HALF, type Lake, type RegionName, type Terrain } from '@
 
 const SPAN = WORLD_HALF * 2
 const FOG = 512 // seen-grid cells across the whole world
+
+/** A cell's hash, 0 … 1. */
+function hash2(i: number, j: number): number {
+  const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453
+  return h - Math.floor(h)
+}
+/** Smooth value noise over the seen grid (features every `s` cells), 0 … 1. */
+function valueNoise(x: number, z: number, s: number): number {
+  const fx = x / s
+  const fz = z / s
+  const i = Math.floor(fx)
+  const j = Math.floor(fz)
+  const u = fx - i
+  const v = fz - j
+  const a = hash2(i, j) + (hash2(i + 1, j) - hash2(i, j)) * u
+  const b = hash2(i, j + 1) + (hash2(i + 1, j + 1) - hash2(i, j + 1)) * u
+  return a + (b - a) * v
+}
+/** How far a reveal reaches at this cell (a factor on the squared radius): a ragged edge. */
+function edgeNoise(gx: number, gz: number): number {
+  const k = 0.62 * valueNoise(gx, gz, 7) + 0.38 * valueNoise(gx + 91, gz + 37, 2.5)
+  const f = 0.74 + 0.42 * k
+  return f * f
+}
 const TILE = 256 // relief tile, pixels
 const MAX_LEVEL = 6 // the finest tiles: 26 km / 64 / 256 ≈ 1.6 m a pixel
 const MINI_R = 900 // the minimap shows this far around you (metres)
@@ -54,6 +78,8 @@ export class WorldMap {
   readonly seen = new Uint8Array(FOG * FOG)
   /** The seen cells as a mask (opaque where seen), for drawing. */
   private readonly fog = document.createElement('canvas')
+  /** The same mask in sepia ink (the pooled edge of the wash). */
+  private readonly ink = document.createElement('canvas')
   private readonly tiles = new Map<string, HTMLCanvasElement>()
   private wanted: string[] = []
   private building: { key: string; L: number; tx: number; tz: number; canvas: HTMLCanvasElement; row: number } | null = null
@@ -79,6 +105,7 @@ export class WorldMap {
     private readonly places: MapPlace[],
   ) {
     this.fog.width = this.fog.height = FOG
+    this.ink.width = this.ink.height = FOG
     this.mini = document.getElementById('minimap') as HTMLCanvasElement
     this.full = document.getElementById('map-canvas') as HTMLCanvasElement
     this.panel = document.getElementById('map')!
@@ -198,9 +225,10 @@ export class WorldMap {
     let changed = false
     for (let j = -n; j <= n; j++) {
       for (let i = -n; i <= n; i++) {
-        if (i * i + j * j > n * n) continue
         const gx = cx + i
         const gz = cz + j
+        // (A ragged edge, as a wash on paper spreads: not a compass-drawn circle.)
+        if (i * i + j * j > n * n * edgeNoise(gx, gz)) continue
         if (gx < 0 || gz < 0 || gx >= FOG || gz >= FOG || this.seen[gz * FOG + gx]) continue
         this.seen[gz * FOG + gx] = 1
         changed = true
@@ -216,6 +244,15 @@ export class WorldMap {
       img.data[k * 4 + 3] = this.seen[k] ? 255 : 0
     }
     ctx.putImageData(img, 0, 0)
+    // The same, in sepia ink: drawn blurred under the wash, it darkens the edge where the
+    // pigment pools.
+    const ink = this.ink.getContext('2d')!
+    ink.clearRect(0, 0, FOG, FOG)
+    ink.drawImage(this.fog, 0, 0)
+    ink.globalCompositeOperation = 'source-in'
+    ink.fillStyle = 'rgb(104, 72, 40)'
+    ink.fillRect(0, 0, FOG, FOG)
+    ink.globalCompositeOperation = 'source-over'
   }
 
   private isSeen(x: number, z: number): boolean {
@@ -247,8 +284,9 @@ export class WorldMap {
     const e = Math.max(m, 2)
     const hx = T.heightAt(x + e, z) - h
     const hz = T.heightAt(x, z + e) - h
-    // Light from the north-west, gently: a wash, not a photograph.
-    const shade = THREE.MathUtils.clamp(1 - ((hx + hz) / e) * 0.32, 0.7, 1.1)
+    // Light from the north-west: a wash, not a photograph — but the land's shape must read
+    // (at 0.32 the Green came out one flat olive disc).
+    const shade = THREE.MathUtils.clamp(1 - ((hx + hz) / e) * 0.62, 0.62, 1.14)
     let [r, g, b] = LAND[T.base.regions.name(x, z)]
     const high = THREE.MathUtils.clamp((h - 140) / 260, 0, 1)
     r += (196 - r) * high
@@ -259,7 +297,7 @@ export class WorldMap {
     const step = m > 30 ? 100 : 25
     const band = (v: number) => Math.floor(v / step)
     let c = 1
-    if (band(h) !== band(h + hx * (m / e)) || band(h) !== band(h + hz * (m / e))) c = Math.floor((h + 1e-3) / 100) !== Math.floor((h + Math.max(hx, hz) * (m / e)) / 100) ? 0.7 : 0.84
+    if (band(h) !== band(h + hx * (m / e)) || band(h) !== band(h + hz * (m / e))) c = Math.floor((h + 1e-3) / 100) !== Math.floor((h + Math.max(hx, hz) * (m / e)) / 100) ? 0.62 : 0.76
     return [r * shade * c, g * shade * c, b * shade * c]
   }
 
@@ -380,6 +418,12 @@ export class WorldMap {
     const blur = Math.max(1.5, (cell / span) * S * 0.9)
     g.filter = `blur(${blur.toFixed(1)}px)`
     g.drawImage(this.fog, ((x0 + WORLD_HALF) / SPAN) * FOG, ((z0 + WORLD_HALF) / SPAN) * FOG, (span / SPAN) * FOG, (span / SPAN) * FOG, 0, 0, S, S)
+    // The pooled edge: the ink mask, wider and softer, under what is there.
+    g.globalCompositeOperation = 'destination-over'
+    g.filter = `blur(${(blur * 1.3).toFixed(1)}px)`
+    g.globalAlpha = 0.38
+    g.drawImage(this.ink, ((x0 + WORLD_HALF) / SPAN) * FOG, ((z0 + WORLD_HALF) / SPAN) * FOG, (span / SPAN) * FOG, (span / SPAN) * FOG, 0, 0, S, S)
+    g.globalAlpha = 1
     g.filter = 'none'
     g.globalCompositeOperation = 'source-over'
     ctx.drawImage(sc, 0, 0)
