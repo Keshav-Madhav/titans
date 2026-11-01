@@ -2107,6 +2107,8 @@ const _head = new THREE.Vector3()
 const groundAt = (x: number, z: number) => {
   const p = wanderer.pos
   const t = terrain.heightAt(x, z)
+  // Swimming: the cloth floats on the water.
+  if (wanderer.swimming) return Math.max(t, wanderer.waterLevel - 0.03)
   // Standing on rock (a ledge, the plaza, a cave floor): the cloth rests on it too.
   return p.y > t + 0.3 && Math.hypot(x - p.x, z - p.z) < 3 ? Math.max(t, p.y - 0.05) : t
 }

@@ -104,6 +104,61 @@ function hoodGeometry(): THREE.BufferGeometry {
 // --- cloth ------------------------------------------------------------------------
 
 /**
+ * The cloak's weave: a fine twill, soft lengthwise folds, wear at the edges and
+ * a darker embroidered band at the hem (grey, multiplied by the cloak's colour).
+ */
+function clothTexture(): THREE.CanvasTexture {
+  const W = 256
+  const H = 256
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')!
+  const img = g.createImageData(W, H)
+  let seed = 9173
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const noise = new Float32Array(W)
+  for (let i = 0; i < W; i++) noise[i] = rnd()
+  for (let y = 0; y < H; y++) {
+    const v = y / H // 0 top (shoulders) … 1 hem
+    for (let x = 0; x < W; x++) {
+      const u = x / W
+      // Twill: fine diagonal ribs.
+      const twill = 0.94 + 0.06 * Math.sin((x + y) * 1.6) * Math.sin((x - y) * 0.35 + 1.0)
+      // Lengthwise folds (soft shading), more toward the hem.
+      const fold = 1 - 0.1 * v * (0.5 + 0.5 * Math.sin(u * Math.PI * 7 + noise[(x >> 3) & 255] * 1.5))
+      // Worn edges and a frayed, darker hem.
+      const edge = Math.min(u, 1 - u)
+      const wear = 1 - 0.12 * (1 - Math.min(1, edge * 14)) - 0.18 * Math.max(0, (v - 0.94) / 0.06)
+      // The band: two thin lines and a stitched zigzag between, just above the hem.
+      const b0 = v > 0.8 && v < 0.81
+      const b1 = v > 0.885 && v < 0.895
+      const zig = v > 0.815 && v < 0.88 && Math.abs(((x / 6) % 2) - 1) * 0.065 + 0.815 > v - 0.004 && Math.abs(((x / 6) % 2) - 1) * 0.065 + 0.815 < v + 0.004
+      const band = b0 || b1 || zig ? 0.55 : v > 0.8 && v < 0.9 ? 0.86 : 1
+      const speck = 0.97 + rnd() * 0.06
+      const l = Math.max(0, Math.min(1, twill * fold * wear * band * speck))
+      const k = (y * W + x) * 4
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = l * 255
+      img.data[k + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
+
+/** A limb the cloth keeps out of: a→b, radius r. */
+interface Capsule {
+  a: THREE.Vector3
+  b: THREE.Vector3
+  r: number
+}
+/** How much of the body's movement the cloth is carried with each step (the rest it trails). */
+const CARRY = 0.82
+
+/**
  * A sheet of cloth: a grid of verlet particles, the top row pinned to points
  * that follow the body, the rest hanging under gravity and the wind, held
  * together by distance constraints, kept out of a capsule round the body and
@@ -129,6 +184,10 @@ class Cloth {
     this.q = new Float32Array(cols * rows * 3)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cols * rows * 3), 3))
+    // (The cloth's texture: across the width, and from the shoulders, v = 1, down to the hem.)
+    const uv = new Float32Array(cols * rows * 2)
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) uv.set([c / (cols - 1), 1 - r / (rows - 1)], (r * cols + c) * 2)
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
     const idx: number[] = []
     for (let r = 0; r < rows - 1; r++) {
       for (let c = 0; c < cols - 1; c++) {
@@ -147,7 +206,7 @@ class Cloth {
    * it hangs from them when still; `wind` an acceleration; the body a capsule
    * (a→b, radius r) the cloth stays outside; `ground` the land under it.
    */
-  step(dt: number, pins: THREE.Vector3[], hang: THREE.Vector3, wind: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number): void {
+  step(dt: number, pins: THREE.Vector3[], hang: THREE.Vector3, wind: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number, limbs: Capsule[] = []): void {
     const { cols, rows, p, q } = this
     // The first time, or after a teleport: hang straight from the pins.
     if (!this.ready || pins[0].distanceTo(_v.set(p[0], p[1], p[2])) > 4) {
@@ -161,6 +220,18 @@ class Cloth {
         }
       }
       this.ready = true
+    }
+    // The body carries the cloth with it (most of the way): it feels how you move
+    // relative to the air, not the whole of a run or a 40 m/s dive at once — which
+    // no number of constraint passes could hold, and it smeared out into strips.
+    _v.set(pins[0].x - p[0], pins[0].y - p[1], pins[0].z - p[2]).multiplyScalar(CARRY)
+    for (let i = cols * 3; i < p.length; i += 3) {
+      p[i] += _v.x
+      p[i + 1] += _v.y
+      p[i + 2] += _v.z
+      q[i] += _v.x
+      q[i + 1] += _v.y
+      q[i + 2] += _v.z
     }
     const steps = 3
     const h = Math.min(dt, 1 / 30) / steps
@@ -187,16 +258,39 @@ class Cloth {
         p[c * 3 + 2] = q[c * 3 + 2] = pins[c].z
       }
       // Constraints: neighbours down and across keep their distance.
-      for (let it = 0; it < 4; it++) {
+      for (let it = 0; it < 6; it++) {
         for (let row = 0; row < rows; row++) {
           const w = this.taper(row)
           for (let c = 0; c < cols; c++) {
             const i = row * cols + c
             if (row < rows - 1) this.keep(i, i + cols, this.seg, row === 0)
             if (c < cols - 1) this.keep(i, i + 1, (this.widths[c] ?? this.seg) * w, row === 0)
+            // Bend: two rows down, softly — it folds, it does not crumple up on itself.
+            if (row < rows - 2) this.keep(i, i + 2 * cols, this.seg * 2, row === 0, 0.35)
           }
         }
-        for (let i = cols; i < cols * rows; i++) this.collide(i, a, b, r, ground)
+        for (let i = cols; i < cols * rows; i++) {
+          this.collide(i, a, b, r, ground)
+          for (const L of limbs) this.collide(i, L.a, L.b, L.r, ground)
+        }
+      }
+      // And never further from its pin than the cloth between them reaches (a little
+      // give): however hard it is yanked, it cannot stretch out into a streak.
+      for (let row = 1; row < rows; row++) {
+        const max = row * this.seg * 1.06
+        for (let c = 0; c < cols; c++) {
+          const k = (row * cols + c) * 3
+          const dx = p[k] - pins[c].x
+          const dy = p[k + 1] - pins[c].y
+          const dz = p[k + 2] - pins[c].z
+          const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
+          if (d > max) {
+            const f = max / d
+            p[k] = pins[c].x + dx * f
+            p[k + 1] = pins[c].y + dy * f
+            p[k + 2] = pins[c].z + dz * f
+          }
+        }
       }
     }
     const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute
@@ -205,7 +299,7 @@ class Cloth {
     this.mesh.geometry.computeVertexNormals()
   }
 
-  private keep(i: number, j: number, len: number, pinnedI: boolean): void {
+  private keep(i: number, j: number, len: number, pinnedI: boolean, stiff = 1): void {
     const p = this.p
     const a = i * 3
     const b = j * 3
@@ -213,7 +307,9 @@ class Cloth {
     const dy = p[b + 1] - p[a + 1]
     const dz = p[b + 2] - p[a + 2]
     const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6
-    const k = (d - len) / d
+    // (A bend link pushes apart only — it may not hold the cloth stretched — and only partly.)
+    if (stiff < 1 && d > len) return
+    const k = ((d - len) / d) * stiff
     if (pinnedI) {
       // A pinned point does not move: its neighbour takes all of it.
       p[b] -= dx * k
@@ -344,12 +440,13 @@ export class Wanderer {
   private readonly capePins: THREE.Vector3[]
   private readonly scarfPins = [new THREE.Vector3(), new THREE.Vector3()]
   private readonly axisA = new THREE.Vector3()
+  private readonly legCaps: Capsule[] = [0, 1, 2, 3].map(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0.12 }))
   private readonly axisB = new THREE.Vector3()
   private readonly hangDir = new THREE.Vector3()
   private readonly windV = new THREE.Vector3()
 
   constructor(cloak: THREE.ColorRepresentation = RED) {
-    const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.82, side: THREE.DoubleSide })
+    const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.86, side: THREE.DoubleSide, map: clothTexture() })
     const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.92 })
     const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.8 })
     const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 })
@@ -374,7 +471,7 @@ export class Wanderer {
     }
     wg.computeVertexNormals()
     this.wing = new THREE.Mesh(wg, red)
-    this.wing.position.set(0, 0.12, -0.12)
+    this.wing.position.set(0, 0.08, -0.2)
     this.wing.visible = false
     this.wing.castShadow = true
 
@@ -477,7 +574,8 @@ export class Wanderer {
       this.capeAnchors.push(new THREE.Vector3(-Math.cos(a) * 0.22, 1.44, -Math.sin(a) * 0.15 - 0.03))
     }
     this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
-    this.cape = new Cloth(7, 9, 0.135, red)
+    // (Flaring toward the hem: a cloak, not a plank.)
+    this.cape = new Cloth(7, 9, 0.135, red, (row) => 1 + 0.42 * (row / 8))
     this.scarf = new Cloth(2, 8, 0.15, red, (row) => 1 - row / 12)
     this.world.add(this.cape.mesh, this.scarf.mesh)
   }
@@ -838,10 +936,21 @@ export class Wanderer {
     // Moving makes wind of its own: the cloth streams behind; the weather's wind gusts.
     const gust = wind.length()
     this.windV.copy(wind).multiplyScalar(0.5 + 0.5 * Math.max(0, Math.sin(this.t * 0.7) * Math.sin(this.t * 1.9)))
-    this.windV.addScaledVector(this.vel, -1.1)
+    // (Running makes a breeze that lifts it back — not a gale that holds it out flat.)
+    this.windV.addScaledVector(this.vel, this.gliding ? -0.6 : -0.42)
     this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
     this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground)
+    // The legs, as the cloth sees them (thigh and shin each): it falls round them, not through.
+    for (let i = 0; i < 2; i++) {
+      const L = this.legs[i]
+      const c = this.legCaps
+      L.hip.getWorldPosition(c[i * 2].a)
+      L.knee.getWorldPosition(c[i * 2].b)
+      c[i * 2 + 1].a.copy(c[i * 2].b)
+      c[i * 2 + 1].b.set(0, -0.44, 0)
+      L.knee.localToWorld(c[i * 2 + 1].b)
+    }
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
 
