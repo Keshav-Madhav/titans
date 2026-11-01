@@ -24,6 +24,9 @@ interface Formation extends Shape {
   land: RegionName
   mesh: THREE.Mesh | null
   queued: boolean
+  /** A colossus's coarse twin, shown from afar (null until built; undefined: none needed). */
+  far?: THREE.Mesh | null
+  farQueued?: boolean
   /** Mesh resolution (cells across its longest side). */
   res: number
   /** Built at once and kept, however far away (the colossi). */
@@ -128,7 +131,12 @@ export function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
 const BUILD_R = 1700
 const DROP_R = 2300
 
+/** Past this a big colossus shows its coarse twin (metres). Far jobs' ids are offset by FAR_ID. */
+const LOD_R = 1600
+const FAR_ID = 1_000_000
+
 export class Rocks {
+  private readonly farWaiting: Formation[] = []
   readonly group = new THREE.Group()
   readonly formations: Formation[] = []
   private readonly material: THREE.MeshStandardMaterial
@@ -285,6 +293,10 @@ export class Rocks {
       if (!f.float || !f.mesh) continue
       f.mesh.position.y = f.y + Math.sin(t * 0.13 + f.float.phase) * f.float.amp
       f.mesh.rotation.y = f.rot + t * f.float.spin
+      if (f.far) {
+        f.far.position.y = f.mesh.position.y
+        f.far.rotation.y = f.mesh.rotation.y
+      }
     }
   }
 
@@ -292,6 +304,19 @@ export class Rocks {
   update(cam: THREE.Vector3): void {
     for (const f of this.formations) {
       const d = Math.hypot(f.x - cam.x, f.z - cam.z)
+      // A big colossus seen from afar: its coarse twin (built first — it is quick), the
+      // detailed mesh only within LOD_R. (At 2 km a 200-cell mesh was ~half a million
+      // triangles for a few hundred pixels.)
+      if (f.always && f.res >= 100) {
+        if (f.far === undefined) f.far = null
+        if (!f.far && !f.farQueued) {
+          f.farQueued = true
+          this.farWaiting.push(f)
+        }
+        const useFar = !!f.far && (d > LOD_R || !f.mesh)
+        if (f.far) f.far.visible = useFar
+        if (f.mesh) f.mesh.visible = !useFar
+      }
       if ((d < BUILD_R || f.always) && !f.mesh && !f.queued) {
         f.queued = true
         this.waiting.push(f)
@@ -300,6 +325,10 @@ export class Rocks {
         f.mesh.geometry.dispose()
         f.mesh = null
       }
+    }
+    while (this.idle.length && this.farWaiting.length) {
+      const f = this.farWaiting.pop()!
+      this.idle.pop()!.postMessage({ id: f.id + FAR_ID, kind: f.kind, seed: f.seed, worldSeed: this.seed, res: Math.max(48, Math.round(f.res * 0.34)) })
     }
     if (!this.idle.length || !this.waiting.length) return
     // The colossi first (they are seen from everywhere), then the nearest rock.
@@ -313,12 +342,14 @@ export class Rocks {
 
   /** Nothing left to mesh near the camera. */
   get settled(): boolean {
-    return this.idle.length === this.workers.length && this.waiting.length === 0
+    return this.idle.length === this.workers.length && this.waiting.length === 0 && this.farWaiting.length === 0
   }
 
   private receive(id: number, m: RockMesh): void {
-    const f = this.formations[id]
-    f.queued = false
+    const far = id >= FAR_ID
+    const f = this.formations[far ? id - FAR_ID : id]
+    if (far) f.farQueued = false
+    else f.queued = false
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(m.position, 3))
     g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3))
@@ -338,7 +369,14 @@ export class Rocks {
     mesh.rotation.y = f.rot
     mesh.castShadow = true
     mesh.receiveShadow = true
-    mesh.name = `rock-${f.kind}`
+    mesh.name = `rock-${f.kind}${far ? '-far' : ''}`
+    if (far) {
+      f.far = mesh
+      // (Only seen from afar: it need not cast the near shadows.)
+      mesh.castShadow = false
+      this.group.add(mesh)
+      return
+    }
     f.mesh = mesh
     this.group.add(mesh)
     this.built++
