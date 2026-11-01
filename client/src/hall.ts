@@ -18,6 +18,9 @@ import type { Shape } from './rock-fields'
 const ROOF = 12 // roof thickness: from -ROOF to +1 (ground level is 0)
 const TILE = 20
 const PILLAR = 8 // half width
+/** A pillar's base (on the floor) and capital (under the roof): heights. */
+const BASE_H = 1.6
+const CAP_H = 2.2
 const PX = [-150, -90, -30, 30, 90, 150]
 const PZ = [-90, -30, 30, 90]
 /** The stair: a band along the north wall, from the west rim down to the floor. */
@@ -59,7 +62,15 @@ export class Undercroft {
       }
     }
     // The pillars, the walls lining the pit, the floor.
-    for (const x of PX) for (const z of PZ) parts.push(block(x, (-D - ROOF) / 2, z, PILLAR, (D - ROOF) / 2, PILLAR))
+    for (const x of PX)
+      for (const z of PZ) {
+        parts.push(block(x, (-D - ROOF) / 2, z, PILLAR, (D - ROOF) / 2, PILLAR))
+        // A stepped base on the floor and a capital under the roof: built, not boxes.
+        parts.push(block(x, -D + 0.5 + BASE_H / 2, z, PILLAR + 2.2, BASE_H / 2, PILLAR + 2.2))
+        parts.push(block(x, -D + 0.5 + BASE_H + 0.6, z, PILLAR + 1.1, 0.6, PILLAR + 1.1))
+        parts.push(block(x, -ROOF - CAP_H / 2, z, PILLAR + 1.8, CAP_H / 2, PILLAR + 1.8))
+        parts.push(block(x, -ROOF - CAP_H - 0.5, z, PILLAR + 0.8, 0.5, PILLAR + 0.8))
+      }
     parts.push(block(0, (-D - ROOF) / 2, HALL.hz - 3, HALL.hx, (D - ROOF) / 2, 3))
     parts.push(block(0, (-D - ROOF) / 2, -HALL.hz + 3, HALL.hx, (D - ROOF) / 2, 3))
     parts.push(block(HALL.hx - 3, (-D - ROOF) / 2, 0, 3, (D - ROOF) / 2, HALL.hz))
@@ -124,6 +135,8 @@ export class Undercroft {
       const px = PX.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a))
       const pz = PZ.reduce((a, b) => (Math.abs(b - z) < Math.abs(a - z) ? b : a))
       d = Math.min(d, box(x - px, y + (D + ROOF) / 2, z - pz, PILLAR, (D - ROOF) / 2, PILLAR))
+      d = Math.min(d, box(x - px, y - (-D + 0.5 + BASE_H / 2), z - pz, PILLAR + 2.2, BASE_H / 2, PILLAR + 2.2))
+      d = Math.min(d, box(x - px, y - (-D + 0.5 + BASE_H + 0.6), z - pz, PILLAR + 1.1, 0.6, PILLAR + 1.1))
       d = Math.min(d, box(x, y + (D + ROOF) / 2, z - HALL.hz + 3, HALL.hx, (D - ROOF) / 2, 3))
       d = Math.min(d, box(x, y + (D + ROOF) / 2, z + HALL.hz - 3, HALL.hx, (D - ROOF) / 2, 3))
       d = Math.min(d, box(x - HALL.hx + 3, y + (D + ROOF) / 2, z, 3, (D - ROOF) / 2, HALL.hz))

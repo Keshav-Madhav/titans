@@ -42,7 +42,19 @@ export interface SaveData {
 
 export interface Settings {
   sound: boolean
+  /** Overall volume and the score's, 0 … 1. */
+  volume: number
+  music: number
+  /** Mouse look speed (1 = as made) and whether up is down. */
+  sensitivity: number
+  invertY: boolean
+  /** Render resolution: 'auto' (held to 60 a second), or a fixed share of the screen's pixels. */
+  resolution: 'auto' | number
+  /** Detail (terrain, shadows, plants): 'auto', or 0 high, 1 medium, 2 low. */
+  detail: 'auto' | 0 | 1 | 2
 }
+
+export const DEFAULT_SETTINGS: Settings = { sound: true, volume: 0.85, music: 0.8, sensitivity: 1, invertY: false, resolution: 'auto', detail: 'auto' }
 
 const mm = (v: number) => Math.round(v * 1000) / 1000
 
@@ -93,9 +105,9 @@ export function clearWorld(): void {
 export function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>
-    return { sound: s.sound !== false }
+    return { ...DEFAULT_SETTINGS, ...s, sound: s.sound !== false }
   } catch {
-    return { sound: true }
+    return { ...DEFAULT_SETTINGS }
   }
 }
 

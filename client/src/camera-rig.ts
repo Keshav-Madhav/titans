@@ -32,6 +32,9 @@ export class CameraRig {
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
+  /** Mouse look speed (settings) and whether pushing the mouse up looks down. */
+  sensitivity = 1
+  invertY = false
   private trauma = 0
   private shakeT = 0
 
@@ -83,8 +86,8 @@ export class CameraRig {
   }
 
   update(dt: number, dx: number, dy: number, wheel: number, subject: THREE.Vector3, terrain: Terrain): void {
-    this.yaw -= dx * 0.0024
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.0024, -0.75, 1.4)
+    this.yaw -= dx * 0.0024 * this.sensitivity
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.0024 * this.sensitivity * (this.invertY ? -1 : 1), -0.75, 1.4)
     if (wheel !== 0) {
       this.distance = this.dist * Math.pow(1.12, wheel)
       this.userDist = true

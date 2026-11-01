@@ -151,6 +151,17 @@ export class Effects {
     }
   }
 
+  /** You landing hard (`k` 0 … 1): a low ring of dust kicked out from your feet. */
+  land(x: number, y: number, z: number, k: number): void {
+    const r = this.rand
+    const n = Math.round(6 + 12 * k)
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + r() * 0.4
+      const sp = 1.2 + r() * 1.8 * (0.5 + k)
+      this.puff(x + Math.cos(a) * 0.25, y + 0.08, z + Math.sin(a) * 0.25, Math.cos(a) * sp, 0.25 + r() * 0.5, Math.sin(a) * sp, 0.35 + r() * 0.3, 0.9 + k * 0.8, 0.9 + r() * 0.7, 0.22 + 0.25 * k)
+    }
+  }
+
   /**
    * A stone shaken loose from a walking giant at (x, y, z), carried along at
    * its pace (vx, vz), trailing a little dust as it falls (the concept: a

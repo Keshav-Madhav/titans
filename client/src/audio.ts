@@ -65,7 +65,7 @@ export class Sound {
 
   set enabled(v: boolean) {
     this.on = v
-    if (this.master) this.master.gain.value = v ? 0.9 : 0
+    if (this.master) this.master.gain.value = v ? 0.9 * this.volume : 0
   }
 
   private start(): void {
@@ -77,7 +77,7 @@ export class Sound {
     }
     const ctx = this.ctx
     this.master = ctx.createGain()
-    this.master.gain.value = this.on ? 0.9 : 0
+    this.master.gain.value = this.on ? 0.9 * this.volume : 0
     // A limiter on the whole mix: a giant's foot coming down close, over rain, wind
     // and the score, summed past full scale and crackled. Gentle until it is needed.
     const limit = ctx.createDynamicsCompressor()
@@ -128,8 +128,7 @@ export class Sound {
     this.padGain = ctx.createGain()
     this.padGain.gain.value = 0
     this.padFilter.connect(this.padGain)
-    this.padGain.connect(this.master!)
-    this.padGain.connect(this.space!)
+    this.padGain.connect(this.musicBus())
     const breath = ctx.createOscillator()
     breath.frequency.value = 0.045
     const depth = ctx.createGain()
@@ -424,6 +423,56 @@ export class Sound {
   }
 
   /** A glassy note from the chord, high up, fading into the hall. */
+  /** Air rushing past (falling, flying): a bed of noise that opens with speed. */
+  private rushGain: GainNode | null = null
+  private rushFilter: BiquadFilterNode | null = null
+  /** `k` 0 (still air) … 1 (a hard dive): louder and brighter as you go faster. */
+  rush(k: number): void {
+    if (!this.ctx || !this.noise) return
+    if (!this.rushGain) {
+      const src = this.ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      this.rushFilter = this.ctx.createBiquadFilter()
+      this.rushFilter.type = 'bandpass'
+      this.rushFilter.Q.value = 0.7
+      this.rushGain = this.ctx.createGain()
+      this.rushGain.gain.value = 0
+      src.connect(this.rushFilter).connect(this.rushGain).connect(this.master!)
+      src.start()
+    }
+    const t = this.ctx.currentTime
+    const v = Math.max(0, Math.min(1, k))
+    this.rushGain.gain.setTargetAtTime(0.32 * v * v, t, 0.25)
+    this.rushFilter!.frequency.setTargetAtTime(280 + 1700 * v, t, 0.3)
+  }
+
+  /** The score's own level (the settings' music slider): the pad and the glass notes go through it. */
+  private music: GainNode | null = null
+  private musicLevel = 1
+  private musicBus(): GainNode {
+    if (!this.music) {
+      this.music = this.ctx!.createGain()
+      this.music.gain.value = this.musicLevel
+      this.music.connect(this.master!)
+      this.music.connect(this.space!)
+    }
+    return this.music
+  }
+
+  /** Overall volume, 0 … 1. */
+  setVolume(v: number): void {
+    this.volume = v
+    if (this.master) this.master.gain.setTargetAtTime(this.on ? 0.9 * v : 0, this.ctx!.currentTime, 0.05)
+  }
+  private volume = 1
+
+  /** The score's level, 0 … 1. */
+  setMusic(v: number): void {
+    this.musicLevel = v
+    if (this.music) this.music.gain.setTargetAtTime(v, this.ctx!.currentTime, 0.05)
+  }
+
   private glass(chord: number[]): void {
     const ctx = this.ctx!
     const t = ctx.currentTime
@@ -432,8 +481,7 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, t)
     g.gain.exponentialRampToValueAtTime(0.035, t + 0.8)
     g.gain.exponentialRampToValueAtTime(0.0001, t + 7)
-    g.connect(this.space!)
-    g.connect(this.master!)
+    g.connect(this.musicBus())
     for (const [type, mul] of [['sine', 1], ['triangle', 2.001]] as const) {
       const o = ctx.createOscillator()
       o.type = type

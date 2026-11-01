@@ -234,3 +234,40 @@ kbd {
 /* ── The title ─────────────────────────────────────────────────────── */
 #loading h1 { font: 400 clamp(48px, 10vw, 112px)/1 var(--serif-title); letter-spacing: 0.24em; margin-right: -0.24em; }
 #loading p { font: italic 18px var(--serif); }
+
+/* ── The pause: a page from the notebook, its settings in ink ────────── */
+#pause {
+  position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 7;
+  background: radial-gradient(ellipse at center, rgba(14, 12, 10, 0.4), rgba(6, 5, 4, 0.8));
+  backdrop-filter: blur(6px) saturate(0.7); -webkit-backdrop-filter: blur(6px) saturate(0.7);
+}
+#pause-frame {
+  width: min(520px, calc(100vw - 32px)); max-height: 88vh; overflow: auto; padding: 34px 40px 30px; color: var(--ink-brown);
+  background: linear-gradient(90deg, rgba(90, 64, 34, 0.16), transparent 7%, transparent 93%, rgba(90, 64, 34, 0.16)), var(--tex-page), #e2d6bc;
+  background-size: auto, 256px; border-radius: 4px; animation: open 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 0 0 9px #4a321f, 0 0 0 10px #2a1c10, inset 0 0 50px rgba(120, 90, 50, 0.25), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+#pause-frame h1 { margin: 0; font: italic 38px/1 var(--serif-title); }
+.pause-sub { margin: 6px 0 4px; font: italic 16px var(--serif); color: var(--ink-soft); }
+#pause-body h2 {
+  margin: 22px 0 6px; padding-bottom: 4px; font: 600 13px var(--serif); letter-spacing: 0.2em; text-transform: uppercase;
+  color: #4a3c2a; border-bottom: 1px solid rgba(58, 42, 24, 0.35);
+}
+.pause-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 7px 0; font: 17px var(--serif); }
+.pause-row input[type='range'] { width: 200px; accent-color: #7a4a26; }
+#pause button {
+  font: 600 15px var(--serif); color: var(--ink-brown); cursor: pointer; padding: 5px 12px; border-radius: 3px;
+  background: rgba(255, 250, 238, 0.35); border: 1px solid rgba(58, 42, 24, 0.4); transition: background 0.2s, color 0.2s;
+}
+#pause button:hover { background: rgba(255, 250, 238, 0.7); }
+#pause button.on, .pause-toggle.on { background: #5a3a20; color: #f3e6c8; border-color: #3a2614; }
+.pause-choice { display: inline-flex; }
+.pause-choice button { border-radius: 0 !important; margin-left: -1px; }
+.pause-choice button:first-child { border-radius: 3px 0 0 3px !important; }
+.pause-choice button:last-child { border-radius: 0 3px 3px 0 !important; }
+.pause-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; }
+#pause-resume { font: italic 20px var(--serif-title) !important; padding: 6px 22px !important; background: #5a3a20 !important; color: #f3e6c8 !important; }
+#pause button.quiet { background: none; border-color: transparent; color: var(--ink-soft); font-weight: 400; }
+#pause button.quiet:hover { color: var(--ink-brown); text-decoration: underline; }
+#pause-sure { display: none; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; font: 15px var(--serif); color: var(--seal); }
+#pause button.grave { background: var(--seal); color: #fff3e6; border-color: #6e2414; }

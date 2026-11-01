@@ -89,12 +89,13 @@ import { Grass } from './grass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
 import { Wake } from './wake'
+import { Pause } from './pause'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
 import { Post } from './post'
 import { Weather } from './weather'
-import { clearWorld, loadSettings, loadWorld, packEvent, saveWorld, unpackEvent, type SaveData, type SavedEvent } from './save'
+import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent, type Settings } from './save'
 
 const STEP = 1 / 60
 installSkin()
@@ -1301,6 +1302,7 @@ function watchFalls(dt: number): void {
   }
   // Landed.
   if (!Number.isNaN(fallTop) && fallTop - p.y > 0.9) sound.land(surfaceAt(p), Math.min(1, (fallTop - p.y) / 14))
+  if (!Number.isNaN(fallTop) && fallTop - p.y > 1.6 && surfaceAt(p) !== 'water') effects.land(p.x, p.y, p.z, Math.min(1, (fallTop - p.y) / 14))
   if (!Number.isNaN(fallTop) && fallTop - p.y > FATAL_FALL) {
     fallTop = NaN
     blackout = 1.8
@@ -1809,7 +1811,8 @@ function frame(now: number): void {
   const t0 = performance.now()
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
-  acc += dt * clock.scale
+  // (Paused: the world waits.)
+  acc += dt * clock.scale * (pause.open ? 0 : 1)
   while (acc >= STEP) {
     simulate(STEP)
     acc -= STEP
@@ -1865,6 +1868,9 @@ function frame(now: number): void {
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
   wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
+  // The air going past: gliding at speed, or falling (from about a 4 m drop on).
+  const fallV = wanderer.grounded || wanderer.swimming ? 0 : Math.max(0, -wanderer.vel.y)
+  sound.rush(wanderer.gliding ? (wanderer.airspeed - 6) / 30 : (fallV - 7) / 25)
   effects.update(dt)
   clouds.update(dt, camera.position)
   birdSpots.length = 0
@@ -2172,6 +2178,55 @@ rig.yaw = toolMode ? 0 : Math.atan2(-((HALL.x - 100) - WAKE_AT.x), -((HALL.z + 1
 if (!(localSave && loadLocal()) && !params.has('noancient')) newWorld()
 // A first visit: the weather at its best for the walk out.
 if (opening === 'title' && !params.get('weather')) weather.opening()
+// The pause and the settings: applied now, and whenever they change.
+const pause = new Pause(settings)
+function applySettings(s: Settings): void {
+  sound.enabled = s.sound
+  sound.setVolume(s.volume)
+  sound.setMusic(s.music)
+  rig.sensitivity = s.sensitivity
+  rig.invertY = s.invertY
+  if (!toolMode) quality.choose(s.resolution, s.detail)
+}
+applySettings(settings)
+pause.onChange = (s) => {
+  applySettings(s)
+  saveSettings(s)
+}
+pause.onToggle = (open) => {
+  input.releaseAll()
+  sound.ui(open ? 'open' : 'close')
+}
+pause.onResume = () => canvas.requestPointerLock?.()
+pause.onNewAdventure = () => {
+  clearWorld()
+  try {
+    localStorage.removeItem('titans.adventure.tips3')
+  } catch {
+    // (a fresh start all the same)
+  }
+  localSave = false
+  location.reload()
+}
+const anyOpen = () => bag.open || journal.open || worldMap.open || pause.open
+// Letting go of the view (Esc) with nothing else open: the pause.
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement || toolMode || !ready || opening === 'title') return
+  setTimeout(() => {
+    if (!document.pointerLockElement && !anyOpen()) pause.show()
+  }, 60)
+})
+addEventListener('keydown', (e) => {
+  if (e.code !== 'Escape' || toolMode || opening === 'title') return
+  if (pause.open) pause.resume()
+  else if (!anyOpen()) {
+    // (Browsers usually take Esc to let go of the view themselves — then the lock change
+    // above opens the pause; where the key reaches us first, let go and open it here.)
+    if (document.pointerLockElement) document.exitPointerLock()
+    setTimeout(() => !anyOpen() && pause.show(), 0)
+  }
+})
+
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------

@@ -100,6 +100,22 @@ export class Quality {
     this.onApply(this.level)
   }
 
+  private fixedRes: number | null = null
+  private fixedDetail: number | null = null
+
+  /**
+   * The player's choice (settings): resolution 'auto' or a fixed share of the
+   * screen's pixels; detail 'auto' or a fixed level. Fixed means the governor
+   * leaves that lever alone.
+   */
+  choose(resolution: 'auto' | number, detail: 'auto' | number): void {
+    this.fixedRes = resolution === 'auto' ? null : Math.max(0.5, Math.min(2, devicePixelRatio * resolution))
+    this.fixedDetail = detail === 'auto' ? null : detail
+    if (this.fixedDetail !== null && this.fixedDetail !== this.level) this.apply(this.fixedDetail)
+    if (this.fixedRes !== null) this.setDpr(this.fixedRes)
+    else if (resolution === 'auto' && this.dpr > this.maxDpr) this.setDpr(this.maxDpr)
+  }
+
   /** Call once per rendered frame (not while the loading veil is up). */
   frame(now: number): void {
     if (this.last) this.times.push(now - this.last)
@@ -109,16 +125,16 @@ export class Quality {
     this.since = now
     const t = this.times.sort((a, b) => a - b)
     this.times = []
-    if (this.pinned || t.length < 20) return
+    if (this.pinned || t.length < 20 || (this.fixedRes !== null && this.fixedDetail !== null)) return
     // The median frame: what the game is running at, not its worst moments.
     const med = t[t.length >> 1]
     if (med > BUDGET) {
       this.goodFor = 0
-      if (this.dpr > DPR_FLOOR + 1e-3) {
+      if (this.fixedRes === null && this.dpr > DPR_FLOOR + 1e-3) {
         // Further over budget, a bigger step.
         const steps = med > BUDGET * 1.5 ? 2 : 1
         this.setDpr(Math.max(DPR_FLOOR, this.dpr - DPR_STEP * steps))
-      } else if (++this.badAtFloor >= 3 && this.level < LEVELS.length - 1) {
+      } else if (this.fixedDetail === null && ++this.badAtFloor >= 3 && this.level < LEVELS.length - 1) {
         // At the floor and still slow for three windows running: less detail, for good.
         this.apply(this.level + 1)
         this.badAtFloor = 0
@@ -128,7 +144,7 @@ export class Quality {
       // Clear headroom for a steady stretch: a little sharper.
       if (med < BUDGET * 0.8) this.goodFor += span
       else this.goodFor = 0
-      if (this.goodFor > 8000 && this.dpr < this.maxDpr - 1e-3) {
+      if (this.fixedRes === null && this.goodFor > 8000 && this.dpr < this.maxDpr - 1e-3) {
         this.setDpr(Math.min(this.maxDpr, this.dpr + DPR_STEP))
         this.goodFor = 0
       }
