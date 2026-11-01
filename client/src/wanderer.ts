@@ -7,7 +7,7 @@
 // ground. A small lantern at the hip glows warm in dark places.
 
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { type Terrain } from '@titans/shared'
 
 const WALK = 4.2
@@ -74,8 +74,26 @@ function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   for (let t = 0; t < p.count; t += 3) {
     c.set(0, 0, 0)
     for (let k = 0; k < 3; k++) c.add(new THREE.Vector3().fromBufferAttribute(p, t + k))
-    if (c.normalize().dot(axis) > cos) continue
+    // (Any triangle with a corner outside the opening stays; its corners inside are moved
+    // out onto the opening's edge, below — a clean round rim, not a saw-tooth of whole
+    // triangles missing.)
+    let out = false
+    for (let k = 0; k < 3; k++) if (new THREE.Vector3().fromBufferAttribute(p, t + k).normalize().dot(axis) <= cos) out = true
+    if (!out) continue
     keep.push(t, t + 1, t + 2)
+  }
+  const sin = Math.sin(openingAngle)
+  const v = new THREE.Vector3()
+  const perp = new THREE.Vector3()
+  for (const i of keep) {
+    v.fromBufferAttribute(p, i)
+    const r = v.length()
+    if (v.clone().normalize().dot(axis) <= cos) continue
+    perp.copy(v).addScaledVector(axis, -v.dot(axis))
+    if (perp.lengthSq() < 1e-10) continue
+    perp.normalize()
+    v.copy(axis).multiplyScalar(cos * r).addScaledVector(perp, sin * r)
+    p.setXYZ(i, v.x, v.y, v.z)
   }
   const out = new THREE.BufferGeometry()
   const pos = new Float32Array(keep.length * 3)
@@ -99,9 +117,18 @@ function hoodGeometry(): THREE.BufferGeometry {
     const z = p.getZ(i)
     const back = Math.max(0, -z) / 0.165
     const top = Math.max(0, y) / 0.165
-    p.setXYZ(i, p.getX(i) * (1 - 0.15 * back * top), y + back * top * 0.05, z - back * back * top * 0.12)
+    const x = p.getX(i)
+    // (Drawn back to a real point — a cowl, not a ball: at 0.12 it read as a red sphere —
+    // with a seam down the middle of the back where the two halves were sewn.)
+    const peak = back * back * top
+    const seam = Math.exp(-((x / 0.022) ** 2)) * back * 0.014
+    p.setXYZ(i, x * (1 - 0.32 * back * top), y + back * top * 0.07 - peak * 0.015, z - peak * 0.22 + seam)
   }
-  return g.scale(1, 1.15, 1.1)
+  // (Welded, so the reshaped shell shades smooth rather than in facets.)
+  g.deleteAttribute('normal')
+  const w = mergeVertices(g, 1e-5)
+  w.computeVertexNormals()
+  return w.scale(1, 1.15, 1.1)
 }
 
 // --- cloth ------------------------------------------------------------------------
