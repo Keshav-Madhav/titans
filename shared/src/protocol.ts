@@ -19,8 +19,10 @@ export type TerrainEvent = GaitEvent | MountainRise
  * Where each giant slot first wakes. Slot 1 is the one near spawn (tools rely on it).
  */
 export const TITAN_SPAWNS = [
-  // The lone giant of the Green, walking its empty east (not beside the Sentinel).
-  { x: 1500, z: 300, heading: -Math.PI * 0.4 },
+  // The lone giant of the Green, walking its empty east (not beside the Sentinel) — near
+  // enough to the Undercroft's stair that it sees you when you first climb out (a newcomer
+  // ran two minutes after it from 2 km and was still half a kilometre short).
+  { x: 1100, z: 900, heading: -Math.PI * 0.4 },
   { x: -460 * SPREAD, z: 420 * SPREAD, heading: -Math.PI * 0.3 },
   { x: 700 * SPREAD, z: 520 * SPREAD, heading: Math.PI * 1.2 },
   { x: -620 * SPREAD, z: -560 * SPREAD, heading: Math.PI * 0.2 },

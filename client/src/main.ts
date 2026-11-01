@@ -1359,6 +1359,50 @@ function blowHorn(): void {
   hornOrders.set(best, { kind: 'come', until: now + 150000 })
   setTimeout(() => narration.say('Far off, a head turns. It is coming to see what made the noise.'), 1500)
 }
+/**
+ * First contact (playtest: a newcomer ran flat out for two minutes after the
+ * Walker and was still half a kilometre short — it walks 12 m/s, you run 14.5).
+ * Until you have climbed one of them, the first time you come near one it
+ * notices you: it stops and turns to watch you, for up to three-quarters of a
+ * minute, long enough to reach its feet. "They do not mind visitors. Mostly."
+ */
+const noticed = new Map<string, { at: number; stage: 'come' | 'look' }>()
+let toldNoticed = false
+function firstContact(): void {
+  if (tipState.climbed || opening !== 'done') return
+  const now = performance.now()
+  for (const [id, a] of titans) {
+    const t = a.titan
+    const d = Math.hypot(t.gait.x - wanderer.pos.x, t.gait.z - wanderer.pos.z)
+    const order = hornOrders.get(id)
+    const n = noticed.get(id)
+    if (n && order && order.until > now) {
+      // Watching you: its gaze follows you as you come, and it waits as long as you are
+      // about (up to four minutes from when it first saw you).
+      if (order.kind === 'look') {
+        order.x = wanderer.pos.x
+        order.z = wanderer.pos.z
+        if (d < 1600 && now - n.at < 240000) order.until = Math.max(order.until, now + 4000)
+      }
+      continue
+    }
+    // It came part of the way; now it stands and watches, a while longer.
+    if (n?.stage === 'come' && now - n.at < 50000) {
+      n.stage = 'look'
+      hornOrders.set(id, { kind: 'look', until: now + 60000, x: wanderer.pos.x, z: wanderer.pos.z })
+      continue
+    }
+    if (order || d > 1500 || t.gait.resting || (n && now < n.at + 150000)) continue
+    // It notices you: turns, and comes a little way toward you.
+    noticed.set(id, { at: now, stage: 'come' })
+    hornOrders.set(id, { kind: 'come', until: now + 35000 })
+    if (!toldNoticed) {
+      toldNoticed = true
+      setTimeout(() => narration.say('Far off, it has stopped. It has turned, slowly, and it is coming to see what you are.'), 1500)
+    }
+  }
+}
+
 function hornInput(id: string, t: Titan): GaitInput | null {
   const order = hornOrders.get(id)
   if (!order) return null
@@ -1500,6 +1544,7 @@ function simulate(dt: number): void {
   }
 
   if (wild) herd.step(dt)
+  if (wild) firstContact()
   for (const [id, a] of titans) {
     const t = a.titan
     const driven = id === 't1' && autopilot.forward !== 0
