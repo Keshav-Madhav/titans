@@ -17,6 +17,9 @@ export class Camp {
   readonly group = new THREE.Group()
   private readonly bag: THREE.Group
   private readonly cloth: THREE.Mesh
+  /** The fire ring's middle, and the smoke over it (later camps only). */
+  private readonly fire: THREE.Vector3
+  private readonly smoke: THREE.Sprite[] = []
   private readonly rest: Float32Array
   readonly bagAt = new THREE.Vector3()
   private time = 0
@@ -31,6 +34,18 @@ export class Camp {
     const wood = new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 0.95 })
     const roll = new THREE.MeshStandardMaterial({ color: 0x5e4a3a, roughness: 1 })
     const leather = new THREE.MeshStandardMaterial({ color: 0x7a4f33, roughness: 0.8 })
+    this.fire = at(0, 0, 0)
+    // At the traveller's later camps the fire is not quite out: a thin column of smoke
+    // still rises from it — seen from far off, from anywhere high (nobody is there).
+    if (!withBag) {
+      const tex = smokeTexture()
+      for (let i = 0; i < 30; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0x8c867c, transparent: true, depthWrite: false, opacity: 0, fog: false }))
+        sp.renderOrder = 3
+        this.smoke.push(sp)
+        this.group.add(sp)
+      }
+    }
     // The fire ring, cold.
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + rand() * 0.2
@@ -92,6 +107,13 @@ export class Camp {
   /** The cloth snaps in the wind. */
   update(dt: number, wind: number): void {
     this.time += dt
+    // The smoke: puffs rising and spreading, leaning with the wind, thinning as they go.
+    this.smoke.forEach((sp, i) => {
+      const t = (this.time * 0.03 + i / this.smoke.length) % 1
+      sp.position.set(this.fire.x + t * t * 40 * (0.4 + wind), this.fire.y + 1 + t * 150, this.fire.z + Math.sin(t * 5 + i) * 3)
+      sp.scale.setScalar(3 + t * 30)
+      ;(sp.material as THREE.SpriteMaterial).opacity = 0.55 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t)
+    })
     const pos = this.cloth.geometry.getAttribute('position') as THREE.BufferAttribute
     const a = pos.array as Float32Array
     for (let i = 0; i < pos.count; i++) {
@@ -103,4 +125,22 @@ export class Camp {
     pos.needsUpdate = true
     this.cloth.geometry.computeVertexNormals()
   }
+}
+
+/** A soft, ragged puff (for the smoke). */
+function smokeTexture(): THREE.CanvasTexture {
+  const S = 64
+  const c = document.createElement('canvas')
+  c.width = c.height = S
+  const g = c.getContext('2d')!
+  for (let i = 0; i < 7; i++) {
+    const x = S / 2 + Math.cos(i * 2.4) * 8
+    const y = S / 2 + Math.sin(i * 1.7) * 8
+    const grad = g.createRadialGradient(x, y, 0, x, y, 20)
+    grad.addColorStop(0, 'rgba(255,255,255,0.35)')
+    grad.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, S, S)
+  }
+  return new THREE.CanvasTexture(c)
 }

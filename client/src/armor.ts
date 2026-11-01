@@ -318,7 +318,7 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     if (!materials.has(fk)) {
       const fm = new THREE.MeshStandardMaterial({ map: furTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, color: petrified ? new THREE.Color(0.75, 0.6, 0.5) : new THREE.Color(0.85, 0.82, 0.76) })
       fm.alphaToCoverage = true
-      // Close by — climbing through it — the cards show as what they are, flat shards:
+      // Near — climbing it, or within a hundred metres — the cards show as what they are, flat planks:
       // there the fur thins away (dithered) and the hide under it is what you hold.
       fm.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader
@@ -330,7 +330,7 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
           .replace(
             '#include <alphatest_fragment>',
             `#include <alphatest_fragment>
-            float furNear = smoothstep(14.0, 38.0, distance(vFurW, cameraPosition));
+            float furNear = smoothstep(40.0, 120.0, distance(vFurW, cameraPosition));
             if (fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) > furNear) discard;`,
           )
       }

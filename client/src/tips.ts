@@ -25,7 +25,7 @@ const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
   { text: 'Climb with <kbd>W A S D</kbd>. Your grip tires: rest where you can stand. Reach its shoulders.', done: (s) => s.high > 150 },
   // The first hour: on, without a plot — the traveller's trail, and then the land itself.
   { text: 'From up here the land opens out. All you can see goes on your map: <kbd>M</kbd>.', done: (s) => s.mapped },
-  { text: "The traveller's page said they went on. Their red cloth flies over their next camp — look for it from somewhere high.", done: (s) => s.page2 },
+  { text: "The traveller's page said they went on. Your notebook (<kbd>J</kbd>) has a guess where; their fire is still smoking.", done: (s) => s.page2 },
   { text: 'Stones with words on them, giants asleep under the grass, things left where no one would leave them. The land is full of what came before. Wander.', done: (s) => s.found >= 14 },
 ]
 
