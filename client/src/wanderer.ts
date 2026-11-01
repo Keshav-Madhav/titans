@@ -230,6 +230,8 @@ class Cloth {
   rest = 0
   /** The pinned spacing between neighbouring columns (set from the first pins). */
   private widths: number[] = []
+  /** The ground under each particle (+3 cm), this frame. */
+  private readonly floor: Float32Array
 
   constructor(
     private readonly cols: number,
@@ -241,6 +243,7 @@ class Cloth {
   ) {
     this.p = new Float32Array(cols * rows * 3)
     this.q = new Float32Array(cols * rows * 3)
+    this.floor = new Float32Array(cols * rows)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cols * rows * 3), 3))
     // (The cloth's texture: across the width, and from the shoulders, v = 1, down to the hem.)
@@ -292,6 +295,7 @@ class Cloth {
       q[i + 1] += _v.y
       q[i + 2] += _v.z
     }
+    for (let i = cols; i < cols * rows; i++) this.floor[i] = ground(p[i * 3], p[i * 3 + 2]) + 0.03
     const steps = 3
     const h = Math.min(dt, 1 / 30) / steps
     // A memory of how it hangs: in folds (pleats across it, deeper toward the hem), not a flat
@@ -374,8 +378,13 @@ class Cloth {
           }
         }
         for (let i = cols; i < cols * rows; i++) {
-          this.collide(i, a, b, r, ground)
-          for (const L of limbs) this.collide(i, L.a, L.b, L.r, ground)
+          this.collide(i, a, b, r)
+          for (const L of limbs) this.collide(i, L.a, L.b, L.r)
+          // (Above the ground: its height under each particle looked up once a frame, below.
+          // Looked up inside every collision, it was ~6,500 terrain samples a frame — most
+          // of the game's main-thread time.)
+          const k = i * 3 + 1
+          if (p[k] < this.floor[i]) p[k] = this.floor[i]
         }
       }
       // And never further from its pin than the cloth between them reaches (a little
@@ -429,7 +438,7 @@ class Cloth {
     }
   }
 
-  private collide(i: number, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number): void {
+  private collide(i: number, a: THREE.Vector3, b: THREE.Vector3, r: number): void {
     const p = this.p
     const k = i * 3
     _v.subVectors(b, a)
@@ -444,8 +453,6 @@ class Cloth {
       p[k + 1] = _w.y + (dy / d) * r
       p[k + 2] = _w.z + (dz / d) * r
     }
-    const gy = ground(p[k], p[k + 2]) + 0.03
-    if (p[k + 1] < gy) p[k + 1] = gy
   }
 }
 
