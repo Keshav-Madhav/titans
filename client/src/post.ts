@@ -197,7 +197,7 @@ const GRADE = {
       c *= mix(vec3(0.93, 0.97, 1.06), vec3(1.05, 1.0, 0.92), smoothstep(0.05, 0.75, l) * (1.0 - 0.7 * mood));
       c *= mix(vec3(1.0), vec3(0.9, 0.98, 0.97), mood);
       // Lifted blacks and a soft shoulder: the bright, milky SotC air.
-      c = c * 0.94 + 0.035;
+      c = c * 0.955 + 0.024;
       c = mix(c, c * c * (3.0 - 2.0 * c), 0.35);
       // Under water: the light thick and green-blue, brightest straight up, nothing far seen.
       if (under > 0.0) {
@@ -284,7 +284,8 @@ export class Post {
     const edge = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(this.ndc.x), Math.abs(this.ndc.y)), 0.85, 1.25)
     const u = this.rays.uniforms
     u.sunUv.value.set(this.ndc.x * 0.5 + 0.5, this.ndc.y * 0.5 + 0.5)
-    u.sunSeen.value = facing * edge
+    // (Shafts belong to a low sun: high up, the blur only spread a milky veil over everything.)
+    u.sunSeen.value = facing * edge * (1 - THREE.MathUtils.smoothstep(sunDir.y, 0.3, 0.6))
     const g = this.grade.uniforms
     g.time.value += dt
     g.aspect.value = innerWidth / innerHeight

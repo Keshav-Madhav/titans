@@ -19,6 +19,8 @@ const MOON_COLOUR = new THREE.Color(0.62, 0.72, 1.0)
 const NIGHT_FOG = new THREE.Color(0.03, 0.04, 0.068)
 const TWILIGHT_FOG = new THREE.Color(0.15, 0.115, 0.14)
 const NIGHT_FILL = new THREE.Color(0.32, 0.4, 0.62)
+/** The sky's light on the land at sunrise and sunset: warm, rose-gold. */
+const SUNSET_FILL = new THREE.Color(1.0, 0.74, 0.58)
 
 export class SkySystem {
   readonly sky = new Sky()
@@ -40,7 +42,9 @@ export class SkySystem {
    * The light as the time of day sets it, before the weather dims it
    * (weather.ts reads these each frame).
    */
-  readonly lightBase = { sun: 3.1, fill: 0.34, fillSky: new THREE.Color(0xc9c4b6), env: 0.32, fogColor: new THREE.Color(), counter: 0.26 }
+  /** The low-sun hours (0 … 1): the light is the sky's then; the eye opens to it. */
+  glow = 0
+  readonly lightBase = { sun: 3.1, fill: 0.34, fillSky: new THREE.Color(0xc9c4b6), env: 0.32, fogColor: new THREE.Color(), counter: 0.26, haze: 1 }
   private readonly stars: THREE.Points
   private readonly moon: THREE.Sprite
   private bakedAt = new THREE.Vector3(0, -1, 0)
@@ -190,8 +194,14 @@ export class SkySystem {
     // The air: warm toward sunset, deep blue at night.
     lb.fogColor.setRGB(0.8 - 0.06 * low, 0.79 - 0.01 * low, 0.76 + 0.03 * low).convertSRGBToLinear()
     lb.fogColor.lerp(new THREE.Color(0.85, 0.55, 0.42), 0.35 * (1 - low) * daylight).lerp(TWILIGHT_FOG, this.dusk).lerp(NIGHT_FOG, this.night)
-    lb.fill = 0.34 * (0.3 + 0.7 * daylight)
-    lb.fillSky.set(0xc9c4b6).lerp(NIGHT_FILL, Math.max(this.dusk * 0.7, this.night))
+    // With the sun low, it lights the ground only at a glancing angle — but the whole sky
+    // glows, warm: the land is lit from the sky then, not left in the dark under a bright one.
+    const glow = (1 - low) * daylight
+    lb.fill = 0.34 * (0.3 + 0.7 * daylight) + 0.5 * glow
+    this.glow = glow
+    lb.fillSky.set(0xc9c4b6).lerp(SUNSET_FILL, glow * 0.75).lerp(NIGHT_FILL, Math.max(this.dusk * 0.7, this.night))
+    /** Haze thins under a high sun (the noon air was milky), thickens as it goes low. */
+    lb.haze = 0.62 + 0.38 * (1 - low)
     lb.env = 0.32 * (0.18 + 0.82 * daylight)
     lb.counter = 0.26 * daylight
     this.counter.intensity = lb.counter

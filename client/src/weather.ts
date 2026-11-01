@@ -372,7 +372,7 @@ export class Weather {
     sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
-    sky.fog.density = b.fog * w.fog * (1 + this.sand * 9) * (1 + this.mireK * 2.2)
+    sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 9) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
     sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.

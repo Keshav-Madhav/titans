@@ -1872,7 +1872,8 @@ function frame(now: number): void {
   weather.mire = biome.mire(camera.position.x, camera.position.z)
   weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
-  post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night
+  // (The eye opens as the light goes: the low-sun hours and the night are not just darker days.)
+  post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night + 0.34 * sky.glow
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
