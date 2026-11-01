@@ -286,6 +286,12 @@ export class Post {
     u.sunUv.value.set(this.ndc.x * 0.5 + 0.5, this.ndc.y * 0.5 + 0.5)
     // (Shafts belong to a low sun: high up, the blur only spread a milky veil over everything.)
     u.sunSeen.value = facing * edge * (1 - THREE.MathUtils.smoothstep(sunDir.y, 0.3, 0.6))
+    // A high sun lights a broad patch of sky past the bloom's threshold, and the bloom spread it
+    // into a white veil over the whole view (looking toward it from the first camp, the way the
+    // traveller's trail leads; at noon, anywhere). The sky is bright well past any threshold then,
+    // so under a high sun the bloom fades almost away. A low sun, and the night's lights, keep it.
+    const high = THREE.MathUtils.smoothstep(sunDir.y, 0.15, 0.45)
+    this.bloom.strength = 0.34 * (1 - 0.85 * high * Math.max(facing, 0.75))
     const g = this.grade.uniforms
     g.time.value += dt
     g.aspect.value = innerWidth / innerHeight

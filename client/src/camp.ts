@@ -39,8 +39,8 @@ export class Camp {
     // still rises from it — seen from far off, from anywhere high (nobody is there).
     if (!withBag) {
       const tex = smokeTexture()
-      for (let i = 0; i < 30; i++) {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0x8c867c, transparent: true, depthWrite: false, opacity: 0, fog: false }))
+      for (let i = 0; i < 40; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0x6c665e, transparent: true, depthWrite: false, opacity: 0, fog: false }))
         sp.renderOrder = 3
         this.smoke.push(sp)
         this.group.add(sp)
@@ -110,9 +110,11 @@ export class Camp {
     // The smoke: puffs rising and spreading, leaning with the wind, thinning as they go.
     this.smoke.forEach((sp, i) => {
       const t = (this.time * 0.03 + i / this.smoke.length) % 1
-      sp.position.set(this.fire.x + t * t * 40 * (0.4 + wind), this.fire.y + 1 + t * 150, this.fire.z + Math.sin(t * 5 + i) * 3)
-      sp.scale.setScalar(3 + t * 30)
-      ;(sp.material as THREE.SpriteMaterial).opacity = 0.55 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t)
+      // (Tall, and full where it clears the hills: seen from the first camp 3 km off, only its
+      // top hundred metres show over the land between — it must hold together up there.)
+      sp.position.set(this.fire.x + t * t * 90 * (0.4 + wind), this.fire.y + 1 + t * 340, this.fire.z + Math.sin(t * 5 + i) * 4)
+      sp.scale.setScalar(4 + t * 62)
+      ;(sp.material as THREE.SpriteMaterial).opacity = 0.6 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t * t)
     })
     const pos = this.cloth.geometry.getAttribute('position') as THREE.BufferAttribute
     const a = pos.array as Float32Array
