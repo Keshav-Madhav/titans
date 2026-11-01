@@ -141,6 +141,8 @@ const GRADE = {
     mood: { value: 0 },
     /** Lightning, this instant. */
     flash: { value: 0 },
+    /** The eye under water: 0 … 1 (murk, a green-blue cast, the light wavering). */
+    under: { value: 0 },
     time: { value: 0 },
     aspect: { value: 1 },
   },
@@ -155,6 +157,7 @@ const GRADE = {
     uniform float exposure;
     uniform float mood;
     uniform float flash;
+    uniform float under;
     uniform float time;
     uniform float aspect;
     varying vec2 vUv;
@@ -178,10 +181,12 @@ const GRADE = {
     void main() {
       // Faint lens fringing toward the edges.
       vec2 off = (vUv - 0.5) * 0.0016;
+      // Under water the picture wavers.
+      vec2 uv = vUv + under * 0.006 * vec2(sin(vUv.y * 38.0 + time * 2.1), cos(vUv.x * 31.0 + time * 1.7));
       vec3 c;
-      c.r = texture2D(tDiffuse, vUv + off).r;
-      c.g = texture2D(tDiffuse, vUv).g;
-      c.b = texture2D(tDiffuse, vUv - off).b;
+      c.r = texture2D(tDiffuse, uv + off).r;
+      c.g = texture2D(tDiffuse, uv).g;
+      c.b = texture2D(tDiffuse, uv - off).b;
       c += texture2D(tRays, vUv).rgb * rayColor * rayStrength;
       c = aces(c * exposure * (1.0 - 0.12 * mood) * (1.0 + flash * 0.8));
 
@@ -194,6 +199,12 @@ const GRADE = {
       // Lifted blacks and a soft shoulder: the bright, milky SotC air.
       c = c * 0.94 + 0.035;
       c = mix(c, c * c * (3.0 - 2.0 * c), 0.35);
+      // Under water: the light thick and green-blue, brightest straight up, nothing far seen.
+      if (under > 0.0) {
+        float lum = dot(c, vec3(0.3, 0.5, 0.2));
+        vec3 murk = mix(vec3(0.02, 0.07, 0.08), vec3(0.16, 0.34, 0.33), smoothstep(0.0, 1.0, vUv.y));
+        c = mix(c, murk + lum * vec3(0.18, 0.32, 0.3), under * 0.88);
+      }
 
       vec2 q = vUv - 0.5;
       q.x *= aspect;

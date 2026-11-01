@@ -49,6 +49,15 @@ export class MireView {
     this.group.add(this.water, this.snags)
   }
 
+  /** The pools laid out near you: where their water stands. */
+  private readonly pools: Array<{ x: number; z: number; r: number; level: number }> = []
+
+  /** The water surface over (x, z) in a marsh pool near you, or NaN. */
+  levelAt(x: number, z: number): number {
+    for (const p of this.pools) if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && this.terrain.heightAt(x, z) < p.level) return p.level
+    return NaN
+  }
+
   /** Lay out the pools' water and the drowned trees round `cam` (when it has moved a cell). */
   update(cam: THREE.Vector3): void {
     const key = `${Math.floor(cam.x / POOL_CELL)},${Math.floor(cam.z / POOL_CELL)}`
@@ -56,6 +65,7 @@ export class MireView {
     this.lastKey = key
     if (this.mire(cam.x, cam.z) < 0.01 && this.mire(cam.x + Math.sign(-cam.x) * NEAR, cam.z) < 0.01) {
       this.water.count = this.snags.count = 0
+      this.pools.length = 0
       return
     }
     const m = new THREE.Matrix4()
@@ -67,6 +77,7 @@ export class MireView {
     const cz0 = Math.floor(cam.z / POOL_CELL)
     let nw = 0
     let ns = 0
+    this.pools.length = 0
     for (let dz = -r; dz <= r; dz++) {
       for (let dx = -r; dx <= r; dx++) {
         const cx = cx0 + dx
@@ -84,6 +95,7 @@ export class MireView {
           // (Wide enough to reach the wobbled shore everywhere: the ground cuts the real edge.)
           m.compose(p.set(pool.x, rim - 0.7, pool.z), q.identity(), s.set(pool.r * 1.6, 1, pool.r * 1.6))
           this.water.setMatrixAt(nw++, m)
+          this.pools.push({ x: pool.x, z: pool.z, r: pool.r * 1.6, level: rim - 0.7 })
         }
         // A drowned tree or two in or by the water.
         for (let k = 0; k < 2 && ns < SNAGS; k++) {

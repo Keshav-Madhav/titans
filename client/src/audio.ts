@@ -11,6 +11,9 @@
 
 const SPEED_OF_SOUND = 343
 
+/** What you are walking on (for your footsteps). */
+export type Surface = 'grass' | 'stone' | 'sand' | 'mud' | 'water'
+
 /** The pad's chords (Hz, low to high): D minor, B♭, F over A, G minor, A sus4 — slow and sad. */
 const CHORDS: number[][] = [
   [73.42, 146.83, 174.61, 220.0],
@@ -771,6 +774,111 @@ export class Sound {
     src.connect(f).connect(g).connect(this.master!)
     src.start(when)
     src.stop(when + len + 0.1)
+  }
+
+  // ── Your own sounds: close, dry, quiet, never the same twice ──────────────
+
+  /** A filtered noise hit (the stuff of footsteps, cloth and stone). */
+  private hit(when: number, vol: number, type: BiquadFilterType, freq: number, q: number, attack: number, len: number): void {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    // (Start somewhere different in the noise each time, and a little off-pitch: no two alike.)
+    src.playbackRate.value = 0.85 + Math.random() * 0.3
+    const f = ctx.createBiquadFilter()
+    f.type = type
+    f.frequency.value = freq * (0.88 + Math.random() * 0.24)
+    f.Q.value = q
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, when)
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), when + attack)
+    g.gain.exponentialRampToValueAtTime(0.0001, when + attack + len)
+    src.connect(f).connect(g).connect(this.master!)
+    src.start(when, Math.random() * 1.5)
+    src.stop(when + attack + len + 0.05)
+  }
+
+  /** A soft low knock under a step or a landing (the body's weight). */
+  private thump(when: number, vol: number, freq: number, len: number): void {
+    const ctx = this.ctx!
+    const o = ctx.createOscillator()
+    o.frequency.setValueAtTime(freq, when)
+    o.frequency.exponentialRampToValueAtTime(freq * 0.55, when + len)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, when)
+    g.gain.exponentialRampToValueAtTime(vol, when + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, when + len)
+    o.connect(g).connect(this.master!)
+    o.start(when)
+    o.stop(when + len + 0.05)
+  }
+
+  /** One of your footsteps on `surface`; `pace` 0 (a careful step) … 1 (a run). */
+  step(surface: Surface, pace: number): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    const v = (0.05 + 0.07 * pace) * (0.8 + Math.random() * 0.4)
+    switch (surface) {
+      case 'grass':
+        this.hit(t, v * 0.9, 'bandpass', 3200, 0.7, 0.008, 0.09 + pace * 0.03)
+        this.hit(t + 0.012, v * 0.4, 'highpass', 6000, 0.5, 0.004, 0.05)
+        this.thump(t, v * 0.5, 110, 0.06)
+        break
+      case 'stone':
+        this.hit(t, v * 1.1, 'bandpass', 2400, 2.2, 0.002, 0.035)
+        this.hit(t + 0.006, v * 0.5, 'highpass', 5200, 0.8, 0.002, 0.03)
+        this.thump(t, v * 0.8, 170, 0.07)
+        break
+      case 'sand':
+        this.hit(t, v * 0.9, 'lowpass', 1700, 0.6, 0.014, 0.13)
+        this.thump(t, v * 0.35, 90, 0.07)
+        break
+      case 'mud':
+        this.hit(t, v * 0.9, 'lowpass', 700, 1.4, 0.01, 0.12)
+        this.hit(t + 0.05, v * 0.35, 'bandpass', 1400, 3, 0.01, 0.07)
+        this.thump(t, v * 0.6, 80, 0.09)
+        break
+      case 'water':
+        this.hit(t, v * 1.1, 'bandpass', 1100, 1.1, 0.01, 0.16)
+        this.hit(t + 0.03, v * 0.6, 'highpass', 3800, 0.7, 0.01, 0.12)
+        break
+    }
+  }
+
+  /** Coming down from a fall or a jump: `hard` 0 … 1. */
+  land(surface: Surface, hard: number): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    const v = 0.08 + 0.22 * hard
+    this.thump(t, v, surface === 'stone' ? 140 : 95, 0.12 + hard * 0.12)
+    this.hit(t, v * 0.8, surface === 'water' ? 'bandpass' : 'lowpass', surface === 'water' ? 900 : surface === 'stone' ? 2600 : 1500, 0.8, 0.006, 0.12 + hard * 0.15)
+    // …and the cloak settling after you.
+    this.hit(t + 0.08, v * 0.25, 'bandpass', 1900, 0.9, 0.04, 0.22)
+  }
+
+  /** Pulling yourself up onto a ledge `rise` metres high: hands on stone, cloth, a scrape of boots. */
+  scramble(rise: number): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    const v = 0.06 + rise * 0.025
+    this.hit(t, v, 'bandpass', 2300, 1.6, 0.004, 0.05)
+    this.hit(t + 0.05, v * 0.7, 'bandpass', 1700, 0.8, 0.06, 0.25 + rise * 0.08)
+    this.hit(t + 0.18 + rise * 0.08, v * 0.8, 'bandpass', 2800, 1.4, 0.01, 0.12)
+    this.thump(t + 0.25 + rise * 0.12, v * 0.6, 130, 0.08)
+  }
+
+  /** The interface: a soft paper/leather sound for opening and closing things, a tick for choosing. */
+  ui(kind: 'open' | 'close' | 'tick' | 'page'): void {
+    if (!this.ctx || !this.on) return
+    const t = this.ctx.currentTime
+    if (kind === 'tick') this.hit(t, 0.035, 'bandpass', 3400, 3, 0.002, 0.03)
+    else if (kind === 'page') {
+      this.hit(t, 0.05, 'bandpass', 2600, 0.6, 0.03, 0.16)
+      this.hit(t + 0.09, 0.03, 'highpass', 5000, 0.6, 0.01, 0.08)
+    } else {
+      this.hit(t, 0.06, 'bandpass', kind === 'open' ? 1500 : 1200, 0.7, 0.02, 0.2)
+      this.thump(t + 0.02, 0.05, kind === 'open' ? 160 : 120, 0.09)
+    }
   }
 
   /** Has the context started (a gesture happened)? */

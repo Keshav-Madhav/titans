@@ -31,9 +31,16 @@ const KL = 0.079
 const CD0 = 0.04
 const ACCEL = 14
 const JUMP = 5.6
+/** Water deeper than this, you swim (metres); you float this far down in it; swimming speeds. */
+const SWIM_DEPTH = 1.3
+const SWIM_SINK = 1.12
+const SWIM = 2.2
+const SWIM_FAST = 3.4
 const GRAVITY = 18
 /** Steeper than this (rise over run, ≈ 50°) you cannot walk up: you slide. */
 export const MAX_SLOPE = 1.2
+/** Steeper than walking, but you can scramble up it pushing on (rise over run); past this it is a cliff: climb it (E). */
+export const SCRAMBLE_SLOPE = 1.85
 const SLIDE = 14
 
 const _up = new THREE.Vector3(0, 1, 0)
@@ -281,6 +288,19 @@ export class Wanderer {
   sliding = false
   /** Standing on rock (set by the world each step): the land's slope under it is no matter. */
   onStone = false
+  /** The water's surface where you stand (main.ts sets it each step; NaN: dry). */
+  waterLevel = NaN
+  /** Clambering up a slope too steep to walk (hands to the ground). */
+  scrambling = false
+  /** In water too deep to stand in. */
+  swimming = false
+  /** How far into a scramble the pose is (0 … 1, eased). */
+  private scrambleLean = 0
+  /** How far forward the body lies in the water (radians, eased). */
+  private swimLean = 0
+  /** Called as each foot comes down (`pace` 0 … 1, a run). */
+  onStep: ((pace: number) => void) | null = null
+  private lastHalf = 0
   /** Seconds left knocked off your feet (a giant stomped nearby). */
   stunned = 0
   private tilt = 0
@@ -483,6 +503,35 @@ export class Wanderer {
       wx /= len
       wz /= len
     }
+    // Deep water: you swim, head above it, slower; no falling, no running.
+    const bed = terrain.heightAt(this.pos.x, this.pos.z)
+    const deep = this.waterLevel - bed
+    if (deep > SWIM_DEPTH && this.pos.y < this.waterLevel - 0.45) {
+      if (!this.swimming) this.vel.y *= 0.25 // (the water takes the fall)
+      this.swimming = true
+      this.gliding = false
+      this.lope = 0
+      const speed = sprint ? SWIM_FAST : SWIM
+      const k = Math.min(1, dt * 2.2)
+      this.vel.x += (wx * speed - this.vel.x) * k
+      this.vel.z += (wz * speed - this.vel.z) * k
+      // Bobbing at the surface (buoyancy, damped).
+      const float = this.waterLevel - SWIM_SINK + Math.sin(this.t * 1.9) * 0.05
+      this.vel.y += ((float - this.pos.y) * 9 - this.vel.y * 4) * dt
+      this.pos.addScaledVector(this.vel, dt)
+      // Out where it shallows: on your feet again.
+      const under = terrain.heightAt(this.pos.x, this.pos.z)
+      if (this.pos.y < under) this.pos.y = under
+      this.grounded = false
+      if (len > 0.1) {
+        let d = Math.atan2(wx, wz) - this.yaw
+        d = Math.atan2(Math.sin(d), Math.cos(d))
+        this.yaw += d * Math.min(1, 5 * dt)
+      }
+      return
+    }
+    if (this.swimming && this.waterLevel - bed <= SWIM_DEPTH) this.grounded = true
+    this.swimming = false
     // The long run builds over ~5 s of a steady sprint on ground that isn't
     // climbing, and falls away when you turn hard, climb, or stop.
     const vlen = Math.hypot(this.vel.x, this.vel.z)
@@ -500,7 +549,21 @@ export class Wanderer {
     const gz = terrain.heightAt(this.pos.x, this.pos.z + 0.5) - terrain.heightAt(this.pos.x, this.pos.z - 0.5)
     const steep = Math.hypot(gx, gz)
     // (Only on the land itself: standing on rock above it — a ledge, the hall's stair — the slope under the rock is no matter.)
-    this.sliding = this.grounded && steep > MAX_SLOPE && !this.onStone && this.pos.y < terrain.heightAt(this.pos.x, this.pos.z) + 0.8
+    const onLand = this.grounded && !this.onStone && this.pos.y < terrain.heightAt(this.pos.x, this.pos.z) + 0.8
+    // Steep but not sheer, and you are pushing up it: you scramble up, slowly, hands to the ground.
+    const upHill = steep > 1e-4 && len > 0 ? (wx * gx + wz * gz) / steep : 0
+    this.scrambling = onLand && steep > MAX_SLOPE && steep < SCRAMBLE_SLOPE && upHill > 0.35
+    if (this.scrambling) {
+      // (A plain cap on speed, not a damping: the same pace at any frame rate.)
+      const cap = (sprint ? 2.3 : 1.6) * (1 - 0.5 * THREE.MathUtils.smoothstep(steep, MAX_SLOPE, SCRAMBLE_SLOPE))
+      const hv = Math.hypot(this.vel.x, this.vel.z)
+      if (hv > cap) {
+        this.vel.x *= cap / hv
+        this.vel.z *= cap / hv
+      }
+      this.lope = 0
+    }
+    this.sliding = onLand && steep > MAX_SLOPE && !this.scrambling
     if (this.sliding) {
       const ux = gx / steep
       const uz = gz / steep
@@ -598,6 +661,11 @@ export class Wanderer {
     d = Math.atan2(Math.sin(d), Math.cos(d))
     this.obj.quaternion.setFromAxisAngle(_up, this.prevYaw + d * alpha)
     if (this.tilt > 0.01) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, -this.tilt))
+    // Swimming: the body lies forward in the water (more as you go), lifted so the head stays up.
+    if (this.swimLean > 0.01) {
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, this.swimLean))
+      this.obj.position.y += Math.sin(this.swimLean) * 0.78
+    }
     // In flight: lean into the bank, nose with the flight path, body near level.
     if (this.gliding) {
       this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bank * 0.9))
@@ -642,6 +710,8 @@ export class Wanderer {
    */
   animate(dt: number, ground: (x: number, z: number) => number, wind: THREE.Vector3, dark: number): void {
     this.t += dt
+    this.scrambleLean += ((this.scrambling ? 1 : 0) - this.scrambleLean) * Math.min(1, dt * 6)
+    this.swimLean += ((this.swimming ? 0.25 + 0.7 * Math.min(1, this.speed / SWIM) : 0) - this.swimLean) * Math.min(1, dt * 4)
     this.wing.visible = this.gliding
     if (this.gliding) this.wing.rotation.x = Math.sin(this.t * 9) * 0.03
     const hs = this.climbing ? 0 : this.speed
@@ -649,6 +719,12 @@ export class Wanderer {
     // (Longer strides, not just faster ones, past a sprint.)
     this.stride += (this.climbing ? this.climbMoving * 2.4 : (hs * 1.35) / (1 + Math.max(0, hs - SPRINT) * 0.06)) * dt
     const s = this.stride
+    // A foot comes down each half stride (on the ground, walking).
+    const half = Math.floor(s / Math.PI)
+    if (half !== this.lastHalf) {
+      this.lastHalf = half
+      if (!this.climbing && this.grounded && !this.gliding && hs > 0.6) this.onStep?.(Math.min(1, hs / SPRINT))
+    }
     const run = Math.max(0, this.gait - 1) / 0.6
     const L = this.legs
     const A = this.arms
@@ -666,6 +742,24 @@ export class Wanderer {
       this.pelvis.position.y = 0.92
       this.chest.rotation.x = 0
       this.head.rotation.x = -0.3
+    } else if (this.swimming) {
+      // Swimming: a slow breaststroke — reach ahead, sweep out and back — legs kicking;
+      // treading water when still (arms sculling at the sides).
+      const go = Math.min(1, this.speed / SWIM)
+      const st = this.t * (1.6 + go * 1.4)
+      const reach = 0.5 + 0.5 * Math.sin(st)
+      for (let i = 0; i < 2; i++) {
+        const side = i ? 1 : -1
+        A[i].shoulder.rotation.set(-0.6 - 2.1 * reach * go - 0.5 * (1 - go), 0, side * (0.25 + (1 - reach) * 0.9 * go + 0.5 * (1 - go) * (0.5 + 0.5 * Math.sin(this.t * 2.4 + i))))
+        A[i].elbow.rotation.x = -0.3 - (1 - reach) * 0.9 * go
+        const kick = Math.sin(st * 2 + i * Math.PI)
+        L[i].hip.rotation.x = 0.15 + kick * 0.3 * go - 0.3 * (1 - go) * Math.sin(this.t * 1.8 + i * 2)
+        L[i].knee.rotation.x = 0.3 + Math.max(0, -kick) * 0.6
+      }
+      this.pelvis.position.y = 0.92
+      this.chest.rotation.x = 0
+      // Head up out of the water, whatever the body is doing.
+      this.head.rotation.x = -0.75 * this.swimLean
     } else if (!this.grounded && !this.sliding) {
       // In the air: knees up, arms out.
       L[0].hip.rotation.x = -0.5
@@ -694,9 +788,18 @@ export class Wanderer {
         A[0].shoulder.rotation.z = -1.0
         A[1].shoulder.rotation.z = 1.0
       }
+      if (this.scrambleLean > 0.02) {
+        // Hands reaching to the slope ahead, one then the other.
+        for (let i = 0; i < 2; i++) {
+          const reach = Math.sin(s + i * Math.PI)
+          A[i].shoulder.rotation.x += (-1.5 - reach * 0.5 - A[i].shoulder.rotation.x) * this.scrambleLean
+          A[i].elbow.rotation.x += (-0.35 - A[i].elbow.rotation.x) * this.scrambleLean
+          L[i].knee.rotation.x += 0.35 * this.scrambleLean
+        }
+      }
       const breathe = Math.sin(this.t * 1.6) * 0.008 * (1 - Math.min(1, g))
       this.pelvis.position.y = 0.92 - Math.abs(Math.sin(s)) * 0.035 * Math.min(1, g) + breathe
-      this.chest.rotation.x = this.sliding ? -0.25 : 0.06 * g + run * 0.18
+      this.chest.rotation.x = this.sliding ? -0.25 : 0.06 * g + run * 0.18 + 0.55 * this.scrambleLean
       this.head.rotation.x = -this.chest.rotation.x * 0.6
     }
 

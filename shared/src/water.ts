@@ -647,6 +647,17 @@ export class LakeSystem {
     return true
   }
 
+  /** The water surface over (x, z) — world metres — or NaN where it is dry. */
+  levelAt(x: number, z: number): number {
+    const ix = Math.floor(x)
+    const iz = Math.floor(z)
+    for (const l of this.lakes) {
+      if (l.level <= l.basin.bottom + 0.02) continue
+      if (inRegion(l.basin, ix, iz) && this.H(ix, iz) < l.level) return l.level
+    }
+    return NaN
+  }
+
   byId(id: number): Lake | undefined {
     return this.lakes.find((l) => l.id === id)
   }

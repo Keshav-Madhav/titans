@@ -34,7 +34,7 @@ import { TerrainView } from './terrain-view'
 import { loadTerrainTextures, LAYER } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input } from './input'
-import { Wanderer } from './wanderer'
+import { MAX_SLOPE, Wanderer } from './wanderer'
 import { setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
@@ -86,7 +86,7 @@ import { PaintField } from './paint'
 import { Vegetation } from './vegetation'
 import { foliageFocus } from './trees'
 import { Grass } from './grass'
-import { Sound } from './audio'
+import { Sound, type Surface } from './audio'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
@@ -995,7 +995,7 @@ awakening.on = (what) => {
     // The sound of it, long after (it is kilometres away).
     setTimeout(() => {
       sound.colossal()
-      rig.shake(0.35)
+      rig.shake(0.3)
     }, 6500)
   } else {
     sound.hush(false)
@@ -1008,12 +1008,20 @@ const AWAKE_LINES = ['Something very far away moved.', 'It turned toward you. Yo
 const herd = new Herd(terrain, WORLD_SEED)
 for (const t of herd.giants) scene.add(t.group)
 // Their footfalls: dust, the ground's shake near them, the sound arriving late.
+/**
+ * How hard a giant's footfall (height H, d metres off) shakes the ground under you, 0…1:
+ * full beside its foot, half at 0.6 H, almost nothing a kilometre from one of the big ones.
+ */
+function tremor(d: number, H: number): number {
+  const k = d / (0.6 * H)
+  return 0.6 / (1 + k * k)
+}
 herd.onFootfall = (x, z, H) => {
   const d = Math.hypot(camera.position.x - x, camera.position.z - z)
   if (d > 2500) return
   effects.impact(x, terrain.heightAt(x, z), z, H)
   sound.footfall(Math.hypot(d, camera.position.y - terrain.heightAt(x, z)), false)
-  rig.shake(Math.max(0, 1 - d / (6 * H)) * 0.012 * H)
+  rig.shake(tremor(d, H))
 }
 const climber = new Climber(() => [
   ...[...titans].map(([id, a]) => ({ id, titan: a.titan })),
@@ -1058,7 +1066,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
     const box = applyMountain(terrain.delta, mountainFor(H, ev.x, ev.z))
     terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
     lakes.onDeform(box)
-    if (!replay) rig.shake(Math.max(0, 1 - Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) / (8 * H)) * 0.01 * H)
+    if (!replay) rig.shake(tremor(Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z), H) * 1.4)
     return
   }
   if (ev.type === 'drag') {
@@ -1098,7 +1106,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   }
   // The ground shakes near the footfall.
   const d = Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z)
-  rig.shake(Math.max(0, 1 - d / (6 * H)) * 0.012 * H * (ev.stomp ? 2.5 : 1))
+  rig.shake(tremor(d, H) * (ev.stomp ? 1.7 : 1))
 }
 
 const settings = loadSettings()
@@ -1265,12 +1273,19 @@ function watchFalls(dt: number): void {
     return
   }
   const p = wanderer.pos
+  if (wanderer.swimming) {
+    // (Water catches you from any height.)
+    if (!Number.isNaN(fallTop) && fallTop - p.y > 2) sound.land('water', Math.min(1, (fallTop - p.y) / 10))
+    fallTop = NaN
+    return
+  }
   if (!wanderer.grounded) {
     // (Under the open cloak you are not falling: you land soft from any height.)
     fallTop = wanderer.gliding || Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
     return
   }
   // Landed.
+  if (!Number.isNaN(fallTop) && fallTop - p.y > 0.9) sound.land(surfaceAt(p), Math.min(1, (fallTop - p.y) / 14))
   if (!Number.isNaN(fallTop) && fallTop - p.y > FATAL_FALL) {
     fallTop = NaN
     blackout = 1.8
@@ -1455,10 +1470,15 @@ function simulate(dt: number): void {
       }
     }
     if (!climber.active && !cliff.active) {
-      wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
-      climber.pushOut(wanderer.pos)
-      onRock()
-      if (wanderer.grounded) cliff.rest(dt)
+      if (mantle.t >= 0) stepMantle(dt)
+      else {
+        wanderer.waterLevel = waterAt(wanderer.pos.x, wanderer.pos.z)
+        wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
+        climber.pushOut(wanderer.pos)
+        onRock()
+        if (wanderer.grounded) cliff.rest(dt)
+        tryMantle(dt)
+      }
     }
   }
 
@@ -1576,6 +1596,117 @@ function letGo(push: number): void {
 }
 
 const body = new THREE.Vector3()
+
+/** The water's surface over (x, z) — a lake or a marsh pool — or NaN where it is dry. */
+function waterAt(x: number, z: number): number {
+  const l = lakes.levelAt(x, z)
+  return Number.isNaN(l) ? mireView.levelAt(x, z) : l
+}
+
+/** What you are standing on (for your footsteps). */
+function surfaceAt(p: THREE.Vector3): Surface {
+  const w = waterAt(p.x, p.z)
+  if (!Number.isNaN(w) && w > p.y + 0.05) return 'water'
+  if (wanderer.onStone || inHall(p.x, p.z, 0.5)) return 'stone'
+  const land = terrain.base.regions.name(p.x, p.z)
+  if (land === 'desert') return 'sand'
+  if (biome.mire(p.x, p.z) > 0.55) return 'mud'
+  const g = Math.hypot(terrain.heightAt(p.x + 0.5, p.z) - terrain.heightAt(p.x - 0.5, p.z), terrain.heightAt(p.x, p.z + 0.5) - terrain.heightAt(p.x, p.z - 0.5))
+  return g > 0.9 ? 'stone' : 'grass'
+}
+wanderer.onStep = (pace) => sound.step(surfaceAt(wanderer.pos), pace)
+
+// Mantling (user, 2026-11-01: "getting stuck in small cliffs which should be
+// climbable"). Push on into a ledge you could pull yourself onto — its top up to
+// chest-and-a-bit above your feet, room to stand on it — and you do: a hand on
+// the edge, up, and over. Taller than that is a real climb (E).
+const MANTLE_MIN = 0.4
+const MANTLE_MAX = 2.5
+const mantle = { t: -1, len: 0, push: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), dir: new THREE.Vector3() }
+
+/** A ledge top ahead of you (facing `yaw`) to pull yourself onto, or null. */
+function ledgeAhead(yaw: number): THREE.Vector3 | null {
+  const p = wanderer.pos
+  const dx = Math.sin(yaw)
+  const dz = Math.cos(yaw)
+  // Is anything in the way at all? (A riser in the land, or rock at your knees.)
+  const ax = p.x + dx * 0.7
+  const az = p.z + dz * 0.7
+  const riser = terrain.heightAt(ax, az) - p.y > 0.35
+  const rock = rocks.sdfAt(p.x + dx * 0.6, p.y + 0.6, p.z + dz * 0.6) < 0.4
+  if (!riser && !rock) return null
+  for (const d of [0.7, 1.0, 1.35, 1.75]) {
+    const x = p.x + dx * d
+    const z = p.z + dz * d
+    const land = terrain.heightAt(x, z)
+    const stone = rocks.floorAt(x, p.y + MANTLE_MAX + 0.3, z, 0.3, MANTLE_MAX + 0.2)
+    const top = Math.max(land, stone ?? -Infinity)
+    const rise = top - p.y
+    if (rise > MANTLE_MAX) return null // a wall: climb it
+    if (rise < MANTLE_MIN) continue
+    // Somewhere to stand: level enough (the land) and room for you above it.
+    if (top === land) {
+      const g = Math.hypot(terrain.heightAt(x + 0.4, z) - terrain.heightAt(x - 0.4, z), terrain.heightAt(x, z + 0.4) - terrain.heightAt(x, z - 0.4)) / 0.8
+      if (g > MAX_SLOPE * 0.85) continue
+    }
+    if (rocks.sdfAt(x, top + 1.0, z) < 0.35 || rocks.sdfAt(x, top + 1.7, z) < 0.35) continue
+    return new THREE.Vector3(x, top, z)
+  }
+  return null
+}
+
+/** Pushed up against rock you could take hold of (for the prompt): a land cliff or a solid. */
+let wallSeen = { at: 0, yes: false }
+function wallToClimb(): boolean {
+  if (mantle.push < 0.3 || !wanderer.grounded) return false
+  const now = performance.now()
+  if (now - wallSeen.at > 250) {
+    chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
+    wallSeen = { at: now, yes: !!(cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain) || rocks.solidAhead(chest, wanderer.yaw)) }
+  }
+  return wallSeen.yes
+}
+
+/** After a step on your feet: pushing into a ledge for a moment, you take it. */
+function tryMantle(dt: number): void {
+  const ax = input.axes()
+  const pushing = (wanderer.grounded || wanderer.swimming) && !wanderer.gliding && Math.hypot(ax.x, ax.y) > 0.5 && bow.draw < 0.05
+  // Pushing but barely moving, or sliding back: blocked.
+  const blocked = pushing && (wanderer.sliding || wanderer.speed < (wanderer.swimming ? 0.8 : 1.2))
+  mantle.push = blocked ? mantle.push + dt : 0
+  if (mantle.push < 0.12) return
+  const to = ledgeAhead(wanderer.yaw)
+  if (!to) return
+  const rise = to.y - wanderer.pos.y
+  mantle.t = 0
+  mantle.len = 0.32 + rise * 0.24
+  mantle.push = 0
+  mantle.from.copy(wanderer.pos)
+  mantle.to.copy(to)
+  mantle.dir.set(to.x - wanderer.pos.x, 0, to.z - wanderer.pos.z).normalize()
+  sound.scramble(rise)
+}
+
+/** Up and over: the body rises first (hands on the edge), then comes forward onto the top. */
+function stepMantle(dt: number): void {
+  mantle.t += dt
+  const k = Math.min(1, mantle.t / mantle.len)
+  const up = THREE.MathUtils.smoothstep(k, 0, 0.62)
+  const over = THREE.MathUtils.smoothstep(k, 0.35, 1)
+  const p = wanderer.pos
+  p.x = mantle.from.x + (mantle.to.x - mantle.from.x) * over
+  p.z = mantle.from.z + (mantle.to.z - mantle.from.z) * over
+  p.y = mantle.from.y + (mantle.to.y + 0.05 - mantle.from.y) * up
+  wanderer.vel.set(0, 0, 0)
+  wanderer.grounded = true
+  wanderer.yaw = Math.atan2(mantle.dir.x, mantle.dir.z)
+  if (k >= 1) {
+    mantle.t = -1
+    onRock()
+    // Carry on walking out of it.
+    wanderer.vel.set(mantle.dir.x * 2.5, 0, mantle.dir.z * 2.5)
+  }
+}
 /** Rock formations: walls push the wanderer out; ledges, arch tops and cave floors hold them up. */
 function onRock(): void {
   const p = wanderer.pos
@@ -1799,6 +1930,8 @@ function frame(now: number): void {
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
+          : free && wallToClimb()
+            ? `<kbd>E</kbd>Climb`
           : watchProgress > 0.08
             ? `Watching… <span class="dots">${'●'.repeat(Math.ceil(watchProgress * 5))}${'○'.repeat(5 - Math.ceil(watchProgress * 5))}</span>`
             : ''
@@ -1917,6 +2050,16 @@ function frame(now: number): void {
     }
     // An awakening takes the camera's gaze (the rig still keeps its place).
     awakening.update(dt, camera)
+    // The camera keeps above water (you swim with your head up; the view should too).
+    const wl = waterAt(camera.position.x, camera.position.z)
+    if (!Number.isNaN(wl) && camera.position.y < wl + 0.3 && wanderer.pos.y + 1.5 > wl) camera.position.y = wl + 0.3
+  }
+  // …and if it is under all the same (sunk, or the water came up over it), the murk.
+  {
+    const wl = waterAt(camera.position.x, camera.position.z)
+    const want = !Number.isNaN(wl) && camera.position.y < wl ? 1 : 0
+    const u = post.grade.uniforms.under
+    u.value += (want - u.value) * Math.min(1, dt * 8)
   }
   // The camera pressed right up to you (a wall behind): see past yourself, not into your hood.
   const tooClose = camera.position.distanceTo(_head.copy(wanderer.obj.position).setY(wanderer.obj.position.y + 1.2)) < 1.6
@@ -2006,6 +2149,10 @@ const g = {
   },
   get opening() {
     return opening
+  },
+  ledgeAhead,
+  get mantling() {
+    return mantle.t >= 0
   },
   THREE,
   shared,

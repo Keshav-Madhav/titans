@@ -18,6 +18,9 @@ export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 5.
 /** Riding a walking giant: pulled back and up, smoothed against its sway, so you see the land go by under it. */
 export const RIDE_CAM: CameraProfile = { minDist: 6, maxDist: 60, dist: 26, focusHeight: 4, follow: 4 }
 
+/** The most a shake moves the camera (metres), at trauma 1. */
+const SHAKE_MAX = 0.5
+
 export class CameraRig {
   yaw = 0
   pitch = 0.22
@@ -30,10 +33,15 @@ export class CameraRig {
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
   private trauma = 0
+  private shakeT = 0
 
-  /** Ground shake from a footfall: amplitude in metres, decays quickly. */
-  shake(amount: number): void {
-    this.trauma = Math.max(this.trauma, amount)
+  /**
+   * Ground shake: `trauma` 0…1 (1 = a stomp beside you). The camera moves by the
+   * square of it (small tremors stay small), smoothly — a rolling tremor, not a
+   * per-frame buzz — and it dies away over about a second.
+   */
+  shake(trauma: number): void {
+    this.trauma = Math.min(1, Math.max(this.trauma, trauma))
   }
 
   setProfile(p: CameraProfile): void {
@@ -132,12 +140,14 @@ export class CameraRig {
     const floor = terrain.heightAt(cam.x, cam.z) + 0.45
     if (cam.y < floor) cam.y = floor
 
-    if (this.trauma > 0.001) {
-      const a = this.trauma
-      cam.x += (Math.random() - 0.5) * a
-      cam.y += (Math.random() - 0.5) * a
-      cam.z += (Math.random() - 0.5) * a
-      this.trauma *= Math.exp(-6 * dt)
+    if (this.trauma > 0.002) {
+      this.shakeT += dt
+      const t = this.shakeT
+      const a = SHAKE_MAX * this.trauma * this.trauma
+      cam.x += a * (Math.sin(t * 21.7) + 0.5 * Math.sin(t * 37.1 + 1.3)) / 1.5
+      cam.y += a * (Math.sin(t * 25.3 + 2.1) + 0.5 * Math.sin(t * 41.9 + 0.4)) / 1.5
+      cam.z += a * (Math.sin(t * 19.1 + 4.2) + 0.5 * Math.sin(t * 33.7 + 2.9)) / 1.5
+      this.trauma = Math.max(0, this.trauma - dt * 1.1)
     }
 
     // Below the horizon line, pitch tilts the gaze up instead of the camera down.

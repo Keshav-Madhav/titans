@@ -222,7 +222,7 @@ export class Dread {
       // Something passes beyond the hills: slow, heavy steps, felt more than heard.
       if (t > 6 && t < 30 && Math.floor((t - dt) / 3.4) !== Math.floor(t / 3.4)) {
         this.hooks.farStep(2600 - (t - 6) * 20)
-        this.hooks.shake(0.05)
+        this.hooks.shake(0.3)
       }
       if (t > 38) {
         this.hooks.witness('stillness')
@@ -297,7 +297,7 @@ export class Dread {
         this.end(w)
       }
     } else if (kind === 'deep') {
-      if (t < 7) this.hooks.shake(0.04 * (1 - t / 7))
+      if (t < 7) this.hooks.shake(0.28 * (1 - t / 7))
       if (t > 9) {
         this.hooks.witness('deep')
         this.end(w)
