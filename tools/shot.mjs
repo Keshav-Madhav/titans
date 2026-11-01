@@ -845,34 +845,49 @@ const scenes = {
       for (const id of ['bag', 'bow']) g.finds.find(id)
     })
     const b = await page.evaluate(() => window.__g.bell.at.toArray())
-    // Stand 160 m off toward the Green, aim at it, loose.
-    await page.evaluate((b) => {
+    // Stand 160 m off toward the Green (in the open: not inside a tree), aim at it, loose —
+    // and again if it missed, as a player would (one shot in a sweep missed under load).
+    const at = await page.evaluate((b) => {
       const g = window.__g
-      g.teleport(b[0] - 140, b[2] + 80)
-      g.input.press('KeyQ')
-    }, b)
-    await page.waitForTimeout(700)
-    await page.evaluate(async (b) => {
-      const g = window.__g
-      const T = new g.THREE.Vector3(b[0], b[1], b[2])
-      const dir = new g.THREE.Vector3()
-      for (let i = 0; i < 40; i++) {
-        await new Promise((r) => requestAnimationFrame(r))
-        g.camera.getWorldDirection(dir)
-        const want = T.clone().sub(g.camera.position).normalize()
-        const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
-        g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
-        g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch - (Math.asin(want.y) - Math.asin(dir.y)) * 0.35))
+      for (let k = 0; k < 40; k++) {
+        const x = b[0] - 140 + (k % 7) * 9 - 27
+        const z = b[2] + 80 + Math.floor(k / 7) * 9 - 18
+        if (!g.vegetation.treeNear(x, z, 10)) return [x, z]
       }
+      return [b[0] - 140, b[2] + 80]
     }, b)
-    await shot('bell-aim')
-    await page.evaluate(() => window.__g.input.press('KeyF'))
-    await page.waitForTimeout(4000)
-    const r = await page.evaluate(() => {
-      const g = window.__g
-      g.input.release('KeyQ')
-      return { rang: g.finds.has('bell'), order: g.hornOrders.get('t1')?.kind ?? 'none' }
-    })
+    let r = { rang: false, order: 'none' }
+    for (let attempt = 0; attempt < 3 && !r.rang; attempt++) {
+      await page.evaluate((at) => {
+        const g = window.__g
+        g.teleport(at[0], at[1])
+        g.input.press('KeyQ')
+      }, at)
+      await page.waitForTimeout(700)
+      await page.evaluate(async (b) => {
+        const g = window.__g
+        const T = new g.THREE.Vector3(b[0], b[1], b[2])
+        const dir = new g.THREE.Vector3()
+        for (let i = 0; i < 40; i++) {
+          await new Promise((r) => requestAnimationFrame(r))
+          g.camera.getWorldDirection(dir)
+          const want = T.clone().sub(g.camera.position).normalize()
+          const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
+          g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
+          g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch - (Math.asin(want.y) - Math.asin(dir.y)) * 0.35))
+        }
+      }, b)
+      if (attempt === 0) await shot('bell-aim')
+      await page.evaluate(() => window.__g.input.press('KeyF'))
+      await page.waitForTimeout(4000)
+      r = await page.evaluate(() => {
+        const g = window.__g
+        g.input.release('KeyQ')
+        g.input.release('KeyF')
+        return { rang: g.finds.has('bell'), order: g.hornOrders.get('t1')?.kind ?? 'none' }
+      })
+      if (!r.rang) console.log('bell: missed, shooting again')
+    }
     await page.evaluate((b) => {
       const g = window.__g
       g.lookFrom([b[0] - 260, g.heightAt(b[0] - 260, b[2] + 160) + 30, b[2] + 160], [b[0], b[1] - 30, b[2]])
