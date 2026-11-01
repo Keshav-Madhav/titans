@@ -64,6 +64,10 @@ try {
     const g = window.__g
     // Freeze the world, so what we measure is what is saved.
     g.clock.scale = 0
+    // (A giant resting a minute of real time turns to stone on the next load — a hill rises
+    // under it and it wakes elsewhere. The wait for them to settle varies, and past a minute
+    // the reload raised a crater 1.2 m: this gate checks the save, so their rest starts now.)
+    for (const a of g.titans.values()) if (a.aloneSince) a.aloneSince = Date.now()
     g.saveLocal()
     const giants = [...g.titans].map(([id, a]) => ({ id, x: a.titan.gait.x, z: a.titan.gait.z }))
     return { falls: g.falls.slice(), depth: g.falls.map((q) => +g.deltaAt(q.x, q.z).toFixed(3)), giants, player: g.player(), saved: g.savedEvents() }

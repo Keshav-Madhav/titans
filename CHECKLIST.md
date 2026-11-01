@@ -410,14 +410,22 @@ Each phase ends playable. Phases are in PLAN.md §6.
       little way, waits — camp to its feet in 128 s, was not caught in 2 min); no cloud-layer panels or fur
       shards on the climb; trees culled in wedges + a faint far tier (forest 8.1M -> 5.9M tris); colossi
       coarse twins from afar (Green 4.9M -> 3.9M tris)
-- [ ] Still to look at: the cape standing still (straight); GPU-side frame spikes on real hardware; the
-      first hour past the first climb
+- [x] The cape at rest: folds (zero-mean, shaped about each row's middle), a flared hem with slack,
+      a slow ambient breeze (hem sways 3–5 cm, folds ±6 cm; it was 7 mm, a flat board)
+- [x] Shadow pass: the Giant Wood's crowns and the Steps' chains were never culled (a forest 5 km
+      off in every shadow map): tiled 400 m and culled; near trees past 70 m cast through a
+      simple stand-in on a shadow-only layer. Green frame 3.92M → 2.74M triangles
+- [x] The crowns from afar: a LOD per tile (2,520 → 720 → 240 triangles). Green 2.74M → 1.93M
+- [x] No white veil under a high sun (the bloom spread the bright sky over everything): it fades
+      with the sun's height; dawn, sunset and night keep it
+- [x] The camp smoke: 340 m, full where it clears the land (from the first camp it must rise ~100 m)
+- [ ] Still to look at: GPU-side frame spikes on real hardware; the first hour past the first climb
 
 ## Known issues
-- [ ] The save gate failed once in three (2026-10-31): after a reload one footfall's crater came
-      back 1.2 m shallower (`differs at {foot:1, x:1324.6, z:775.8}`) and three lakes part-filled;
-      it passed on the next run. Intermittent — find the race (a footfall between the save and the
-      reload? a lake mid-settle?)
+- [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
+      Cause: a giant resting a minute of real time turns to stone on load (a hill rises under it);
+      when the gate's wait for the giants to settle ran past a minute, the reload did exactly that.
+      The game is right; the gate now starts their rest at the save
 
 ## Design drafts
 - [x] `STORY.md` (draft for the user): the mystery (recommended: the sky is coming down), the
