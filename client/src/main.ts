@@ -1977,7 +1977,9 @@ function frame(now: number): void {
   weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
   // (The eye opens as the light goes: the low-sun hours and the night are not just darker days.)
-  post.grade.uniforms.exposure.value = 0.84 + 0.42 * sky.night + 0.34 * sky.glow
+  // (With the dusk too, not only the deep night: between sunset and the moon taking over the key
+  // light, twilight measured ~20% darker than midnight — the darkest moment of the day.)
+  post.grade.uniforms.exposure.value = 0.84 + 0.42 * Math.max(sky.night, sky.dusk * 0.85) + 0.34 * sky.glow
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })

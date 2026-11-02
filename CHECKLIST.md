@@ -443,6 +443,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] Terrain at a cliff's foot: steep quads split along the diagonal whose corners are nearest in
         height (follows the wall; the shared checkerboard cut across it in hard faceted slabs). Only
         chunks with steep quads get their own index; build time unchanged (5.6 ms median)
+  - [x] Twilight was the darkest moment of the day (ground ~20% darker than midnight just after
+        sunset and before dawn: the key light hands over at nothing, and the fill stayed at the
+        night's). The blue hour is lit by the whole sky now (fill and env rise with the dusk) and
+        the eye opens with the dusk too: 0.91 78.7 → 87.4, 0.09 80.4 → 90.0 (midnight 95.7)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

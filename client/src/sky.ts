@@ -199,12 +199,16 @@ export class SkySystem {
     // With the sun low, it lights the ground only at a glancing angle — but the whole sky
     // glows, warm: the land is lit from the sky then, not left in the dark under a bright one.
     const glow = (1 - low) * daylight
-    lb.fill = 0.34 * (0.3 + 0.7 * daylight) + 0.5 * glow
+    // Twilight (the sun gone, the moon not yet the key light): the blue hour, lit by the whole
+    // sky. Without this the ground measured ~20% darker than midnight just after sunset — the
+    // key light hands over at nothing (no jump in its direction), and nothing else filled in.
+    const blue = this.dusk * (1 - this.night)
+    lb.fill = 0.34 * (0.3 + 0.7 * daylight) + 0.5 * glow + 0.6 * blue
     this.glow = glow
     lb.fillSky.set(0xc9c4b6).lerp(SUNSET_FILL, glow * 0.75).lerp(NIGHT_FILL, Math.max(this.dusk * 0.7, this.night))
     /** Haze thins under a high sun (the noon air was milky), thickens as it goes low. */
     lb.haze = 0.62 + 0.38 * (1 - low)
-    lb.env = 0.32 * (0.18 + 0.82 * daylight)
+    lb.env = 0.32 * (0.18 + 0.82 * daylight) + 0.12 * blue
     lb.counter = 0.26 * daylight
     this.counter.intensity = lb.counter
     this.sky.material.uniforms.uNight.value = this.night
