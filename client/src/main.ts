@@ -1999,7 +1999,8 @@ function frame(now: number): void {
       above: camera.position.y - terrain.heightAt(cx, cz),
       wind: weather.now.wind,
       // (Under water, none: the murk is its own air.)
-      rain: Math.max(weather.now.rain, post.grade.uniforms.under.value as number),
+      // (In the Dune Sea a storm's "rain" is sand: that is when the air is fullest of it.)
+      rain: Math.max(weather.now.rain * (1 - biome.desert(cx, cz)), post.grade.uniforms.under.value as number),
       night: sky.night,
       indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
     })

@@ -232,6 +232,7 @@ export class Weather {
         vertexShader: /* glsl */ `
           uniform float uTime, uRain, uWind, uRoof, uSand;
           varying float vA;
+          varying vec2 vUv;
           float h(float n) { return fract(sin(n) * 43758.5453); }
           void main() {
             float id = float(gl_InstanceID);
@@ -245,7 +246,10 @@ export class Weather {
             // Face the camera about the vertical; lean with the wind.
             vec3 toCam = normalize(vec3(cameraPosition.x - base.x, 0.0, cameraPosition.z - base.z));
             vec3 side = vec3(toCam.z, 0.0, -toCam.x);
-            vec3 p = base + side * position.x + mix(vec3(uWind * 0.35, 1.0, 0.0), vec3(1.6, 0.12, 0.2), uSand) * position.y;
+            // (Sand: a short, wide, soft wisp — drawn as rain's thin 2 m streak laid flat, it read
+            // as white wires scratched across the screen.)
+            vec3 p = base + side * position.x * mix(1.0, 5.0, uSand) + mix(vec3(uWind * 0.35, 1.0, 0.0), vec3(0.9, 0.08, 0.12), uSand) * position.y;
+            vUv = uv;
             // (Faded out right at the lens too: a 1.4 m streak passing half a metre from the camera
             // was a long white bar slashed across the whole frame.)
             float dc = distance(base + vec3(0.0, 0.7, 0.0), cameraPosition);
@@ -258,9 +262,12 @@ export class Weather {
         fragmentShader: /* glsl */ `
           uniform float uSand;
           varying float vA;
+          varying vec2 vUv;
           void main() {
             if (vA < 0.01) discard;
-            gl_FragColor = vec4(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), (0.22 + 0.4 * uSand) * vA);
+            // Sand is soft at its edges and its ends; rain stays a crisp streak.
+            float soft = mix(1.0, (1.0 - abs(vUv.x * 2.0 - 1.0)) * sin(vUv.y * 3.14159), uSand);
+            gl_FragColor = vec4(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), (0.22 + 0.4 * uSand) * vA * soft);
           }`,
         transparent: true,
         depthWrite: false,

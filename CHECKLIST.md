@@ -449,6 +449,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         the eye opens with the dusk too: 0.91 78.7 → 87.4, 0.09 80.4 → 90.0 (midnight 95.7)
   - [x] Rain: a streak passing right by the lens was a long white bar slashed across the frame —
         faded out within 2–6 m of the camera
+  - [x] Sandstorm: its grit was rain's thin 2 m streak laid flat (white wires across the screen) —
+        now short, wide, soft wisps; and the air's blown sand no longer switched off in it (a storm's
+        "rain" in the Dune Sea is sand)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)
