@@ -455,6 +455,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] Sandstorm: its grit was rain's thin 2 m streak laid flat (white wires across the screen) —
         now short, wide, soft wisps; and the air's blown sand no longer switched off in it (a storm's
         "rain" in the Dune Sea is sand)
+  - [x] The mantle: a short straight cone (a red lampshade, the shoulder caps poking out under its
+        brim) → a draped capelet, curved over the shoulders, wider across than deep, longer at the
+        back, a soft wave at the hem; checked from four sides and with the arms raised
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

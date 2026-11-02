@@ -108,6 +108,34 @@ function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   return out
 }
 
+/**
+ * The mantle: the hood's skirt, draped over the shoulders — a curved fall of cloth, wider across
+ * than front to back, longer, with a soft wave at its hem. (It was a short straight cone, a red
+ * lampshade with the shoulders poking out under its brim.)
+ */
+function mantleGeometry(): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = []
+  const N = 7
+  for (let i = 0; i <= N; i++) {
+    const t = i / N
+    // Close at the neck, rounding out over the shoulders, then falling nearly straight.
+    pts.push(new THREE.Vector2(0.11 + 0.215 * Math.pow(Math.sin((t * Math.PI) / 2), 0.6), 0.04 - 0.3 * t))
+  }
+  const g = new THREE.LatheGeometry(pts, 24)
+  const pos = g.getAttribute('position') as THREE.BufferAttribute
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i)
+    const y = pos.getY(i)
+    const z = pos.getZ(i)
+    const a = Math.atan2(z, x)
+    const low = THREE.MathUtils.smoothstep(-y, 0.12, 0.26)
+    // A soft wave at the hem, and a little longer at the back.
+    pos.setY(i, y - low * (0.018 * Math.sin(a * 6) + 0.035 * Math.max(0, -Math.sin(a))))
+  }
+  g.computeVertexNormals()
+  return g.translate(0, 0.005, -0.01).scale(1.2, 1, 0.84)
+}
+
 /** The hood: the shell, drawn back to a soft point behind the head. */
 function hoodGeometry(): THREE.BufferGeometry {
   const g = hoodShell(0.165, 0.72)
@@ -675,7 +703,7 @@ export class Wanderer {
     const hood = new THREE.Mesh(hoodGeometry().translate(0, 0.095, -0.015), red)
     hood.castShadow = true
     // A mantle round the shoulders: the hood's skirt.
-    const mantle = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.27, 0.2, 16, 1, true).translate(0, -0.06, -0.01).scale(1, 1, 0.85), red)
+    const mantle = new THREE.Mesh(mantleGeometry(), red)
     mantle.castShadow = true
     this.head.add(face, hood, mantle)
     this.chest.add(this.head)
