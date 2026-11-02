@@ -1077,8 +1077,11 @@ let ancient = false
 /** Every footfall so far (tools read it to measure prints and canals). */
 const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
 
-/** Apply one terrain event. `replay` = catching up on load: no dust, no shake. */
-function onGait(ev: GaitEvent | MountainRise, replay = false): void {
+/**
+ * Apply one terrain event. `replay` = catching up on load: no dust, no shake.
+ * `from` is the giant whose step it is (its footfalls jolt whoever holds on to it).
+ */
+function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): void {
   replaying = replay
   const H = TITAN_HEIGHT
   if (ev.type === 'mountain') {
@@ -1108,8 +1111,11 @@ function onGait(ev: GaitEvent | MountainRise, replay = false): void {
   if (!ancient && !mound.open && Math.hypot(ev.x - MOUND.x, ev.z - MOUND.z) < 34) uncover()
   // Birds burst up round the foot when it lands within sight on green ground.
   if (Math.hypot(camera.position.x - ev.x, camera.position.z - ev.z) < 900 && biome.desert(ev.x, ev.z) < 0.5 && Math.random() < 0.6) ambience.flushAt(ev.x, ev.z, 40)
-  // Every footfall jolts whoever is hanging on; a stomp nearly shakes them off.
-  if (climber.active) climber.stamina = Math.max(0, climber.stamina - (ev.stomp ? 0.35 : 0.03))
+  // Every footfall jolts whoever is hanging on to that giant; a stomp nearly
+  // shakes them off. (Only that giant's: another's stomp two kilometres off
+  // used to take a third of your grip.)
+  // (A stomp already swinging when you took hold, on your first climb: a step.)
+  if (climber.active && from !== undefined && climber.target?.id === from) climber.stamina = Math.max(0, climber.stamina - (ev.stomp && firstClimbDone ? 0.35 : 0.03))
   const gy = terrain.heightAt(ev.x, ev.z)
   if (ev.stomp) {
     effects.shockwave(ev.x, gy, ev.z, H)
@@ -1564,7 +1570,13 @@ function simulate(dt: number): void {
       })
       inp = o
       t.gait.plough = o.plough
-      if (o.stomp) t.gait.stompArmed = true
+      // Your first climb (until you let go, having been high on it): the giant you hold
+      // lets you — no stomps, and an amble, not its full stride. A newcomer on
+      // its shin was shaken off within seconds when it set off.
+      const firstClimb = climber.active && climber.target?.id === id && !firstClimbDone
+      if (firstClimb) inp = { ...o, forward: o.forward * 0.4 }
+      if (firstClimb) t.gait.stompArmed = false
+      else if (o.stomp) t.gait.stompArmed = true
       if (o.call) sound.call(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z))
     }
     // A horn's call overrides its own wandering for a while.
@@ -1576,7 +1588,7 @@ function simulate(dt: number): void {
       // a reloaded world is the same to the last digit.
       const packed = packEvent(ev as unknown as { type: string } & Record<string, unknown>)
       const exact = packed ? (unpackEvent(packed) as GaitEvent) : ev
-      onGait(exact)
+      onGait(exact, false, id)
       record(exact)
     }
     // Resting long enough, a giant falls asleep.
@@ -1652,8 +1664,12 @@ function heldAwake(): Titan | undefined {
   return id ? giantFor(id) : undefined
 }
 
+/** Has this session's first real climb ended (let go after being 150 m up)? Until then giants go gently. */
+let firstClimbDone = false
+
 /** Let go of the giant: fall with its motion plus a push off the rock. */
 function letGo(push: number): void {
+  if (tipState.high >= 150) firstClimbDone = true
   const v = climber.release(push)
   const w = climber.world
   wanderer.place(w.x + climber.normal.x * 0.6, w.y + climber.normal.y * 0.6, w.z + climber.normal.z * 0.6)
@@ -1731,6 +1747,18 @@ function wallToClimb(): boolean {
     wallSeen = { at: now, yes: !!(cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain) || rocks.solidAhead(chest, wanderer.yaw)) }
   }
   return wallSeen.yes
+}
+
+/** Close enough to a giant to take hold (for the prompt; looked at four times a second). */
+let giantSeen = { at: 0, yes: false }
+function giantToHold(): boolean {
+  if (!wanderer.grounded && !wanderer.swimming) return false
+  const now = performance.now()
+  if (now - giantSeen.at > 250) {
+    chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
+    giantSeen = { at: now, yes: climber.inReach(chest) }
+  }
+  return giantSeen.yes
 }
 
 /** After a step on your feet: pushing into a ledge for a moment, you take it. */
@@ -2021,6 +2049,8 @@ function frame(now: number): void {
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
+          : free && giantToHold()
+            ? `<kbd>E</kbd>Take hold`
           : free && wallToClimb()
             ? `<kbd>E</kbd>Climb`
           : watchProgress > 0.08
@@ -2421,8 +2451,9 @@ const g = {
     fallTop = NaN
   },
   /** Walk up to giant 1's left foot from outside and grab it. */
-  grabTitan(): boolean {
-    const titan = first()
+  /** Tools: take hold of a giant's foot (`id`, or the first giant). */
+  grabTitan(id?: string): boolean {
+    const titan = (id && titans.get(id)?.titan) || first()
     titan.group.updateMatrixWorld(true)
     // (Either foot: one may be lifted mid-stride.)
     for (const name of ['footL', 'footR']) {
@@ -2451,7 +2482,8 @@ const g = {
       x: climber.world.x,
       y: climber.world.y,
       z: climber.world.z,
-      height: climber.world.y - terrain.heightAt(first().gait.x, first().gait.z),
+      // (Above the ground under you: whichever giant it is.)
+      height: climber.world.y - terrain.heightAt(climber.world.x, climber.world.z),
     }
   },
   /**

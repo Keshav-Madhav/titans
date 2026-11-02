@@ -422,7 +422,17 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] No white veil under a high sun (the bloom spread the bright sky over everything): it fades
       with the sun's height; dawn, sunset and night keep it
 - [x] The camp smoke: 340 m, full where it clears the land (from the first camp it must rise ~100 m)
-- [ ] Still to look at: GPU-side frame spikes on real hardware; the first hour past the first climb
+- [x] The first hour, played (`tools/firsthour.mjs`: newplayer's route, then the bag, the walking
+      giant climbed, the map, down, the traveller's smoke followed to the second camp, its page):
+  - [x] Every giant's footfall took grip from whoever was climbing — any giant, anywhere: the Walker's
+        stomp 2 km off took a third of your grip on the other one. Now only the giant you hold
+  - [x] No prompt at a giant's foot (the tip says "E to take hold"; cliffs had one): `E Take hold`
+  - [x] The first climb shook newcomers off the shin within seconds of the giant setting off (a stomp
+        queued before you took hold, then its full stride): until you let go after being 150 m up,
+        the giant you hold ambles at 40% and does not stomp. 44 m → 185 m on the same route
+  - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
+- [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
+      on the torso (the scripted climb found nowhere between the thighs and the shoulders)
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

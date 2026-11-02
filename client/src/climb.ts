@@ -94,6 +94,24 @@ export class Climber {
   constructor(private readonly targets: () => ClimbTarget[]) {}
 
   /** Grab the nearest rock, on any Titan, within reach of `chest` (world). */
+  /** Is any giant's rock within reach of `chest` (for the prompt; takes no hold)? */
+  inReach(chest: THREE.Vector3): boolean {
+    for (const target of this.targets()) {
+      const t = target.titan
+      // (Most are far off: skip a giant whose middle is further than it is tall.)
+      if (Math.hypot(t.gait.x - chest.x, t.gait.z - chest.z) > t.H * 1.2) continue
+      for (const part of t.parts) {
+        const inv = _inv.copy(part.mesh.matrixWorld).invert()
+        _q.copy(chest).applyMatrix4(inv)
+        for (const L of part.lumps) {
+          onLump(L, _q, _s)
+          if (_w.copy(_s).applyMatrix4(part.mesh.matrixWorld).distanceTo(chest) < GRAB_REACH) return true
+        }
+      }
+    }
+    return false
+  }
+
   tryGrab(chest: THREE.Vector3): boolean {
     let best = GRAB_REACH
     for (const target of this.targets()) {
