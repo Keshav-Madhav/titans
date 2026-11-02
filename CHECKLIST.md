@@ -434,6 +434,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         it widens with distance (to 2.2×), rises to 460 m and thickens a little far off
   - [x] A long fall stood the cape on your head in a thin red spike (from ~20 m/s): the rising air
         is capped and streams it behind; the cloth trails the body at most 3 cm a frame
+  - [x] At the escarpment's foot, pushing into the wall slid you back down the scree and turned you
+        to face downhill — the wall was looked for that way: no `E Climb`, and E did nothing. Now
+        the way you push (WASD about the camera)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

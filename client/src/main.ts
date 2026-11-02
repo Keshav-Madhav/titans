@@ -1532,10 +1532,10 @@ function simulate(dt: number): void {
       climber.tryGrab(chest)
       // No giant within reach: a rock formation or colossus; else the land, if there is a wall to hand.
       if (!climber.active) {
-        const solid = rocks.solidAhead(chest, wanderer.yaw)
+        const solid = rocks.solidAhead(chest, pushYaw())
         if (solid) cliff.startOn(solid.solid, solid.at)
         else {
-          const wall = cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain)
+          const wall = cliff.wallAhead(wanderer.pos, pushYaw(), terrain)
           if (wall) cliff.start(wall.x, wall.z, terrain)
         }
       }
@@ -1737,6 +1737,19 @@ function ledgeAhead(yaw: number): THREE.Vector3 | null {
   return null
 }
 
+/**
+ * Which way you mean to go: the way you push (WASD about the camera), else the
+ * way you face. Sliding back down the scree at a cliff's foot turns you to face
+ * downhill — looking for the wall that way found none (no prompt, E did nothing).
+ */
+function pushYaw(): number {
+  const ax = input.axes()
+  if (Math.hypot(ax.x, ax.y) < 0.3) return wanderer.yaw
+  const wx = -Math.sin(rig.yaw) * ax.y + Math.cos(rig.yaw) * ax.x
+  const wz = -Math.cos(rig.yaw) * ax.y - Math.sin(rig.yaw) * ax.x
+  return Math.atan2(wx, wz)
+}
+
 /** Pushed up against rock you could take hold of (for the prompt): a land cliff or a solid. */
 let wallSeen = { at: 0, yes: false }
 function wallToClimb(): boolean {
@@ -1744,7 +1757,8 @@ function wallToClimb(): boolean {
   const now = performance.now()
   if (now - wallSeen.at > 250) {
     chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
-    wallSeen = { at: now, yes: !!(cliff.wallAhead(wanderer.pos, wanderer.yaw, terrain) || rocks.solidAhead(chest, wanderer.yaw)) }
+    const yaw = pushYaw()
+    wallSeen = { at: now, yes: !!(cliff.wallAhead(wanderer.pos, yaw, terrain) || rocks.solidAhead(chest, yaw)) }
   }
   return wallSeen.yes
 }
