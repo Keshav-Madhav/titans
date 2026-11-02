@@ -440,6 +440,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] At a cliff's foot the cape climbed the rock and stood over your head (the hem hangs back over
         the wall, and the ground under it lifted it straight up): ground well above your feet is a
         wall — the cloth is pushed back toward you there, not up it (3/3 climb-and-land runs hang)
+  - [x] Terrain at a cliff's foot: steep quads split along the diagonal whose corners are nearest in
+        height (follows the wall; the shared checkerboard cut across it in hard faceted slabs). Only
+        chunks with steep quads get their own index; build time unchanged (5.6 ms median)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

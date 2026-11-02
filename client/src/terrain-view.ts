@@ -284,6 +284,51 @@ export class TerrainView {
     }
   }
 
+  /**
+   * Split each steep quad along the diagonal whose two corners are nearest in
+   * height, so the triangles follow a cliff instead of cutting across it (the
+   * shared checkerboard left rows of jagged, smeared teeth at every cliff's
+   * foot). Chunks with no steep quad keep the shared index.
+   */
+  private fitDiagonals(geo: THREE.BufferGeometry, step: number): void {
+    const { N, ROW, H_ROW, index } = this.grid
+    const H = this.heights
+    const steep = step * 1.2
+    let own: Uint16Array | null = null
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const ha = H[(j + 1) * H_ROW + i + 1]
+        const hb = H[(j + 1) * H_ROW + i + 2]
+        const hc = H[(j + 2) * H_ROW + i + 1]
+        const hd = H[(j + 2) * H_ROW + i + 2]
+        const ad = Math.abs(ha - hd)
+        const bc = Math.abs(hb - hc)
+        if (Math.max(ad, bc) < steep) continue
+        const along = ad <= bc // the a–d diagonal follows it
+        if (along === !!((i + j) & 1)) continue // the shared split already does
+        if (!own) {
+          const prev = geo.getIndex()
+          own = prev && prev !== index && prev.array.length === index.array.length ? (prev.array as Uint16Array) : new Uint16Array(index.array as Uint16Array)
+          if (prev !== index) own.set(index.array as Uint16Array)
+        }
+        const a = j * ROW + i
+        const b = a + 1
+        const c = a + ROW
+        const d = c + 1
+        const k = (j * N + i) * 6
+        if (along) own.set([a, c, d, a, d, b], k)
+        else own.set([a, c, b, b, c, d], k)
+      }
+    }
+    const cur = geo.getIndex()
+    if (!own) {
+      if (cur !== index) geo.setIndex(index)
+      return
+    }
+    if (cur && cur !== index && cur.array === own) cur.needsUpdate = true
+    else geo.setIndex(new THREE.BufferAttribute(own, 1))
+  }
+
   private build(c: Chunk): void {
     const t = this.terrain
     const { N, ROW, GRID_VERTS, VERTS, H_ROW } = this.grid
@@ -316,6 +361,7 @@ export class TerrainView {
       geo.setIndex(this.grid.index)
       if (c.mesh) c.mesh.geometry = geo
     }
+    this.fitDiagonals(geo, step)
     const P = geo.getAttribute('position').array as Float32Array
     const Nn = geo.getAttribute('normal').array as Float32Array
     const C = geo.getAttribute('color').array as Float32Array
