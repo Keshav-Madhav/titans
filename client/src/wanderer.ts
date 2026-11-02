@@ -60,7 +60,6 @@ const RED = 0xa3241c
 const TUNIC = 0x5e4c3a
 const LEATHER = 0x3a2a1c
 const WRAPS = 0x6a604f
-const SKIN = 0x6a4a36
 
 /** A sphere open at the neck, with a round face opening cut toward +Z. */
 function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
@@ -640,7 +639,6 @@ export class Wanderer {
     const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.94, map: fabricTexture('wool') })
     const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.72, map: fabricTexture('leather') })
     const wraps = new THREE.MeshStandardMaterial({ color: WRAPS, roughness: 0.95, map: fabricTexture('wrap') })
-    const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 })
     const dark = new THREE.MeshStandardMaterial({ color: 0x0c0a09, roughness: 1 })
 
     // The wing-cloak: a wide sheet from wrist to wrist, bellied by the air,
@@ -736,9 +734,14 @@ export class Wanderer {
       // A hand, not a ball: a mitten of palm and fingers, and a thumb.
       const hand = new THREE.Group()
       hand.position.y = -0.3
-      hand.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8).scale(0.85, 1.35, 0.6).translate(0, -0.035, 0), skin))
-      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.035, 3, 6), skin)
-      thumb.position.set(-side * 0.035, -0.015, 0.02)
+      // (Gloved, a wrapped cuff at the wrist, and smaller: bare and that size they read as two
+      // big brown eggs at the ends of the sleeves.)
+      const glove = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.75, map: fabricTexture('leather') })
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.046, 0.04, 10).translate(0, 0.005, 0), wraps)
+      hand.add(cuff)
+      hand.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8).scale(0.72, 1.12, 0.5).translate(0, -0.042, 0), glove))
+      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.03, 3, 6), glove)
+      thumb.position.set(-side * 0.03, -0.02, 0.018)
       thumb.rotation.z = side * 0.6
       hand.add(thumb)
       elbow.add(hand)
