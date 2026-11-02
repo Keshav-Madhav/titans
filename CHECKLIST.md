@@ -432,6 +432,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
         the giant you hold ambles at 40% and does not stomp. 44 m → 185 m on the same route
   - [x] The traveller's smoke, which the tip sends you after from 4 km, was a hair from the Green:
         it widens with distance (to 2.2×), rises to 460 m and thickens a little far off
+  - [x] A long fall stood the cape on your head in a thin red spike (from ~20 m/s): the rising air
+        is capped and streams it behind; the cloth trails the body at most 3 cm a frame
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

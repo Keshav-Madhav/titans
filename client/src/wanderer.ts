@@ -313,7 +313,12 @@ class Cloth {
     // The body carries the cloth with it (most of the way): it feels how you move
     // relative to the air, not the whole of a run or a 40 m/s dive at once — which
     // no number of constraint passes could hold, and it smeared out into strips.
-    _v.set(pins[0].x - p[0], pins[0].y - p[1], pins[0].z - p[2]).multiplyScalar(CARRY)
+    // (Fast, it is carried nearer all the way: left 18% behind each frame at 30 m/s of fall it
+    // trailed 9 cm a frame, more than the constraints pull back, and stood up in a spike.
+    // At most 3 cm a frame — walking and running are well under that, unchanged.)
+    _v.set(pins[0].x - p[0], pins[0].y - p[1], pins[0].z - p[2])
+    const moved = _v.length()
+    _v.multiplyScalar(moved > 0 ? 1 - Math.min(1 - CARRY, 0.03 / moved) : CARRY)
     for (let i = cols * 3; i < p.length; i += 3) {
       p[i] += _v.x
       p[i + 1] += _v.y
@@ -1154,6 +1159,15 @@ export class Wanderer {
     this.windV.addScaledVector(this.vel, this.gliding ? -0.6 : -0.42)
     this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
     this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
+    // A long fall: the air rushing up would stand the whole cape on your head,
+    // a thin red spike (from ~20 m/s down). Up only so far; the rest of it
+    // streams the cape out behind you, flying, as a falling cloak does.
+    if (this.windV.y > 4) {
+      const over = this.windV.y - 4
+      this.windV.y = 4 + over * 0.2
+      this.windV.x -= Math.sin(this.yaw) * over * 0.55
+      this.windV.z -= Math.cos(this.yaw) * over * 0.55
+    }
     // Even on a still day the air is never quite still: a slow, wandering breeze, enough
     // to stir the hem when you stand (a cape hanging dead straight reads as a board).
     const airA = this.t * 0.05
