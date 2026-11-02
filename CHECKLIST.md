@@ -447,6 +447,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
         sunset and before dawn: the key light hands over at nothing, and the fill stayed at the
         night's). The blue hour is lit by the whole sky now (fill and env rise with the dusk) and
         the eye opens with the dusk too: 0.91 78.7 → 87.4, 0.09 80.4 → 90.0 (midnight 95.7)
+  - [x] Rain: a streak passing right by the lens was a long white bar slashed across the frame —
+        faded out within 2–6 m of the camera
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

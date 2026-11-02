@@ -246,7 +246,10 @@ export class Weather {
             vec3 toCam = normalize(vec3(cameraPosition.x - base.x, 0.0, cameraPosition.z - base.z));
             vec3 side = vec3(toCam.z, 0.0, -toCam.x);
             vec3 p = base + side * position.x + mix(vec3(uWind * 0.35, 1.0, 0.0), vec3(1.6, 0.12, 0.2), uSand) * position.y;
-            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(25.0, 70.0, distance(base, cameraPosition)));
+            // (Faded out right at the lens too: a 1.4 m streak passing half a metre from the camera
+            // was a long white bar slashed across the whole frame.)
+            float dc = distance(base + vec3(0.0, 0.7, 0.0), cameraPosition);
+            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(25.0, 70.0, dc)) * smoothstep(2.0, 6.0, dc);
             // No rain under the Undercroft's roof.
             vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
             if (hq.x < ${HALL.hx.toFixed(1)} && hq.y < ${HALL.hz.toFixed(1)} && base.y < uRoof - 2.0) vA = 0.0;
