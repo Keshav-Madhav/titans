@@ -18,7 +18,7 @@ export interface CairnPlace {
 
 interface Cairn extends CairnPlace {
   lit: boolean
-  flame: THREE.Mesh
+  flame: THREE.Sprite
   beam: THREE.Mesh
   /** Seconds since it was lit (the beam rises). */
   since: number
@@ -52,7 +52,8 @@ export class Cairns {
 
   constructor(places: CairnPlace[]) {
     const stone = new THREE.MeshStandardMaterial({ color: 0x8c8678, roughness: 0.95 })
-    const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.05, 0.32), toneMapped: true, fog: false })
+    // The flame: a soft teardrop of light facing you, glowing (it was a solid cone, white).
+    const flameMat = new THREE.SpriteMaterial({ map: flameTexture(), color: new THREE.Color(2.2, 1.25, 0.6), blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
     this.beamMat = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 } },
       vertexShader: /* glsl */ `
@@ -97,8 +98,9 @@ export class Cairns {
       stack.position.set(p.x, p.y - 0.05, p.z)
       stack.castShadow = true
       stack.receiveShadow = true
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.9, 8).translate(0, 0.45, 0), flameMat)
-      flame.position.set(p.x, p.y + geo.userData.top, p.z)
+      const flame = new THREE.Sprite(flameMat)
+      flame.center.set(0.5, 0.08)
+      flame.position.set(p.x, p.y + geo.userData.top - 0.05, p.z)
       flame.visible = false
       const beam = new THREE.Mesh(beamGeo, this.beamMat)
       beam.position.copy(flame.position)
@@ -133,7 +135,7 @@ export class Cairns {
       const k = Math.min(1, c.since / 4)
       c.beam.scale.set(1, Math.max(0.001, k * k * (3 - 2 * k)), 1)
       const f = 0.85 + 0.15 * Math.sin(this.t * 13 + c.x) * Math.sin(this.t * 7.7 + c.z)
-      c.flame.scale.set(f, 0.8 + 0.4 * f, f)
+      c.flame.scale.set(0.75 * f, 1.2 * (0.8 + 0.4 * f), 1)
     }
   }
 
@@ -151,4 +153,35 @@ export class Cairns {
   get litCount(): number {
     return this.cairns.filter((c) => c.lit).length
   }
+}
+
+/** A flame: white-gold at the root, orange toward the edge, a teardrop that thins to a tip. */
+function flameTexture(): THREE.CanvasTexture {
+  const W = 64
+  const H = 128
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')!
+  const img = g.createImageData(W, H)
+  for (let y = 0; y < H; y++) {
+    // v: 0 at the root (bottom) … 1 at the tip.
+    const v = 1 - y / (H - 1)
+    const half = 0.42 * Math.pow(Math.sin(Math.PI * Math.min(1, v * 1.15 + 0.08)), 0.8) * (1 - 0.55 * v)
+    for (let x = 0; x < W; x++) {
+      const u = Math.abs(x / (W - 1) - 0.5)
+      const edge = half > 0 ? Math.max(0, 1 - u / half) : 0
+      const a = Math.pow(edge, 1.4) * (1 - Math.pow(v, 3))
+      const core = Math.pow(edge, 3) * (1 - v)
+      const k = (y * W + x) * 4
+      img.data[k] = 255
+      img.data[k + 1] = Math.round(255 * (0.55 + 0.45 * core))
+      img.data[k + 2] = Math.round(255 * (0.25 + 0.6 * core))
+      img.data[k + 3] = Math.round(255 * Math.min(1, a))
+    }
+  }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
 }
