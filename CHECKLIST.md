@@ -437,6 +437,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] At the escarpment's foot, pushing into the wall slid you back down the scree and turned you
         to face downhill — the wall was looked for that way: no `E Climb`, and E did nothing. Now
         the way you push (WASD about the camera)
+  - [x] At a cliff's foot the cape climbed the rock and stood over your head (the hem hangs back over
+        the wall, and the ground under it lifted it straight up): ground well above your feet is a
+        wall — the cloth is pushed back toward you there, not up it (3/3 climb-and-land runs hang)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

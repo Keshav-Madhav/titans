@@ -416,7 +416,18 @@ class Cloth {
           // Looked up inside every collision, it was ~6,500 terrain samples a frame — most
           // of the game's main-thread time.)
           const k = i * 3 + 1
-          if (p[k] < this.floor[i]) p[k] = this.floor[i]
+          if (p[k] < this.floor[i]) {
+            // Ground well above your feet under it is a wall (you stand at a cliff's foot, the
+            // cape hanging back over it): lifted onto it, the hem climbed the rock and stood up
+            // over your head. Against a wall it is pushed back toward you instead, and hangs.
+            if (this.floor[i] > a.y - 0.25) {
+              const dx = a.x - p[k - 1]
+              const dz = a.z - p[k + 1]
+              const d = Math.hypot(dx, dz) || 1
+              p[k - 1] += (dx / d) * 0.02
+              p[k + 1] += (dz / d) * 0.02
+            } else p[k] = this.floor[i]
+          }
         }
       }
       // And never further from its pin than the cloth between them reaches (a little
