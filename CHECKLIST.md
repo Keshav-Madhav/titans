@@ -458,6 +458,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The mantle: a short straight cone (a red lampshade, the shoulder caps poking out under its
         brim) → a draped capelet, curved over the shoulders, wider across than deep, longer at the
         back, a soft wave at the hem; checked from four sides and with the arms raised
+  - [x] Under a high sun the lit ground itself bloomed: the Dune Sea's sand far past the bloom's
+        threshold, a milky veil over the whole view and the wanderer a pale peach ghost on it. The
+        threshold rises with the sun (1.25 → 3.45 at noon); low sun and night keep their bloom
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

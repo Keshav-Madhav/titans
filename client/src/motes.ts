@@ -88,7 +88,10 @@ void main() {
     col += uSunCol * spin * 2.2;
     a *= 0.75;
   } else if (k == 3) {
-    a *= 0.075;
+    // A sheet lying low over the sand: seen edge-on it shows, from above you would look down
+    // through the whole layer of them at once (looking down at your feet, the dunes went white).
+    float steep = abs(rel.y) / max(d, 0.1);
+    a *= 0.075 * (1.0 - 0.9 * smoothstep(0.12, 0.45, steep));
   } else {
     a *= k == 1 ? 0.75 : 0.9;
   }

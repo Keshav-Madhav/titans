@@ -292,6 +292,10 @@ export class Post {
     // so under a high sun the bloom fades almost away. A low sun, and the night's lights, keep it.
     const high = THREE.MathUtils.smoothstep(sunDir.y, 0.15, 0.45)
     this.bloom.strength = 0.34 * (1 - 0.85 * high * Math.max(facing, 0.75))
+    // And the lit ground itself: under a high sun the Dune Sea's sand is far past 1.25 — the whole
+    // ground bloomed into a milky veil and the wanderer on it read as a pale ghost. The threshold
+    // rises with the sun (a low sun and the night's lights keep the bloom they had).
+    this.bloom.threshold = 1.25 + 2.2 * high
     const g = this.grade.uniforms
     g.time.value += dt
     g.aspect.value = innerWidth / innerHeight
