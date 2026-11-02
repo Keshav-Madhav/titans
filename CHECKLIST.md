@@ -430,6 +430,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The first climb shook newcomers off the shin within seconds of the giant setting off (a stomp
         queued before you took hold, then its full stride): until you let go after being 150 m up,
         the giant you hold ambles at 40% and does not stomp. 44 m → 185 m on the same route
+  - [x] The traveller's smoke, which the tip sends you after from 4 km, was a hair from the Green:
+        it widens with distance (to 2.2×), rises to 460 m and thickens a little far off
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

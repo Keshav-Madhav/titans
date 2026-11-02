@@ -123,16 +123,21 @@ export class Camp {
     // The smoke: puffs rising and spreading, leaning with the wind, thinning as they go.
     if (this.smoke && this.smokeAlpha && camera) {
       const n = this.smoke.count
+      // From far off (the tip sends you after it from 4 km) a column a few
+      // metres wide is a hair: it widens with distance, up to 2.2×, and thickens
+      // a little, so it reads as the landmark it is. Up close, unchanged.
+      const far = THREE.MathUtils.clamp(camera.position.distanceTo(this.fire) / 1600, 1, 2.2)
+      const thick = Math.min(0.9, 0.6 * (1 + 0.45 * (far - 1)))
       for (let i = 0; i < n; i++) {
         const t = (this.time * 0.03 + i / n) % 1
         // (Tall, and full where it clears the hills: seen from the first camp 3 km off, only its
         // top hundred metres show over the land between — it must hold together up there.)
-        _p.set(this.fire.x + t * t * 90 * (0.4 + wind), this.fire.y + 1 + t * 340, this.fire.z + Math.sin(t * 5 + i) * 4)
-        _s.setScalar(4 + t * 62)
+        _p.set(this.fire.x + t * t * 90 * (0.4 + wind), this.fire.y + 1 + t * 460, this.fire.z + Math.sin(t * 5 + i) * 4)
+        _s.setScalar((4 + t * 62) * far)
         // (Each puff faces you, as a sprite would.)
         _m.compose(_p, camera.quaternion, _s)
         this.smoke.setMatrixAt(i, _m)
-        this.smokeAlpha.setX(i, 0.6 * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t * t))
+        this.smokeAlpha.setX(i, thick * Math.sin(Math.min(1, t * 5) * Math.PI * 0.5) * (1 - t * t * t))
       }
       this.smoke.instanceMatrix.needsUpdate = true
       this.smokeAlpha.needsUpdate = true
