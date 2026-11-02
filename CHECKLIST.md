@@ -104,7 +104,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
       sky, coming slowly out of the haze; they turn to face you over a minute; gone (thinned into
       the fog) before you can reach one. Lesson: a fading transparent mesh must still write depth,
       or the cloud deck and puffs drawn after it — though farther away — paint over it
-- [ ] Vertigo ledges
+- [x] Vertigo ledges: at the lip of a long steep drop (out to 9 m, eight ways, steeper than 1.2:1, no
+      rock underfoot; 10 m faint … 60 m full) or high on a giant's shoulders (60–200 m), the view
+      widens up to ~6° and breathes, a faint sway, the wind rises; eased in over ~2 s. A 140 m lip:
+      0.84 → 1.0 (fov 67°); 40 m back from it: 0. `__g.vertigo` for tools
 
 ## A1c — The wanderer and the grass (user, 2026-10-31: "focus on visuals and feel")
 - [x] The wanderer (`wanderer.ts`): a body (tunic, jointed legs, boots, swinging arms), a deep

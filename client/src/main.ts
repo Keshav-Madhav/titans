@@ -1763,6 +1763,43 @@ function wallToClimb(): boolean {
   return wallSeen.yes
 }
 
+/**
+ * Vertigo (CHECKLIST, dread by height): standing at the lip of a long drop — a mesa's edge, a
+ * cliff top, a giant's shoulders — the view widens a little and breathes, a faint sway, and the
+ * wind rises. 0 … 1, eased (it comes on over a couple of seconds, lets go a little faster).
+ */
+let vertigo = 0
+let vertigoT = 0
+let vertigoSeen = { at: 0, want: 0 }
+function vertigoWant(): number {
+  const now = performance.now()
+  if (now - vertigoSeen.at < 250) return vertigoSeen.want
+  let want = 0
+  if (climber.active && climber.standing) {
+    // On a giant: how high above the land you stand.
+    const h = climber.world.y - terrain.heightAt(climber.world.x, climber.world.z)
+    want = 0.8 * THREE.MathUtils.smoothstep(h, 60, 200)
+  } else if (wanderer.grounded && !climber.active && !cliff.active && !wanderer.swimming) {
+    // On your feet: the deepest drop round you (eight ways, out to 9 m) where the land falls
+    // away steeply — a cliff's lip, not a hillside — and no rock holds you near your height.
+    // (Cliffs here are steep slopes, not sheer: 2 m out the escarpment is only a few metres down.)
+    const p = wanderer.pos
+    let drop = 0
+    for (let k = 0; k < 8; k++) {
+      const cx = Math.cos(k * 0.785)
+      const cz = Math.sin(k * 0.785)
+      if (rocks.floorAt(p.x + cx * 2, p.y + 0.5, p.z + cz * 2, 0.6, 3) !== null) continue
+      for (const d of [2.5, 5, 9]) {
+        const below = p.y - terrain.heightAt(p.x + cx * d, p.z + cz * d)
+        if (below > d * 1.2) drop = Math.max(drop, below)
+      }
+    }
+    want = THREE.MathUtils.smoothstep(drop, 10, 60)
+  }
+  vertigoSeen = { at: now, want }
+  return want
+}
+
 /** Close enough to a giant to take hold (for the prompt; looked at four times a second). */
 let giantSeen = { at: 0, yes: false }
 function giantToHold(): boolean {
@@ -2005,7 +2042,8 @@ function frame(now: number): void {
       indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
     })
   }
-  sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
+  // (At a long drop the wind rises: vertigo is heard as much as seen.)
+  sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo), awe())
   vegetation.update(dt, camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
@@ -2140,11 +2178,16 @@ function frame(now: number): void {
     sky.setShadowRadius(Math.round(shadowR / 20) * 20)
     // The long run widens the view a little: speed you feel at the edges.
     if (!awakening.active) {
-      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov
+      const w = vertigoWant()
+      vertigo += (w - vertigo) * Math.min(1, dt * (w > vertigo ? 0.6 : 1.2))
+      vertigoT += dt
+      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
       }
+      // (The rig sets the camera afresh each frame: a roll added here is only ever this frame's.)
+      if (vertigo > 0.01) camera.rotateZ(Math.sin(vertigoT * 0.7) * Math.sin(vertigoT * 0.29 + 1) * 0.016 * vertigo)
     }
     // The opening: waking (the camera low on the stone, looking up at the light, rising as you
     // stand), the hall, and the reveal when you first step out onto the grass.
@@ -2391,6 +2434,10 @@ const g = {
   watchers,
   mist,
   motes,
+  /** 0 … 1: how strongly a long drop at your feet is felt (tools). */
+  get vertigo() {
+    return vertigo
+  },
   awakening,
   farGiants,
   herd,
