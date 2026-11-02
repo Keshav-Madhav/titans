@@ -771,7 +771,22 @@ export class Wanderer {
     for (const k of ['bow', 'horn', 'sight'] as const) this.props[k].visible = false
 
     // The lantern at the left hip: a small warm light.
-    this.pelvis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.11, 8).translate(-0.19, -0.12, 0.05), leather))
+    // (A little iron lantern hung at the hip: a cap with a ring, the glass, a base. It was a dark
+    // box with a cream ball stuck on its front.)
+    const iron = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.55, metalness: 0.6 })
+    const lanternBody = new THREE.Mesh(
+      mergeGeometries([
+        new THREE.CylinderGeometry(0.018, 0.048, 0.035, 8).translate(0, 0.06, 0).toNonIndexed(),
+        new THREE.TorusGeometry(0.016, 0.004, 4, 10).translate(0, 0.09, 0).toNonIndexed(),
+        new THREE.CylinderGeometry(0.046, 0.04, 0.022, 8).translate(0, -0.054, 0).toNonIndexed(),
+        // Four thin bars round the glass.
+        ...[0, 1, 2, 3].map((k) => new THREE.CylinderGeometry(0.004, 0.004, 0.09, 4).translate(Math.cos(k * 1.571 + 0.785) * 0.04, 0, Math.sin(k * 1.571 + 0.785) * 0.04).toNonIndexed()),
+      ])!,
+      iron,
+    )
+    lanternBody.position.set(-0.2, -0.13, 0.06)
+    lanternBody.castShadow = true
+    this.pelvis.add(lanternBody)
     // The traveller's bag, once it is yours: a strap (a loop laid round the body, then tilted)
     // from the left shoulder across the chest
     // to a satchel on the right hip.
@@ -790,10 +805,10 @@ export class Wanderer {
     this.chest.add(strap)
     this.pelvis.add(satchel)
     this.bagParts = [strap, satchel]
-    this.lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8).translate(-0.19, -0.12, 0.1), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
+    this.lanternGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.085, 10).translate(-0.2, -0.13, 0.06), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
     // (Reaching ~26 m: in the dark you see the ground about you, not just your feet.)
     this.lantern = new THREE.PointLight(0xffb066, 0.6, 26, 1.4)
-    this.lantern.position.set(-0.19, -0.12, 0.12)
+    this.lantern.position.set(-0.2, -0.13, 0.12)
     this.pelvis.add(this.lanternGlow, this.lantern)
 
     // The cape: pinned in an arc across the shoulders and round the back, hanging to the calves.
@@ -1235,7 +1250,9 @@ export class Wanderer {
     this.lanternOn += (Math.max(0, (dark - 0.25) / 0.75) - this.lanternOn) * Math.min(1, dt * 0.8)
     this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
     this.lantern.distance = 10 + this.lanternOn * 18
-    ;(this.lanternGlow.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.77 * flicker, 0.48 * flicker)
+    // The glass: dim amber by day (a lantern hardly lit), bright and warm in the dark.
+    const glow = (0.35 + 0.65 * this.lanternOn) * flicker
+    ;(this.lanternGlow.material as THREE.MeshBasicMaterial).color.setRGB(0.95 * glow + 0.05, 0.62 * glow, 0.3 * glow)
   }
 
   get speed(): number {

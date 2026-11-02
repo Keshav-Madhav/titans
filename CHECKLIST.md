@@ -464,6 +464,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] A lit cairn up close: its 14 m beam's near wall hazed half the view, its bottom rim a hard
         line across the land below. The beam fades within 20–80 m of the camera and softens at its
         foot (still the landmark from afar); the flame a glowing teardrop sprite (was a solid white cone)
+  - [x] The lantern: a dark box with a flat cream ball on its front → a small iron lantern (cap,
+        ring, bars, base) round a glass that glows dim amber by day and warm in the dark
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)
