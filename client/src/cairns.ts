@@ -52,16 +52,18 @@ export class Cairns {
 
   constructor(places: CairnPlace[]) {
     const stone = new THREE.MeshStandardMaterial({ color: 0x8c8678, roughness: 0.95 })
-    const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4.0, 2.2, 0.8), toneMapped: true, fog: false })
+    const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.05, 0.32), toneMapped: true, fog: false })
     this.beamMat = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 } },
       vertexShader: /* glsl */ `
         varying float vY;
         varying vec3 vN;
         varying vec3 vV;
+        varying float vD;
         void main() {
           vY = position.y;
           vec4 w = modelMatrix * vec4(position, 1.0);
+          vD = distance(w.xyz, cameraPosition);
           vN = normalize(mat3(modelMatrix) * normal);
           vV = normalize(cameraPosition - w.xyz);
           gl_Position = projectionMatrix * viewMatrix * w;
@@ -71,12 +73,16 @@ export class Cairns {
         varying float vY;
         varying vec3 vN;
         varying vec3 vV;
+        varying float vD;
         void main() {
           // Soft at its sides, fading as it rises, shimmering a little.
           float core = pow(abs(dot(vN, vV)), 2.0);
           float up = 1.0 - smoothstep(0.0, 900.0, vY);
           float shimmer = 0.85 + 0.15 * sin(vY * 0.05 - uTime * 2.0);
-          float a = core * up * shimmer * 0.7;
+          // A landmark from afar; beside the cairn it is not drawn (its near wall, metres away and
+          // 14 m wide, hazed half the view, its bottom rim a hard line across the land below).
+          float near = smoothstep(20.0, 80.0, vD) * smoothstep(0.0, 30.0, vY);
+          float a = core * up * shimmer * 0.7 * near;
           gl_FragColor = vec4(vec3(1.0, 0.82, 0.55) * a, a);
         }`,
       transparent: true,

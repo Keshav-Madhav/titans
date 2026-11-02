@@ -461,6 +461,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] Under a high sun the lit ground itself bloomed: the Dune Sea's sand far past the bloom's
         threshold, a milky veil over the whole view and the wanderer a pale peach ghost on it. The
         threshold rises with the sun (1.25 → 3.45 at noon); low sun and night keep their bloom
+  - [x] A lit cairn up close: its 14 m beam's near wall hazed half the view, its bottom rim a hard
+        line across the land below. The beam fades within 20–80 m of the camera and softens at its
+        foot (still the landmark from afar); the flame warmer
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)
