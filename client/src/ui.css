@@ -60,6 +60,9 @@ kbd {
 #narration {
   position: fixed; left: 22px; bottom: 58px; width: min(440px, 28vw, calc(100vw - 44px)); min-width: min(300px, calc(100vw - 44px));
   display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  /* (Its own stacking context: the darkening's z-index -1 then sits behind the captions but
+     above the game — without it, it went behind the canvas and never showed.) */
+  z-index: 1;
 }
 #narration::before {
   /* A soft darkening behind the captions (not a box): they read over bright grass and sky. */
