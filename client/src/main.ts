@@ -55,6 +55,7 @@ import { Cairns, type CairnPlace } from './cairns'
 import { Striders } from './striders'
 import { Watchers } from './watchers'
 import { Mist } from './mist'
+import { Motes } from './motes'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -187,6 +188,8 @@ scene.add(striders.group)
 // Mist lying in the hollows and gathered round the colossi's feet.
 const mist = new Mist(terrain, WORLD_SEED, [...colossi.places].filter(([k]) => !k.startsWith('stone')).map(([, v]) => v))
 scene.add(mist.mesh)
+const motes = new Motes()
+scene.add(motes.points)
 // Watchers: gaunt figures on the ridges, seen only under a heavy sky; gone when you come close.
 const watchers = new Watchers(terrain, WORLD_SEED, (x, z) => rocks.occupies(x, z))
 scene.add(watchers.group)
@@ -1942,6 +1945,21 @@ function frame(now: number): void {
   const t = sky.time
   const dawnMist = Math.max(1 - Math.abs(t - 0.17) / 0.08, 1 - Math.abs(t - 0.88) / 0.05, 0) * 0.9
   mist.update(sky.fog.color, sky.sunDir, Math.max(weather.now.dark, dawnMist))
+  {
+    const cx = camera.position.x
+    const cz = camera.position.z
+    motes.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, {
+      desert: biome.desert(cx, cz),
+      forest: biome.forest(cx, cz),
+      open: biome.open(cx, cz),
+      above: camera.position.y - terrain.heightAt(cx, cz),
+      wind: weather.now.wind,
+      // (Under water, none: the murk is its own air.)
+      rain: Math.max(weather.now.rain, post.grade.uniforms.under.value as number),
+      night: sky.night,
+      indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
+    })
+  }
   sound.mood(weather.now.dark, weather.now.rain, weather.now.wind, awe())
   vegetation.update(dt, camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
@@ -2325,6 +2343,7 @@ const g = {
   striders,
   watchers,
   mist,
+  motes,
   awakening,
   farGiants,
   herd,

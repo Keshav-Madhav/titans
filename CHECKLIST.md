@@ -29,8 +29,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] No trees in the Dune Sea; dry scrub there; greener tufts in the meadows
 - [x] Leaf-card trees (`client/src/trees.ts`): crowns of alpha-cut leaf cards with crown normals
       (soft, painterly), firs of drooping needle-branch cards; leaves flutter; one drawn texture
-- [ ] Giant trees in the Old Wood
-- [ ] Air per region (dust in the Dune Sea, mist in the Wood)
+- [x] Giant trees in the Old Wood (`colossi.ts`: 22 trunks of bark and moss, crowns at every limb's
+      end meeting into a roof; the Grove)
+- [x] Air per region (`client/src/motes.ts`, one draw call round the camera): grit and low sheets
+      of blown sand in the Dune Sea, spores hanging in the Old Wood, seed tufts on the Green; lit
+      bright against the sun; eased in as you cross a border; none in rain, none up high
 
 ## A1b — Carved land (user, 2026-10-31: "hills, massive rock walls and cliffs and valleys and
 ## caverns… properly carved terrain like Colossus or ARK")
