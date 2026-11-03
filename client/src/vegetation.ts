@@ -316,13 +316,27 @@ export class Vegetation {
   private sway(mat: THREE.MeshStandardMaterial, amount: number): void {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.time
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vPlantW;').replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vec3 root = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
         float sway = sin(uTime * 1.3 + root.x * 0.07 + root.z * 0.05) * ${amount.toFixed(4)} * max(0.0, transformed.y);
         transformed.x += sway;
-        transformed.z += sway * 0.6;`,
+        transformed.z += sway * 0.6;
+        vPlantW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;`,
+      )
+      // Right at the lens a tuft was a fan of huge yellow blades across the view: dissolved
+      // there (an even 4×4 dither, as the trees' leaves).
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vPlantW;').replace(
+        'void main() {',
+        `void main() {
+        {
+          float near = smoothstep(0.7, 2.2, distance(vPlantW, cameraPosition));
+          ivec2 b = ivec2(gl_FragCoord.xy) % 4;
+          int i = b.x + b.y * 4;
+          float th = float(i == 0 ? 0 : i == 1 ? 8 : i == 2 ? 2 : i == 3 ? 10 : i == 4 ? 12 : i == 5 ? 4 : i == 6 ? 14 : i == 7 ? 6 : i == 8 ? 3 : i == 9 ? 11 : i == 10 ? 1 : i == 11 ? 9 : i == 12 ? 15 : i == 13 ? 7 : i == 14 ? 13 : 5) / 16.0 + 1.0 / 32.0;
+          if (near < th) discard;
+        }`,
       )
     }
   }
