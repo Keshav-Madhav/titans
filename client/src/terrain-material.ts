@@ -319,6 +319,12 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         {
           float gGrass = (gW[0] + gW[1]) / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]);
           gAlb *= mix(vec3(1.0), vec3(0.9, 0.91, 0.78), gGrass * (1.0 - gRockW));
+          // Far grass: where the blades stop (30–70 m) the ground takes on their broken light and
+          // shade, so the field goes on past them instead of turning to smooth felt; it fades out
+          // again where it would only shimmer.
+          float gBlade = texture2D(tDetail, gP.xz * 1.7).r * 0.55 + texture2D(tDetail, gP.xz * 0.53 + 0.2).r * 0.45;
+          float gFarG = smoothstep(30.0, 70.0, gDist) * (1.0 - smoothstep(260.0, 520.0, gDist));
+          gAlb *= mix(1.0, 0.78 + 0.4 * gBlade, gGrass * (1.0 - gRockW) * gFarG);
         }
         // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
         {
