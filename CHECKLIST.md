@@ -488,6 +488,49 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)
 
+## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
+- [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
+      players won't come back down) — a tool goes over your shoulder, bag or no bag
+- [x] The targets look odd from behind, walking up to the bow (small) — each stone eye's 6.5 m glow
+      is a sprite that always faces you, so from behind it hung in the air beside the pillar: it fades
+      unless you are in front. And each eye faced back along the ray that found it (tilted to the
+      wall, some at a pillar's corner, half the disc in the air): now flush with the stone (the
+      surface's normal) and slid in until all of it is on the face
+- [x] Wall/pillar/floor corners aren't darker (no contact shadow; looks odd) — the Undercroft's shape
+      is known, so its stone gets SDF ambient occlusion per pixel (pillars, stepped bases, capitals,
+      pit walls, floor, roof underside): corners darken over ~3 m
+- [x] Camp flags too short, the ground there looks like anywhere else: camps are hard to spot — a
+      7.5 m pole (was 3.6) with a 3 m strip of red cloth from a crosspiece; a tripod and pot over the
+      fire; the ground worn bare round it (trampled earth, the grass kept off)
+- [x] Out of the Undercroft's stairs you see 3 walkers, a flier, 2 colossi…: every giant spoiled at
+      once. Only the flier and the opening colossus should show; the rest hidden by trees, ruins, rock.
+      The stair now comes up in a dell: rises 30–70 m high ~470 m out (farther and taller east, past
+      the hall's roof) close the horizon at 5–15°, all but a gap to the Walker, which the opening
+      shot frames. The Grey One starts 3 km off at the Wood's edge (was 1.1 km, in sight); no
+      Watcher within 2 km (one stood 670 m off); the Ones Beyond (9.5 km tall, 30 km out: no rise
+      hides them) stay in the haze until you are first out over the rim, then come out of it over
+      20 s, and awakenings wait for that. From the stair: the Walker through its gap, the far range
+      — nothing else. First-hour route unchanged (climb 185 m, camp 2, page 2)
+- [x] Cloud/fog layers are flat planes: where one meets a giant or a wall the cut line shows — the
+      solid world is drawn first and its depth kept; the deck's sheets, the cumulus puffs and the
+      mist banks draw after it (soft.ts) and thin out as they near what stands behind them (soft
+      particles). Rain draws last (under the deck it vanished against the sky). (Hard to stage in a
+      headless shot: to be judged in play)
+- [x] The save gate: a giant whose dragged foot was still swinging when the gate froze the world
+      landed it on reload (its print's rim lifted a stomp crater beside it 1.1 m). The gate waits for
+      both feet down; the game was right
+- [x] Some text and actions too subtle, picking things up especially — taking something: you kneel
+      and reach, it flashes and rises into your hand, a rustle and a small bright note; the card
+      has a soft dark pool behind it (white on bright sky vanished), says where it went ("Into your
+      bag · I") and stays 5.6 s; the E prompt is larger, on a soft dark pill
+- [x] Walk and run gaits too slow for the speed (sliding); the wanderer's animation matters most:
+      the wanderer is in almost every frame — cadence now set so the planted foot's backward sweep
+      matches the ground (LEG · swing · dφ/dt = speed): walk 2.0 → 2.7 steps/s, a longer swing,
+      the planted foot's median speed 2.49 → 1.43 m/s (its minimum ~0.3); hips ride up over the
+      planted leg and dip between, turn with the leg going forward, shoulders turn against them,
+      head held level; running, the knee folds high and the heel kicks up, the leg reaching
+      forward stays bent (it read as a goose-step), arms pump bent
+
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
       Cause: a giant resting a minute of real time turns to stone on load (a hill rises under it);

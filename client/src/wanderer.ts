@@ -18,6 +18,9 @@ const SPRINT = 8.5
  * lengthens to this (the lands are kilometres across; SotC had a horse).
  */
 const LONG = 14.5
+/** Hip to sole (m): the length the stride is measured with. */
+const LEG = 0.93
+const ease01 = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
 /**
  * Flight with the wing-cloak (user: "make gliding a physics based thing so
  * players can master it, not just pressing W"). A small glider: lift and drag
@@ -588,6 +591,10 @@ export class Wanderer {
   stunned = 0
   private tilt = 0
   private stride = 0
+  /** Seconds into kneeling to take something (< 0: not). */
+  private takeT = -1
+  /** The hip's swing either way at this pace (rad). */
+  private swingAmp = 0.55
   /** 0 … 1: how far into the long run (see LONG). */
   lope = 0
   /** Has the wing-cloak (main.ts sets it once found). */
@@ -1052,6 +1059,16 @@ export class Wanderer {
     this.obj.quaternion.setFromAxisAngle(_up, this.yaw)
   }
 
+  /** Kneel and reach for something at your feet (≈1.3 s). */
+  reachDown(): void {
+    this.takeT = 0
+  }
+
+  /** Where the right hand is (world). */
+  handWorld(out: THREE.Vector3): THREE.Vector3 {
+    return this.arms[0].elbow.localToWorld(out.set(0, -0.34, 0))
+  }
+
   /**
    * Animate the body and its cloth for this frame: the stride from the speed,
    * arms swinging, breathing; reaching and pulling when climbing; the cape and
@@ -1081,8 +1098,13 @@ export class Wanderer {
     }
     const hs = this.climbing ? 0 : this.speed
     this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
-    // (Longer strides, not just faster ones, past a sprint.)
-    this.stride += (this.climbing ? this.climbMoving * 2.4 : (hs * 1.35) / (1 + Math.max(0, hs - SPRINT) * 0.06)) * dt
+    // The stride keeps the planted foot still on the ground (user: "walking looks like
+    // sliding"): the foot under you sweeps back at LEG · swing · (dφ/dt), and that must be
+    // the ground going by. Past a sprint the stride lengthens rather than quickens.
+    const over = THREE.MathUtils.clamp((hs - SPRINT) / (LONG - SPRINT), 0, 1)
+    const swingAmp = 0.55 + 0.2 * Math.max(0, this.gait - 1) / 0.6 + 0.15 * over
+    this.swingAmp = swingAmp
+    this.stride += (this.climbing ? this.climbMoving * 2.4 : Math.min(15.5, hs / (LEG * swingAmp * Math.max(0.3, Math.min(1, this.gait))))) * dt
     const s = this.stride
     // A foot comes down each half stride (on the ground, walking).
     const half = Math.floor(s / Math.PI)
@@ -1091,6 +1113,10 @@ export class Wanderer {
       if (!this.climbing && this.grounded && !this.gliding && hs > 0.6) this.onStep?.(Math.min(1, hs / SPRINT))
     }
     const run = Math.max(0, this.gait - 1) / 0.6
+    this.pelvis.rotation.y = 0
+    this.pelvis.rotation.z = 0
+    this.chest.rotation.y = 0
+    this.head.rotation.y = 0
     const L = this.legs
     const A = this.arms
     if (this.climbing) {
@@ -1154,14 +1180,34 @@ export class Wanderer {
       // Walking and running: legs swing from the hips, knees bend on the
       // swing; arms counter-swing; the body leans in and bobs.
       const g = this.gait
+      const go = Math.min(1, g)
+      let drop = 0
       for (let i = 0; i < 2; i++) {
         const ph = s + i * Math.PI
-        const swing = Math.sin(ph) * (0.45 + run * 0.35) * Math.min(1, g)
-        L[i].hip.rotation.x = -swing
-        L[i].knee.rotation.x = Math.max(0, Math.cos(ph)) * (0.55 + run * 0.6) * Math.min(1, g) + 0.04
-        A[i].shoulder.rotation.set(swing * (0.8 + run * 0.3), 0, (i ? 1 : -1) * (0.12 + run * 0.08))
-        A[i].elbow.rotation.x = -0.2 - run * 0.9
+        const swing = Math.sin(ph) * this.swingAmp * go
+        // Forward through the air (cos > 0) the knee folds — high and quick at a run, the
+        // heel kicked up behind; planted (cos < 0) it stays nearly straight, softening a
+        // little as the weight comes onto it.
+        const c = Math.cos(ph)
+        const lift = c > 0 ? Math.sin(Math.min(Math.PI, c * Math.PI * 0.9)) : 0
+        const fold = c > 0 ? c * (0.5 + run * 0.5) + lift * (0.25 + run * 0.75) : Math.max(0, -Math.sin(ph)) * 0.12 * (1 + run)
+        L[i].hip.rotation.x = -swing - (c > 0 ? lift * run * 0.25 : 0)
+        // (Running, the leg reaching forward stays bent at the knee — kicked out straight it
+        // read as a goose-step.)
+        L[i].knee.rotation.x = (fold + run * 0.45 * Math.max(0, Math.sin(ph))) * go + 0.04
+        // The leg on the ground (cos < 0) sets how low the hips ride: it is shorter
+        // upright than slanted, so the body rises over it and dips between steps
+        // (otherwise the back foot floats off the ground as it trails).
+        if (c < 0) drop = Math.max(drop, LEG * (1 - Math.cos(swing)) * (1 - run * 0.6))
+        A[i].shoulder.rotation.set(swing * (0.75 + run * 0.35), 0, (i ? 1 : -1) * (0.12 + run * 0.06))
+        // Elbows bend more as the arm comes forward.
+        A[i].elbow.rotation.x = -0.25 - run * 1.05 - Math.max(0, swing) * (0.35 + run * 0.3)
       }
+      // Hips turn with the leg going forward; the shoulders turn against them.
+      this.pelvis.rotation.y = Math.sin(s) * (0.09 + run * 0.05) * go
+      this.chest.rotation.y = -Math.sin(s) * (0.16 + run * 0.08) * go
+      // …and dip a little on the side of the leg swinging through.
+      this.pelvis.rotation.z = Math.cos(s) * 0.035 * go * (1 - run * 0.5)
       if (this.sliding) {
         A[0].shoulder.rotation.z = -1.0
         A[1].shoulder.rotation.z = 1.0
@@ -1176,9 +1222,13 @@ export class Wanderer {
         }
       }
       const breathe = Math.sin(this.t * 1.6) * 0.008 * (1 - Math.min(1, g))
-      this.pelvis.position.y = 0.92 - Math.abs(Math.sin(s)) * 0.035 * Math.min(1, g) + breathe
-      this.chest.rotation.x = this.sliding ? -0.25 : 0.06 * g + run * 0.18 + 0.55 * this.scrambleLean
-      this.head.rotation.x = -this.chest.rotation.x * 0.6
+      // Running, both feet leave the ground mid-stride: a bound up between footfalls.
+      const bound = run * Math.max(0, Math.cos(s * 2)) * 0.045
+      this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe
+      this.chest.rotation.x = this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + 0.55 * this.scrambleLean
+      // The head stays level and looking ahead whatever the body does.
+      this.head.rotation.x = -this.chest.rotation.x * 0.75
+      this.head.rotation.y = -this.chest.rotation.y - this.pelvis.rotation.y
     }
 
     // A tool in hand: its pose over whatever the legs are doing.
@@ -1200,6 +1250,27 @@ export class Wanderer {
       // The stone held up before the eye: upper arm out level, forearm up to the face.
       A[0].shoulder.rotation.set(-1.55, 0, -0.38)
       A[0].elbow.rotation.x = -1.75
+    }
+
+    // Taking something from the ground: down on one knee, the right hand reaching to it,
+    // a moment, then up (it rises into the hand meanwhile: Spots.take).
+    if (this.takeT >= 0) {
+      this.takeT += dt
+      const t = this.takeT
+      const k = t < 0.4 ? ease01(t / 0.4) : t < 0.8 ? 1 : 1 - ease01((t - 0.8) / 0.5)
+      const mix = (a: number, b: number) => a + (b - a) * k
+      this.pelvis.position.y = mix(this.pelvis.position.y, 0.6)
+      L[0].hip.rotation.x = mix(L[0].hip.rotation.x, -1.35)
+      L[0].knee.rotation.x = mix(L[0].knee.rotation.x, 1.55)
+      L[1].hip.rotation.x = mix(L[1].hip.rotation.x, 0.15)
+      L[1].knee.rotation.x = mix(L[1].knee.rotation.x, 1.75)
+      this.chest.rotation.x = mix(this.chest.rotation.x, 0.55)
+      this.head.rotation.x = mix(this.head.rotation.x, 0.25)
+      A[0].shoulder.rotation.set(mix(A[0].shoulder.rotation.x, -0.95), 0, mix(A[0].shoulder.rotation.z, -0.18))
+      A[0].elbow.rotation.x = mix(A[0].elbow.rotation.x, -0.15)
+      A[1].shoulder.rotation.x = mix(A[1].shoulder.rotation.x, -0.2)
+      A[1].elbow.rotation.x = mix(A[1].elbow.rotation.x, -0.6)
+      if (t >= 1.3) this.takeT = -1
     }
 
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).

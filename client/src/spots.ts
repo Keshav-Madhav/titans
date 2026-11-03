@@ -166,19 +166,61 @@ export class Spots {
   }
 
   /** A trinket has gone into the bag: it leaves the world. */
-  take(id: string): void {
+  /**
+   * Taken: gone (on load), or — `hand` given — a flash where it lay, and it rises into
+   * your hand as you reach for it (user: "picking up stuff… too subtle": it just vanished).
+   */
+  take(id: string, hand?: () => THREE.Vector3): void {
     const m = this.marks.get(id)
-    if (m) m.visible = false
     const gl = this.glints.find((g) => g.id === id)
-    if (gl) gl.sprite.visible = false
+    if (!hand || !m) {
+      if (m) m.visible = false
+      if (gl) gl.sprite.visible = false
+      return
+    }
+    m.getWorldPosition(this.tmp)
+    this.taking.push({ m, from: this.tmp.clone(), scale: m.scale.x, hand, t: 0, flash: gl?.sprite ?? null })
+  }
+
+  private readonly tmp = new THREE.Vector3()
+  private readonly taking: Array<{ m: THREE.Object3D; from: THREE.Vector3; scale: number; hand: () => THREE.Vector3; t: number; flash: THREE.Sprite | null }> = []
+
+  private stepTaking(dt: number): void {
+    for (let i = this.taking.length - 1; i >= 0; i--) {
+      const k = this.taking[i]
+      k.t += dt
+      // Held a moment while the hand comes down; then up into it, shrinking away.
+      const u = THREE.MathUtils.smoothstep(k.t, 0.42, 1.05)
+      const to = k.hand()
+      const parentInv = k.m.parent ? k.m.parent.matrixWorld.clone().invert() : null
+      this.tmp.lerpVectors(k.from, to, u)
+      this.tmp.y += Math.sin(u * Math.PI) * 0.18
+      if (parentInv) this.tmp.applyMatrix4(parentInv)
+      k.m.position.copy(this.tmp)
+      k.m.scale.setScalar(k.scale * (1 - 0.75 * u))
+      if (k.flash) {
+        // The glint, right there: a bright star as you touch it, fading.
+        const f = Math.max(0, 1 - Math.abs(k.t - 0.45) / 0.45)
+        k.flash.visible = f > 0
+        k.flash.position.copy(k.m.getWorldPosition(this.tmp))
+        k.flash.material.opacity = f
+        k.flash.scale.set(0.02 + 0.045 * f, 0.02 + 0.045 * f, 1)
+      }
+      if (k.t >= 1.1) {
+        k.m.visible = false
+        if (k.flash) k.flash.visible = false
+        this.taking.splice(i, 1)
+      }
+    }
   }
 
   /** The glints: a slow twinkle, a few hundred metres to a couple of kilometres off. */
   update(dt: number, camera: THREE.Camera): void {
     this.time += dt
+    this.stepTaking(dt)
     for (const n of this.culled) n.wrap.visible = n.at.position.distanceToSquared(camera.position) < n.r * n.r
     for (const g of this.glints) {
-      if (!g.sprite.visible) continue
+      if (!g.sprite.visible || this.taking.some((k) => k.flash === g.sprite)) continue
       const d = g.sprite.position.distanceTo(camera.position)
       // Near, the thing itself is enough; very far, nothing would show.
       const far = THREE.MathUtils.smoothstep(d, 12, 40) * (1 - THREE.MathUtils.smoothstep(d, 1800, 2600))

@@ -495,6 +495,42 @@ export class Sound {
   }
 
   /** A cairn catches: three glass notes rising from the chord, into the hall. */
+  /** Taking something up: cloth and leather as you kneel, then a small bright note as it is in hand. */
+  pickUp(): void {
+    if (!this.ctx || !this.on || !this.noise) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    // The rustle: two soft swishes of band-passed noise (kneeling, reaching).
+    for (const [at, f, amp] of [[0.05, 900, 0.09], [0.38, 1400, 0.06]] as const) {
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = f
+      bp.Q.value = 0.8
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t + at)
+      g.gain.exponentialRampToValueAtTime(amp, t + at + 0.06)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.3)
+      src.connect(bp).connect(g).connect(this.master!)
+      src.start(t + at, Math.random())
+      src.stop(t + at + 0.35)
+    }
+    // In hand: a little glassy tick, high and soft.
+    for (const [mul, amp] of [[1, 0.05], [2.01, 0.02]] as const) {
+      const o = ctx.createOscillator()
+      o.type = 'sine'
+      o.frequency.value = 1568 * mul
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t + 0.6)
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.61)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4)
+      o.connect(g).connect(this.master!)
+      o.start(t + 0.6)
+      o.stop(t + 1.45)
+    }
+  }
+
   chime(): void {
     if (!this.ctx || !this.on) return
     const c = CHORDS[this.chord]

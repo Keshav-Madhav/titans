@@ -1441,7 +1441,8 @@ const scenes = {
             const from = new g.THREE.Vector3(q.x, qy, q.z)
             const dir = e.at.clone().sub(from)
             const len = dir.length()
-            if (g.pick(from, dir.normalize(), len + 2) >= len - 2) {
+            // (Clear up to the eye's own disc: from below, its rim is met ~3 m short of the middle.)
+            if (g.pick(from, dir.normalize(), len + 2) >= len - 3.5) {
               p = q
               y = qy - 1.7
               break

@@ -19,6 +19,7 @@ import {
   TITAN_HEIGHT,
   WORLD_SEED,
   HALL,
+  DELL,
   PIT,
   inHall,
   type Box,
@@ -61,7 +62,8 @@ import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
 import { Bag } from './bag'
-import { Camp, CAMP } from './camp'
+import { Camp, CAMP, CAMP_BARE } from './camp'
+import { softScene } from './soft'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -153,6 +155,11 @@ quality.onApply(quality.level)
 // The weather: a low cloud deck the tall things vanish into, storms, breaks of sun.
 const weather = new Weather(sky, post, scene, WORLD_SEED)
 scene.add(weather.group)
+// (The cloud deck's sheets, the puffs and the mist draw after the world, fading into it: soft.ts.)
+for (const m of weather.deck) softScene.add(m)
+// (Rain too, last: drawn before the deck, the deck painted over every streak against the sky.)
+softScene.add(weather.rain)
+weather.rain.renderOrder = 5
 weather.onLightning = (d) => sound.thunder(d)
 weather.roof = terrain.base.hallTop
 if (params.get('weather')) weather.set(params.get('weather') as Parameters<Weather['set']>[0], true)
@@ -168,7 +175,7 @@ scene.add(effects.group)
 const wildlife = new Wildlife(terrain, lakes)
 scene.add(wildlife.group)
 const clouds = new Clouds()
-scene.add(clouds.mesh)
+softScene.add(clouds.mesh)
 const birds = new Birds(terrain)
 scene.add(birds.mesh)
 // The First Ones' trails come from the seed alone, so they are the same in every session.
@@ -187,7 +194,7 @@ const striders = new Striders(terrain, WORLD_SEED)
 scene.add(striders.group)
 // Mist lying in the hollows and gathered round the colossi's feet.
 const mist = new Mist(terrain, WORLD_SEED, [...colossi.places].filter(([k]) => !k.startsWith('stone')).map(([, v]) => v))
-scene.add(mist.mesh)
+softScene.add(mist.mesh)
 const motes = new Motes()
 scene.add(motes.points)
 // Watchers: gaunt figures on the ridges, seen only under a heavy sky; gone when you come close.
@@ -531,9 +538,42 @@ const spots = (() => {
     const p = new THREE.Vector3()
     for (let t = 0; t < len; t += 0.8) {
       p.copy(from).addScaledVector(dir, t)
-      if (rocks.sdfAt(p.x, p.y, p.z) < 0.5 || H(p.x, p.z) > p.y) return { at: from.clone().addScaledVector(dir, Math.max(0, t - 0.6)), normal: dir.clone().negate() }
+      if (rocks.sdfAt(p.x, p.y, p.z) < 0.5 || H(p.x, p.z) > p.y) return settle(from.clone().addScaledVector(dir, Math.max(0, t - 0.6)), dir.clone().negate())
     }
     return null
+  }
+  // Set flush in the stone and wholly on its face (user: "the targets look weird when
+  // looking from behind": each faced back along the ray that found it, tilted to the wall,
+  // and some sat at a pillar's corner with half the disc hanging out past it).
+  const sdf = (q: THREE.Vector3) => rocks.sdfAt(q.x, q.y, q.z)
+  const settle = (at: THREE.Vector3, fallback: THREE.Vector3) => {
+    const e = 0.6
+    // (In the ground's own cliff, not a rock formation: as found, facing back along the ray.)
+    if (sdf(at) > 2) return { at, normal: fallback }
+    const n = new THREE.Vector3(
+      sdf(at.clone().setX(at.x + e)) - sdf(at.clone().setX(at.x - e)),
+      sdf(at.clone().setY(at.y + e)) - sdf(at.clone().setY(at.y - e)),
+      sdf(at.clone().setZ(at.z + e)) - sdf(at.clone().setZ(at.z - e)),
+    )
+    if (n.lengthSq() < 1e-6) return { at, normal: fallback }
+    n.normalize()
+    const u = new THREE.Vector3().crossVectors(n, Math.abs(n.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize()
+    const v = new THREE.Vector3().crossVectors(n, u)
+    const q = new THREE.Vector3()
+    // Slide inward while any point of the rim (3.2 m round, just behind the face) is in the open.
+    for (let step = 0; step < 16; step++) {
+      const out = new THREE.Vector3()
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2
+        q.copy(at).addScaledVector(u, Math.cos(a) * 3.2).addScaledVector(v, Math.sin(a) * 3.2).addScaledVector(n, -0.6)
+        if (sdf(q) > 0) out.addScaledVector(u, Math.cos(a)).addScaledVector(v, Math.sin(a))
+      }
+      if (out.lengthSq() < 1e-6) break
+      at.addScaledVector(out.normalize(), -0.6)
+      // (Back onto the surface after the slide.)
+      at.addScaledVector(n, -sdf(at) + 0.1)
+    }
+    return { at, normal: n }
   }
   const set = (id: string, rays: Array<[THREE.Vector3, THREE.Vector3]>, reward: THREE.Vector3) => {
     const eyes = rays.map(([a, b]) => meet(a, b)).filter((e): e is { at: THREE.Vector3; normal: THREE.Vector3 } => !!e)
@@ -801,7 +841,8 @@ const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
-const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z))
+const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)
+const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z))
 scene.add(grass.mesh)
 quality.vegetation = vegetation
 quality.refresh()
@@ -823,6 +864,7 @@ const narration = new Narration()
 
 // Discovery: places, the ones who live here, words on stone, relics, trinkets.
 const finds = new Discoveries()
+const handAt = new THREE.Vector3()
 const journal = new Journal(finds)
 const toolbar = new Toolbar(finds)
 // The Mire: its pools' still water and its drowned trees, near you.
@@ -1006,6 +1048,10 @@ for (const a of [0.45, 2.55, 4.4]) {
 }
 // Awakenings: rarely, a colossus beyond the mountains moves, and the camera turns to watch it.
 const awakening = new Awakening(farGiants, sky.sunDir)
+/** The Ones Beyond: 0 hidden … 1 shown (see the frame loop); latched on once out of the dell. */
+let skyline = 0
+let skylineOn = false
+const skylineMats: THREE.Material[] = []
 awakening.on = (what) => {
   if (what === 'begin') {
     input.releaseAll()
@@ -1487,6 +1533,8 @@ function simulate(dt: number): void {
     // (An unlit cairn comes before anything lying beside it: on the tallest pillar both share the top.)
     const spot = cairn ? null : spots.near(wanderer.pos, (id) => finds.has(id))
     if (camp.near(wanderer.pos) && input.pressed('KeyE')) {
+      wanderer.reachDown()
+      sound.pickUp()
       camp.take()
       finds.find('bag')
       tipState.bag = true
@@ -1508,10 +1556,14 @@ function simulate(dt: number): void {
       if (spot.kind !== 'trinket') {
         // Read it (again, if you like).
         if (!finds.find(spot.id)) narration.say(CATALOGUE.find((c) => c.id === spot.id)?.text ?? '')
-      } else if (!bag.have) narration.say('You have nothing to carry it in. Not yet.')
+      } else if (!bag.have && CATALOGUE.find((c) => c.id === spot.id)?.kind !== 'tool') narration.say('You have nothing to carry it in. Not yet.')
       else {
+        // (A tool goes over your shoulder, bag or no bag: the bow lies in the Undercroft you
+        // wake in, and few would come back down for it once out in the light.)
+        wanderer.reachDown()
+        spots.take(spot.id, () => wanderer.handWorld(handAt))
+        sound.pickUp()
         finds.find(spot.id)
-        spots.take(spot.id)
       }
     } else if (cairn && input.pressed('KeyE')) {
       // Light the cairn: the beam rises, the land round it is uncovered.
@@ -1955,6 +2007,29 @@ function frame(now: number): void {
   }
   mountains.update(terrain, camera)
   shedRubble(dt)
+  // The Ones Beyond stay lost in the haze while you are down in the dell you wake in (at
+  // 30 km and 9.5 km tall no rise can hide them; out of the stair you saw everything at
+  // once). The first time you are out over its rim they come out of it, and stay.
+  if (!skylineOn && (Math.hypot(wanderer.pos.x - DELL.x, wanderer.pos.z - DELL.z) > 560 || awakening.active || tipState.high >= 150)) skylineOn = true
+  const sk = Math.min(1, Math.max(0, skyline + (skylineOn ? dt : -dt) / 20))
+  if (sk !== skyline || skylineMats.length === 0) {
+    skyline = sk
+    if (skylineMats.length === 0) {
+      for (const t of farGiants) t.group.traverse((o) => {
+        const m = (o as THREE.Mesh).material
+        if ((o as THREE.Mesh).isMesh && m && !Array.isArray(m) && !skylineMats.includes(m)) skylineMats.push(m)
+      })
+    }
+    for (const m of skylineMats) {
+      const fading = sk < 1
+      if (m.transparent !== fading) {
+        m.transparent = fading
+        m.needsUpdate = true
+      }
+      m.opacity = sk
+    }
+    for (const t of farGiants) t.group.visible = sk > 0
+  }
   for (const t of [...farGiants, ...herd.giants]) {
     t.pose(terrain, dt)
     t.group.updateMatrixWorld(true)
@@ -2051,6 +2126,7 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
+  eyes.update(camera)
   dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)
   {
@@ -2238,7 +2314,7 @@ function frame(now: number): void {
       finds.find('green')
     }
     // An awakening takes the camera's gaze (the rig still keeps its place).
-    awakening.update(dt, camera)
+    if (skylineOn) awakening.update(dt, camera)
     // The camera keeps above water (you swim with your head up; the view should too).
     const wl = waterAt(camera.position.x, camera.position.z)
     if (!Number.isNaN(wl) && camera.position.y < wl + 0.3 && wanderer.pos.y + 1.5 > wl) camera.position.y = wl + 0.3
@@ -2440,6 +2516,10 @@ const g = {
   /** 0 … 1: how strongly a long drop at your feet is felt (tools). */
   get vertigo() {
     return vertigo
+  },
+  /** 0 … 1: how far the Ones Beyond are out of the haze (tools). */
+  get skyline() {
+    return skyline
   },
   awakening,
   farGiants,
