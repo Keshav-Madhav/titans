@@ -17,11 +17,12 @@ export class Prints {
   private readonly q = new THREE.Quaternion()
   private readonly up = new THREE.Vector3(0, 1, 0)
 
-  constructor() {
+  constructor(colour = new THREE.Color(0.24, 0.17, 0.1)) {
     const geo = new THREE.PlaneGeometry(0.18, 0.36).rotateX(-Math.PI / 2)
     this.alpha = new THREE.InstancedBufferAttribute(new Float32Array(N), 1)
     geo.setAttribute('aAlpha', this.alpha)
     const mat = new THREE.ShaderMaterial({
+      uniforms: { uCol: { value: colour } },
       vertexShader: /* glsl */ `
         attribute float aAlpha;
         varying float vA;
@@ -32,6 +33,7 @@ export class Prints {
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: /* glsl */ `
+        uniform vec3 uCol;
         varying float vA;
         varying vec2 vUv;
         void main() {
@@ -41,7 +43,7 @@ export class Prints {
           float press = 0.55 + 0.45 * max(1.0 - smoothstep(0.0, 0.55, length(p - vec2(0.0, -0.55))), 1.0 - smoothstep(0.0, 0.6, length(p - vec2(0.0, 0.45))));
           float a = sole * press * vA;
           if (a < 0.01) discard;
-          gl_FragColor = vec4(0.24, 0.17, 0.1, a);
+          gl_FragColor = vec4(uCol, a);
         }`,
       transparent: true,
       depthWrite: false,
