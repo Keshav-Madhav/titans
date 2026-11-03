@@ -2437,7 +2437,7 @@ function frame(now: number): void {
 
   const look = input.consumeLook()
   // (On a giant or a rock face the camera's focus stands off the surface, out along the hold.)
-  const focus = climber.active || cliff.active ? _focus.copy(wanderer.obj.position).addScaledVector(climber.active ? climber.normal : cliff.normal, 1.2) : wanderer.obj.position
+  const focus = climber.active || cliff.active ? _focus.copy(wanderer.obj.position).addScaledVector(climber.active ? climber.normal : cliff.normal, 2) : wanderer.obj.position
   if (freeCam) {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)

@@ -1102,7 +1102,7 @@ export class Wanderer {
       _cm.makeBasis(_cx, _cy, _cz)
       o.quaternion.setFromRotationMatrix(_cm)
       // (0.45 m off the surface: at 0.3 the chest and knees went into the lumps of a giant.)
-      o.position.copy(point).addScaledVector(normal, 0.45).addScaledVector(_cy, -1.2)
+      o.position.copy(point).addScaledVector(normal, 0.8).addScaledVector(_cy, -1.2)
     }
   }
 

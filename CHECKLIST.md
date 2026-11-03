@@ -604,7 +604,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
       looks at a focus stood off the surface (6.0/1.7 m → a steady 7 m); the body sits 0.45 m off
       the hold (0.3: chest and knees in the lumps); holding still halves the drain, and where the
       surface leans back past ~17° it gives grip back (the key strip says so). Scripted first climb
-      228 m. The camera's own path past bulges (it can still see through a bulge's flank) to do
+      228 m. Then the body 0.8 m off the hold and the camera's focus 2 m out: the climber visible in 22 of 24 frames of a climb, was 19 (counted by the cape's red pixels); a bulge still hides you now and then
 - [~] Running animation still buggy; the cape doesn't move with the shoulders — the cape and scarf are pinned to the chest now (they hung square while the shoulders twisted); the run itself: which part looks wrong? (gaits re-checked side-on and from behind)
 - [x] Raining, no sun, and the water still shows sun glints — its roughness and ripples follow the weather
 - [~] Grass and foliage drawn in chunks, very close to the player — reaches 76 m (was 52), thinning toward the rim and fading into the ground over 30 m (was a 14 m ring); +17% cards, same frame time. Then thinned to 5% at the rim (12k cards, was 20k, no visible loss) and grassland ground toned toward the cards' colour; the edge where the field of blades meets bare ground still shows from a height (mostly a hill crest with the slope beyond out of range): a far grass impostor in the ground shader would be the real fix
