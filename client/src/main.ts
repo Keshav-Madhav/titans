@@ -64,6 +64,7 @@ import { Journal } from './journal'
 import { Bag } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
 import { softScene } from './soft'
+import { Prints } from './prints'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -1758,9 +1759,13 @@ function surfaceAt(p: THREE.Vector3): Surface {
   const g = Math.hypot(terrain.heightAt(p.x + 0.5, p.z) - terrain.heightAt(p.x - 0.5, p.z), terrain.heightAt(p.x, p.z + 0.5) - terrain.heightAt(p.x, p.z - 0.5))
   return g > 0.9 ? 'stone' : 'grass'
 }
+const prints = new Prints()
+scene.add(prints.mesh)
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   sound.step(surf, pace)
+  // In sand (or mud), you leave prints.
+  if (surf === 'sand' || surf === 'mud') prints.step(wanderer.pos.x, terrain.heightAt(wanderer.pos.x, wanderer.pos.z), wanderer.pos.z, wanderer.yaw, surf === 'sand' ? 1 : 0.8)
   // Running on loose ground, each footfall kicks up a little dust behind you.
   const loose = surf === 'sand' ? 1 : surf === 'grass' && biome.desert(wanderer.pos.x, wanderer.pos.z) > 0.2 ? 0.4 : 0
   if (loose > 0 && pace > 0.5) effects.kick(wanderer.pos.x, wanderer.pos.y, wanderer.pos.z, wanderer.vel.x, wanderer.vel.z, loose * pace)
@@ -2160,6 +2165,7 @@ function frame(now: number): void {
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
+  prints.update(dt)
   eyes.update(camera)
   dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)
@@ -2552,6 +2558,7 @@ const g = {
   /** The first-steps progress (tools). */
   tipState,
   effects,
+  prints,
   /** 0 … 1: how strongly a long drop at your feet is felt (tools). */
   get vertigo() {
     return vertigo

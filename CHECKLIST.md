@@ -552,6 +552,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Contact shade outside too: every rock formation, ruin and colossus darkens where it meets the
       ground (per vertex, 0.5 at the grass line rising over a few metres; the ground sampled on a
       24×24 grid over each formation and read back bilinearly — no per-vertex terrain lookups)
+- [x] Feel: your own footprints in sand and mud (left, right, fading over half a minute as the wind
+      fills them); a little dust kicked back running on sand; winded after a long run; a long fall
+      flails; clouds rose at dusk, grey-blue at night; fireflies pinpricks, not balls
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
