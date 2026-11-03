@@ -163,6 +163,18 @@ export class Effects {
   }
 
   /**
+   * A footfall in sand or dry dirt at a run: a little dust kicked back from the heel
+   * (`vx`, `vz` the wanderer's velocity; `k` 0 … 1 how loose the ground is).
+   */
+  kick(x: number, y: number, z: number, vx: number, vz: number, k: number): void {
+    const r = this.rand
+    const n = 2 + Math.round(2 * k)
+    for (let i = 0; i < n; i++) {
+      this.puff(x + (r() - 0.5) * 0.3, y + 0.05, z + (r() - 0.5) * 0.3, -vx * 0.12 + (r() - 0.5) * 0.6, 0.35 + r() * 0.5, -vz * 0.12 + (r() - 0.5) * 0.6, 0.5 + r() * 0.25, 1.4 + r() * 0.8, 0.8 + r() * 0.5, 0.18 + 0.2 * k)
+    }
+  }
+
+  /**
    * A stone shaken loose from a walking giant at (x, y, z), carried along at
    * its pace (vx, vz), trailing a little dust as it falls (the concept: a
    * colossus that crumbles as it moves).

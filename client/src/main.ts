@@ -1758,7 +1758,13 @@ function surfaceAt(p: THREE.Vector3): Surface {
   const g = Math.hypot(terrain.heightAt(p.x + 0.5, p.z) - terrain.heightAt(p.x - 0.5, p.z), terrain.heightAt(p.x, p.z + 0.5) - terrain.heightAt(p.x, p.z - 0.5))
   return g > 0.9 ? 'stone' : 'grass'
 }
-wanderer.onStep = (pace) => sound.step(surfaceAt(wanderer.pos), pace)
+wanderer.onStep = (pace) => {
+  const surf = surfaceAt(wanderer.pos)
+  sound.step(surf, pace)
+  // Running on loose ground, each footfall kicks up a little dust behind you.
+  const loose = surf === 'sand' ? 1 : surf === 'grass' && biome.desert(wanderer.pos.x, wanderer.pos.z) > 0.2 ? 0.4 : 0
+  if (loose > 0 && pace > 0.5) effects.kick(wanderer.pos.x, wanderer.pos.y, wanderer.pos.z, wanderer.vel.x, wanderer.vel.z, loose * pace)
+}
 
 // Mantling (user, 2026-11-01: "getting stuck in small cliffs which should be
 // climbable"). Push on into a ledge you could pull yourself onto — its top up to
@@ -2545,6 +2551,7 @@ const g = {
   motes,
   /** The first-steps progress (tools). */
   tipState,
+  effects,
   /** 0 … 1: how strongly a long drop at your feet is felt (tools). */
   get vertigo() {
     return vertigo
