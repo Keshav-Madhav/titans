@@ -1055,6 +1055,7 @@ let skylineOn = false
 /** You have stood in the dell (since this page loaded, its opening done). */
 let wasInDell = false
 const skylineMats: THREE.Material[] = []
+const skylineBase = new Map<THREE.Material, THREE.Color>()
 awakening.on = (what) => {
   if (what === 'begin') {
     input.releaseAll()
@@ -2059,13 +2060,18 @@ function frame(now: number): void {
         if ((o as THREE.Mesh).isMesh && m && !Array.isArray(m) && !skylineMats.includes(m)) skylineMats.push(m)
       })
     }
-    for (const m of skylineMats) {
-      const fading = sk < 1
-      if (m.transparent !== fading) {
-        m.transparent = fading
-        m.needsUpdate = true
+    // Out of the haze, literally: while it fades in it is lit like the fog (an emissive of the
+    // fog's colour, its own colour scaled away), and its own darkness comes up through it.
+    // (Faded by opacity it was a giant of blue glass; dithered, a speckled ghost.)
+    for (const m of skylineMats as THREE.MeshStandardMaterial[]) {
+      if (!m.color || !m.emissive) continue
+      let base = skylineBase.get(m)
+      if (!base) {
+        base = m.color.clone()
+        skylineBase.set(m, base)
       }
-      m.opacity = sk
+      m.color.copy(base).multiplyScalar(sk)
+      m.emissive.copy(sky.fog.color).multiplyScalar(0.9 * (1 - sk))
     }
     for (const t of farGiants) t.group.visible = sk > 0
   }
