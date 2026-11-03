@@ -85,7 +85,9 @@ export class Reveal {
     const flat = (p: THREE.Vector3) => Math.hypot(p.x - this.shotPos.x, p.z - this.shotPos.z)
     const toYou = Math.atan2(player.y + 0.9 - this.shotPos.y, flat(player))
     const toIt = Math.atan2(target.y - this.shotPos.y, flat(target))
-    const pitch = Math.min(0.3, (toYou + toIt) / 2 + 0.04)
+    // (Halfway put you on the letterbox's edge, cut by the bar, and the drift up sank you
+    // further: keep you ~11° under the middle, so long as it stays in the top of the frame.)
+    const pitch = Math.min(0.3, Math.max(toIt - 0.28, Math.min(toYou + 0.2, (toYou + toIt) / 2 + 0.04)))
     const look = this.shotPos.clone().add(new THREE.Vector3(dir.x * Math.cos(pitch), Math.sin(pitch), dir.z * Math.cos(pitch)))
     this.look.lookAt(this.shotPos, look, new THREE.Vector3(0, 1, 0))
     this.shotQ.setFromRotationMatrix(this.look)
@@ -101,7 +103,7 @@ export class Reveal {
     const t = this.t
     const k = t < RISE ? ease(t / RISE) : t < LENGTH - BACK ? 1 : 1 - ease((t - (LENGTH - BACK)) / BACK)
     // A slow drift sideways and up while it holds: the land turning under the eye.
-    const drift = new THREE.Vector3((t - RISE) * 0.7, (t - RISE) * 0.35, 0)
+    const drift = new THREE.Vector3((t - RISE) * 0.7, (t - RISE) * 0.1, 0)
     this.rigQ.copy(camera.quaternion)
     camera.position.lerp(this.shotPos.clone().add(drift.applyQuaternion(this.shotQ)), k)
     camera.quaternion.copy(this.rigQ).slerp(this.shotQ, k)
