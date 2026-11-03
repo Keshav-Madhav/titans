@@ -149,16 +149,26 @@ export class Striders {
     for (const s of this.striders) {
       // Round the far lands, slowly, the loop bending as it goes.
       const w = s.speed / s.radius
-      s.orbit += w * dt
-      let r = s.radius + Math.sin(s.orbit * 3 + s.phase) * 350 * SPREAD
       // Due south their loop runs out past the beach: they wade out into the sea a long way,
       // and come back (STORY: "striders wading out to sea").
-      let ds = (s.orbit - Math.PI / 2) % (Math.PI * 2)
-      if (ds > Math.PI) ds -= Math.PI * 2
-      if (ds < -Math.PI) ds += Math.PI * 2
-      r += Math.max(0, SHORE.coast + 3800 - r) * Math.exp(-((ds / 0.22) ** 2))
-      const nx = Math.cos(s.orbit) * r
-      const nz = Math.sin(s.orbit) * r
+      const pathAt = (orbit: number): [number, number] => {
+        let r = s.radius + Math.sin(orbit * 3 + s.phase) * 350 * SPREAD
+        let ds = (orbit - Math.PI / 2) % (Math.PI * 2)
+        if (ds > Math.PI) ds -= Math.PI * 2
+        if (ds < -Math.PI) ds += Math.PI * 2
+        r += Math.max(0, SHORE.coast + 3800 - r) * Math.exp(-((ds / 0.22) ** 2))
+        return [Math.cos(orbit) * r, Math.sin(orbit) * r]
+      }
+      // (Never faster than its legs: going out to sea the loop's radius changes far faster than
+      // the orbit turns, and the body ran out ahead of its feet, legs stretched across the sky.)
+      let [nx, nz] = pathAt(s.orbit + w * dt)
+      const moved = Math.hypot(nx - s.x, nz - s.z)
+      const limit = s.speed * dt * 1.05
+      if (moved > limit && moved > 1e-6) {
+        const k = limit / moved
+        s.orbit += w * dt * k
+        ;[nx, nz] = pathAt(s.orbit)
+      } else s.orbit += w * dt
       s.heading = Math.atan2(nx - s.x, nz - s.z)
       s.x = nx
       s.z = nz
