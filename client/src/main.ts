@@ -66,7 +66,7 @@ import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
-import { Bag } from './bag'
+import { Bag, loadIcons } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
 import { soft, softScene, softSwitch } from './soft'
 import { Prints } from './prints'
@@ -137,7 +137,7 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.15, 9
 
 const terrain = new Terrain(WORLD_SEED)
 // The ground's textures load under the loading screen, before anything is built.
-const terrainTex = await loadTerrainTextures(renderer)
+const [terrainTex] = await Promise.all([loadTerrainTextures(renderer), loadIcons()])
 const terrainView = new TerrainView(terrain, WORLD_SEED, terrainTex)
 setGiantSkin(terrainTex)
 scene.add(terrainView.group)

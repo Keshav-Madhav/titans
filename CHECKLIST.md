@@ -592,7 +592,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
       Undercroft's key goes in a pocket before the bag; map names larger; wading rings the water
 
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
-- [ ] The icons still look bad
+- [x] The icons still look bad — painted (tools/gen-icons.py, Gemini, $0.80 for 16): one painting per shape in one storybook style on a keyed-out ground, toned toward each item's colour where one shape serves several things; in the bag, journal, toolbar and offering shrines; the line drawings remain only as a fallback while they load
 - [~] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out —
       the camera's line to you started inside the giant's rough shape and counted as blocked at once
       (pulled to 1.7 m, into your back): it now ignores rock until the line is out in the open, and

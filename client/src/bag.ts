@@ -80,7 +80,57 @@ export class Bag {
  * A small drawing of a thing (64 px): enough to tell a ring from a feather at
  * a glance, in the journal's ink on its paper.
  */
+/** The painted icons (tools/gen-icons.py; user: "the icons still look bad" — line drawings). */
+const PAINTED = ['stone', 'shard', 'ring', 'key', 'horn', 'figure', 'feather', 'coin', 'tooth', 'beads', 'bell', 'bow', 'bag', 'tablet', 'peak', 'giant']
+const painted = new Map<string, HTMLImageElement>()
+/** Load them all once at start (drawn as line art until they are in). */
+export function loadIcons(): Promise<void> {
+  return Promise.all(
+    PAINTED.map(
+      (name) =>
+        new Promise<void>((res) => {
+          const img = new Image()
+          img.onload = () => {
+            painted.set(name, img)
+            res()
+          }
+          img.onerror = () => res()
+          img.src = `${import.meta.env.BASE_URL}icons/${name}.png`
+        }),
+    ),
+  ).then(() => undefined)
+}
+
+/**
+ * An item's icon: the painting, toned toward the item's own colour (one painting serves every
+ * ring, every shard), so a jade ring and an iron one still differ.
+ */
 export function drawIcon(icon: string, tint: string, size = 64): HTMLCanvasElement {
+  const img = painted.get(icon)
+  if (img) {
+    const c = document.createElement('canvas')
+    c.width = c.height = size
+    const g = c.getContext('2d')!
+    g.drawImage(img, 0, 0, size, size)
+    // Tone: the item's colour laid over in 'color' blend, held within the painting's shape.
+    if (TONED.includes(icon)) {
+      g.globalCompositeOperation = 'color'
+      g.globalAlpha = 0.55
+      g.fillStyle = tint
+      g.fillRect(0, 0, size, size)
+      g.globalAlpha = 1
+      g.globalCompositeOperation = 'destination-in'
+      g.drawImage(img, 0, 0, size, size)
+    }
+    return c
+  }
+  return drawLineIcon(icon, tint, size)
+}
+
+/** Shapes several different things share (recoloured per item); the rest are one thing each. */
+const TONED = ['stone', 'shard', 'ring', 'horn', 'figure', 'feather', 'coin']
+
+function drawLineIcon(icon: string, tint: string, size = 64): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = c.height = size
   const g = c.getContext('2d')!
