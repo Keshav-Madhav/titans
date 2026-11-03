@@ -3,7 +3,7 @@
 // canopy from far away) and by the vegetation standing on it up close (so the
 // trees are where the canopy is).
 
-import { makeSimplex2, smoothstep, type Noise2, type RegionWeights, type Regions } from '@titans/shared'
+import { DELL, makeSimplex2, smoothstep, type Noise2, type RegionWeights, type Regions } from '@titans/shared'
 
 export class Biome {
   private readonly a: Noise2
@@ -54,7 +54,28 @@ export class Biome {
   /** Copses: small clumps of trees out on open ground. 0 … 1. */
   copse(x: number, z: number): number {
     const r = this.regions.at(x, z, this.w)
-    return smoothstep(0.5, 0.78, this.c(x * 0.0065 + 11, z * 0.0065 - 7)) * (1 - r.desert) * (1 - 0.8 * r.valley) * (1 - r.mire)
+    const base = smoothstep(0.5, 0.78, this.c(x * 0.0065 + 11, z * 0.0065 - 7)) * (1 - r.desert) * (1 - 0.8 * r.valley) * (1 - r.mire)
+    return Math.max(base, this.rimCopse(x, z) * (1 - r.desert))
+  }
+
+  /**
+   * Copses along the dell's rim round the Undercroft's stair (shared DELL): the rises read
+   * as wooded hills, not a smooth green wall, and the trees on their crests hide a little
+   * more of what lies beyond. Not in the gap toward the Walker.
+   */
+  private rimCopse(x: number, z: number): number {
+    const ex = x - DELL.x
+    const ez = z - DELL.z
+    const r = Math.hypot(ex, ez)
+    if (r < 300 || r > 1000) return 0
+    const east = smoothstep(0.1, 0.75, ex / r)
+    const crest = DELL.crest + 380 * east
+    const band = smoothstep(crest - 170, crest - 40, r) * (1 - smoothstep(crest + 120, crest + 260, r))
+    const gx = DELL.gapX - DELL.x
+    const gz = DELL.gapZ - DELL.z
+    const c = (ex * gx + ez * gz) / (r * Math.hypot(gx, gz))
+    const shut = 1 - smoothstep(Math.cos(0.5), Math.cos(0.3), c)
+    return band * shut * smoothstep(0.42, 0.62, this.c(x * 0.012 - 31, z * 0.012 + 17))
   }
 
   /** Scrub: how thick the low bushes are. 0.2 … 1 (thin in the Dune Sea). */
