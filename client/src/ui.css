@@ -276,3 +276,15 @@ kbd {
 #pause button.quiet:hover { color: var(--ink-brown); text-decoration: underline; }
 #pause-sure { display: none; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; font: 15px var(--serif); color: var(--seal); }
 #pause button.grave { background: var(--seal); color: #fff3e6; border-color: #6e2414; }
+/* A narrow window: less margin, sliders that fit, the long button rows across the full width
+   (the Detail buttons ran past the page's edge, "Mouse speed" broke over two lines). */
+@media (max-width: 520px) {
+  #pause-frame { padding: 26px 22px 22px; }
+  .pause-row { gap: 12px; font-size: 16px; }
+  .pause-row > :first-child { white-space: nowrap; }
+  .pause-row input[type='range'] { width: auto; flex: 1 1 auto; min-width: 0; max-width: 200px; }
+  .pause-row:has(.pause-choice) { flex-wrap: wrap; row-gap: 6px; }
+  .pause-row:has(.pause-choice) .pause-choice { width: 100%; }
+  .pause-choice button { flex: 1 1 0; padding-left: 4px !important; padding-right: 4px !important; }
+  .pause-actions { column-gap: 4px; }
+}
