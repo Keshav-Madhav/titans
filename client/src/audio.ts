@@ -313,6 +313,76 @@ export class Sound {
   }
 
   /** How near the eerie places are (eerie.ts): the Pit's moan, the Hanged's creaks. */
+  /**
+   * The new lands' own sound: `shore` 0 … 1 near the beach (waves breaking: a swell rising, a
+   * crash, the hiss running back down the sand), `high` 0 … 1 up on the plateau (a thin,
+   * wandering whistle of wind over the snow, and a low roar under it).
+   */
+  lands(shore: number, high: number): void {
+    if (!this.ctx || !this.on || !this.noise) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    if (shore > 0.02 && t >= this.nextWave) {
+      this.nextWave = t + 6 + Math.random() * 4
+      this.wave(shore)
+    }
+    if (!this.highWind && high > 0.01) {
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = 1300
+      bp.Q.value = 9
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 220
+      const whistle = ctx.createGain()
+      const roar = ctx.createGain()
+      whistle.gain.value = 0
+      roar.gain.value = 0
+      src.connect(bp).connect(whistle).connect(this.master!)
+      src.connect(lp).connect(roar).connect(this.master!)
+      src.start()
+      this.highWind = { bp, whistle, roar }
+    }
+    if (this.highWind) {
+      const w = this.highWind
+      // The whistle wanders in pitch and comes and goes; the roar under it is steadier.
+      const gust = 0.5 + 0.5 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 1.1)
+      w.bp.frequency.setTargetAtTime(1000 + 700 * gust + 200 * Math.sin(t * 1.7), t, 0.4)
+      w.whistle.gain.setTargetAtTime(high * (0.012 + 0.03 * gust), t, 0.6)
+      w.roar.gain.setTargetAtTime(high * 0.09, t, 1.5)
+    }
+  }
+
+  private nextWave = 0
+  private highWind: { bp: BiquadFilterNode; whistle: GainNode; roar: GainNode } | null = null
+
+  /** One wave on the beach. */
+  private wave(k: number): void {
+    const ctx = this.ctx!
+    const t = ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(260, t)
+    lp.frequency.linearRampToValueAtTime(1600, t + 1.7)
+    lp.frequency.exponentialRampToValueAtTime(500, t + 5.5)
+    const g = ctx.createGain()
+    const a = 0.16 * k
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(a * 0.5, t + 1.3)
+    g.gain.exponentialRampToValueAtTime(a, t + 1.8)
+    g.gain.exponentialRampToValueAtTime(a * 0.35, t + 3.0)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 6.2)
+    src.connect(lp).connect(g).connect(this.master!)
+    g.connect(this.space!)
+    src.start(t, Math.random())
+    src.stop(t + 6.4)
+  }
+
   eerie(pit: number, hanged: number): void {
     this.eerieNear = { pit, hanged }
     if (!this.ctx) return

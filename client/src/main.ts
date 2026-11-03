@@ -22,6 +22,7 @@ import {
   DELL,
   SHORE,
   seaward,
+  shoreSector,
   HIGH,
   highSector,
   PIT,
@@ -2262,6 +2263,14 @@ function frame(now: number): void {
     // Their sounds; and near the Circle, the land falls silent.
     const n = eerie.near(wanderer.pos.x, wanderer.pos.z)
     sound.eerie(n.pit, n.hanged)
+    {
+      // The Shore's waves within ~1.5 km of the water's edge; the High Places' wind up on the plateau.
+      const p = camera.position
+      const dc = Math.abs(Math.hypot(p.x, p.z) - SHORE.coast)
+      const shoreK = seaward(p.x, p.z) || shoreSector(p.x, p.z) > 0.5 ? 1 - THREE.MathUtils.smoothstep(dc, 300, 1600) : 0
+      const highK = highSector(p.x, p.z) * THREE.MathUtils.smoothstep(p.y, HIGH.top - 260, HIGH.top - 20)
+      sound.lands(shoreK, highK)
+    }
     const silent = n.circle > 0.5
     if (silent !== circleSilent && dread.now !== 'stillness') {
       circleSilent = silent
