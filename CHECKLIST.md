@@ -469,6 +469,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] Hands: two big bare brown eggs at the sleeves' ends → smaller gloved hands with a wrapped cuff
   - [x] The bag's strap stood off the body in a hoop (deeper than the chest, the sky seen through it
         from the side): it now lies on the body
+  - [x] Leaves dissolving near the camera: an ordered 4×4 dither (an even screen-door) instead of
+        white noise (crawling grey static over a fir branch passing the lens)
+  - [ ] Open: in the post pipeline only, dissolving near-fir leaves come out purple (10.7k px in a
+        test view; 0 with post off). Not the fringe, not negatives, not a2c, no single pass
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

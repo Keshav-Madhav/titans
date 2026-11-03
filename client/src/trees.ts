@@ -302,7 +302,12 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         '#include <alphatest_fragment>',
         `#include <alphatest_fragment>
         float nearCam = length(vViewPosition);
-        float dith = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453);
+        // An ordered 4×4 (Bayer) threshold: an even screen-door, not white noise (which read as
+        // crawling grey static across a fir branch passing close to the camera).
+        ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0));
+        int bi = bq.x + bq.y * 4;
+        float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+        float dith = (bayer[bi] + 0.5) / 16.0;
         if (nearCam < 2.2 + 2.6 * dith) discard;
         // Between the camera and the wanderer, leaves thin out (the wanderer is
         // never lost behind a tree): within a tube round that line, dithered.
