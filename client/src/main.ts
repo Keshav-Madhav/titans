@@ -291,6 +291,27 @@ const cairnPlaces: CairnPlace[] = []
     }
     if (best.y > 0) cairnPlaces.push({ name: "The Sentinel's Hood", ...best })
   }
+  // The High Places: on the cliff's edge beside the top of the stair, looking down over the sea of
+  // cloud — and on the Shore, on the Stranded's skull, looking out over the water.
+  {
+    const R = (HIGH.foot + HIGH.lip) / 2
+    const d = HIGH.lip + 70
+    const a = HIGH.axis + (HIGH.a1 * R) / R - 0.03
+    const x = Math.sin(a) * d
+    const z = Math.cos(a) * d
+    cairnPlaces.push({ name: "The Cloud's Edge", x, y: terrain.heightAt(x, z), z })
+  }
+  const sk2 = colossi.places.get('stranded-skull')
+  if (sk2) {
+    let best = { x: sk2.x, z: sk2.z, y: -Infinity }
+    for (let dz = -40; dz <= 40; dz += 3) {
+      for (let dx = -40; dx <= 40; dx += 3) {
+        const y = rocks.topAt(sk2.x + dx, sk2.z + dz)
+        if (y !== null && y > best.y) best = { x: sk2.x + dx, z: sk2.z + dz, y }
+      }
+    }
+    if (best.y > -50) cairnPlaces.push({ name: 'The Sea-Skull', ...best })
+  }
 }
 const cairns = new Cairns(cairnPlaces)
 

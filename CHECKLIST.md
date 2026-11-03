@@ -593,6 +593,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] The Stranded (the Shore): something from the sea, long dead, its ribs arching along the waterline
       out into the shallows, the skull up the beach; a place to find, on the map, and a trinket on the
       skull ("A scale from the sea")
+- [x] Two cairns in the new lands: The Cloud's Edge on the cliff's lip beside the top of the stair
+      (834 m, over the sea of cloud), The Sea-Skull on the Stranded's skull (106 m, over the water)
 
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
 - [x] The icons still look bad — painted (tools/gen-icons.py, Gemini, $0.80 for 16): one painting per shape in one storybook style on a keyed-out ground, toned toward each item's colour where one shape serves several things; in the bag, journal, toolbar and offering shrines; the line drawings remain only as a fallback while they load
