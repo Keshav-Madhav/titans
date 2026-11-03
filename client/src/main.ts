@@ -1573,7 +1573,9 @@ function simulate(dt: number): void {
         finds.find(spot.id)
       }
     } else if (cairn && input.pressed('KeyE')) {
-      // Light the cairn: the beam rises, the land round it is uncovered.
+      // Light the cairn: the beam rises, the land round it is uncovered. (You kneel to the
+      // tinder at its foot: an action, not just a light coming on.)
+      wanderer.reachDown()
       cairns.light(cairn)
       worldMap.revealAround(cairn.x, cairn.z, 1400)
       sound.chime()
