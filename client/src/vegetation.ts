@@ -430,6 +430,33 @@ export class Vegetation {
       if (counts) counts[sector] += fit
       n[kind] += fit
     }
+    // Far trees thinned with distance (an even scatter kept, not whole rows dropped): out there
+    // the ground's own canopy colour carries the forest, and the faint trees were most of what
+    // the GPU was given in the Old Wood (745 k triangles in the Grove).
+    const pushThin = (kind: Kind, b: Batch, keep: number) => {
+      if (keep >= 0.999) return push(kind, b)
+      const list = this.sectors.get(kind)
+      const mesh = list ? list[sector] : this.meshes[kind]
+      const counts = list ? sn.get(kind)! : null
+      let at = counts ? counts[sector] : n[kind]
+      const cap = mesh.instanceMatrix.count
+      const m = b.m as Float32Array
+      const c = b.c as Float32Array
+      const im = mesh.instanceMatrix.array as Float32Array
+      const ic = mesh.instanceColor!.array as Float32Array
+      let added = 0
+      for (let i = 0; i < b.n && at < cap; i++) {
+        // (A fixed hash of the tree's own position: the same trees stay as you move.)
+        const h = Math.abs(Math.sin(m[i * 16 + 12] * 12.9898 + m[i * 16 + 14] * 78.233) * 43758.5453) % 1
+        if (h > keep) continue
+        im.set(m.subarray(i * 16, i * 16 + 16), at * 16)
+        ic.set(c.subarray(i * 3, i * 3 + 3), at * 3)
+        at++
+        added++
+      }
+      if (counts) counts[sector] += added
+      n[kind] += added
+    }
     // The near trees' shadows: each tree to the detailed or the simple caster by its distance.
     const shadeN = new Map<Kind, [number, number]>()
     for (const k of this.shadeCast.keys()) shadeN.set(k, [0, 0])
@@ -475,7 +502,10 @@ export class Vegetation {
         ['broad', 'broadNear', 'broadMid', 'broadFar'],
       ] as const) {
         const b = c[src]
-        if (b) push(near ? nearKind : faint ? farKind : midKind, b)
+        if (b) {
+          if (faint) pushThin(farKind, b, 1 - 0.6 * THREE.MathUtils.smoothstep(d, this.midR * 0.5, this.midR))
+          else push(near ? nearKind : midKind, b)
+        }
         if (b && near) shade(nearKind, b)
       }
       if (d < this.midR * 0.55) {
