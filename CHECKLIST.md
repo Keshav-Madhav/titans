@@ -163,7 +163,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] The long run: a held sprint over open, level ground lengthens over ~5 s from 8.5 to 14.5 m/s
       (longer strides, not just faster; the view widens a little); it falls away on a hard turn, a
       climb or a stop. Gate: `shot.mjs run`
-- [ ] Riding a walking giant across a land (call one? a route walker?)
+- [x] Riding a walking giant across a land: blow the horn from its back and it walks the way you look (D, the horn)
 
 ## A3c — Colossi of eroded rock (user: "comprehensible giants… like the gemini inspiration shots")
 - [x] Held to `concept/awakening.jpg`: the body is eroded rock — broad swellings, folded ridges,
@@ -320,7 +320,17 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Trees have trunks: every trunk and limb had sampled the leaf texture's transparent corner (the
       canvas is flipped on upload) and was cut away, so all crowns floated; both corners opaque now.
       Conifers fuller (13 tiers of wide boughs); giant trees crown halfway along each limb too
-- [ ] The Shore (beyond the Dune Sea), the High Places (beyond the Steps)
+- [x] The Shore (2026-11-04): due south the mountains break and the Dune Sea runs down a broad beach
+      into a sea that goes out to the Wall (shared SHORE, `shoreSector`, `seaward`; the coast wanders
+      9.4–10.2 km out; the bed shelves, then falls away; nothing grows on it). The sea (`sea.ts`): one
+      sheet at its level, only in the gap; it knows its bed near the coast (a coarse map filled a little
+      each frame once you are near): clear and green over the shallows, surf rolling in lines onto the
+      sand, deep blue out beyond. You swim in it (`waterAt`). The Wader: one of them, 1 km tall, wading
+      slowly to and fro along the coast 2 km out in a trench, thigh-deep (standing still from behind it
+      read as a pillar of rock; walking, it is one of them); its footfalls leave the sea bed alone.
+      Found: "The Shore" (place) and "The Wader" (giant, from the beach); on the map. Gate: `shot.mjs
+      shore` (in the sweep)
+- [ ] The High Places (beyond the Steps)
 
 ## W — Wrap-up (user: "wrap up everything so far first")
 - [x] `tools/gates.sh`: every gate in one run (lakes, save, and a scene per mechanic and look);

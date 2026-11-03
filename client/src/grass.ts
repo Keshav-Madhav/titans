@@ -7,7 +7,7 @@
 // so nothing pops.
 
 import * as THREE from 'three'
-import { inHall, mulberry32, type LakeSystem, type Terrain } from '@titans/shared'
+import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import type { Biome } from './biome'
 
 const CELL = 12
@@ -186,7 +186,7 @@ export class Grass {
       const z = cz * CELL + rand() * CELL
       const h = this.terrain.heightAt(x, z)
       const d = this.density(x, z, h)
-      if (rand() > d || inHall(x, z, 2) || this.occupied(x, z) || this.wet(x, z)) continue
+      if (rand() > d || inHall(x, z, 2) || this.occupied(x, z) || this.wet(x, z) || (seaward(x, z) && this.terrain.heightAt(x, z) < SHORE.sea + 0.4)) continue
       // Clumps: taller in some places, cropped short in others.
       const clump = 0.8 + 0.55 * Math.max(0, Math.sin(x * 0.21 + Math.sin(z * 0.13) * 2) * Math.sin(z * 0.17 + Math.sin(x * 0.11) * 2))
       const sc = (0.65 + rand() * 0.5) * clump

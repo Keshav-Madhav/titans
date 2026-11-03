@@ -20,6 +20,8 @@ import {
   WORLD_SEED,
   HALL,
   DELL,
+  SHORE,
+  seaward,
   PIT,
   inHall,
   type Box,
@@ -65,6 +67,7 @@ import { Bag } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
 import { soft, softScene, softSwitch } from './soft'
 import { Prints } from './prints'
+import { Sea } from './sea'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -168,6 +171,9 @@ if (params.get('weather')) weather.set(params.get('weather') as Parameters<Weath
 // New pools only in hollows a giant dug (natural hollows stay dry).
 const lakes = new LakeSystem(terrain.cellHeight, undefined, (x, z) => terrain.delta.at(x, z) < -0.05)
 const water = new WaterView()
+// The sea beyond the Dune Sea (the Shore).
+const sea = new Sea(terrain)
+scene.add(sea.mesh)
 const wake = new Wake()
 scene.add(wake.group)
 scene.add(water.group)
@@ -225,6 +231,7 @@ const mapPlaces: MapPlace[] = [
     z: v.z,
   })),
   { name: 'The Undercroft', kind: 'hall', x: HALL.x, z: HALL.z },
+  { name: 'The Wader', kind: 'colossus', x: 0, z: SHORE.waderD },
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = (open?: boolean) => {
@@ -978,6 +985,14 @@ const sites: Site[] = [
     }
     return best
   } },
+  // The Shore: down on the beach. And from it, out in the water, the one who stands there.
+  { id: 'shore', r: 700, at: () => {
+    const p = wanderer.pos
+    if (!seaward(p.x, p.z)) return null
+    const a = Math.atan2(p.x, p.z)
+    return { x: Math.sin(a) * SHORE.coast, z: Math.cos(a) * SHORE.coast }
+  } },
+  { id: 'wader', r: 5600, at: () => ({ x: 0, z: SHORE.waderD }) },
   { id: 'walker', r: 750, at: () => titans.get('t1')?.titan.gait ?? null },
   { id: 'wanderer2', r: 750, at: () => titans.get('t2')?.titan.gait ?? null },
   { id: 'herd', r: 950, at: () => {
@@ -1048,6 +1063,25 @@ for (const a of [0.45, 2.55, 4.4]) {
   scene.add(t.group)
   farGiants.push(t)
 }
+// The Wader (the Shore): one of them standing out in the deep water, thigh-deep, its back to
+// the land, looking out toward the Wall. It does not turn round.
+const wader = new Titan(1000, -1400, SHORE.waderD, Math.PI / 2, 4242, 1)
+wader.restBlend = 0
+wader.silhouette(0.45)
+// It wades slowly to and fro along the coast, out in the deep (standing still, from behind,
+// it read as a pillar of rock; walking, it is one of them). Its footfalls are its own: the
+// sea bed keeps no prints.
+let waderTo = 1400
+const waderEvents: GaitEvent[] = []
+function stepWader(dt: number): void {
+  const gt = wader.gait
+  if (Math.abs(gt.x - waderTo) < 150) waderTo = -waderTo
+  let dh = Math.atan2(waderTo - gt.x, SHORE.waderD - gt.z) - gt.heading
+  dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+  waderEvents.length = 0
+  wader.step(dt, { forward: Math.cos(dh) > 0.4 ? 0.28 : 0, turn: THREE.MathUtils.clamp(dh * 1.2, -0.6, 0.6) }, waderEvents)
+}
+scene.add(wader.group)
 // Awakenings: rarely, a colossus beyond the mountains moves, and the camera turns to watch it.
 const awakening = new Awakening(farGiants, sky.sunDir)
 /** The Ones Beyond: 0 hidden … 1 shown (see the frame loop); latched on once out of the dell. */
@@ -1750,7 +1784,9 @@ const body = new THREE.Vector3()
 /** The water's surface over (x, z) — a lake or a marsh pool — or NaN where it is dry. */
 function waterAt(x: number, z: number): number {
   const l = lakes.levelAt(x, z)
-  return Number.isNaN(l) ? mireView.levelAt(x, z) : l
+  if (!Number.isNaN(l)) return l
+  const m = mireView.levelAt(x, z)
+  return Number.isNaN(m) ? sea.levelAt(x, z) : m
 }
 
 /** What you are standing on (for your footsteps). */
@@ -2084,7 +2120,8 @@ function frame(now: number): void {
     }
     for (const t of farGiants) t.group.visible = sk > 0
   }
-  for (const t of [...farGiants, ...herd.giants]) {
+  if (Math.abs(camera.position.z - SHORE.waderD) < 9000) stepWader(dt)
+  for (const t of [...farGiants, ...herd.giants, wader]) {
     t.pose(terrain, dt)
     t.group.updateMatrixWorld(true)
     t.setLodFor(camera.position)
@@ -2124,6 +2161,7 @@ function frame(now: number): void {
   water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
+  sea.update(dt, camera.position)
   wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
   // The air going past: gliding at speed, or falling (from about a 4 m drop on).
   const fallV = wanderer.grounded || wanderer.swimming ? 0 : Math.max(0, -wanderer.vel.y)
@@ -2572,6 +2610,8 @@ const g = {
   motes,
   /** The first-steps progress (tools). */
   tipState,
+  sea,
+  wader,
   softSwitch,
   soft,
   effects,

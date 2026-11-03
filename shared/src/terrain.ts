@@ -178,16 +178,33 @@ export class BaseTerrain {
       }
     }
 
+    // The Shore: the Dune Sea goes down a long beach into the sea (the mountains break for it).
+    const sector = shoreSector(x, z)
+    if (sector > 0) {
+      const ang = Math.atan2(x, z)
+      // The coast wanders in and out.
+      const coast = SHORE.coast + 520 * this.mask(ang * 3.3 + 2.1, 7.3) + 160 * this.rock(x * 0.0021, z * 0.0021)
+      const u = d - coast
+      const sea = SHORE.sea
+      // Inland: the dunes come down to a beach a few metres above the water; out from the edge
+      // the bed shelves gently, then falls away to the deep (and deeper still where the Wader stands).
+      const trench = Math.exp(-((x / 2900) ** 2) - (((z - SHORE.waderD) / 1000) ** 2))
+      const bed = sea + 6 * (1 - smoothstep(-500, 0, u)) - 26 * smoothstep(0, 900, u) - 70 * smoothstep(900, 3200, u) - 120 * trench
+      const ripple = 1.4 * this.dunes(x * 0.02, z * 0.006) * (1 - smoothstep(0, 400, u))
+      const k = sector * smoothstep(-2400, -1100, u)
+      h += (bed + ripple - h) * k
+    }
+
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
     // broad massif lifts the range; ridges are carved into it at a long
     // wavelength so the skyline reads as ranges, not needles.
     // (Grown with the world: wider ranges, higher, further out.)
     const mk = 0.0006 / SPREAD
     const belt = smoothstep(LAND_EDGE, MOUNTAINS_FULL, d + 700 * SPREAD * this.mask(x * mk - 9.1, z * mk + 4.4))
-    if (belt > 0) {
+    if (belt > 0 && sector < 1) {
       const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.0002 + 3.3, wz * 0.0002 - 8.8, 3)
       const rr = ridged(this.peaks, wx * 0.00026, wz * 0.00026, 6)
-      h += belt * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
+      h += belt * (1 - sector) * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
     }
 
     // The Wall (user, 2026-10-31: "very very far edge mountains, very tall…
@@ -342,6 +359,26 @@ function dell(x: number, z: number, hills: Noise2): number {
   const a = Math.atan2(ez, ex)
   const tall = (60 + 45 * east) * (0.7 + 0.6 * fbm(hills, Math.cos(a) * 2.2 + 40, Math.sin(a) * 2.2 - 13, 3)) + 6 * hills(x * 0.01, z * 0.01)
   return rise * (1 - open) * tall
+}
+
+/**
+ * The Shore (CHECKLIST: "the Shore, beyond the Dune Sea"): due south, where the mountains
+ * that ring the world break, the Dune Sea runs down a long beach into a sea that goes out to
+ * the Wall. `sea` its level; `coast` how far out (from the centre) the water's edge lies, on
+ * average; `half` the half-width of the gap in the mountains (radians from due south).
+ * Out in it, deep water: one of them stands there (client: the Wader).
+ */
+export const SHORE = { sea: -4, coast: 9700, half: 0.42, waderD: 12000 }
+
+/** 0 … 1: how much of (x, z)'s direction is the Shore's gap (1 toward due south). */
+export function shoreSector(x: number, z: number): number {
+  const a = Math.abs(Math.atan2(x, z))
+  return 1 - smoothstep(SHORE.half * 0.75, SHORE.half * 1.25, a)
+}
+
+/** Is (x, z) out past the beach (where the sea may be)? (The water's edge itself is wherever the ground goes under SHORE.sea.) */
+export function seaward(x: number, z: number): boolean {
+  return shoreSector(x, z) > 0.02 && Math.hypot(x, z) > SHORE.coast - 1200
 }
 
 /** Is (x, z) within the Undercroft's rectangle (grown by `margin`)? */

@@ -10,7 +10,7 @@ import { makeSimplex2, type Lake, type LakeSystem } from '@titans/shared'
  * Tileable ripple normals: a few octaves of periodic noise (wrapped by
  * sampling a torus-like 2D domain), turned into an RGB normal map.
  */
-function rippleNormals(size = 256): THREE.DataTexture {
+export function rippleNormals(size = 256): THREE.DataTexture {
   const n = makeSimplex2(777)
   const h = new Float32Array(size * size)
   for (let y = 0; y < size; y++) {

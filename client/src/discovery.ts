@@ -72,12 +72,14 @@ export const CATALOGUE: Find[] = [
   f('place', 'circle', 'The Circle of the Bowed', 'Far out in the Steps, to the east.', 'Seven figures in stone, taller than the giants, hooded, in a ring — every head bowed toward a black stone in the middle. Nothing grows inside the ring. Nothing sings near it.'),
   f('place', 'husk', 'The Husk', 'Out in the Dune Sea, west of the Fallen.', 'It looks like one of them lying face down in the sand. It is not. It is empty — a skin, split along the back. You can walk inside. It is very quiet in there.'),
   f('place', 'hanged', 'The Hanged', 'Among the giant trees of the Grove.', 'Bones, longer than you are tall, hanging on chains from a limb far up in one of the giant trees. They turn a little in the wind. The chains creak.'),
+  f('place', 'shore', 'The Shore', 'Past the Dune Sea, due south, where the mountains break.', 'The sand goes down to water, and the water goes on to the Wall. Nobody built a boat. There was nowhere for one to go.'),
   f('place', 'wall', 'The Wall', 'Look to the edge of the world on a clear day.', 'Mountains past the mountains, higher than anything should be. On a clear day you can see that something stands behind them.'),
   // Those who live here
   f('giant', 'walker', 'The Walker of the Green', 'It walks the Green, east of where you woke.', 'It walks the Green from one end to the other and back, and has worn paths doing it. It notices you the way you notice a bird.'),
   f('giant', 'wanderer2', 'The Grey One', 'It keeps to the southern Green.', 'Slower than the other. It stops for a long time, looking at nothing you can see, and then goes on.'),
   f('giant', 'herd', 'The Herd', 'The eastern Dune Sea.', 'Five of them, keeping together: the big one in front, the young ones in the middle. They graze on something in the sand. They would prefer you kept your distance.'),
   f('giant', 'beyond', 'The Ones Beyond', 'From a high place, look past the Wall.', 'Too big to be alive, and yet one of them turned to look at you. They do not come closer. You hope they do not come closer.'),
+  f('giant', 'wader', 'The Wader', 'Out in the sea beyond the Shore.', 'It stands in the deep water with its back to the land, looking out toward the Wall, as if it is waiting for the tide to go out. It has not turned round. You are not sure you want it to.'),
   f('giant', 'striders', 'The Striders', 'They cross the far lands on long legs.', 'Legs like threads coming down out of the cloud. They step over hills without seeming to notice them.'),
   // Words on stone: left by those who came before you (no one you will meet).
   f('lore', 'lore-knee', "A stone at the Sentinel's knee", 'Near the Sentinel, on the side that faces the Green.', 'We camped at its knee for nine days before we were sure it was not a statue. On the tenth it sighed, and the grass lay flat for a mile.'),

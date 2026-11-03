@@ -12,7 +12,7 @@
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
-import { inBasin, makeSimplex2, mulberry32, poolBowl, type LakeSystem, type Terrain } from '@titans/shared'
+import { inBasin, makeSimplex2, mulberry32, poolBowl, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Biome } from './biome'
 import type { PaintField } from './paint'
@@ -551,6 +551,8 @@ export class Vegetation {
     if (this.paint.at(x, z) > 0.25 || this.pave.at(x, z) > 0.1) return null
     if (this.occupied(x, z)) return null
     if (this.wet(x, z, 0)) return null
+    // (Nothing growing on the sea's bed.)
+    if (h < SHORE.sea + 0.4 && seaward(x, z)) return null
     const sx = this.terrain.heightAt(x + 2, z) - h
     const sz = this.terrain.heightAt(x, z + 2) - h
     if (sx * sx + sz * sz > 2.2) return null // steeper than ~35°

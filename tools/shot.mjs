@@ -390,6 +390,27 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // The Shore: the beach, the sea (you swim in it), the Wader wading out in the deep.
+  async shore() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('clear', true)
+      g.teleport(300, 9200)
+      g.setCam(Math.PI + 0.2, 0.05)
+      await new Promise((res) => setTimeout(res, 8000))
+      const beach = { y: g.player().y, sea: g.sea.levelAt(300, 9200) }
+      // Out into the surf.
+      g.teleport(0, 10300)
+      await new Promise((res) => setTimeout(res, 3000))
+      return { beach, swim: g.wanderer.swimming, level: g.sea.levelAt(0, 10300), found: ['shore', 'wader'].filter((k) => g.finds.has(k)), wader: g.wader.gait.speed }
+    })
+    console.log('shore', JSON.stringify(r))
+    await shot('shore-surf')
+    await page.evaluate(() => { const g = window.__g; const p = g.player(); g.lookFrom([p.x, p.y + 3, p.z], [g.wader.gait.x, 300, g.wader.gait.z]) })
+    await shot('shore-wader')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    if (r.beach.y < -2 || !r.swim || r.level !== -4 || r.found.length < 2 || !(r.wader > 0)) throw new Error('shore gate failed')
+  },
   // Aiming, as a player sees it: the real camera over the shoulder, the mark on an eye, the arrow
   // in flight, the eye closing — on the Sentinel, in the Undercroft, at a mesa.
   async aim() {
