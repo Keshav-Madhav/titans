@@ -867,6 +867,7 @@ const narration = new Narration()
 const finds = new Discoveries()
 const handAt = new THREE.Vector3()
 const journal = new Journal(finds)
+journal.haveBag = () => bag.have
 const toolbar = new Toolbar(finds)
 // The Mire: its pools' still water and its drowned trees, near you.
 const mireView = new MireView(terrain, (x, z) => biome.mire(x, z))
@@ -1565,8 +1566,11 @@ function simulate(dt: number): void {
         }
         // Read it (again, if you like).
         if (!finds.find(spot.id)) narration.say(CATALOGUE.find((c) => c.id === spot.id)?.text ?? '')
-      } else if (!bag.have && CATALOGUE.find((c) => c.id === spot.id)?.kind !== 'tool') narration.say('You have nothing to carry it in. Not yet.')
+      } else if (!bag.have && CATALOGUE.find((c) => c.id === spot.id)?.kind !== 'tool' && !inHall(spot.at.x, spot.at.z, 2)) narration.say('You have nothing to carry it in. Not yet.')
       else {
+        // (Below, before you have the bag, a small thing goes in a pocket: you wake in the
+        // Undercroft, and few would come back down for it.)
+
         // (A tool goes over your shoulder, bag or no bag: the bow lies in the Undercroft you
         // wake in, and few would come back down for it once out in the light.)
         wanderer.reachDown()

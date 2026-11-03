@@ -493,7 +493,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
-      players won't come back down) — a tool goes over your shoulder, bag or no bag
+      players won't come back down) — a tool goes over your shoulder, bag or no bag; and the
+      Undercroft's iron key (the other thing down there) goes in a pocket before you have the bag
+      ("In your pocket, for now" on its card); elsewhere the bag still matters
 - [x] The targets look odd from behind, walking up to the bow (small) — each stone eye's 6.5 m glow
       is a sprite that always faces you, so from behind it hung in the air beside the pillar: it fades
       unless you are in front. And each eye faced back along the ray that found it (tilted to the
