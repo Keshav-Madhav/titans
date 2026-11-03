@@ -240,7 +240,7 @@ export class Grass {
       // close to the player"): full near you, ~35% at the rim, so it reaches further for about
       // the same number of cards and fades out instead of stopping at a ring.
       const dist = Math.sqrt(d2) * CELL
-      const keep = 1 - 0.65 * THREE.MathUtils.smoothstep(dist, 30, RADIUS)
+      const keep = 1 - 0.95 * THREE.MathUtils.smoothstep(dist, 22, RADIUS)
       const fit = Math.min(Math.ceil(c.n * keep), CAP - n)
       if (fit <= 0) break
       im.set(fit >= c.n ? c.m : c.m.subarray(0, fit * 16), n * 16)

@@ -313,6 +313,13 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gCanopy = vColor.r * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
         float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
         gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
+        // Grassland reads as the grass cards do, near and far (user: "grass rendering in chunks,
+        // very close"): where the cards stop, the bare ground beyond was ~10% lighter and bluer
+        // than the field of blades, a hard edge round you. Toned toward the cards' average.
+        {
+          float gGrass = (gW[0] + gW[1]) / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]);
+          gAlb *= mix(vec3(1.0), vec3(0.9, 0.91, 0.78), gGrass * (1.0 - gRockW));
+        }
         // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
         {
           float sAng = abs(atan(gP.x, gP.z));
