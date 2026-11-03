@@ -546,6 +546,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Swimming: the cape stood straight up out of the lake like a fin while you trod water (the
       cliff-foot rule took the water's surface for a wall and shoved it in toward you); now it
       floats spread on the surface, and trails on it as you swim
+- [x] Contact shade outside too: every rock formation, ruin and colossus darkens where it meets the
+      ground (per vertex, 0.5 at the grass line rising over a few metres; the ground sampled on a
+      24×24 grid over each formation and read back bilinearly — no per-vertex terrain lookups)
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

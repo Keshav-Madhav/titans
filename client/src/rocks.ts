@@ -379,8 +379,10 @@ export class Rocks {
     const col = new Float32Array(m.ao.length * 3)
     const layer = new Float32Array(m.ao.length * 3)
     const [tr, tg, tb] = f.tint
+    const contact = f.float ? null : this.groundContact(f, m.position)
     for (let i = 0; i < m.ao.length; i++) {
-      col.set([m.ao[i] * tr, m.ao[i] * tg, m.ao[i] * tb], i * 3)
+      const ao = m.ao[i] * (contact ? contact[i] : 1)
+      col.set([ao * tr, ao * tg, ao * tb], i * 3)
       layer.set([f.layers[0], f.layers[1], f.scale], i * 3)
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3))
@@ -403,6 +405,51 @@ export class Rocks {
     f.mesh = mesh
     this.group.add(mesh)
     this.built++
+  }
+
+  /**
+   * Where the stone meets the ground it darkens (user: "the corners where pillars or wall
+   * meet floor are not darker… like real life would be"): per vertex, 0.5 at the grass
+   * line rising to 1 a few metres above it. The ground is sampled on a coarse grid over the
+   * formation and read back bilinearly (one lookup per vertex would be a hitch on a colossus).
+   */
+  private groundContact(f: Formation, pos: Float32Array): Float32Array {
+    const n = pos.length / 3
+    const out = new Float32Array(n)
+    const c = Math.cos(f.rot)
+    const sn = Math.sin(f.rot)
+    const wx = new Float32Array(n)
+    const wz = new Float32Array(n)
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity
+    for (let i = 0; i < n; i++) {
+      const lx = pos[i * 3]
+      const lz = pos[i * 3 + 2]
+      // (Object rotation about y: x' = x cos + z sin, z' = −x sin + z cos.)
+      wx[i] = f.x + lx * c + lz * sn
+      wz[i] = f.z - lx * sn + lz * c
+      x0 = Math.min(x0, wx[i]); x1 = Math.max(x1, wx[i])
+      z0 = Math.min(z0, wz[i]); z1 = Math.max(z1, wz[i])
+    }
+    const G = 24
+    const sx = Math.max(1e-3, (x1 - x0) / (G - 1))
+    const sz = Math.max(1e-3, (z1 - z0) / (G - 1))
+    const grid = new Float32Array(G * G)
+    for (let j = 0; j < G; j++) for (let k = 0; k < G; k++) grid[j * G + k] = this.terrain.heightAt(x0 + k * sx, z0 + j * sz)
+    const reach = 2.2 + 0.012 * Math.max(x1 - x0, z1 - z0)
+    for (let i = 0; i < n; i++) {
+      const u = Math.min(G - 1.001, (wx[i] - x0) / sx)
+      const v = Math.min(G - 1.001, (wz[i] - z0) / sz)
+      const k = Math.floor(u)
+      const j = Math.floor(v)
+      const fu = u - k
+      const fv = v - j
+      const a = grid[j * G + k], b = grid[j * G + k + 1], cc = grid[(j + 1) * G + k], d = grid[(j + 1) * G + k + 1]
+      const ground = (a + (b - a) * fu) * (1 - fv) + (cc + (d - cc) * fu) * fv
+      const above = f.y + pos[i * 3 + 1] - ground
+      const t = Math.min(1, Math.max(0, above / reach))
+      out[i] = 0.5 + 0.5 * t * t * (3 - 2 * t)
+    }
+    return out
   }
 
   /** Formations near (x, z) within `r`. */
