@@ -467,6 +467,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The lantern: a dark box with a flat cream ball on its front → a small iron lantern (cap,
         ring, bars, base) round a glass that glows dim amber by day and warm in the dark
   - [x] Hands: two big bare brown eggs at the sleeves' ends → smaller gloved hands with a wrapped cuff
+  - [x] The bag's strap stood off the body in a hoop (deeper than the chest, the sky seen through it
+        from the side): it now lies on the body
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

@@ -791,9 +791,10 @@ export class Wanderer {
     lanternBody.castShadow = true
     this.pelvis.add(lanternBody)
     // The traveller's bag, once it is yours: a strap (a loop laid round the body, then tilted)
-    // from the left shoulder across the chest
+    // from the left shoulder across the chest (lying on it: deeper than the body, it stood off it
+    // in a hoop you could see the sky through from the side)
     // to a satchel on the right hip.
-    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.016, 5, 28).rotateX(Math.PI / 2).scale(1.02, 1, 0.8).rotateZ(-0.85).translate(0.02, 0.26, 0.004), leather)
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.016, 5, 28).rotateX(Math.PI / 2).scale(0.98, 1, 0.56).rotateZ(-0.85).translate(0.02, 0.26, 0.004), leather)
     const satchel = new THREE.Mesh(
       mergeGeometries([
         new THREE.BoxGeometry(0.2, 0.17, 0.08, 2, 2, 1).translate(0, 0, 0).toNonIndexed(),
