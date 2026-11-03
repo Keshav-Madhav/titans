@@ -66,8 +66,8 @@
       #loading.done { opacity: 0; pointer-events: none; }
       /* The title: the land is ready behind it; a click wakes you. */
       #loading.title { cursor: pointer; background: linear-gradient(rgba(6, 7, 9, 0.92), rgba(10, 11, 14, 0.82) 60%, rgba(18, 16, 14, 0.9)); }
-      #loading.title p { animation: breathe 3.2s ease-in-out infinite; letter-spacing: 0.3em; text-transform: lowercase; }
-      @keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+      #loading.title p { animation: breathe 3.2s ease-in-out infinite; letter-spacing: 0.3em; text-transform: lowercase; font-size: 22px; margin-top: 26px; color: rgba(255, 250, 240, 0.92); }
+      @keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
       /* Nothing over the title; and the key strip waits until you have taken your first steps (the first tip says it). */
       body.titling #role, body.titling #hint, body.titling #tips, body.early #hint { opacity: 0; }
       /* A shot the game takes (the reveal): the bars, and nothing else over it. */
