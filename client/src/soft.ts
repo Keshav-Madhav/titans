@@ -8,12 +8,17 @@
 
 import * as THREE from 'three'
 
+/** Tools: false draws the soft layers as plain cards again (to compare). */
+export const softSwitch = { on: true }
+
 export const soft = {
   tSoftDepth: { value: null as THREE.Texture | null },
   /** 1 when the depth is there to read (off with post-processing off). */
   uSoftOn: { value: 0 },
   uSoftNF: { value: new THREE.Vector2(0.15, 90000) },
   uSoftRes: { value: new THREE.Vector2(1, 1) },
+  /** Tools: 1 paints the layers with what they read (scene depth, own depth, fade). */
+  uSoftDebug: { value: 0 },
 }
 
 /** The scene the soft layers live in (drawn after the main one, onto it). */
@@ -26,6 +31,13 @@ export const SOFT_GLSL = /* glsl */ `
   uniform float uSoftOn;
   uniform vec2 uSoftNF;
   uniform vec2 uSoftRes;
+  uniform float uSoftDebug;
+  vec3 softDbg() {
+    float sd = texture2D(tSoftDepth, gl_FragCoord.xy / uSoftRes).r;
+    float sceneZ = -perspectiveDepthToViewZ(sd, uSoftNF.x, uSoftNF.y);
+    float fragZ = -perspectiveDepthToViewZ(gl_FragCoord.z, uSoftNF.x, uSoftNF.y);
+    return vec3(fract(sceneZ / 500.0), fract(fragZ / 500.0), sd);
+  }
   // (Softer far off: \`base\` metres, plus \`perM\` per metre away.)
   float softFade(float base, float perM) {
     if (uSoftOn < 0.5) return 1.0;

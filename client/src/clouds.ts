@@ -110,7 +110,7 @@ export class Clouds {
           vec4 t = texture2D(map, vUv);
           // Shaded underneath, sunlit on top (and toward the puff's upper edge).
           float l = clamp(vShade * 0.75 + (vUv.y - 0.3) * 0.5, 0.0, 1.0);
-          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade * softFade(25.0, 0.035));
+          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade * softFade(40.0, 0.2));
           #include <colorspace_fragment>
         }`,
     })

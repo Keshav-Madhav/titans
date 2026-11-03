@@ -91,7 +91,7 @@ export class Mist {
         varying vec3 vWorld;
         void main() {
           // (A standing sheet meeting the ground, a wall or a giant's leg: it thins into it.)
-          float a = texture2D(map, vUv).a * vFade * uAmount * 0.3 * softFade(4.0, 0.03);
+          float a = texture2D(map, vUv).a * vFade * uAmount * 0.3 * softFade(6.0, 0.15);
           if (a < 0.004) discard;
           vec3 toCam = normalize(cameraPosition - vWorld);
           float sunward = pow(max(dot(-toCam, normalize(uSun)), 0.0), 4.0);

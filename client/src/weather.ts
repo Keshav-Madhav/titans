@@ -212,8 +212,9 @@ export class Weather {
             // height, and close by.)
             a *= smoothstep(6.0, 60.0, abs(cameraPosition.y - vWorld.y)) * smoothstep(15.0, 160.0, dist);
             // Thinning out into whatever it meets (a giant, a cliff): no cut line.
-            a *= softFade(40.0, 0.04);
+            a *= softFade(60.0, 0.35);
             gl_FragColor = vec4(c, a);
+            if (uSoftDebug > 0.5) gl_FragColor = vec4(softDbg(), 1.0);
           }`,
         transparent: true,
         depthWrite: false,

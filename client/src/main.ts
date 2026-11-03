@@ -63,7 +63,7 @@ import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
 import { Bag } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
-import { softScene } from './soft'
+import { soft, softScene, softSwitch } from './soft'
 import { Prints } from './prints'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
@@ -2563,6 +2563,8 @@ const g = {
   motes,
   /** The first-steps progress (tools). */
   tipState,
+  softSwitch,
+  soft,
   effects,
   prints,
   /** 0 … 1: how strongly a long drop at your feet is felt (tools). */

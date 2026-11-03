@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
-import { soft, softScene } from './soft'
+import { soft, softScene, softSwitch } from './soft'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 
@@ -252,12 +252,11 @@ class SceneThenSoft extends Pass {
   }
 
   render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
-    if (!read.depthTexture) read.depthTexture = new THREE.DepthTexture(read.width, read.height, THREE.FloatType)
     renderer.setRenderTarget(read)
     renderer.clear()
     renderer.render(this.scene, this.camera)
     soft.tSoftDepth.value = read.depthTexture
-    soft.uSoftOn.value = 1
+    soft.uSoftOn.value = softSwitch.on ? 1 : 0
     soft.uSoftRes.value.set(read.width, read.height)
     soft.uSoftNF.value.set(this.camera.near, this.camera.far)
     softScene.fog = this.scene.fog
@@ -285,7 +284,9 @@ export class Post {
     private readonly camera: THREE.PerspectiveCamera,
   ) {
     const size = renderer.getDrawingBufferSize(new THREE.Vector2())
-    const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 })
+    // (With its depth as a texture, made with the target: added later, after its framebuffer
+    // was built, it was never written, and every soft layer read "nothing behind".)
+    const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(size.x, size.y, THREE.FloatType) })
     this.composer = new EffectComposer(renderer, target)
     this.composer.addPass(new SceneThenSoft(scene, camera))
     this.composer.addPass(new ClampPass())
