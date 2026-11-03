@@ -456,8 +456,16 @@ export class Titan {
       _inv.copy(p.mesh.matrixWorld).invert()
       _pt.set(x, y, z).applyMatrix4(_inv)
       for (const L of p.lumps) {
-        const k = Math.hypot((_pt.x - L.c.x) / L.r.x, (_pt.y - L.c.y) / L.r.y, (_pt.z - L.c.z) / L.r.z)
-        best = Math.min(best, (k - 1) * Math.min(L.r.x, L.r.y, L.r.z))
+        const qx = (_pt.x - L.c.x) / L.r.x
+        const qy = (_pt.y - L.c.y) / L.r.y
+        const qz = (_pt.z - L.c.z) / L.r.z
+        const k = Math.hypot(qx, qy, qz)
+        const rmin = Math.min(L.r.x, L.r.y, L.r.z)
+        // Near a lump, its true sculpted surface (boxier than an ellipsoid, and bulging with
+        // the rock): the mesh is built from exactly this. As a plain ellipsoid the camera sat
+        // inside the giant's rock with the climber hidden behind it.
+        if (k < 1.5 && k > 1e-6) best = Math.min(best, (k / L.bulge(qx / k, qy / k, qz / k) - 1) * rmin)
+        else best = Math.min(best, (k - 1.35) * rmin)
       }
     }
     return best

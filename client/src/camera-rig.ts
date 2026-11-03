@@ -127,11 +127,19 @@ export class CameraRig {
     const ux = (cam.x - this.focus.x) / this.dist
     const uy = (cam.y - this.focus.y) / this.dist
     const uz = (cam.z - this.focus.z) / this.dist
+    // (Starting inside rock — on a giant's body the march begins within its rough shape —
+    // counts only once the line has come out into the open: hit at once, the camera was
+    // pulled into your back the whole climb.)
+    let outside = !(this.occluder && this.occluder(this.focus.x, this.focus.y, this.focus.z) < 0.5)
     for (let t = 0.6; t <= want; t += Math.max(0.35, t * 0.08)) {
       const x = this.focus.x + ux * t
       const y = this.focus.y + uy * t
       const z = this.focus.z + uz * t
-      const solid = this.occluder ? this.occluder(x, y, z) < 0.5 : false
+      let solid = this.occluder ? this.occluder(x, y, z) < 0.5 : false
+      if (!outside) {
+        if (!solid) outside = true
+        solid = false
+      }
       if (solid || y < terrain.heightAt(x, z) + 0.35) {
         clear = Math.max(0.6, t - 0.5)
         break

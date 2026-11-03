@@ -17,6 +17,7 @@ import { BLOCK_P, type LumpSurface, type Titan, type TitanPart } from './titan'
 const GRAB_REACH = 1.8 // metres from the climber's chest to rock
 const CLIMB_SPEED = 3.0 // a 300 m giant: fast enough to reach the shoulders on one grip
 const TOP_SPEED = 3.2
+const smoothstep01 = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
 const TOP_NORMAL = 0.62 // surface normal.y above this: standing on top
 const DRAIN_STEEP = 0.007 // per second on steep rock, Titan still
 const DRAIN_MOVING = 0.025 // extra per second at the Titan's full stride
@@ -191,6 +192,10 @@ export class Climber {
       drain *= 1 - 0.6 * slab
       // (Your first climb: a little more forgiving still.)
       if (this.gentle) drain *= 0.7
+      // Holding still: half the drain; and where the surface leans back far enough to take
+      // your weight (a thigh's top, the back's slope, a shoulder's flank), you get your grip
+      // back slowly — somewhere to rest on the way up (user: "no kind of resting place").
+      if (this.moving === 0) drain = n.y > 0.3 ? -REGEN_TOP * 0.35 * smoothstep01((n.y - 0.3) / 0.3) : drain * 0.5
     }
     this.stamina = Math.min(1, Math.max(0, this.stamina - drain * dt))
     return this.stamina > 0

@@ -593,7 +593,13 @@ Each phase ends playable. Phases are in PLAN.md §6.
 
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
 - [ ] The icons still look bad
-- [ ] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out
+- [~] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out —
+      the camera's line to you started inside the giant's rough shape and counted as blocked at once
+      (pulled to 1.7 m, into your back): it now ignores rock until the line is out in the open, and
+      looks at a focus stood off the surface (6.0/1.7 m → a steady 7 m); the body sits 0.45 m off
+      the hold (0.3: chest and knees in the lumps); holding still halves the drain, and where the
+      surface leans back past ~17° it gives grip back (the key strip says so). Scripted first climb
+      228 m. The camera's own path past bulges (it can still see through a bulge's flank) to do
 - [~] Running animation still buggy; the cape doesn't move with the shoulders — the cape and scarf are pinned to the chest now (they hung square while the shoulders twisted); the run itself: which part looks wrong? (gaits re-checked side-on and from behind)
 - [x] Raining, no sun, and the water still shows sun glints — its roughness and ripples follow the weather
 - [~] Grass and foliage drawn in chunks, very close to the player — reaches 76 m (was 52), thinning toward the rim and fading into the ground over 30 m (was a 14 m ring); +17% cards, same frame time. The cards' own clumpiness still to do

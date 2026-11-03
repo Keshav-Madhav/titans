@@ -887,6 +887,7 @@ const narration = new Narration()
 // Discovery: places, the ones who live here, words on stone, relics, trinkets.
 const finds = new Discoveries()
 const handAt = new THREE.Vector3()
+const _focus = new THREE.Vector3()
 const journal = new Journal(finds)
 journal.haveBag = () => bag.have
 const toolbar = new Toolbar(finds)
@@ -2326,7 +2327,8 @@ function frame(now: number): void {
   hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
-  const focus = wanderer.obj.position
+  // (On a giant or a rock face the camera's focus stands off the surface, out along the hold.)
+  const focus = climber.active || cliff.active ? _focus.copy(wanderer.obj.position).addScaledVector(climber.active ? climber.normal : cliff.normal, 1.2) : wanderer.obj.position
   if (freeCam) {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
