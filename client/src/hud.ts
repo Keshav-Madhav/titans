@@ -21,15 +21,37 @@ export class Hud {
   /** What you are doing now: the chip at the top right and the hint line. */
   /** Mark the J / I keys while something found has not been looked at yet. */
   news(journal: boolean, bag: boolean): void {
+    const any = journal || bag
+    if (any && !this.hasNews) this.newsAge = 0
+    this.hasNews = any
     for (const k of this.hint.querySelectorAll('kbd')) {
       if (k.textContent === 'J') k.classList.toggle('news', journal)
       if (k.textContent === 'I') k.classList.toggle('news', bag)
     }
   }
 
+  private still = 0
+  private modeAge = 0
+  private hasNews = false
+  /** Seconds since J / I last gained news (the strip comes back a while to show it). */
+  private newsAge = 99
+  /**
+   * Once you know the controls (`practised`), the key strip gets out of the picture while you
+   * move: it fades away after a few seconds on the go, and comes back when you stand still a
+   * while, for a few seconds after you start climbing or flying, or when J / I has news.
+   */
+  settle(dt: number, moving: boolean, practised: boolean): void {
+    this.still = moving ? 0 : this.still + dt
+    this.modeAge += dt
+    this.newsAge += dt
+    const show = !practised || this.still > 2.5 || this.modeAge < 6 || this.newsAge < 8
+    this.hint.classList.toggle('away', !show)
+  }
+
   setMode(mode: 'wanderer' | 'climbing' | 'flying'): void {
     if (mode === this.mode) return
     this.mode = mode
+    this.modeAge = 0
     this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : mode === 'flying' ? '<b>Flying</b>' : '<b>Wanderer</b>'
     this.hint.innerHTML = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '')
   }

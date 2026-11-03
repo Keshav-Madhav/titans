@@ -2120,6 +2120,7 @@ function frame(now: number): void {
   rocks.animate(crownWind.value)
   wildlife.render()
   hud.setMode(climber.active || cliff.active ? 'climbing' : wanderer.gliding ? 'flying' : 'wanderer')
+  hud.settle(dt, wanderer.speed > 0.5 || climber.moving > 0 || wanderer.gliding, tipState.high >= 150)
   hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
@@ -2434,6 +2435,8 @@ const g = {
   watchers,
   mist,
   motes,
+  /** The first-steps progress (tools). */
+  tipState,
   /** 0 … 1: how strongly a long drop at your feet is felt (tools). */
   get vertigo() {
     return vertigo
