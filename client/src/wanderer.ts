@@ -602,6 +602,8 @@ export class Wanderer {
   private lastYawA = 0
   private lastSpeedA = 0
   private accSm = 0
+  /** The lantern's hook at the hip: it swings from here. */
+  private readonly lanternHook = new THREE.Group()
   /** Out of breath (0 … 1): builds on a long sprint, eases off at rest. */
   private winded = 0
   /** Standing still this long (s): weight shifts, a look round. */
@@ -819,9 +821,12 @@ export class Wanderer {
       ])!,
       iron,
     )
-    lanternBody.position.set(-0.2, -0.13, 0.06)
+    // (Hung from a hook, so it swings as you walk: the pivot at the ring.)
+    this.lanternHook.position.set(-0.2, -0.03, 0.06)
+    this.pelvis.add(this.lanternHook)
+    lanternBody.position.set(0, -0.1, 0)
     lanternBody.castShadow = true
-    this.pelvis.add(lanternBody)
+    this.lanternHook.add(lanternBody)
     // The traveller's bag, once it is yours: a strap (a loop laid round the body, then tilted)
     // from the left shoulder across the chest (lying on it: deeper than the body, it stood off it
     // in a hoop you could see the sky through from the side)
@@ -843,11 +848,11 @@ export class Wanderer {
     this.chest.add(strap)
     this.pelvis.add(satchel)
     this.bagParts = [strap, satchel]
-    this.lanternGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.085, 10).translate(-0.2, -0.13, 0.06), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
+    this.lanternGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.085, 10).translate(0, -0.1, 0), new THREE.MeshBasicMaterial({ color: 0xffc47a }))
     // (Reaching ~26 m: in the dark you see the ground about you, not just your feet.)
     this.lantern = new THREE.PointLight(0xffb066, 0.6, 26, 1.4)
-    this.lantern.position.set(-0.2, -0.13, 0.12)
-    this.pelvis.add(this.lanternGlow, this.lantern)
+    this.lantern.position.set(0, -0.1, 0.06)
+    this.lanternHook.add(this.lanternGlow, this.lantern)
 
     // The cape: pinned in an arc across the shoulders and round the back, hanging to the calves.
     for (let i = 0; i < 9; i++) {
@@ -1360,6 +1365,15 @@ export class Wanderer {
       // The stone held up before the eye: upper arm out level, forearm up to the face.
       A[0].shoulder.rotation.set(-1.55, 0, -0.38)
       A[0].elbow.rotation.x = -1.75
+    }
+
+    // The lantern swings on its hook: with the stride, a beat behind it, and out on a turn.
+    {
+      const go = this.grounded && !this.climbing && !this.swimming ? Math.min(1, this.gait) : 0
+      const swing = Math.sin(this.stride - 0.7) * (0.22 + 0.18 * run) * go
+      this.lanternHook.rotation.x += (swing - this.lanternHook.rotation.x) * Math.min(1, dt * 10)
+      const out = THREE.MathUtils.clamp(-this.bodyRoll * 1.4, -0.4, 0.4) + Math.cos(this.stride) * 0.06 * go
+      this.lanternHook.rotation.z += (out - this.lanternHook.rotation.z) * Math.min(1, dt * 6)
     }
 
     // Taking something from the ground: down on one knee, the right hand reaching to it,
