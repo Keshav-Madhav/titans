@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { DROWNED_AT, mulberry32, SPREAD, type Terrain } from '@titans/shared'
+import { DROWNED_AT, mulberry32, SHORE, SPREAD, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
@@ -144,6 +144,21 @@ export class Colossi {
     const sk = site(rib.x + Math.sin(ribRot) * 380, rib.z + Math.cos(ribRot) * 380, 110, 120)
     rocks.addColossus({ kind: 'skull', x: sk.x, z: sk.z, y: sk.y - 18, rot: ribRot + 0.5, seed: 13, layers: [LAYER.bone, LAYER.sand], scale: 10, tint: BONE, res: 110 })
     place('skull', sk.x, sk.z, sk.y)
+    // The Shore: something from the sea, long dead, lying where the surf left it — its ribs
+    // standing out of the shallows along the waterline, the skull up the beach, bleached.
+    {
+      const a = 0.18
+      const d = SHORE.coast - 120
+      const sx = Math.sin(a) * d
+      const sz = Math.cos(a) * d
+      const along = Math.atan2(Math.cos(a), -Math.sin(a))
+      rocks.addColossus({ kind: 'ribcage', x: sx, z: sz, y: Math.min(H(sx, sz), SHORE.sea + 2) - 6, rot: along, seed: 41, layers: [LAYER.bone, LAYER.sand], scale: 7, tint: BONE, res: 110 })
+      place('stranded', sx, sz, H(sx, sz))
+      const kx = sx + Math.sin(along) * 300 - Math.sin(a) * 60
+      const kz = sz + Math.cos(along) * 300 - Math.cos(a) * 60
+      rocks.addColossus({ kind: 'skull', x: kx, z: kz, y: H(kx, kz) - 12, rot: along + 2.4, seed: 43, layers: [LAYER.bone, LAYER.sand], scale: 7, tint: BONE, res: 100 })
+      place('stranded-skull', kx, kz, H(kx, kz))
+    }
     // The sword stands alone, kilometres from the bones (each its own scene).
     const sw = site(-3300, 4500, 70, 450)
     rocks.addColossus({ kind: 'sword', x: sw.x, z: sw.z, y: sw.y, rot: 1.1, seed: 17, layers: [LAYER.basalt, LAYER.sand], scale: 12, tint: IRON })

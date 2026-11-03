@@ -590,6 +590,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       storm's air 25× as thick now, wisps only within ~25 m, the grit sand-coloured. (Isolated by
       hiding layers in the frame: motes, then the streaks, then each post pass.) Also: the
       Undercroft's key goes in a pocket before the bag; map names larger; wading rings the water
+- [x] The Stranded (the Shore): something from the sea, long dead, its ribs arching along the waterline
+      out into the shallows, the skull up the beach; a place to find, on the map, and a trinket on the
+      skull ("A scale from the sea")
 
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
 - [x] The icons still look bad — painted (tools/gen-icons.py, Gemini, $0.80 for 16): one painting per shape in one storybook style on a keyed-out ground, toned toward each item's colour where one shape serves several things; in the bag, journal, toolbar and offering shrines; the line drawings remain only as a fallback while they load

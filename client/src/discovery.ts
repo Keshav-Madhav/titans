@@ -74,6 +74,7 @@ export const CATALOGUE: Find[] = [
   f('place', 'hanged', 'The Hanged', 'Among the giant trees of the Grove.', 'Bones, longer than you are tall, hanging on chains from a limb far up in one of the giant trees. They turn a little in the wind. The chains creak.'),
   f('place', 'shore', 'The Shore', 'Past the Dune Sea, due south, where the mountains break.', 'The sand goes down to water, and the water goes on to the Wall. Nobody built a boat. There was nowhere for one to go.'),
   f('place', 'high', 'The High Places', 'Past the Steps, north-east: there is a stair cut up the cliff.', 'Above the clouds the land goes on, white and silent. The air is thin. Down below, the whole world is a floor of cloud, and the tops of the giants come up out of it like islands.'),
+  f('place', 'stranded', 'The Stranded', 'On the beach, a little west of due south.', 'Ribs taller than a house, standing out of the shallows in a row, the waves going in and out between them. Not one of the giants. Something that lived out there, in the water past the Wader, and came in once, and did not go back.'),
   f('place', 'wall', 'The Wall', 'Look to the edge of the world on a clear day.', 'Mountains past the mountains, higher than anything should be. On a clear day you can see that something stands behind them.'),
   // Those who live here
   f('giant', 'walker', 'The Walker of the Green', 'It walks the Green, east of where you woke.', 'It walks the Green from one end to the other and back, and has worn paths doing it. It notices you the way you notice a bird.'),
@@ -165,6 +166,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'feather-spire', 'A grey feather', 'On top of a spire in the Dune Sea.', 'A grey feather as long as your arm. Nothing you have seen has wings this size. Yet.', 'feather', '#8f8f92'),
   f('trinket', 'coin-arch', 'A stamped coin', 'On top of the stone arch out on the Green.', 'A coin with a triangle stamped on one side and nothing on the other.', 'coin', '#b89a52'),
   f('trinket', 'bell-grove', 'A small bell', 'Among the roots of the biggest tree in the Grove.', 'A bronze bell, green with age. It has no clapper, and yet when the wind is right it rings.', 'bell', '#6f8a6a'),
+  f('trinket', 'scale-stranded', 'A scale from the sea', 'On top of the skull of the Stranded, up the beach.', 'A scale the size of a shield, blue-grey, thin as a fingernail and stronger than anything you own. It smells of the sea even now.', 'shard', '#7ea4c8'),
   f('trinket', 'shard-mesa', 'A glassy shard', 'On top of a mesa in the Dune Sea, beside a stone.', 'A shard of black glassy stone, warm to the touch, with a single scratch on it like a tally mark.', 'shard', '#2e2a2e'),
 ]
 

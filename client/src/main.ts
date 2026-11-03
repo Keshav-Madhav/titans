@@ -227,9 +227,10 @@ const NAMES: Record<string, string> = {
   sword: 'The Sword',
   colonnade: 'The Colonnade',
   gate: 'The Gate',
+  stranded: 'The Stranded',
 }
 const mapPlaces: MapPlace[] = [
-  ...[...colossi.places].filter(([k]) => k !== 'skull' && k !== 'stair').map(([k, v]): MapPlace => ({
+  ...[...colossi.places].filter(([k]) => k !== 'skull' && k !== 'stair' && k !== 'stranded-skull').map(([k, v]): MapPlace => ({
     name: NAMES[k] ?? null,
     kind: k.startsWith('tree') ? 'tree' : k.startsWith('stone') ? 'stone' : 'colossus',
     x: v.x,
@@ -470,6 +471,8 @@ const spots = (() => {
   }
   const sk = P('skull')
   if (sk) list.push(['tooth-skull', 'trinket', topNear(sk.x, sk.z, 60)])
+  const strandedSkull = P('stranded-skull')
+  if (strandedSkull) list.push(['scale-stranded', 'trinket', topNear(strandedSkull.x, strandedSkull.z, 45)])
   const sw = P('sword')
   if (sw) {
     list.push(['lore-sword', 'stone', ground(sw.x + 55, sw.z + 35)])
@@ -1009,6 +1012,7 @@ const sites: Site[] = [
     return { x: Math.sin(a) * SHORE.coast, z: Math.cos(a) * SHORE.coast }
   } },
   { id: 'wader', r: 5600, at: () => ({ x: 0, z: SHORE.waderD }) },
+  { id: 'stranded', r: 420, at: placeAt('stranded') },
   // The High Places: up on the plateau. And there, in the ice, the Frozen One.
   { id: 'high', r: 600, at: () => {
     const p = wanderer.pos
