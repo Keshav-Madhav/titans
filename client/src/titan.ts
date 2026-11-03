@@ -489,6 +489,10 @@ export class Titan {
       let dark = done.get(mesh.material)
       if (!dark) {
         dark = mesh.material.clone()
+        // (A clone drops the shader hooks: without them the fur's near fade was gone, and close
+        // to the Frozen One or the Wader its cards were flat dark planks.)
+        dark.onBeforeCompile = mesh.material.onBeforeCompile
+        dark.customProgramCacheKey = mesh.material.customProgramCacheKey
         ;(dark as THREE.MeshStandardMaterial).color?.multiplyScalar(k)
         done.set(mesh.material, dark)
       }
