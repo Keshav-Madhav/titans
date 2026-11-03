@@ -187,6 +187,25 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           vec4 ny = textureGrad(tLayerNormal, vec3(p.xz * s, L), dpx.xz * s, dpy.xz * s);
           vec4 nz = textureGrad(tLayerNormal, vec3(p.xy * s, L), dpx.xy * s, dpy.xy * s);
           col = cx.rgb * w.x + cy.rgb * w.y + cz.rgb * w.z;
+          // A second look at the same rock, at an unrelated scale and offset, mixed in by a
+          // slow noise: a wall tens of metres high showed the texture's repeat as a quilted
+          // grid.
+          {
+            float s2 = s * 0.41;
+            vec3 o = vec3(0.37, 0.61, 0.13);
+            vec3 c2 = textureGrad(tLayerColor, vec3((p.zy + o.zy * 40.0) * s2, L), dpx.zy * s2, dpy.zy * s2).rgb * w.x
+              + textureGrad(tLayerColor, vec3((p.xz + o.xz * 40.0) * s2, L), dpx.xz * s2, dpy.xz * s2).rgb * w.y
+              + textureGrad(tLayerColor, vec3((p.xy + o.xy * 40.0) * s2, L), dpx.xy * s2, dpy.xy * s2).rgb * w.z;
+            float m = smoothstep(0.3, 0.7, texture2D(tDetail, p.xz * 0.009 + p.y * 0.006).r);
+            // (Farther off, mostly the larger: from a couple of hundred metres the small tile's
+            // repeat was what read as the quilting.)
+            float k2 = max(0.25 + 0.5 * m, 0.88 * smoothstep(30.0, 160.0, distance(p, cameraPosition)));
+            col = mix(col, c2, k2);
+            // (The relief too: the quilting was mostly its light and shade.)
+            nx = mix(nx, textureGrad(tLayerNormal, vec3((p.zy + o.zy * 40.0) * s2, L), dpx.zy * s2, dpy.zy * s2), k2);
+            ny = mix(ny, textureGrad(tLayerNormal, vec3((p.xz + o.xz * 40.0) * s2, L), dpx.xz * s2, dpy.xz * s2), k2);
+            nz = mix(nz, textureGrad(tLayerNormal, vec3((p.xy + o.xy * 40.0) * s2, L), dpx.xy * s2, dpy.xy * s2), k2);
+          }
           vec3 tx = unpackN(nx);
           vec3 ty = unpackN(ny);
           vec3 tz = unpackN(nz);

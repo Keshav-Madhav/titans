@@ -2009,7 +2009,8 @@ const scenes = {
       const out = {}
       for (const [land, ax, az] of [['forest', -0.866, -0.5], ['desert', 0, 1], ['ruins', 0.866, -0.5], ['valley', 0, 0]]) {
         let best = null
-        for (let r = land === 'valley' ? 650 : 900; r <= (land === 'valley' ? 1000 : 2400); r += 70) {
+        // (The lands were spread 2.6x when the world grew: the Dune Sea starts past 2.4 km.)
+        for (let r = land === 'valley' ? 650 : 900; r <= (land === 'valley' ? 1000 : 6000); r += land === 'valley' ? 70 : 150) {
           for (let a = -0.6; a <= 0.6; a += 0.06) {
             const base = land === 'valley' ? Math.atan2(1, 0) + a * 5.2 : Math.atan2(ax, az) + a
             const x = Math.sin(base) * r
