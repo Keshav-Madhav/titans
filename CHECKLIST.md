@@ -482,6 +482,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
         (5 s for "You lost your grip.", ~11 s for a long line, 20 s at most); faded lines leave the page
   - [x] The pause screen in a narrow window: Detail's buttons ran past the page, "Mouse speed" broke
         over two lines, "Begin again" fell to its own line — the choice rows now span the width
+  - [x] The satchel: a plain brown box → a soft leather bag (rounded, a darker flap over its front,
+        an iron buckle)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

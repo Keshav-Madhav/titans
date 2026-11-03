@@ -7,6 +7,7 @@
 // ground. A small lantern at the hip glows warm in dark places.
 
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { type Terrain } from '@titans/shared'
 
@@ -795,17 +796,19 @@ export class Wanderer {
     // in a hoop you could see the sky through from the side)
     // to a satchel on the right hip.
     const strap = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.016, 5, 28).rotateX(Math.PI / 2).scale(0.98, 1, 0.56).rotateZ(-0.85).translate(0.02, 0.26, 0.004), leather)
-    const satchel = new THREE.Mesh(
-      mergeGeometries([
-        new THREE.BoxGeometry(0.2, 0.17, 0.08, 2, 2, 1).translate(0, 0, 0).toNonIndexed(),
-        new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, 1, 0.9).translate(0, 0.085, 0).toNonIndexed(),
-      ])!,
-      leather,
-    )
+    // A soft leather bag (it was a plain box): a rounded body, a darker flap folded down over its
+    // front, and an iron buckle.
+    const satchel = new THREE.Group()
+    const bagBody = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.16, 0.075, 3, 0.03), leather)
+    const flapMat = new THREE.MeshStandardMaterial({ color: 0x3e2a1c, roughness: 0.7, map: fabricTexture('leather') })
+    const flap = new THREE.Mesh(new RoundedBoxGeometry(0.205, 0.1, 0.012, 2, 0.005).translate(0, 0.035, 0.041), flapMat)
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.022, 0.008).translate(0, -0.012, 0.049), new THREE.MeshStandardMaterial({ color: 0x5a524a, roughness: 0.4, metalness: 0.7 }))
+    satchel.add(bagBody, flap, buckle)
+    for (const m of [bagBody, flap]) m.castShadow = true
     // (Out on the side of the hip, over the tunic's flare, a little behind.)
     satchel.position.set(0.27, -0.12, -0.05)
     satchel.rotation.set(0, Math.PI / 2 + 0.2, 0.1)
-    strap.castShadow = satchel.castShadow = true
+    strap.castShadow = true
     this.chest.add(strap)
     this.pelvis.add(satchel)
     this.bagParts = [strap, satchel]
