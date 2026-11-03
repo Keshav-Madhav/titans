@@ -594,12 +594,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
 - [ ] The icons still look bad
 - [ ] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out
-- [ ] Running animation still buggy; the cape doesn't move with the shoulders
+- [~] Running animation still buggy; the cape doesn't move with the shoulders — the cape and scarf are pinned to the chest now (they hung square while the shoulders twisted); the run itself: which part looks wrong? (gaits re-checked side-on and from behind)
 - [x] Raining, no sun, and the water still shows sun glints — its roughness and ripples follow the weather
-- [ ] Grass and foliage drawn in chunks, very close to the player
+- [~] Grass and foliage drawn in chunks, very close to the player — reaches 76 m (was 52), thinning toward the rim and fading into the ground over 30 m (was a 14 m ring); +17% cards, same frame time. The cards' own clumpiness still to do
 - [ ] Traversal slow: a physics grappling hook?
 - [x] No way to see the controls — a Controls section heads the pause page; `?` or F1 opens it in play, and the key strip says so
-- [ ] The minimap lags, re-renders a lot, in chunks
+- [x] The minimap lags, re-renders a lot, in chunks — a cached land slid every frame (was a full redraw with two blur passes at 10 Hz, moving in jumps)
 - [ ] Lag, performance: LODs
 - [ ] No music
 

@@ -11,9 +11,9 @@ import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } fro
 import type { Biome } from './biome'
 
 const CELL = 12
-const RADIUS = 52
+const RADIUS = 76
 const PER_CELL = 420
-const CAP = 30000
+const CAP = 38000
 /** New cells laid per frame (the rest wait a frame or two). */
 const FRESH_PER_FRAME = 3
 
@@ -125,7 +125,7 @@ export class Grass {
           wp.xz += normalize(away + 1e-4) * push * 0.45;
           wp.y -= push * 0.3;
           // Sinking into the ground at the edge of its range.
-          float edge = 1.0 - smoothstep(uRadius - 14.0, uRadius, distance(root.xz, cameraPosition.xz));
+          float edge = 1.0 - smoothstep(uRadius - 30.0, uRadius, distance(root.xz, cameraPosition.xz));
           wp.y = mix(root.y - 0.02, wp.y, edge);
           vec4 mvPosition = viewMatrix * wp;
           gl_Position = projectionMatrix * mvPosition;`,
@@ -236,10 +236,15 @@ export class Grass {
         fresh++
       }
       const c = this.cell(cx, cz)
-      const fit = Math.min(c.n, CAP - n)
+      // Thinner toward the edge of its range (user: "grass rendering is in chunks and very
+      // close to the player"): full near you, ~35% at the rim, so it reaches further for about
+      // the same number of cards and fades out instead of stopping at a ring.
+      const dist = Math.sqrt(d2) * CELL
+      const keep = 1 - 0.65 * THREE.MathUtils.smoothstep(dist, 30, RADIUS)
+      const fit = Math.min(Math.ceil(c.n * keep), CAP - n)
       if (fit <= 0) break
-      im.set(fit === c.n ? c.m : c.m.subarray(0, fit * 16), n * 16)
-      ic.set(fit === c.n ? c.c : c.c.subarray(0, fit * 3), n * 3)
+      im.set(fit >= c.n ? c.m : c.m.subarray(0, fit * 16), n * 16)
+      ic.set(fit >= c.n ? c.c : c.c.subarray(0, fit * 3), n * 3)
       n += fit
     }
     this.mesh.count = n
