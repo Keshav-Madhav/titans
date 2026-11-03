@@ -259,7 +259,9 @@ export class Weather {
             // (Faded out right at the lens too: a 1.4 m streak passing half a metre from the camera
             // was a long white bar slashed across the whole frame.)
             float dc = distance(base + vec3(0.0, 0.7, 0.0), cameraPosition);
-            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(25.0, 70.0, dc)) * smoothstep(2.0, 6.0, dc);
+            // (Sand wisps only near: far off, a few pixels each, they rendered as rows of dark
+            // dashes over a cliff. The ochre fog carries the storm out there.)
+            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(mix(25.0, 10.0, uSand), mix(70.0, 25.0, uSand), dc)) * smoothstep(2.0, 6.0, dc);
             // No rain under the Undercroft's roof.
             vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
             if (hq.x < ${HALL.hx.toFixed(1)} && hq.y < ${HALL.hz.toFixed(1)} && base.y < uRoof - 2.0) vA = 0.0;
@@ -393,7 +395,7 @@ export class Weather {
     sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
-    sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 9) * (1 + this.mireK * 2.2)
+    sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 24) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
     sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.

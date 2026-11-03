@@ -563,6 +563,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Feel: your own footprints in sand and mud (left, right, fading over half a minute as the wind
       fills them); a little dust kicked back running on sand; winded after a long run; a long fall
       flails; clouds rose at dusk, grey-blue at night; fireflies pinpricks, not balls
+- [x] Sandstorm: barely there (the fog 10× a clear day's still let you see half a kilometre), and
+      the far sand wisps — a few pixels each — rendered as rows of dark dashes over a cliff. The
+      storm's air 25× as thick now, wisps only within ~25 m, the grit sand-coloured. (Isolated by
+      hiding layers in the frame: motes, then the streaks, then each post pass.) Also: the
+      Undercroft's key goes in a pocket before the bag; map names larger; wading rings the water
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

@@ -46,7 +46,8 @@ void main() {
   if (k == 0) {
     // Grit: fast along the wind, skipping a little.
     drift = uWind * t * (3.0 + 12.0 * uWindK) * (0.7 + 0.6 * aSeed.x) + vec3(0.0, 0.35 * sin(t * 3.1 + s), 0.0);
-    base = vec3(0.6, 0.45, 0.3);
+    // (Sand-coloured: darker, against a bright cliff a layer of it read as rows of dark dashes.)
+    base = vec3(0.86, 0.72, 0.52);
     size = 0.06;
   } else if (k == 1) {
     // Spores: hang, turn slowly, rise a little.
@@ -86,7 +87,8 @@ void main() {
     // A grain in three turns to the sun as it tumbles: a glint.
     float spin = pow(max(sin(t * (7.0 + 9.0 * aSeed.y) + s * 5.0), 0.0), 18.0) * step(0.66, fract(s));
     col += uSunCol * spin * 2.2;
-    a *= 0.75;
+    // Near you only: farther off the thin layer is seen edge-on, as bands.
+    a *= 0.75 * (1.0 - smoothstep(12.0, 24.0, d));
   } else if (k == 3) {
     // A sheet lying low over the sand: seen edge-on it shows, from above you would look down
     // through the whole layer of them at once (looking down at your feet, the dunes went white).
