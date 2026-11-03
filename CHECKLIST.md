@@ -521,7 +521,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       nothing: the depth texture was attached after the target's framebuffer was built, never
       written; and the fade's reach, 4% of the distance, was far shorter than how far in front of
       a giant a sheet crosses the view from above. Now made with the target, reaching 35% of the
-      distance for the deck: from above, the giant's middle no longer cut by a hard line —
+      distance for the deck: from the ground in a storm the giant was crossed by stacked hard
+      bands, one per sheet; now it hazes smoothly into the cloud (its head still lost in it); from
+      above, its middle no longer cut by a hard line —
       `softSwitch` / `soft.uSoftDebug` on the debug handle compare and show the depth read)
 - [x] The save gate: a giant whose dragged foot was still swinging when the gate froze the world
       landed it on reload (its print's rim lifted a stomp crater beside it 1.1 m). The gate waits for
