@@ -87,11 +87,11 @@ export class Camp {
     pole.rotation.set(0.07, 0, -0.06)
     this.group.add(pole)
     // A crosspiece lashed near the top, for the cloth to hang from.
-    const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5).rotateZ(Math.PI / 2).translate(0.3, POLE - 0.45, 0), wood)
+    const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.2, 5).rotateZ(Math.PI / 2).translate(0.45, POLE - 0.4, 0), wood)
     pole.add(cross)
-    const geo = new THREE.PlaneGeometry(CLOTH, 0.5, 18, 2).translate(CLOTH / 2, 0, 0)
+    const geo = new THREE.PlaneGeometry(CLOTH, 0.9, 20, 3).translate(CLOTH / 2, -0.25, 0)
     this.rest = (geo.getAttribute('position').array as Float32Array).slice()
-    this.cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xa82a1f, roughness: 0.85, side: THREE.DoubleSide }))
+    this.cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xb8281b, roughness: 0.85, side: THREE.DoubleSide, emissive: new THREE.Color(0.09, 0.012, 0.006) }))
     this.cloth.position.set(0, POLE - 0.4, 0)
     pole.add(this.cloth)
     // A tripod over the fire, a pot hanging from it: a shape no field grows.
@@ -171,8 +171,8 @@ export class Camp {
     for (let i = 0; i < pos.count; i++) {
       const x = this.rest[i * 3]
       const k = x / CLOTH
-      a[i * 3 + 2] = Math.sin(this.time * (3.2 + wind * 4) - x * 3.2) * 0.26 * k * (0.5 + wind)
-      a[i * 3 + 1] = this.rest[i * 3 + 1] - k * k * 0.18 * (1 - wind * 0.6)
+      a[i * 3 + 2] = Math.sin(this.time * (3.2 + wind * 4) - x * 3.2) * 0.4 * k * (0.5 + wind)
+      a[i * 3 + 1] = this.rest[i * 3 + 1] - k * k * 0.45 * (1 - wind * 0.6)
     }
     pos.needsUpdate = true
     this.cloth.geometry.computeVertexNormals()
@@ -180,9 +180,9 @@ export class Camp {
 }
 
 const POLE = 7.5
-const CLOTH = 3
+const CLOTH = 4
 /** How far round a camp's fire the ground is worn bare (m): grass keeps off it. */
-export const CAMP_BARE = 4.2
+export const CAMP_BARE = 5.5
 
 /** A disc of trampled earth draped on the ground, soft at its edge. */
 function bareGround(at: (dx: number, dz: number, lift?: number) => THREE.Vector3, _t: Terrain, cx: number, cz: number): THREE.Mesh {
