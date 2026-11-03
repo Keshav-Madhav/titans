@@ -1728,6 +1728,14 @@ function simulate(dt: number): void {
         if (grapple.busy) {
           const ev = grapple.step(dt, wanderer.pos, wanderer.vel, input.held('KeyG') && grapple.attached, wanderer.grounded)
           if (ev === 'caught') sound.ui('tick')
+          // Reeled in to a giant: you take hold of it where the hook bit (and start climbing).
+          if (grapple.attached && grapple.anchor?.follow && wanderer.pos.distanceTo(grapple.anchor.at) < 3.5) {
+            chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
+            if (climber.tryGrab(chest)) {
+              grapple.release()
+              tipState.climbed = true
+            }
+          }
           if (grapple.attached && wanderer.pos.y > terrain.heightAt(wanderer.pos.x, wanderer.pos.z) + 0.4) wanderer.grounded = false
         }
         wanderer.hanging = grapple.attached && !wanderer.grounded
