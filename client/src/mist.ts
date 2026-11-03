@@ -7,6 +7,7 @@
 
 import * as THREE from 'three'
 import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
+import { soft, SOFT_GLSL } from './soft'
 
 const BANKS = 1800
 
@@ -58,7 +59,7 @@ export class Mist {
     const rand = mulberry32(seed ^ 0x3157)
     const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0)
     const mat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
+      uniforms: { ...this.uniforms, ...soft },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         varying float vFade;
@@ -79,6 +80,8 @@ export class Mist {
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: /* glsl */ `
+        #include <packing>
+        ${SOFT_GLSL}
         uniform sampler2D map;
         uniform vec3 uColor;
         uniform vec3 uSun;
@@ -87,7 +90,8 @@ export class Mist {
         varying float vFade;
         varying vec3 vWorld;
         void main() {
-          float a = texture2D(map, vUv).a * vFade * uAmount * 0.3;
+          // (A standing sheet meeting the ground, a wall or a giant's leg: it thins into it.)
+          float a = texture2D(map, vUv).a * vFade * uAmount * 0.3 * softFade(4.0, 0.03);
           if (a < 0.004) discard;
           vec3 toCam = normalize(cameraPosition - vWorld);
           float sunward = pow(max(dot(-toCam, normalize(uSun)), 0.0), 4.0);

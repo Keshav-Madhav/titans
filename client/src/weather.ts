@@ -17,6 +17,7 @@ import { groundShade } from './terrain-material'
 import { HALL, mulberry32 } from '@titans/shared'
 import type { SkySystem } from './sky'
 import type { Post } from './post'
+import { soft, SOFT_GLSL } from './soft'
 
 export type WeatherName = 'clear' | 'overcast' | 'storm' | 'breaking'
 
@@ -131,8 +132,8 @@ export class Weather {
   /** Wet air after rain (decays): a rainbow when the sun comes back. */
   private wet = 0
   private readonly rainbow: THREE.Mesh
-  private readonly deck: THREE.Mesh[] = []
-  private readonly rain: THREE.InstancedMesh
+  readonly deck: THREE.Mesh[] = []
+  readonly rain: THREE.InstancedMesh
   private flashLeft = 0
   private nextFlash = 6
   private readonly rand = mulberry32(9191)
@@ -159,7 +160,7 @@ export class Weather {
     const geo = new THREE.PlaneGeometry(30000, 30000, 1, 1).rotateX(-Math.PI / 2)
     for (let k = 0; k < CLOUD_LAYERS; k++) {
       const mat = new THREE.ShaderMaterial({
-        uniforms: { ...this.uniforms, uLayer: { value: k / (CLOUD_LAYERS - 1) } },
+        uniforms: { ...this.uniforms, ...soft, uLayer: { value: k / (CLOUD_LAYERS - 1) } },
         vertexShader: /* glsl */ `
           varying vec3 vWorld;
           void main() {
@@ -168,6 +169,8 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * w;
           }`,
         fragmentShader: /* glsl */ `
+          #include <packing>
+          ${SOFT_GLSL}
           uniform float uTime, uCover, uDark, uLayer, uFlash, uNight, uSand;
           uniform vec3 uSun, uFog;
           uniform vec2 uFlashAt, uWind;
@@ -208,6 +211,8 @@ export class Weather {
             // panel. A cloud has no surface: each layer thins away as the eye nears its
             // height, and close by.)
             a *= smoothstep(6.0, 60.0, abs(cameraPosition.y - vWorld.y)) * smoothstep(15.0, 160.0, dist);
+            // Thinning out into whatever it meets (a giant, a cliff): no cut line.
+            a *= softFade(40.0, 0.04);
             gl_FragColor = vec4(c, a);
           }`,
         transparent: true,

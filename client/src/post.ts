@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { soft, softScene } from './soft'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 
@@ -238,6 +238,36 @@ class GradePass extends Pass {
   }
 }
 
+/**
+ * The scene, then the soft layers over it (soft.ts): the first draw's depth is resolved into
+ * the target's depth texture, which the second reads to fade clouds and mist into solids.
+ */
+class SceneThenSoft extends Pass {
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly camera: THREE.PerspectiveCamera,
+  ) {
+    super()
+    this.needsSwap = false
+  }
+
+  render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
+    if (!read.depthTexture) read.depthTexture = new THREE.DepthTexture(read.width, read.height, THREE.FloatType)
+    renderer.setRenderTarget(read)
+    renderer.clear()
+    renderer.render(this.scene, this.camera)
+    soft.tSoftDepth.value = read.depthTexture
+    soft.uSoftOn.value = 1
+    soft.uSoftRes.value.set(read.width, read.height)
+    soft.uSoftNF.value.set(this.camera.near, this.camera.far)
+    softScene.fog = this.scene.fog
+    const auto = renderer.autoClear
+    renderer.autoClear = false
+    renderer.render(softScene, this.camera)
+    renderer.autoClear = auto
+  }
+}
+
 export class Post {
   readonly composer: EffectComposer
   readonly bloom: UnrealBloomPass
@@ -257,7 +287,7 @@ export class Post {
     const size = renderer.getDrawingBufferSize(new THREE.Vector2())
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 })
     this.composer = new EffectComposer(renderer, target)
-    this.composer.addPass(new RenderPass(scene, camera))
+    this.composer.addPass(new SceneThenSoft(scene, camera))
     this.composer.addPass(new ClampPass())
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)
@@ -275,6 +305,13 @@ export class Post {
   render(dt: number, sunDir: THREE.Vector3): void {
     if (!this.enabled) {
       this.renderer.render(this.scene, this.camera)
+      // (No depth to read here: the soft layers draw as plain cards.)
+      soft.uSoftOn.value = 0
+      softScene.fog = this.scene.fog
+      const auto = this.renderer.autoClear
+      this.renderer.autoClear = false
+      this.renderer.render(softScene, this.camera)
+      this.renderer.autoClear = auto
       return
     }
     // Where the sun is on screen, and how much it faces us.

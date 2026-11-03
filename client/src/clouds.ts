@@ -5,6 +5,7 @@
 
 import * as THREE from 'three'
 import { mulberry32 } from '@titans/shared'
+import { soft, SOFT_GLSL } from './soft'
 
 const CLOUDS = 120
 const PUFFS = 18
@@ -75,6 +76,7 @@ export class Clouds {
       transparent: true,
       depthWrite: false,
       uniforms: {
+        ...soft,
         map: { value: puffTexture() },
         lit: { value: new THREE.Color(0xffffff) },
         dark: { value: new THREE.Color(0xa9b7c9) },
@@ -96,6 +98,8 @@ export class Clouds {
           vFade = 1.0 - smoothstep(4500.0, 7500.0, length(mv.xyz));
         }`,
       fragmentShader: /* glsl */ `
+        #include <packing>
+        ${SOFT_GLSL}
         uniform sampler2D map;
         uniform vec3 lit;
         uniform vec3 dark;
@@ -106,7 +110,7 @@ export class Clouds {
           vec4 t = texture2D(map, vUv);
           // Shaded underneath, sunlit on top (and toward the puff's upper edge).
           float l = clamp(vShade * 0.75 + (vUv.y - 0.3) * 0.5, 0.0, 1.0);
-          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade);
+          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade * softFade(25.0, 0.035));
           #include <colorspace_fragment>
         }`,
     })
