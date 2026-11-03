@@ -99,8 +99,9 @@ kbd {
 /* A soft dark pool behind it: over a bright sky the white card all but vanished. */
 #found { z-index: 2; padding: 26px 70px 30px; }
 #found::before {
-  content: ''; position: absolute; inset: -10px -40px; z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(12, 10, 8, 0.55), rgba(12, 10, 8, 0.3) 55%, transparent);
+  content: ''; position: absolute; inset: -30px -70px; z-index: -1; pointer-events: none;
+  /* (Feathered out wide: tighter and darker it read as a dark lozenge pasted on the sky.) */
+  background: radial-gradient(closest-side, rgba(12, 10, 8, 0.4), rgba(12, 10, 8, 0.2) 45%, rgba(12, 10, 8, 0.06) 75%, transparent);
 }
 #found i { display: block; margin-top: 12px; font: italic 15px var(--serif); opacity: 0.9; letter-spacing: 0.02em; }
 #found i kbd { font-style: normal; font-size: 11px; margin-left: 4px; }

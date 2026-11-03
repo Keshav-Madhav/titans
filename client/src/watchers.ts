@@ -164,7 +164,9 @@ export class Watchers {
       const H = 34 + rand() * 36
       // Writes depth even while fading: otherwise the cloud deck and puffs, drawn after it
       // though farther away, paint straight over it.
-      const mat = new THREE.MeshStandardMaterial({ color: 0x1d1e1b, roughness: 1, transparent: true, opacity: 0, depthWrite: true })
+      // (Faded by a dither, not blended: half-faded and blended it read as blue glass against
+      // the sky; dithered, it is stone thinning into the haze.)
+      const mat = new THREE.MeshStandardMaterial({ color: 0x1d1e1b, roughness: 1, alphaHash: true, opacity: 0, depthWrite: true })
       const mesh = new THREE.Mesh(this.geos[this.watchers.length % 3], mat)
       mesh.scale.setScalar(H)
       mesh.position.set(c.x, terrain.heightAt(c.x, c.z) - 0.5, c.z)
