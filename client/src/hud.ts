@@ -53,7 +53,7 @@ export class Hud {
     this.mode = mode
     this.modeAge = 0
     this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : mode === 'flying' ? '<b>Flying</b>' : '<b>Wanderer</b>'
-    this.hint.innerHTML = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '')
+    this.hint.innerHTML = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '') + (mode === 'wanderer' ? ' · <kbd>?</kbd> controls' : '')
   }
 
   private haveBag = false

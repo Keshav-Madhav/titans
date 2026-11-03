@@ -271,6 +271,10 @@ kbd {
   margin: 22px 0 6px; padding-bottom: 4px; font: 600 13px var(--serif); letter-spacing: 0.2em; text-transform: uppercase;
   color: #4a3c2a; border-bottom: 1px solid rgba(58, 42, 24, 0.35);
 }
+.pause-keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; padding: 4px 0 8px; font: 15px var(--serif); }
+.pause-key { display: contents; }
+.pause-key > :first-child { white-space: nowrap; text-align: right; }
+.pause-key kbd { font-size: 11px; margin: 0 1px; }
 .pause-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 7px 0; font: 17px var(--serif); }
 .pause-row input[type='range'] { width: 200px; accent-color: #7a4a26; }
 #pause button {

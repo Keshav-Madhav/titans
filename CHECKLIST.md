@@ -595,10 +595,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [ ] The icons still look bad
 - [ ] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out
 - [ ] Running animation still buggy; the cape doesn't move with the shoulders
-- [ ] Raining, no sun, and the water still shows sun glints
+- [x] Raining, no sun, and the water still shows sun glints — its roughness and ripples follow the weather
 - [ ] Grass and foliage drawn in chunks, very close to the player
 - [ ] Traversal slow: a physics grappling hook?
-- [ ] No way to see the controls
+- [x] No way to see the controls — a Controls section heads the pause page; `?` or F1 opens it in play, and the key strip says so
 - [ ] The minimap lags, re-renders a lot, in chunks
 - [ ] Lag, performance: LODs
 - [ ] No music

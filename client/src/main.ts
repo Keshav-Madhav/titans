@@ -2587,6 +2587,14 @@ document.addEventListener('pointerlockchange', () => {
   }, 60)
 })
 addEventListener('keydown', (e) => {
+  // ? or F1: the controls (on the pause page).
+  if ((e.key === '?' || e.code === 'F1') && !toolMode && opening !== 'title') {
+    e.preventDefault()
+    if (pause.open) return
+    if (document.pointerLockElement) document.exitPointerLock()
+    setTimeout(() => !anyOpen() && pause.show(), 0)
+    return
+  }
   if (e.code !== 'Escape' || toolMode || opening === 'title') return
   if (pause.open) pause.resume()
   else if (!anyOpen()) {

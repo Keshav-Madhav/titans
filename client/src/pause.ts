@@ -20,6 +20,20 @@ const DETAILS: Choice<Settings['detail']> = [
   [2, 'Low'],
 ]
 
+/** The keys, as the README has them. */
+const CONTROLS: Array<[string, string]> = [
+  ['W A S D', 'Move'],
+  ['Mouse', 'Look (click the world to capture it)'],
+  ['Shift', 'Run (hold on open ground: the long run)'],
+  ['Space', 'Jump; with the wing-cloak, hold to glide'],
+  ['E', 'Climb, take hold, read, take, use'],
+  ['Q · F', 'The bow: Q (or right mouse) draw, F (or click) loose'],
+  ['H', 'The horn: call a giant; on its back, steer it'],
+  ['V', 'The sight-stone (hold)'],
+  ['M · J · I', 'Map · Journal · Bag'],
+  ['Esc · ?', 'This page: controls and settings'],
+]
+
 export class Pause {
   private readonly panel = document.getElementById('pause')!
   private readonly body = document.getElementById('pause-body')!
@@ -135,6 +149,21 @@ export class Pause {
       }
       return g
     }
+    // The controls (user: "no way to see controls"): every key, here where you look for settings.
+    section('Controls')
+    const keys = document.createElement('div')
+    keys.className = 'pause-keys'
+    for (const [k, what] of CONTROLS) {
+      const r = document.createElement('div')
+      r.className = 'pause-key'
+      const kk = document.createElement('span')
+      kk.innerHTML = k.split(' · ').map((x) => x.split(' ').map((y) => (y.length <= 6 && /^[A-Z0-9?/]|^Shift|^Space|^Esc|^Mouse|^Click|^F1/.test(y) ? `<kbd>${y}</kbd>` : y)).join(' ')).join(' · ')
+      const w = document.createElement('span')
+      w.textContent = what
+      r.append(kk, w)
+      keys.appendChild(r)
+    }
+    this.body.appendChild(keys)
     section('Sound')
     row('Sound', toggle('sound'))
     row('Volume', slider('volume', 0, 1, 0.01))
