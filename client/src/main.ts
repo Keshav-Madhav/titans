@@ -2312,6 +2312,7 @@ function frame(now: number): void {
   sky.advance(dt)
   weather.part = awakening.reveal
   weather.desert = biome.desert(camera.position.x, camera.position.z)
+  weather.high = highSector(camera.position.x, camera.position.z) * THREE.MathUtils.smoothstep(camera.position.y, HIGH.top - 200, HIGH.top - 40)
   weather.mire = biome.mire(camera.position.x, camera.position.z)
   weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.

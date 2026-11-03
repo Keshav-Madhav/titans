@@ -55,15 +55,16 @@ export class Frozen {
       g.computeVertexNormals()
       return g
     }
-    const ice = new THREE.Mesh(block(300, 600, 250, 6), iceMat)
-    ice.position.set(x, y + 270, z)
+    // (Wide enough for its shoulders and arms: at 300 m they came out through its sides.)
+    const ice = new THREE.Mesh(block(480, 620, 380, 6), iceMat)
+    ice.position.set(x, y + 280, z)
     ice.rotation.y = HIGH.axis + 0.2
     ice.renderOrder = 4
     this.group.add(ice)
     // Broken shards about its foot.
     for (let i = 0; i < 9; i++) {
       const a = rand() * Math.PI * 2
-      const r = 170 + rand() * 120
+      const r = 260 + rand() * 140
       const s = 18 + rand() * 40
       const shard = new THREE.Mesh(block(s, s * (1.2 + rand() * 1.4), s * 0.8, 2), iceMat)
       const sx = x + Math.cos(a) * r

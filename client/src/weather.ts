@@ -117,12 +117,14 @@ export class Weather {
     uNoise: { value: null as THREE.Texture | null },
     uWind: { value: new THREE.Vector2(1, 0.4) },
   }
-  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 } }
+  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 }, uSnow: { value: 0 } }
   /**
    * How much of where you stand is the Dune Sea (main.ts sets it): there a
    * storm brings no rain but sand — ochre air, grit driven flat by the wind.
    */
   desert = 0
+  /** 0 … 1: up on the High Places (it snows there). */
+  high = 0
   private readonly shadeDrift = new THREE.Vector2()
   /** 0 … 1: how much of the storm is sand right now. */
   sand = 0
@@ -241,7 +243,7 @@ export class Weather {
       new THREE.ShaderMaterial({
         uniforms: this.rainUniforms,
         vertexShader: /* glsl */ `
-          uniform float uTime, uRain, uWind, uRoof, uSand;
+          uniform float uTime, uRain, uWind, uRoof, uSand, uSnow;
           varying float vA;
           varying vec2 vUv;
           float h(float n) { return fract(sin(n) * 43758.5453); }
@@ -251,7 +253,10 @@ export class Weather {
             // Fall, and wrap round the camera.
             // (Sand: barely falls, low to the ground, and races sideways with the wind.)
             float y = mix(mod(o.y - uTime * (24.0 + 6.0 * h(id * 3.7)), 60.0) - 20.0, mod(o.y * 0.25 - uTime * 1.5, 14.0) - 3.0, uSand);
-            o.x += uTime * uSand * (26.0 + 10.0 * h(id * 9.3));
+            // Snow: slow (1–2 m/s), wandering as it falls.
+            y = mix(y, mod(o.y - uTime * (1.1 + 0.9 * h(id * 3.7)), 60.0) - 20.0, uSnow);
+            o.x += uTime * uSand * (26.0 + 10.0 * h(id * 9.3)) + uSnow * (sin(uTime * 0.7 + id) * 1.5 + uTime * uWind * 2.0);
+            o.z += uSnow * cos(uTime * 0.53 + id * 1.7) * 1.5;
             // Fixed in the world, wrapped to a 140 m column round the camera.
             vec3 base = vec3(cameraPosition.x + mod(o.x - cameraPosition.x + 70.0, 140.0) - 70.0, cameraPosition.y + y, cameraPosition.z + mod(o.z - cameraPosition.z + 70.0, 140.0) - 70.0);
             // Face the camera about the vertical; lean with the wind.
@@ -260,6 +265,8 @@ export class Weather {
             // (Sand: a short, wide, soft wisp — drawn as rain's thin 2 m streak laid flat, it read
             // as white wires scratched across the screen.)
             vec3 p = base + side * position.x * mix(1.0, 5.0, uSand) + mix(vec3(uWind * 0.35, 1.0, 0.0), vec3(0.9, 0.08, 0.12), uSand) * position.y;
+            // (A flake: a small square card, not a streak.)
+            p = mix(p, base + side * position.x * 8.0 + vec3(0.0, position.y * 0.09, 0.0), uSnow);
             vUv = uv;
             // (Faded out right at the lens too: a 1.4 m streak passing half a metre from the camera
             // was a long white bar slashed across the whole frame.)
@@ -273,14 +280,17 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
-          uniform float uSand;
+          uniform float uSand, uSnow;
           varying float vA;
           varying vec2 vUv;
           void main() {
             if (vA < 0.01) discard;
-            // Sand is soft at its edges and its ends; rain stays a crisp streak.
+            // Sand is soft at its edges and its ends; rain stays a crisp streak; snow a soft round flake.
             float soft = mix(1.0, (1.0 - abs(vUv.x * 2.0 - 1.0)) * sin(vUv.y * 3.14159), uSand);
-            gl_FragColor = vec4(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), (0.22 + 0.4 * uSand) * vA * soft);
+            float flake = 1.0 - smoothstep(0.2, 0.5, length(vUv - 0.5));
+            soft = mix(soft, flake, uSnow);
+            vec3 col = mix(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), vec3(0.96, 0.97, 1.0), uSnow);
+            gl_FragColor = vec4(col, mix(0.22 + 0.4 * uSand, 0.85, uSnow) * vA * soft);
           }`,
         transparent: true,
         depthWrite: false,
@@ -383,10 +393,12 @@ export class Weather {
     this.rainUniforms.uTime.value += dt
     // In the Dune Sea a storm's rain is sand.
     this.sand += (this.desert * THREE.MathUtils.smoothstep(w.rain, 0.3, 0.9) - this.sand) * Math.min(1, dt * 0.15)
-    this.rainUniforms.uRain.value = Math.max(w.rain, this.sand)
+    // On the High Places it snows: what falls is flakes, and even on a fair day a few drift by.
+    this.rainUniforms.uRain.value = Math.max(w.rain, this.sand, this.high * (0.35 + 0.65 * w.rain))
     this.rainUniforms.uWind.value = w.wind
-    this.rainUniforms.uSand.value = this.sand
-    this.rain.visible = w.rain > 0.02
+    this.rainUniforms.uSand.value = this.sand * (1 - this.high)
+    this.rainUniforms.uSnow.value = this.high
+    this.rain.visible = w.rain > 0.02 || this.high > 0.02
 
     // Light: the sun dims and greys under the cloud; the sky's diffuse light
     // takes over. Lightning lights everything for a moment.
