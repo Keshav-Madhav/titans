@@ -28,6 +28,7 @@ const CONTROLS: Array<[string, string]> = [
   ['Space', 'Jump; with the wing-cloak, hold to glide'],
   ['E', 'Climb, take hold, read, take, use'],
   ['Q · F', 'The bow: Q (or right mouse) draw, F (or click) loose'],
+  ['G', 'The grappling line: throw where you look, hold G to reel in, Space to let go (with a kick)'],
   ['H', 'The horn: call a giant; on its back, steer it'],
   ['V', 'The sight-stone (hold)'],
   ['M · J · I', 'Map · Journal · Bag'],

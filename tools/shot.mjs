@@ -458,6 +458,22 @@ const scenes = {
     await page.evaluate(() => window.__g.lookFrom(null))
     if (r.climbed < 45 || r.y < 760 || r.found.length < 2) throw new Error('high gate failed')
   },
+  // The grappling line: throw it at the High Places' cliff, hold G to reel in, rise.
+  async grapple() {
+    await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.finds.find('bag'); const H = g.HIGH; const d = H.foot + 200; const a = H.axis + 0.12; g.teleport(Math.sin(a) * d, Math.cos(a) * d); g.setCam(H.axis + 0.12 + Math.PI, -0.3) })
+    await page.waitForTimeout(6000)
+    const y0 = await page.evaluate(() => window.__g.wanderer.pos.y)
+    await page.keyboard.down('KeyG')
+    await page.waitForTimeout(3600)
+    await page.keyboard.up('KeyG')
+    const r = await page.evaluate((y0) => { const g = window.__g; return { rose: g.wanderer.pos.y - y0, attached: g.grapple.attached, hanging: g.wanderer.hanging } }, y0)
+    console.log('grapple', JSON.stringify(r))
+    await shot('grapple-hanging')
+    await page.keyboard.press('Space')
+    await page.waitForTimeout(400)
+    const off = await page.evaluate(() => window.__g.grapple.attached)
+    if (r.rose < 20 || !r.attached || !r.hanging || off) throw new Error('grapple gate failed')
+  },
   // Aiming, as a player sees it: the real camera over the shoulder, the mark on an eye, the arrow
   // in flight, the eye closing — on the Sentinel, in the Undercroft, at a mesa.
   async aim() {

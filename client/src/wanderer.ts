@@ -602,6 +602,8 @@ export class Wanderer {
   private lastYawA = 0
   private lastSpeedA = 0
   private accSm = 0
+  /** Hanging from the grappling line (arms up on the rope). */
+  hanging = false
   /** The lantern's hook at the hip: it swings from here. */
   private readonly lanternHook = new THREE.Group()
   /** Out of breath (0 … 1): builds on a long sprint, eases off at rest. */
@@ -1269,10 +1271,23 @@ export class Wanderer {
       A[1].elbow.rotation.x = -0.3 - fall * 0.4
       this.chest.rotation.x = 0.1 + fall * 0.2
       this.head.rotation.x = fall * 0.45
+      // On the line: both hands up on the rope, legs hanging a little bent.
+      if (this.hanging) {
+        A[0].shoulder.rotation.set(-2.75, 0, -0.12)
+        A[1].shoulder.rotation.set(-2.85, 0, 0.12)
+        A[0].elbow.rotation.x = -0.35
+        A[1].elbow.rotation.x = -0.2
+        L[0].hip.rotation.x = -0.25
+        L[1].hip.rotation.x = 0.1
+        L[0].knee.rotation.x = 0.5
+        L[1].knee.rotation.x = 0.3
+        this.chest.rotation.x = -0.05
+        this.head.rotation.x = -0.35
+      }
       // A running leap (not a long fall): a stride held in the air — the lead knee driven up,
       // the trail leg stretched back, the arms opposite, leaning into it; reaching the lead
       // foot down for the ground as you come down.
-      const leap = THREE.MathUtils.clamp(Math.hypot(this.vel.x, this.vel.z) / SPRINT, 0, 1) * (1 - fall)
+      const leap = this.hanging ? 0 : THREE.MathUtils.clamp(Math.hypot(this.vel.x, this.vel.z) / SPRINT, 0, 1) * (1 - fall)
       if (leap > 0.02) {
         const down = THREE.MathUtils.smoothstep(-this.vel.y, -1, 4)
         const lead = this.lastHalf % 2 === 0 ? 0 : 1

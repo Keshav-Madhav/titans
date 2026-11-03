@@ -72,6 +72,7 @@ import { soft, softScene, softSwitch } from './soft'
 import { Prints } from './prints'
 import { Sea } from './sea'
 import { Frozen } from './frozen'
+import { Grapple, RANGE as GRAPPLE_RANGE } from './grapple'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -1416,7 +1417,7 @@ function watchFalls(dt: number): void {
   }
   if (!wanderer.grounded) {
     // (Under the open cloak you are not falling: you land soft from any height.)
-    fallTop = wanderer.gliding || Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
+    fallTop = wanderer.gliding || wanderer.hanging || Number.isNaN(fallTop) ? p.y : Math.max(fallTop, p.y)
     return
   }
   // Landed.
@@ -1559,6 +1560,27 @@ function simulate(dt: number): void {
   watchProgress = watching(dt)
   watchFalls(dt)
   if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
+  // G: throw the line (held, it reels in; Space lets go; standing on the ground with it slack a
+  // moment, it comes back on its own).
+  if (bag.have && input.pressed('KeyG') && !climber.active && !cliff.active && !wanderer.swimming) {
+    if (!grapple.busy) {
+      const aim = grappleAim()
+      wanderer.handWorld(_gHand)
+      if (aim) grapple.throw(_gHand, aim.at, { at: aim.at.clone(), follow: aim.follow })
+      else {
+        camera.getWorldDirection(_gDir)
+        grapple.throw(_gHand, _gHand.clone().addScaledVector(_gDir, GRAPPLE_RANGE * 0.6), null)
+      }
+      sound.loose()
+    }
+  }
+  if (grapple.attached && wanderer.grounded && !input.held('KeyG')) {
+    slackFor += dt
+    if (slackFor > 1.2) grapple.release()
+  } else slackFor = 0
+  // (Taking hold of a giant or a rock face drops the line.)
+  if ((climber.active || cliff.active) && grapple.busy) grapple.release()
+  if (grapple.busy) grapple.draw(wanderer.handWorld(_gHand))
   if (awakening.active || reveal.active || opening === 'title' || (opening === 'waking' && openT < 2.4)) {
     // Held: you watch. (Gravity and the world go on — and the rock you stand on still holds you.)
     wanderer.step(dt, { x: 0, y: 0 }, false, false, rig.yaw, terrain)
@@ -1601,7 +1623,7 @@ function simulate(dt: number): void {
       camp.take()
       finds.find('bag')
       tipState.bag = true
-      setTimeout(() => narration.say('Folded inside: a map, mostly blank, and an empty notebook.'), 2600)
+      setTimeout(() => narration.say('Folded inside: a map, mostly blank, an empty notebook, and a coil of rope with an iron hook on the end (G).'), 2600)
     } else if (offerings.near(wanderer.pos) && input.pressed('KeyE')) {
       const s = offerings.near(wanderer.pos)!
       const want = CATALOGUE.find((c) => c.id === s.def.wants)
@@ -1669,7 +1691,21 @@ function simulate(dt: number): void {
       if (mantle.t >= 0) stepMantle(dt)
       else {
         wanderer.waterLevel = waterAt(wanderer.pos.x, wanderer.pos.z)
-        wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space'), rig.yaw, terrain)
+        // On the line, Space lets go with a kick (a swing turned into a leap), not a jump.
+        const onLine = grapple.attached && !wanderer.grounded
+        if (onLine && input.pressed('Space')) {
+          grapple.release()
+          const f = new THREE.Vector3(wanderer.vel.x, 0, wanderer.vel.z)
+          if (f.lengthSq() > 0.01) f.setLength(3)
+          wanderer.vel.add(f).add(new THREE.Vector3(0, 6, 0))
+        }
+        wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space') && !onLine, rig.yaw, terrain)
+        if (grapple.busy) {
+          const ev = grapple.step(dt, wanderer.pos, wanderer.vel, input.held('KeyG') && grapple.attached, wanderer.grounded)
+          if (ev === 'caught') sound.ui('tick')
+          if (grapple.attached && wanderer.pos.y > terrain.heightAt(wanderer.pos.x, wanderer.pos.z) + 0.4) wanderer.grounded = false
+        }
+        wanderer.hanging = grapple.attached && !wanderer.grounded
         climber.pushOut(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
@@ -1826,6 +1862,46 @@ function surfaceAt(p: THREE.Vector3): Surface {
 }
 const prints = new Prints()
 scene.add(prints.mesh)
+// The grappling line (comes with the bag: a coil of rope and an iron hook).
+const grapple = new Grapple()
+scene.add(grapple.line)
+const _gFrom = new THREE.Vector3()
+const _gDir = new THREE.Vector3()
+const _gHand = new THREE.Vector3()
+let slackFor = 0
+/** Where the line would catch along the view: rock, the ground, or a giant (and which part). */
+function grappleAim(): { at: THREE.Vector3; follow: { obj: THREE.Object3D; local: THREE.Vector3 } | null } | null {
+  camera.getWorldDirection(_gDir)
+  _gFrom.copy(camera.position)
+  const p = new THREE.Vector3()
+  // (From the camera, out to the line's range measured from you.)
+  const reach = camera.position.distanceTo(wanderer.pos) + GRAPPLE_RANGE
+  // (Not before you: from behind your shoulder the ray first crosses the ground at your feet.)
+  const skip = camera.position.distanceTo(wanderer.pos) + 2
+  for (let t = skip; t < reach; t += 0.75) {
+    p.copy(_gFrom).addScaledVector(_gDir, t)
+    for (const a of titans.values()) {
+      if (a.titan.roughSdf(p.x, p.y, p.z) < 0) {
+        // The part it caught: the nearest one's frame.
+        let best: THREE.Object3D | null = null
+        let bd = Infinity
+        for (const part of a.titan.parts) {
+          const d = part.mesh.getWorldPosition(new THREE.Vector3()).distanceTo(p)
+          if (d < bd) {
+            bd = d
+            best = part.mesh
+          }
+        }
+        if (!best) return null
+        return { at: p.clone(), follow: { obj: best, local: best.worldToLocal(p.clone()) } }
+      }
+    }
+    if (p.y < terrain.heightAt(p.x, p.z) || rocks.sdfAt(p.x, p.y, p.z) < 0) {
+      return p.distanceTo(wanderer.pos) <= GRAPPLE_RANGE ? { at: p.clone(), follow: null } : null
+    }
+  }
+  return null
+}
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   sound.step(surf, pace)
@@ -2653,6 +2729,8 @@ const g = {
   motes,
   /** The first-steps progress (tools). */
   tipState,
+  grapple,
+  grappleAim,
   sea,
   wader,
   frozen,

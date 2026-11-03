@@ -22,6 +22,7 @@ npm run build && npm run preview   # the production build on :4317
 | Jump / glide | Space (with the wing-cloak, hold while falling: W dive, S pull up, A D bank) |
 | Climb, read, take, use | E |
 | The bow | Q or right mouse to draw, F or click to loose |
+| The grappling line | G: throw where you look; hold G to reel in; Space to let go |
 | The horn | H (on the ground: call a giant; on its back: steer it) |
 | The sight-stone | V (hold) |
 | Map · Journal · Bag | M · J · I |
