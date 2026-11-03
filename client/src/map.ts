@@ -90,6 +90,9 @@ export class WorldMap {
   private lakes: readonly Lake[] = []
   private lastReveal = new THREE.Vector3(1e9, 0, 0)
   private readonly mini: HTMLCanvasElement
+  private miniCache: HTMLCanvasElement | null = null
+  private readonly miniAt = new THREE.Vector3()
+  private miniWhen = 0
   private readonly full: HTMLCanvasElement
   private readonly panel: HTMLElement
   private readonly scratch = document.createElement('canvas')
@@ -463,11 +466,13 @@ export class WorldMap {
       this.lastReveal.copy(player)
       this.reveal(player)
     }
+    // The minimap every frame (a slide of its cached land, and the marks): at ten a second it
+    // moved under you in jumps. The full map a little less often.
+    if (document.body.classList.contains('has-map') && !this.open) this.drawMini(player, yaw, giants)
     this.sinceMini += dt
-    if (this.sinceMini > (this.open ? 0.05 : 0.1)) {
+    if (this.open && this.sinceMini > 0.05) {
       this.sinceMini = 0
-      if (document.body.classList.contains('has-map')) this.drawMini(player, yaw, giants)
-      if (this.open) this.drawFull(player, yaw, giants)
+      this.drawFull(player, yaw, giants)
     }
   }
 
@@ -481,8 +486,25 @@ export class WorldMap {
     ctx.clip()
     ctx.fillStyle = PAPER
     ctx.fillRect(0, 0, S, S)
+    // The land, from a cache twice the view across: redrawn when you have gone half a view
+    // or every few seconds (new tiles, new ground seen), otherwise only slid under you. Drawn
+    // fresh ten times a second (two blurred passes each) it was the minimap's lag and its chunks.
+    const now = performance.now()
+    if (!this.miniCache || Math.hypot(p.x - this.miniAt.x, p.z - this.miniAt.z) > MINI_R * 0.5 || now - this.miniWhen > 3000) {
+      if (!this.miniCache) {
+        this.miniCache = document.createElement('canvas')
+        this.miniCache.width = this.miniCache.height = S * 2
+      }
+      const cc = this.miniCache.getContext('2d')!
+      cc.clearRect(0, 0, S * 2, S * 2)
+      this.drawLand(cc, p.x - MINI_R * 2, p.z - MINI_R * 2, MINI_R * 4, S * 2)
+      this.miniAt.set(p.x, 0, p.z)
+      this.miniWhen = now
+    }
     ctx.globalCompositeOperation = 'multiply'
-    this.drawLand(ctx, p.x - MINI_R, p.z - MINI_R, MINI_R * 2, S)
+    const ox = ((p.x - (this.miniAt.x - MINI_R * 2)) / (MINI_R * 4)) * S * 2 - S / 2
+    const oz = ((p.z - (this.miniAt.z - MINI_R * 2)) / (MINI_R * 4)) * S * 2 - S / 2
+    ctx.drawImage(this.miniCache, ox, oz, S, S, 0, 0, S, S)
     ctx.globalCompositeOperation = 'source-over'
     const at: At = (x, z) => [S / 2 + ((x - p.x) / (MINI_R * 2)) * S, S / 2 + ((z - p.z) / (MINI_R * 2)) * S]
     this.drawMarks(ctx, at, giants, 0.8, false)
