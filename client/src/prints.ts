@@ -45,8 +45,7 @@ export class Prints {
         }`,
       transparent: true,
       depthWrite: false,
-      // (No polygon offset: with the reversed depth buffer its sign turns and it sinks the
-      // print into the ground. Lifted a few centimetres instead.)
+      // (Lifted a few centimetres off the ground rather than polygon-offset.)
     })
     this.mesh = new THREE.InstancedMesh(geo, mat, N)
     this.mesh.frustumCulled = false
