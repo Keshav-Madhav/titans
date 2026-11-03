@@ -631,9 +631,15 @@ export class WorldMap {
       ctx.fill()
       ctx.stroke()
       if (pl.name && names) {
-        ctx.font = `italic ${Math.round(14 * k)}px ${SERIF}`
-        ctx.fillStyle = 'rgba(40, 30, 18, 0.92)'
-        ctx.fillText(pl.name, x + 8 * k, y + 4 * k)
+        // (Larger, on a pale halo: at 14 px, scaled down onto the page, a name was ~6 px of
+        // ink lost in the drawn hills.)
+        ctx.font = `italic ${Math.round(19 * k)}px ${SERIF}`
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = 4 * k
+        ctx.strokeStyle = 'rgba(244, 232, 204, 0.85)'
+        ctx.strokeText(pl.name, x + 8 * k, y + 5 * k)
+        ctx.fillStyle = 'rgba(40, 30, 18, 0.95)'
+        ctx.fillText(pl.name, x + 8 * k, y + 5 * k)
       }
     }
     for (const g of giants) {
