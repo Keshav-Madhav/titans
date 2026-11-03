@@ -533,6 +533,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] The wanderer, carried: leans into a turn (with speed), tips forward setting off and sits back
       pulling up, leans into a climb; lands into the knees (deeper the harder the fall); standing a
       few seconds, the weight shifts leg to leg and the head turns slowly to look round
+- [x] Camp banner readable from 150 m (4 m by 0.9 m, a stronger red); copses along the dell's rim
+      (wooded hills, not a smooth green wall; first-hour route 0 stuck, was 12)
+- [x] Over the rise, the first time on foot: a line as the Ones Beyond come out of the haze; you
+      kneel to pick up a page and read it
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

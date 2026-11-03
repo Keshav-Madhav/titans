@@ -1051,6 +1051,8 @@ const awakening = new Awakening(farGiants, sky.sunDir)
 /** The Ones Beyond: 0 hidden … 1 shown (see the frame loop); latched on once out of the dell. */
 let skyline = 0
 let skylineOn = false
+/** You have stood in the dell (since this page loaded, its opening done). */
+let wasInDell = false
 const skylineMats: THREE.Material[] = []
 awakening.on = (what) => {
   if (what === 'begin') {
@@ -1554,6 +1556,11 @@ function simulate(dt: number): void {
       resonance.strike(r.ring, r.stone)
     } else if (spot && input.pressed('KeyE')) {
       if (spot.kind !== 'trinket') {
+        // (A page on the ground: you kneel to pick it up and read it.)
+        if (spot.kind === 'page') {
+          wanderer.reachDown()
+          sound.pickUp()
+        }
         // Read it (again, if you like).
         if (!finds.find(spot.id)) narration.say(CATALOGUE.find((c) => c.id === spot.id)?.text ?? '')
       } else if (!bag.have && CATALOGUE.find((c) => c.id === spot.id)?.kind !== 'tool') narration.say('You have nothing to carry it in. Not yet.')
@@ -2010,7 +2017,25 @@ function frame(now: number): void {
   // The Ones Beyond stay lost in the haze while you are down in the dell you wake in (at
   // 30 km and 9.5 km tall no rise can hide them; out of the stair you saw everything at
   // once). The first time you are out over its rim they come out of it, and stay.
-  if (!skylineOn && (Math.hypot(wanderer.pos.x - DELL.x, wanderer.pos.z - DELL.z) > 560 || awakening.active || tipState.high >= 150)) skylineOn = true
+  const dellD = Math.hypot(wanderer.pos.x - DELL.x, wanderer.pos.z - DELL.z)
+  if (dellD < 520 && opening === 'done') wasInDell = true
+  if (!skylineOn && (dellD > 560 || awakening.active || tipState.high >= 150)) {
+    skylineOn = true
+    // Up out of the dell the first time on foot: the land opens, and they are there.
+    // (Once: not on every load somewhere else.)
+    let said = false
+    if (wasInDell && !awakening.active && wanderer.grounded && !toolMode) {
+      try {
+        said = localStorage.getItem('titans-over-the-rise') === '1'
+        localStorage.setItem('titans-over-the-rise', '1')
+      } catch {
+        /* (no storage: say it this once) */
+      }
+    }
+    if (wasInDell && !said && !awakening.active && wanderer.grounded && !toolMode) {
+      setTimeout(() => narration.say('Over the rise the Green opens out, on and on. And beyond the mountains, taller than the mountains, things are standing in the haze.'), 4000)
+    }
+  }
   const sk = Math.min(1, Math.max(0, skyline + (skylineOn ? dt : -dt) / 20))
   if (sk !== skyline || skylineMats.length === 0) {
     skyline = sk
