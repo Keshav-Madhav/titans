@@ -150,7 +150,47 @@ export class Undercroft {
       return d
     }
     const shape: Shape = { field, hx: HALL.hx + 10, hy: D / 2 + 8, hz: HALL.hz + 10, cy: -D / 2 }
-    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.carved, LAYER.flagstone], scale: 9, tint: [0.82, 0.82, 0.8] })
+    // Contact shade (user: "the corners where pillars or wall meet floor are not darker… an
+    // odd visual feeling"): the hall's shape is known, so each point asks how close stone
+    // stands round it — a few steps out along its normal, how much room there is (SDF
+    // ambient occlusion). Pillars, their stepped bases and capitals, the pit's walls, the
+    // floor and the roof's underside.
+    const f = (n: number) => n.toFixed(2)
+    const occlusion = {
+      key: 'undercroft',
+      uniforms: { uHallO: { value: new THREE.Vector3(HALL.x, top, HALL.z) } },
+      glsl: /* glsl */ `
+        uniform vec3 uHallO;
+        float hallBox(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0); }
+        float hallSdf(vec3 p) {
+          float d = p.y - ${f(-D + 1)};
+          d = min(d, ${f(-ROOF)} - p.y);
+          d = min(d, min(${f(HALL.hx - 6)} - abs(p.x), ${f(HALL.hz - 6)} - abs(p.z)));
+          vec2 c = vec2(clamp(floor((p.x - ${f(PX[0])}) / ${f(PX[1] - PX[0])} + 0.5), 0.0, ${f(PX.length - 1)}) * ${f(PX[1] - PX[0])} + ${f(PX[0])},
+                        clamp(floor((p.z - ${f(PZ[0])}) / ${f(PZ[1] - PZ[0])} + 0.5), 0.0, ${f(PZ.length - 1)}) * ${f(PZ[1] - PZ[0])} + ${f(PZ[0])});
+          vec3 q = p - vec3(c.x, 0.0, c.y);
+          d = min(d, hallBox(q - vec3(0.0, ${f(-(D + ROOF) / 2)}, 0.0), vec3(${f(PILLAR)}, ${f((D - ROOF) / 2)}, ${f(PILLAR)})));
+          d = min(d, hallBox(q - vec3(0.0, ${f(-D + 0.5 + BASE_H / 2)}, 0.0), vec3(${f(PILLAR + 2.2)}, ${f(BASE_H / 2)}, ${f(PILLAR + 2.2)})));
+          d = min(d, hallBox(q - vec3(0.0, ${f(-D + 0.5 + BASE_H + 0.6)}, 0.0), vec3(${f(PILLAR + 1.1)}, 0.6, ${f(PILLAR + 1.1)})));
+          d = min(d, hallBox(q - vec3(0.0, ${f(-ROOF - CAP_H / 2)}, 0.0), vec3(${f(PILLAR + 1.8)}, ${f(CAP_H / 2)}, ${f(PILLAR + 1.8)})));
+          d = min(d, hallBox(q - vec3(0.0, ${f(-ROOF - CAP_H - 0.5)}, 0.0), vec3(${f(PILLAR + 0.8)}, 0.5, ${f(PILLAR + 0.8)})));
+          return d;
+        }
+        float occlusion(vec3 wp, vec3 n) {
+          vec3 p = wp - uHallO;
+          // (Out on the plaza and the roof's top: open sky.)
+          if (p.y > ${f(-ROOF + 0.5)}) return 1.0;
+          float o = 0.0;
+          float w = 1.0;
+          for (int i = 1; i <= 5; i++) {
+            float h = 0.75 * float(i);
+            o += w * max(0.0, h - hallSdf(p + n * h));
+            w *= 0.62;
+          }
+          return clamp(1.0 - 0.42 * o, 0.22, 1.0);
+        }`,
+    }
+    rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.carved, LAYER.flagstone], scale: 9, tint: [0.82, 0.82, 0.8], occlusion })
     this.floor = new THREE.Vector3(HALL.x, top - D, HALL.z)
 
     // Shafts of daylight down through the skylights: soft, brightest at the top.

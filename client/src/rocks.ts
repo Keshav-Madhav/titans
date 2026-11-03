@@ -59,11 +59,32 @@ export interface ColossusPlacement {
 // --- material -------------------------------------------------------------------
 
 /** Tri-planar rock from the ground's texture arrays; moss or sand settles on top. */
-export function rockMaterial(tex: TerrainTextures): THREE.MeshStandardMaterial {
+/**
+ * `occlusion`: GLSL defining `float occlusion(vec3 worldPos, vec3 worldNormal)` (0 … 1, how
+ * much of the sky a point sees), for built stone whose shape is known — corners where a wall
+ * meets the floor go dark as they do in life — and its uniforms.
+ */
+export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
+  if (occlusion) mat.customProgramCacheKey = () => 'rock-ao-' + occlusion.key
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
+    if (occlusion) {
+      Object.assign(sh.uniforms, occlusion.uniforms)
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\n' + occlusion.glsl)
+        .replace(
+          '#include <aomap_fragment>',
+          `#include <aomap_fragment>
+          {
+            float occ = occlusion(vRockPos, normalize(vRockN));
+            reflectedLight.indirectDiffuse *= occ;
+            reflectedLight.indirectSpecular *= occ;
+            reflectedLight.directDiffuse *= mix(1.0, occ, 0.6);
+          }`,
+        )
+    }
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aLayer;\nvarying vec3 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;')
       .replace(
@@ -140,6 +161,7 @@ export class Rocks {
   readonly group = new THREE.Group()
   readonly formations: Formation[] = []
   private readonly material: THREE.MeshStandardMaterial
+  private readonly textures: TerrainTextures
   /** A small pool of meshing workers; each takes one formation at a time. */
   private readonly workers: Worker[] = []
   private readonly idle: Worker[] = []
@@ -155,6 +177,7 @@ export class Rocks {
     keepClear: (x: number, z: number, r: number) => boolean,
   ) {
     this.material = rockMaterial(textures)
+    this.textures = textures
     const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1))
     for (let i = 0; i < n; i++) {
       const w = new Worker(new URL('./rocks-worker.ts', import.meta.url), { type: 'module' })
@@ -245,7 +268,7 @@ export class Rocks {
    * A built colossus (architecture: pillars, stairs, gates): its own crisp
    * geometry (local, y up from `y`), and an exact field for collision.
    */
-  addBuilt(shape: Shape, geometry: THREE.BufferGeometry, p: { x: number; y: number; z: number; rot: number; layers: [number, number]; scale: number; tint?: [number, number, number] }): void {
+  addBuilt(shape: Shape, geometry: THREE.BufferGeometry, p: { x: number; y: number; z: number; rot: number; layers: [number, number]; scale: number; tint?: [number, number, number]; occlusion?: Parameters<typeof rockMaterial>[1] }): void {
     const n = geometry.getAttribute('position').count
     const tint = p.tint ?? [1, 1, 1]
     const col = new Float32Array(n * 3)
@@ -257,7 +280,7 @@ export class Rocks {
     geometry.setAttribute('color', new THREE.BufferAttribute(col, 3))
     geometry.setAttribute('aLayer', new THREE.BufferAttribute(layer, 3))
     geometry.computeBoundingSphere()
-    const mesh = new THREE.Mesh(geometry, this.material)
+    const mesh = new THREE.Mesh(geometry, p.occlusion ? rockMaterial(this.textures, p.occlusion) : this.material)
     mesh.position.set(p.x, p.y, p.z)
     mesh.rotation.y = p.rot
     mesh.castShadow = true
