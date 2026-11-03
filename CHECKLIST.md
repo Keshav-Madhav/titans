@@ -471,8 +471,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
         from the side): it now lies on the body
   - [x] Leaves dissolving near the camera: an ordered 4×4 dither (an even screen-door) instead of
         white noise (crawling grey static over a fir branch passing the lens)
-  - [ ] Open: in the post pipeline only, dissolving near-fir leaves come out purple (10.7k px in a
-        test view; 0 with post off). Not the fringe, not negatives, not a2c, no single pass
+  - [x] Dissolving near-fir leaves came out purple (post only): the grade's lens fringing read red
+        and blue a fraction of a pixel aside, and on the 1-px dither bright sky bled into those two
+        channels of each dark leaf pixel (found by reading the scene buffer: the pixel was green
+        there). Fringing removed: 13,088 purple pixels in the test view → 0
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)

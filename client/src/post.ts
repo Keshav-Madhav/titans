@@ -179,8 +179,10 @@ const GRADE = {
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
     void main() {
-      // Faint lens fringing toward the edges.
-      vec2 off = (vUv - 0.5) * 0.0016;
+      // (No lens fringing: red and blue read a fraction of a pixel aside, and wherever fine detail
+      // alternates pixel by pixel — the dither of leaves dissolving near the camera — bright sky
+      // bled into those two channels only and dark green leaves came out purple.)
+      vec2 off = vec2(0.0);
       // Under water the picture wavers.
       vec2 uv = vUv + under * 0.006 * vec2(sin(vUv.y * 38.0 + time * 2.1), cos(vUv.x * 31.0 + time * 1.7));
       vec3 c;
