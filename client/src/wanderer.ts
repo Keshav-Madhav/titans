@@ -51,6 +51,7 @@ const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
 const _fwd = new THREE.Vector3(0, 0, 1)
+const _tv = new THREE.Vector3()
 const _cx = new THREE.Vector3()
 const _cy = new THREE.Vector3()
 const _cz = new THREE.Vector3()
@@ -599,6 +600,11 @@ export class Wanderer {
   private accSm = 0
   /** Standing still this long (s): weight shifts, a look round. */
   private stillT = 0
+  /** On a giant or a rock face this frame (climbPose): the body is moved for us, not by `vel`. */
+  private onBody = false
+  /** How the body really moved (m/s, smoothed): the cloth's own wind while on a giant. */
+  private readonly bodyVel = new THREE.Vector3()
+  private readonly lastBodyPos = new THREE.Vector3()
   /** A landing: 0 … 1 how hard, decaying (knees take it). */
   private landK = 0
   private airVy = 0
@@ -1024,6 +1030,7 @@ export class Wanderer {
   /** Copy simulation state to the scene graph, `alpha` of the way from the previous step. */
   sync(alpha: number): void {
     this.climbing = false
+    this.onBody = false
     this.obj.position.lerpVectors(this.prev, this.pos, alpha)
     let d = this.yaw - this.prevYaw
     d = Math.atan2(Math.sin(d), Math.cos(d))
@@ -1052,6 +1059,7 @@ export class Wanderer {
     const o = this.obj
     this.climbing = !standing
     this.climbMoving = moving
+    this.onBody = true
     if (standing) {
       o.position.copy(point)
       o.quaternion.setFromAxisAngle(_up, yaw)
@@ -1131,7 +1139,9 @@ export class Wanderer {
     this.pelvis.rotation.z = 0
     this.pelvis.position.x = 0
     this.chest.rotation.y = 0
+    this.chest.rotation.z = 0
     this.head.rotation.y = 0
+    for (const l of this.legs) l.hip.rotation.z = 0
     // How the body is carried, from how it moves (user: "focus on the wanderer animations
     // alot more… 99% of the time a player would be looking at a frame with the wanderer").
     const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding
@@ -1161,19 +1171,29 @@ export class Wanderer {
     const L = this.legs
     const A = this.arms
     if (this.climbing) {
-      // Hand over hand, legs pushing.
-      const reach = this.climbMoving > 0 ? Math.sin(s * 2) : 0
-      A[0].shoulder.rotation.set(-2.6 + reach * 0.4, 0, -0.25)
-      A[1].shoulder.rotation.set(-2.6 - reach * 0.4, 0, 0.25)
-      A[0].elbow.rotation.x = -0.5 - Math.max(0, reach) * 0.6
-      A[1].elbow.rotation.x = -0.5 - Math.max(0, -reach) * 0.6
-      L[0].hip.rotation.x = -0.5 - Math.max(0, -reach) * 0.5
-      L[1].hip.rotation.x = -0.5 - Math.max(0, reach) * 0.5
-      L[0].knee.rotation.x = 0.9
-      L[1].knee.rotation.x = 0.9
+      // Hand over hand: one arm reaching high and straight while the other, bent, pulls
+      // the body up past it; the legs step on the diagonal (right foot up with the left
+      // hand), knees out, the hips swaying under the hands. Holding still, the last
+      // reach is held — not both arms straight up like a sign of surrender.
+      const ph = s * 1.1
+      for (let i = 0; i < 2; i++) {
+        const side = i ? 1 : -1
+        const up = 0.5 + 0.5 * Math.sin(ph + i * Math.PI)
+        A[i].shoulder.rotation.set(-1.95 - 0.95 * up, 0, side * (0.42 - 0.22 * up))
+        A[i].elbow.rotation.x = -0.15 - 1.45 * (1 - up)
+        const legUp = 0.5 + 0.5 * Math.sin(ph + (1 - i) * Math.PI)
+        L[i].hip.rotation.x = -0.25 - 0.95 * legUp
+        L[i].hip.rotation.z = side * -(0.18 + 0.2 * legUp)
+        L[i].knee.rotation.x = 0.45 + 1.35 * legUp
+      }
       this.pelvis.position.y = 0.92
+      this.pelvis.position.x = Math.sin(ph) * 0.07
+      this.pelvis.rotation.z = Math.sin(ph) * 0.08
+      this.chest.rotation.z = -Math.sin(ph) * 0.06
       this.chest.rotation.x = 0
-      this.head.rotation.x = -0.3
+      // Looking up at the next hold (a glance down now and then).
+      this.head.rotation.x = -0.4 + Math.max(0, Math.sin(this.t * 0.4)) * 0.25
+      this.head.rotation.y = Math.sin(ph) * 0.15
     } else if (this.swimming) {
       // Swimming: a slow breaststroke — reach ahead, sweep out and back — legs kicking;
       // treading water when still (arms sculling at the sides).
@@ -1355,7 +1375,19 @@ export class Wanderer {
     const gust = wind.length()
     this.windV.copy(wind).multiplyScalar(0.5 + 0.5 * Math.max(0, Math.sin(this.t * 0.7) * Math.sin(this.t * 1.9)))
     // (Running makes a breeze that lifts it back — not a gale that holds it out flat.)
-    this.windV.addScaledVector(this.vel, this.gliding ? -0.6 : -0.42)
+    // On a giant, `vel` is whatever it was before you took hold (the climb moves the body
+    // itself): the cape streamed sideways and bunched over the shoulders in a wind that
+    // wasn't there. There, how the body really moves.
+    {
+      const jump = this.lastBodyPos.distanceToSquared(this.obj.position) > 100
+      if (dt > 0 && !jump) {
+        _tv.subVectors(this.obj.position, this.lastBodyPos).divideScalar(dt)
+        if (_tv.lengthSq() > 900) _tv.setLength(30)
+        this.bodyVel.lerp(_tv, Math.min(1, dt * 8))
+      }
+      this.lastBodyPos.copy(this.obj.position)
+    }
+    this.windV.addScaledVector(this.onBody ? this.bodyVel : this.vel, this.gliding ? -0.6 : -0.42)
     this.windV.x += Math.sin(this.t * 2.3) * gust * 0.25
     this.windV.z += Math.cos(this.t * 1.7) * gust * 0.25
     // A long fall: the air rushing up would stand the whole cape on your head,

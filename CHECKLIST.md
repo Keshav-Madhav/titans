@@ -537,6 +537,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
       (wooded hills, not a smooth green wall; first-hour route 0 stuck, was 12)
 - [x] Over the rise, the first time on foot: a line as the Ones Beyond come out of the haze; you
       kneel to pick up a page and read it
+- [x] Climbing: hand over hand (one arm reaching high and straight, the other bent and pulling),
+      legs stepping on the diagonal, knees out, hips swaying; a held reach when still (both arms
+      straight up read as a surrender). The cape hangs down your back on a giant or a rock face —
+      the cloth took your grip (at your chest) for the ground under it and was pushed up round
+      your shoulders the whole climb; and its own wind is how the body really moves there, not
+      the run you had before taking hold
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

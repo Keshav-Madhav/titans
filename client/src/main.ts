@@ -2406,6 +2406,10 @@ const groundAt = (x: number, z: number) => {
   const t = terrain.heightAt(x, z)
   // Swimming: the cloth floats on the water.
   if (wanderer.swimming) return Math.max(t, wanderer.waterLevel - 0.03)
+  // Hanging on a giant or a rock face: nothing under the cape but air (where you hold on is
+  // at your chest, and taking that for the ground pushed the whole cape up round your
+  // shoulders the whole climb).
+  if ((climber.active && !climber.standing) || cliff.active) return t
   // Standing on rock (a ledge, the plaza, a cave floor): the cloth rests on it too.
   return p.y > t + 0.3 && Math.hypot(x - p.x, z - p.z) < 3 ? Math.max(t, p.y - 0.05) : t
 }
