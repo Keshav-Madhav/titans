@@ -206,6 +206,11 @@ export class Weather {
             // Far away the deck melts into the haze.
             c = mix(c, uFog, smoothstep(2500.0, 12000.0, dist) * 0.85);
             float a = d * 0.42 * (1.0 - smoothstep(10000.0, 14500.0, dist));
+            // From far above it (the High Places), the deck is a sea of cloud: thicker, and its
+            // tops lit — not a thin milky haze over the land.
+            float above = smoothstep(120.0, 420.0, cameraPosition.y - vWorld.y);
+            a = mix(a, min(1.0, d * 0.95), above * smoothstep(0.15, 0.55, d));
+            c = mix(c, c * 1.12 + vec3(0.05), above * uLayer);
             // (Up among the clouds — on a giant's shoulders, in a long glide — a layer at
             // your own height passed edge-on through the view as a hard, flat, see-through
             // panel. A cloud has no surface: each layer thins away as the eye nears its

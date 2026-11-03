@@ -93,7 +93,8 @@ export class Clouds {
           mv.xy += position.xy * s;
           gl_Position = projectionMatrix * mv;
           vUv = uv;
-          vShade = aShade;
+          // (Seen from above — from the High Places — you see their sunlit tops, not dark undersides.)
+          vShade = mix(aShade, 1.0, smoothstep(60.0, 320.0, cameraPosition.y - c.y));
           // Lost in the haze far off.
           vFade = 1.0 - smoothstep(4500.0, 7500.0, length(mv.xyz));
         }`,
