@@ -543,6 +543,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       the cloth took your grip (at your chest) for the ground under it and was pushed up round
       your shoulders the whole climb; and its own wind is how the body really moves there, not
       the run you had before taking hold
+- [x] Swimming: the cape stood straight up out of the lake like a fin while you trod water (the
+      cliff-foot rule took the water's surface for a wall and shoved it in toward you); now it
+      floats spread on the surface, and trails on it as you swim
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

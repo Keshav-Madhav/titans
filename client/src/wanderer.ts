@@ -279,6 +279,8 @@ const CARRY = 0.82
  * above the ground. Drawn as a double-sided mesh rebuilt each frame.
  */
 class Cloth {
+  /** Floating: the floor under it is water, not a wall to be pushed back from. */
+  water = false
   readonly mesh: THREE.Mesh
   private readonly p: Float32Array
   private readonly q: Float32Array
@@ -452,7 +454,9 @@ class Cloth {
             // Ground well above your feet under it is a wall (you stand at a cliff's foot, the
             // cape hanging back over it): lifted onto it, the hem climbed the rock and stood up
             // over your head. Against a wall it is pushed back toward you instead, and hangs.
-            if (this.floor[i] > a.y - 0.25) {
+            // (In water the floor is the surface: there it floats, it is not a wall — treated
+            // as one the cape was shoved in toward you and stood up out of the lake like a fin.)
+            if (!this.water && this.floor[i] > a.y - 0.25) {
               const dx = a.x - p[k - 1]
               const dz = a.z - p[k + 1]
               const d = Math.hypot(dx, dz) || 1
@@ -1417,6 +1421,7 @@ export class Wanderer {
       c[i * 2 + 1].b.set(0, -0.44, 0)
       L.knee.localToWorld(c[i * 2 + 1].b)
     }
+    this.cape.water = this.scarf.water = this.swimming
     this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
