@@ -1374,6 +1374,12 @@ export class Wanderer {
       this.lanternHook.rotation.x += (swing - this.lanternHook.rotation.x) * Math.min(1, dt * 10)
       const out = THREE.MathUtils.clamp(-this.bodyRoll * 1.4, -0.4, 0.4) + Math.cos(this.stride) * 0.06 * go
       this.lanternHook.rotation.z += (out - this.lanternHook.rotation.z) * Math.min(1, dt * 6)
+      // The satchel bumps against the hip with each step.
+      const bag = this.bagParts[1]
+      if (bag) {
+        bag.position.y = -0.12 + Math.abs(Math.sin(this.stride)) * 0.018 * go * (1 + run)
+        bag.rotation.z = 0.1 + Math.sin(this.stride + 0.5) * 0.08 * go
+      }
     }
 
     // Taking something from the ground: down on one knee, the right hand reaching to it,
