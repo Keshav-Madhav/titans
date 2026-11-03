@@ -180,7 +180,7 @@ export class Sound {
     this.rainGain?.gain.setTargetAtTime(rain * 0.11, t, 2)
     this.windGain?.gain.setTargetAtTime(0.03 + wind * 0.07, t, 3)
     // The drone swells under storm and near the colossi.
-    this.padGain?.gain.setTargetAtTime(0.05 + dark * 0.05 + awe * 0.09, t, 4)
+    this.padGain?.gain.setTargetAtTime(0.08 + dark * 0.05 + awe * 0.09, t, 4)
     // Something enormous near: felt more than heard, more in the murk, where you can't see it.
     this.presenceGain?.gain.setTargetAtTime(awe * awe * (0.35 + 0.65 * dark) * 0.3, t, 2.5)
     this.padFilter?.frequency.setTargetAtTime(380 + (1 - dark) * 420 + awe * 300, t, 4)
@@ -490,6 +490,106 @@ export class Sound {
       this.nextHorn = t + 45 + Math.random() * 70
       this.farHorn()
     }
+    // The score's melody (user: "no music" — it was a drone and a lone note now and then): every
+    // minute or so a slow phrase on a plucked voice, from the chord's own key; now and then a
+    // low bowed line under it. Fewer in the dark and the storm; none in a stillness.
+    if (t > this.nextPhrase) {
+      this.nextPhrase = t + 50 + Math.random() * 50 + this.state.dark * 40
+      if (!this.stillness && Math.random() > this.state.dark * 0.5) this.phrase()
+    }
+  }
+
+  private nextPhrase = 25
+
+  /** D minor (natural), the score's key, across two octaves from D4. */
+  private static readonly SCALE = [293.66, 329.63, 349.23, 392.0, 440.0, 466.16, 523.25, 587.33, 659.25, 698.46, 783.99, 880.0]
+
+  /** A phrase: 4–7 notes walking mostly by step, leaning on the chord's tones, ending low and long. */
+  private phrase(): void {
+    const ctx = this.ctx!
+    const S = Sound.SCALE
+    const chord = CHORDS[this.chord]
+    // Start on a chord tone in the upper octave.
+    const pc = (f: number) => ((Math.round(12 * Math.log2(f / 440)) % 12) + 12) % 12
+    const chordPcs = new Set(chord.map(pc))
+    const tones = S.map((f, i) => [f, i] as const).filter(([f, i]) => i >= 4 && chordPcs.has(pc(f)))
+    let i = tones.length ? tones[Math.floor(Math.random() * tones.length)][1] : 4
+    const n = 4 + Math.floor(Math.random() * 4)
+    let at = ctx.currentTime + 0.3
+    for (let k = 0; k < n; k++) {
+      const last = k === n - 1
+      const len = last ? 2.4 : 0.6 + Math.random() * 0.8
+      this.pluck(S[i], at, last ? 6 : 3.2, last ? 0.05 : 0.04)
+      at += len
+      // Mostly steps, sometimes a third; drifting down toward the end.
+      const step = Math.random() < 0.7 ? 1 : 2
+      const dir = k > n / 2 ? -1 : Math.random() < 0.5 ? -1 : 1
+      i = Math.max(0, Math.min(S.length - 1, i + step * dir))
+    }
+    // Under some phrases, a low bowed line: the chord's root, then its fifth, slowly.
+    if (Math.random() < 0.45) {
+      this.bow(chord[1], ctx.currentTime + 0.3, (at - ctx.currentTime) * 0.55)
+      this.bow(chord[1] * 1.5, ctx.currentTime + 0.3 + (at - ctx.currentTime) * 0.5, (at - ctx.currentTime) * 0.6)
+    }
+  }
+
+  /** A plucked string: a bright attack, a slow fading tone (two partials, a little detuned). */
+  private pluck(f: number, at: number, decay: number, amp: number): void {
+    const ctx = this.ctx!
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, at)
+    g.gain.exponentialRampToValueAtTime(amp, at + 0.008)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + decay)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(f * 7, at)
+    lp.frequency.exponentialRampToValueAtTime(f * 1.6, at + decay * 0.6)
+    for (const [mul, det, a] of [[1, -3, 1], [1, 4, 0.7], [2, 0, 0.25], [3, 2, 0.08]] as const) {
+      const o = ctx.createOscillator()
+      o.type = mul === 1 ? 'triangle' : 'sine'
+      o.frequency.value = f * mul
+      o.detune.value = det
+      const og = ctx.createGain()
+      og.gain.value = a
+      o.connect(og).connect(lp)
+      o.start(at)
+      o.stop(at + decay + 0.1)
+    }
+    lp.connect(g)
+    g.connect(this.musicBus())
+    g.connect(this.space!)
+  }
+
+  /** A low bowed note: slow swell, slow fade, a slight vibrato. */
+  private bow(f: number, at: number, len: number): void {
+    const ctx = this.ctx!
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, at)
+    g.gain.exponentialRampToValueAtTime(0.03, at + len * 0.4)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = f * 4
+    const vib = ctx.createOscillator()
+    vib.frequency.value = 4.8
+    const vd = ctx.createGain()
+    vd.gain.value = 4
+    vib.connect(vd)
+    for (const det of [-5, 6]) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.value = f
+      o.detune.value = det
+      vd.connect(o.detune)
+      o.connect(lp)
+      o.start(at)
+      o.stop(at + len + 0.1)
+    }
+    vib.start(at)
+    vib.stop(at + len + 0.1)
+    lp.connect(g)
+    g.connect(this.musicBus())
+    g.connect(this.space!)
   }
 
   /** A glassy note from the chord, high up, fading into the hall. */

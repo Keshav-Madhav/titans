@@ -607,7 +607,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] No way to see the controls — a Controls section heads the pause page; `?` or F1 opens it in play, and the key strip says so
 - [x] The minimap lags, re-renders a lot, in chunks — a cached land slid every frame (was a full redraw with two blur passes at 10 Hz, moving in jumps)
 - [ ] Lag, performance: LODs
-- [ ] No music
+- [~] No music — the score was a quiet drone and a lone glass note every 7–30 s. Now every minute or so a slow phrase (4–7 notes, mostly by step from the chord's tones in D minor, ending low and long) on a plucked voice, sometimes over a low bowed line; the pad a little louder; fewer in the dark, none in a stillness. Offline: two phrases peak −14.4 dB; the worst-case pile-up −1.6 dB, nothing clipped. Not listened to: by ear, the user's call
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
