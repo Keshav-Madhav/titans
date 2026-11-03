@@ -197,13 +197,13 @@ than ~50° cannot be walked up.
 ## 4. What you do
 
 No plot (§2f): you are a visitor, curious. **Verbs:** walk, sprint (a long run on open ground),
-jump; **climb** giants, colossi and rock (grip); **ride** a walking giant; **glide** with the
+jump; **climb** giants, colossi and rock (grip); **ride** a walking giant; **swing** and reel on the grappling line; **glide** with the
 wing-cloak (real flight: dive, pull up, bank, stall, ridge lift); **shoot** the bow; **call** with
 the horn; **look through** the sight-stone; **read**, **take**, **strike**, **offer**, **light**.
 
 **Controls:** WASD move · mouse look (click to capture; right-drag without) · Shift run (hold:
 long run) · Space jump / hold to glide · E climb, read, take, use · Q (or right mouse) draw the bow,
-F (or click) loose · H blow the horn · V look through the sight-stone · M map · J journal · I bag.
+F (or click) loose · G the grappling line (hold to reel in) · H blow the horn · V look through the sight-stone · M map · J journal · I bag.
 
 **What there is to find** — the discovery roster (`discovery.ts`, journal and bag):
 places and those who live here (found by going there); words on stone; the traveller's camps and
@@ -217,16 +217,17 @@ the bow, the wing-cloak, the sight-stone.
 
 | System | Module |
 | --- | --- |
-| Regions, terrain, marsh pools | `shared/src/regions.ts`, `terrain.ts`, `mire.ts` |
+| Regions, terrain, marsh pools, the Shore and High Places | `shared/src/regions.ts`, `terrain.ts` (`SHORE`, `HIGH`, the dell), `mire.ts` |
 | Ground look | `terrain-view.ts`, `terrain-material.ts` (texture arrays, splat, tri-planar cliffs) |
 | Plants, trees, grass | `vegetation.ts`, `trees.ts`, `grass.ts` |
 | Rock and colossi | `rock-fields.ts` (SDF shapes), `rocks.ts` (meshing on workers, collision), `colossi.ts` |
-| Giants | `titan.ts`, `armor.ts`, `herd.ts`, `shared/src/gait.ts`, `brain.ts` |
-| Sky, weather, air | `sky.ts` (day and night), `weather.ts`, `atmosphere.ts`, `clouds.ts`, `mist.ts`, `post.ts` |
+| Giants | `titan.ts`, `armor.ts`, `herd.ts`, `frozen.ts` (in the ice), `shared/src/gait.ts`, `brain.ts` |
+| Sky, weather, air | `sky.ts` (day and night), `weather.ts` (rain, sand, snow), `atmosphere.ts`, `clouds.ts`, `mist.ts`, `soft.ts` (cloud and mist fade into solids), `post.ts` |
 | Life | `ambience.ts` (fireflies, butterflies, birds, hares), `life.ts`, `wildlife.ts`, `striders.ts`, `leviathans.ts`, `watchers.ts` |
-| You | `wanderer.ts` (body, cloth, flight), `climb.ts`, `cliff.ts`, `camera-rig.ts` |
+| You | `wanderer.ts` (body, cloth, flight), `climb.ts`, `cliff.ts`, `grapple.ts` (the line), `prints.ts` (footprints), `camera-rig.ts` |
 | Discovery | `discovery.ts`, `journal.ts`, `bag.ts`, `toolbar.ts`, `spots.ts`, `camp.ts`, `wisps.ts`, `resonance.ts`, `eyes.ts`, `bow.ts`, `glyphs.ts`, `parkour.ts`, `offerings.ts`, `cairns.ts`, `awakening.ts` |
-| Map, save, sound | `map.ts`, `save.ts` (key v3), `audio.ts` (all synthesised) |
+| Map, save, sound | `map.ts`, `save.ts` (key v3), `audio.ts` (all synthesised: wind, surf, the score's phrases) |
+| Water | `water-view.ts` (lakes), `sea.ts` (the sea past the Shore), `wake.ts` |
 
 ## 6. Phases
 
