@@ -602,6 +602,8 @@ export class Wanderer {
   private lastYawA = 0
   private lastSpeedA = 0
   private accSm = 0
+  /** Out of breath (0 … 1): builds on a long sprint, eases off at rest. */
+  private winded = 0
   /** Standing still this long (s): weight shifts, a look round. */
   private stillT = 0
   /** On a giant or a rock face this frame (climbPose): the body is moved for us, not by `vel`. */
@@ -1172,6 +1174,7 @@ export class Wanderer {
     this.wasGrounded = this.grounded
     this.landK = Math.max(0, this.landK - dt * 2.6)
     this.stillT = onFoot && hs < 0.3 && this.holding === null ? this.stillT + dt : 0
+    this.winded = THREE.MathUtils.clamp(this.winded + (onFoot && hs > SPRINT * 0.9 ? dt / 10 : hs < 1 ? -dt / 9 : -dt / 30), 0, 1)
     const L = this.legs
     const A = this.arms
     if (this.climbing) {
@@ -1307,6 +1310,19 @@ export class Wanderer {
           A[i].shoulder.rotation.z += (i ? 1 : -1) * 0.35 * k
         }
         this.chest.rotation.x += 0.35 * k
+      }
+      // Pulled up after a long run: catching your breath — the chest heaving, head down a
+      // little, shoulders rising and falling — before anything else.
+      if (this.winded > 0.05 && hs < 1) {
+        const k = this.winded * (1 - Math.min(1, hs))
+        const b = Math.sin(this.t * 5.2)
+        this.chest.rotation.x += (0.18 + 0.05 * b) * k
+        this.pelvis.position.y -= 0.03 * k
+        this.head.rotation.x += 0.12 * k
+        for (let i = 0; i < 2; i++) {
+          A[i].shoulder.rotation.x += (-0.12 + 0.06 * b) * k
+          L[i].knee.rotation.x += 0.12 * k
+        }
       }
       // Standing a while: the weight on one leg, then the other; now and then a look round
       // (at the land, the sky — not a mannequin waiting for input).
