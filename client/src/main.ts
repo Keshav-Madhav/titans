@@ -1635,6 +1635,7 @@ function simulate(dt: number): void {
       // lets you — no stomps, and an amble, not its full stride. A newcomer on
       // its shin was shaken off within seconds when it set off.
       const firstClimb = climber.active && climber.target?.id === id && !firstClimbDone
+      climber.gentle = !firstClimbDone
       if (firstClimb) inp = { ...o, forward: o.forward * 0.4 }
       if (firstClimb) t.gait.stompArmed = false
       else if (o.stomp) t.gait.stompArmed = true

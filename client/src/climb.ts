@@ -81,6 +81,8 @@ export class Climber {
   /** The hold, on the surface, in the part's local frame. */
   readonly local = new THREE.Vector3()
   stamina = 1
+  /** The first climb (until you let go high up): grip drains slower. */
+  gentle = false
   standing = false
   /** World position and outward normal of the hold (refreshed by sync()). */
   readonly world = new THREE.Vector3()
@@ -182,6 +184,14 @@ export class Climber {
     // Grip.
     let drain = this.standing ? -REGEN_TOP : DRAIN_STEEP + DRAIN_MOVING * titanStride
     if (shrugging && UPPER.test(part.key)) drain += DRAIN_SHRUG
+    if (!this.standing) {
+      // Less steep (the upper side of a bulge, a slab of hide), it takes less holding on:
+      // somewhere to ease off between the thighs and the shoulders.
+      const slab = n.y < 0.2 ? 0 : n.y > 0.62 ? 1 : ((n.y - 0.2) / 0.42) ** 2 * (3 - 2 * ((n.y - 0.2) / 0.42))
+      drain *= 1 - 0.6 * slab
+      // (Your first climb: a little more forgiving still.)
+      if (this.gentle) drain *= 0.7
+    }
     this.stamina = Math.min(1, Math.max(0, this.stamina - drain * dt))
     return this.stamina > 0
   }

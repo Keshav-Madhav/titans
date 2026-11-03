@@ -485,8 +485,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The satchel: a plain brown box → a soft leather bag (rounded, a darker flap over its front,
         an iron buckle)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
-- [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
-      on the torso (the scripted climb found nowhere between the thighs and the shoulders)
+- [x] Where a first climber can rest on the torso: less steep rock (a bulge's upper side) takes up to
+      60% less grip, and the first climb drains at 70%. The scripted first climb: grip out at
+      ~200 m and a fall → up onto the shoulders (240 m), standing
+- [ ] Still to look at: GPU-side frame spikes on real hardware
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
