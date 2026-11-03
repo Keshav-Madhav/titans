@@ -19,7 +19,7 @@ const RADIUS = 2.6
 
 export class Eyes {
   readonly group = new THREE.Group()
-  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; mat: THREE.MeshBasicMaterial; halo: THREE.Sprite; shut: boolean }> = []
+  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; normal: THREE.Vector3; mat: THREE.MeshBasicMaterial; halo: THREE.Sprite; shut: boolean }> = []
   /** An eye closed; all of a set closed (`done`). */
   onShut: (set: EyeSet, done: boolean) => void = () => {}
 
@@ -47,10 +47,27 @@ export class Eyes {
         g.position.copy(e.at)
         g.lookAt(e.at.clone().add(e.normal))
         this.group.add(g)
-        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), mat, halo, shut: false })
+        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), normal: e.normal.clone().normalize(), mat, halo, shut: false })
       })
     }
   }
+
+  /**
+   * The glow only from in front (user: "the targets look weird when looking from behind"):
+   * a sprite always faces you, so from behind or beside an eye its 6.5 m glow hung in the
+   * air next to the stone. It fades as you come round to the eye's side.
+   */
+  update(camera: THREE.Camera): void {
+    for (const e of this.irises) {
+      if (e.shut) continue
+      this._to.copy(camera.position).sub(e.at).normalize()
+      const front = THREE.MathUtils.smoothstep(this._to.dot(e.normal), 0.05, 0.45)
+      e.halo.material.opacity = front
+      e.halo.visible = front > 0.01
+    }
+  }
+
+  private readonly _to = new THREE.Vector3()
 
   /** Does the segment from→to pass through an open eye (no side effects)? */
   test(from: THREE.Vector3, to: THREE.Vector3): boolean {
