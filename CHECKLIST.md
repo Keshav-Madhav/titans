@@ -478,6 +478,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
   - [x] The key strip sat at the bottom of the screen for good: once you know the keys (the first
         climb done) it fades while you move, and is back when you stand still ~2.5 s, for 6 s after
         you start climbing or flying, and for 8 s when J / I gain news
+  - [x] Captions held for a fixed 14 s whatever their length: now as long as they take to read
+        (5 s for "You lost your grip.", ~11 s for a long line, 20 s at most); faded lines leave the page
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [ ] Still to look at: GPU-side frame spikes on real hardware; where a first climber can stand and rest
       on the torso (the scripted climb found nowhere between the thighs and the shoulders)
