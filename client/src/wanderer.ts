@@ -1071,6 +1071,13 @@ export class Wanderer {
     this.climbing = !standing
     this.climbMoving = moving
     this.onBody = true
+    // (The walk's state from the climb, not left over from before you took hold: standing on
+    // a giant's back you are on your feet, walking at the climb's pace, or still.)
+    this.grounded = standing
+    this.sliding = false
+    this.swimming = false
+    this.yaw = yaw
+    this.vel.set(standing ? Math.sin(yaw) * moving : 0, 0, standing ? Math.cos(yaw) * moving : 0)
     if (standing) {
       o.position.copy(point)
       o.quaternion.setFromAxisAngle(_up, yaw)
