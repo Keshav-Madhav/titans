@@ -530,6 +530,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
       planted leg and dip between, turn with the leg going forward, shoulders turn against them,
       head held level; running, the knee folds high and the heel kicks up, the leg reaching
       forward stays bent (it read as a goose-step), arms pump bent
+- [x] The wanderer, carried: leans into a turn (with speed), tips forward setting off and sits back
+      pulling up, leans into a climb; lands into the knees (deeper the harder the fall); standing a
+      few seconds, the weight shifts leg to leg and the head turns slowly to look round
 
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.

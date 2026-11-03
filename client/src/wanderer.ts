@@ -591,6 +591,18 @@ export class Wanderer {
   stunned = 0
   private tilt = 0
   private stride = 0
+  /** The whole body's lean: into a turn (roll, rad), with a change of pace or a slope (pitch, rad). */
+  private bodyRoll = 0
+  private bodyPitch = 0
+  private lastYawA = 0
+  private lastSpeedA = 0
+  private accSm = 0
+  /** Standing still this long (s): weight shifts, a look round. */
+  private stillT = 0
+  /** A landing: 0 … 1 how hard, decaying (knees take it). */
+  private landK = 0
+  private airVy = 0
+  private wasGrounded = true
   /** Seconds into kneeling to take something (< 0: not). */
   private takeT = -1
   /** The hip's swing either way at this pace (rad). */
@@ -1017,6 +1029,8 @@ export class Wanderer {
     d = Math.atan2(Math.sin(d), Math.cos(d))
     this.obj.quaternion.setFromAxisAngle(_up, this.prevYaw + d * alpha)
     if (this.tilt > 0.01) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, -this.tilt))
+    if (Math.abs(this.bodyRoll) > 0.002) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bodyRoll))
+    if (Math.abs(this.bodyPitch) > 0.002) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, this.bodyPitch))
     // Swimming: the body lies forward in the water (more as you go), lifted so the head stays up.
     if (this.swimLean > 0.01) {
       this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, this.swimLean))
@@ -1115,8 +1129,35 @@ export class Wanderer {
     const run = Math.max(0, this.gait - 1) / 0.6
     this.pelvis.rotation.y = 0
     this.pelvis.rotation.z = 0
+    this.pelvis.position.x = 0
     this.chest.rotation.y = 0
     this.head.rotation.y = 0
+    // How the body is carried, from how it moves (user: "focus on the wanderer animations
+    // alot more… 99% of the time a player would be looking at a frame with the wanderer").
+    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding
+    let yr = this.yaw - this.lastYawA
+    yr = Math.atan2(Math.sin(yr), Math.cos(yr)) / Math.max(dt, 1e-3)
+    this.lastYawA = this.yaw
+    const acc = (hs - this.lastSpeedA) / Math.max(dt, 1e-3)
+    this.lastSpeedA = hs
+    this.accSm += (THREE.MathUtils.clamp(acc, -30, 30) - this.accSm) * Math.min(1, dt * 6)
+    // Into a turn, as a runner leans against it (more the faster you go).
+    const rollWant = onFoot ? THREE.MathUtils.clamp(-yr * hs * 0.022, -0.26, 0.26) : 0
+    this.bodyRoll += (rollWant - this.bodyRoll) * Math.min(1, dt * 7)
+    // Setting off you tip forward into it; pulling up you sit back on your heels. Uphill you
+    // lean into the slope.
+    const fx = Math.sin(this.yaw)
+    const fz = Math.cos(this.yaw)
+    const slope = onFoot && hs > 0.5 ? THREE.MathUtils.clamp((ground(this.pos.x + fx * 1.5, this.pos.z + fz * 1.5) - ground(this.pos.x - fx * 1.5, this.pos.z - fz * 1.5)) / 3, -0.8, 0.8) : 0
+    const pitchWant = onFoot ? THREE.MathUtils.clamp(this.accSm * 0.012, -0.16, 0.14) + Math.max(0, slope) * 0.35 - Math.max(0, -slope) * 0.12 : 0
+    this.bodyPitch += (pitchWant - this.bodyPitch) * Math.min(1, dt * 5)
+    // Landing: how fast you came down sets how deep the knees take it.
+    if (!this.grounded) this.airVy = Math.min(this.airVy, this.vel.y)
+    if (this.grounded && !this.wasGrounded && !this.climbing) this.landK = Math.max(this.landK, THREE.MathUtils.clamp((-this.airVy - 1.5) / 9, 0, 1))
+    if (this.grounded) this.airVy = 0
+    this.wasGrounded = this.grounded
+    this.landK = Math.max(0, this.landK - dt * 2.6)
+    this.stillT = onFoot && hs < 0.3 && this.holding === null ? this.stillT + dt : 0
     const L = this.legs
     const A = this.arms
     if (this.climbing) {
@@ -1229,6 +1270,32 @@ export class Wanderer {
       // The head stays level and looking ahead whatever the body does.
       this.head.rotation.x = -this.chest.rotation.x * 0.75
       this.head.rotation.y = -this.chest.rotation.y - this.pelvis.rotation.y
+      // A landing: down into the knees, arms out a little, and up again.
+      if (this.landK > 0.01) {
+        const k = Math.sin(Math.min(1, this.landK) * Math.PI * 0.5)
+        this.pelvis.position.y -= 0.24 * k
+        for (let i = 0; i < 2; i++) {
+          L[i].hip.rotation.x -= 0.75 * k
+          L[i].knee.rotation.x += 1.25 * k
+          A[i].shoulder.rotation.z += (i ? 1 : -1) * 0.35 * k
+        }
+        this.chest.rotation.x += 0.35 * k
+      }
+      // Standing a while: the weight on one leg, then the other; now and then a look round
+      // (at the land, the sky — not a mannequin waiting for input).
+      if (this.stillT > 2.5) {
+        const w = THREE.MathUtils.smoothstep(this.stillT, 2.5, 4.5)
+        const shift = Math.sin(this.t * 0.23) // which leg
+        this.pelvis.rotation.z += shift * 0.045 * w
+        this.pelvis.position.x = shift * 0.025 * w
+        const bent = shift > 0 ? 1 : 0
+        L[bent].knee.rotation.x += Math.abs(shift) * 0.22 * w
+        L[bent].hip.rotation.x -= Math.abs(shift) * 0.08 * w
+        // A slow look one way or the other every so often, held, then back.
+        const look = Math.sin(this.t * 0.11) * Math.sin(this.t * 0.07 + 1.3)
+        this.head.rotation.y += THREE.MathUtils.clamp(look * 1.6, -0.7, 0.7) * w
+        this.head.rotation.x += Math.max(0, Math.sin(this.t * 0.05 + 2)) * -0.18 * w
+      }
     }
 
     // A tool in hand: its pose over whatever the legs are doing.
