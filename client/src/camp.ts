@@ -99,13 +99,19 @@ export class Camp {
       const a = (k / 3) * Math.PI * 2 + 0.4
       const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 2.3, 5).translate(0, 1.15, 0), wood)
       leg.position.copy(at(Math.cos(a) * 0.85, Math.sin(a) * 0.85))
-      leg.lookAt(this.fire.x, this.fire.y + 4.2, this.fire.z)
+      leg.lookAt(this.fire.x, this.fire.y + 2.05, this.fire.z)
       leg.rotateX(Math.PI / 2)
       this.group.add(leg)
     }
     const pot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.7), char)
     pot.position.copy(at(0, 0, 0.75))
     this.group.add(pot)
+    // Hung from where the legs meet, on a cord.
+    const top = this.fire.y + 2.05
+    const cordLen = top - (pot.position.y + 0.12)
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen, 4), wood)
+    cord.position.set(this.fire.x, pot.position.y + 0.12 + cordLen / 2, this.fire.z)
+    this.group.add(cord)
     // The ground worn bare round the fire: trampled earth, the grass kept off it (see
     // CAMP_BARE), so a camp reads as a place people stayed, not more meadow.
     const bare = bareGround(at, terrain, CAMP.x, CAMP.z)

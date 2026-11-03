@@ -69,7 +69,7 @@ export class Journal {
   announce(find: Find): void {
     const word = { place: 'Discovered', giant: 'Met', lore: 'Read', relic: 'Taken', trinket: 'Found', tool: 'A new way in', strange: 'You saw it' }[find.kind]
     // (Carried things say where they went: the bag, I.)
-    const where = find.kind === 'trinket' || find.kind === 'relic' ? `<i>Into your bag · <kbd>I</kbd></i>` : find.kind === 'tool' ? `<i>In hand: see the tools, top left</i>` : ''
+    const where = find.id !== 'bag' && (find.kind === 'trinket' || find.kind === 'relic') ? `<i>Into your bag · <kbd>I</kbd></i>` : find.kind === 'tool' ? `<i>In hand: see the tools, top left</i>` : ''
     this.card.innerHTML = `<small>${word}</small><b>${esc(find.name)}</b>${where}`
     this.card.classList.add('on')
     clearTimeout(this.cardTimer)
