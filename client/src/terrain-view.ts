@@ -16,6 +16,8 @@ import { LAYER, makeTerrainMaterial, type TerrainTextures } from './terrain-mate
 const ROOT = 65536
 const LEAF = 64
 const MAX_LEVEL = Math.round(Math.log2(ROOT / LEAF))
+/** Chunks this size (metres) and up are built on the half-resolution grid. */
+const FAR_CHUNK = 1024
 
 /** Everything that depends on the chunk resolution N (quads per side). */
 interface Grid {
@@ -97,6 +99,7 @@ export class TerrainView {
   readonly material: THREE.MeshStandardMaterial
   private readonly chunks = new Map<number, Chunk>()
   private grid = makeGrid(64)
+  private farGrid = makeGrid(32)
   private heights = new Float32Array(67 * 67)
   private deltas = new Float32Array(67 * 67)
   private readonly detail: Noise2
@@ -135,6 +138,7 @@ export class TerrainView {
   setResolution(n: number): void {
     if (n === this.grid.N) return
     this.grid = makeGrid(n)
+    this.farGrid = makeGrid(Math.max(16, n >> 1))
     this.heights = new Float32Array(this.grid.H_ROW * this.grid.H_ROW)
     this.deltas = new Float32Array(this.grid.H_ROW * this.grid.H_ROW)
     for (const c of this.chunks.values()) c.dirty = true
@@ -290,8 +294,18 @@ export class TerrainView {
    * shared checkerboard left rows of jagged, smeared teeth at every cliff's
    * foot). Chunks with no steep quad keep the shared index.
    */
-  private fitDiagonals(geo: THREE.BufferGeometry, step: number): void {
-    const { N, ROW, H_ROW, index } = this.grid
+  /**
+   * The grid a chunk is built on: far chunks (1 km and up, only ever seen from 1.6 km off)
+   * on half the quads — the skirts hide the seam where they meet a finer one. (Every chunk
+   * was 64 × 64 whatever its size: the land was 1.1–1.2 M triangles a frame, most of the
+   * frame's geometry.)
+   */
+  private gridFor(c: Chunk): Grid {
+    return c.size >= FAR_CHUNK ? this.farGrid : this.grid
+  }
+
+  private fitDiagonals(geo: THREE.BufferGeometry, step: number, grid: Grid): void {
+    const { N, ROW, H_ROW, index } = grid
     const H = this.heights
     const steep = step * 1.2
     let own: Uint16Array | null = null
@@ -331,7 +345,8 @@ export class TerrainView {
 
   private build(c: Chunk): void {
     const t = this.terrain
-    const { N, ROW, GRID_VERTS, VERTS, H_ROW } = this.grid
+    const grid = this.gridFor(c)
+    const { N, ROW, GRID_VERTS, VERTS, H_ROW } = grid
     const step = c.size / N
     const H = this.heights
     const D = this.deltas
@@ -358,10 +373,10 @@ export class TerrainView {
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
       geo.setAttribute('aSplatA', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
       geo.setAttribute('aSplatB', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
-      geo.setIndex(this.grid.index)
+      geo.setIndex(grid.index)
       if (c.mesh) c.mesh.geometry = geo
     }
-    this.fitDiagonals(geo, step)
+    this.fitDiagonals(geo, step, grid)
     const P = geo.getAttribute('position').array as Float32Array
     const Nn = geo.getAttribute('normal').array as Float32Array
     const C = geo.getAttribute('color').array as Float32Array
@@ -395,7 +410,7 @@ export class TerrainView {
     // Skirts hang below each edge to hide cracks between LOD levels.
     const drop = step * 1.5 + 1
     for (let e = 0; e < 4 * ROW; e++) {
-      const src = this.grid.edges[e]
+      const src = grid.edges[e]
       const dst = GRID_VERTS + e
       P[dst * 3] = P[src * 3]
       P[dst * 3 + 1] = P[src * 3 + 1] - drop

@@ -606,7 +606,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [ ] Traversal slow: a physics grappling hook?
 - [x] No way to see the controls — a Controls section heads the pause page; `?` or F1 opens it in play, and the key strip says so
 - [x] The minimap lags, re-renders a lot, in chunks — a cached land slid every frame (was a full redraw with two blur passes at 10 Hz, moving in jumps)
-- [ ] Lag, performance: LODs
+- [~] Lag, performance: LODs — measured what the GPU is given per scene part: the land was 1.1–1.2 M triangles a frame everywhere. Far chunks (1 km+, seen from 1.6 km+) now built on half the quads, and the top quality splits at 1.35× (was 1.6): 1,217k → 654k on the Green, 1,078k → 599k at the Shore, distant land unchanged to look at. Next: the Grove's trees (745k)
 - [~] No music — the score was a quiet drone and a lone glass note every 7–30 s. Now every minute or so a slow phrase (4–7 notes, mostly by step from the chord's tones in D minor, ending low and long) on a plucked voice, sometimes over a low bowed line; the pad a little louder; fewer in the dark, none in a stillness. Offline: two phrases peak −14.4 dB; the worst-case pile-up −1.6 dB, nothing clipped. Not listened to: by ear, the user's call
 
 ## Known issues
