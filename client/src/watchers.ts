@@ -7,7 +7,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { inHall, mulberry32, SPREAD, type Terrain } from '@titans/shared'
+import { DELL, mulberry32, SPREAD, type Terrain } from '@titans/shared'
 
 /** A tapering tube along points (radius r0 at the first, r1 at the last). */
 function branch(points: THREE.Vector3[], r0: number, r1: number, sides = 7): THREE.BufferGeometry {
@@ -139,7 +139,8 @@ export class Watchers {
       const d = (400 + rand() * 2100) * SPREAD
       const x = Math.cos(a) * d
       const z = Math.sin(a) * d
-      if (terrain.base.regions.name(x, z) === 'desert' || inHall(x, z, 80) || occupied(x, z)) continue
+      // (None within 2 km of the Undercroft: the first thing out of the stair is not one of them.)
+      if (terrain.base.regions.name(x, z) === 'desert' || Math.hypot(x - DELL.x, z - DELL.z) < 2000 || occupied(x, z)) continue
       const h = terrain.heightAt(x, z)
       // Under the cloud deck (its base is ~255 m): only their heads may reach into it.
       if (h > 160) continue

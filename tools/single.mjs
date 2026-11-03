@@ -59,7 +59,9 @@ try {
   await ev(() => {
     for (const a of window.__g.titans.values()) a.titan.gait.resting = true
   })
-  await page.waitForFunction(() => [...window.__g.titans.values()].every((a) => a.titan.gait.speed === 0), null, { timeout: 60000 })
+  // (Both feet down, too: a foot still swinging — a dragged foot ploughing on after the body
+  // stopped — lands on the reload, and its print's rim lifted a stomp crater beside it 1.1 m.)
+  await page.waitForFunction(() => [...window.__g.titans.values()].every((a) => a.titan.gait.speed === 0 && !a.titan.gait.swinging), null, { timeout: 60000 })
   const before = await ev(() => {
     const g = window.__g
     // Freeze the world, so what we measure is what is saved.

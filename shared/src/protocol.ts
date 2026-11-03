@@ -23,7 +23,9 @@ export const TITAN_SPAWNS = [
   // enough to the Undercroft's stair that it sees you when you first climb out (a newcomer
   // ran two minutes after it from 2 km and was still half a kilometre short).
   { x: 1100, z: 900, heading: -Math.PI * 0.4 },
-  { x: -460 * SPREAD, z: 420 * SPREAD, heading: -Math.PI * 0.3 },
+  // The Grey One, on the low ground west where the Green meets the dunes: behind the dell's rim from the stair (it stood
+  // 1.1 km off in plain sight of it, the second giant of five you saw at once).
+  { x: -2500, z: 1700, heading: -Math.PI * 0.3 },
   { x: 700 * SPREAD, z: 520 * SPREAD, heading: Math.PI * 1.2 },
   { x: -620 * SPREAD, z: -560 * SPREAD, heading: Math.PI * 0.2 },
 ]

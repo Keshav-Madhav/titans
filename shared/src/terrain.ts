@@ -139,6 +139,7 @@ export class BaseTerrain {
       h -= r.mire * 4 * poolBowl(x, z)
     }
     if (!Number.isNaN(this.hallTop)) {
+      h += dell(x, z, this.hills)
       const out = Math.max(Math.abs(x - HALL.x) - HALL.hx, Math.abs(z - HALL.z) - HALL.hz)
       // The ground meets the Undercroft's roof all round it (its stair lands
       // on the grass, not under a step of roof edge), easing out over 200 m.
@@ -311,6 +312,36 @@ export const HALL = {
     [150, 90],
     [-40, -20],
   ] as Array<[number, number]>,
+}
+
+/**
+ * The dell (user, 2026-11-03: "when i exit the dungeon… 3 walking giants, one flying, 2
+ * colossi and more… all spoiler"): the Undercroft's stair comes up in a shallow bowl of
+ * grass. A rim of rises 30–70 m high about 450 m out hides the land beyond, all but one
+ * gap where the Walker is (the opening shot looks out through it). Climb the rim and the
+ * Green opens out.
+ */
+export const DELL = { x: -150, z: 1525, crest: 470, fall: 1050, gapX: 1100, gapZ: 900 }
+
+function dell(x: number, z: number, hills: Noise2): number {
+  const ex = x - DELL.x
+  const ez = z - DELL.z
+  const r = Math.sqrt(ex * ex + ez * ez)
+  if (r < 240 || r > DELL.fall + 450) return 0
+  // East, the Undercroft's roof runs 420 m on from the stair (and the ground round it is held
+  // flat): the rim stands farther out there, and taller, to hide as much.
+  const east = smoothstep(0.1, 0.75, ex / r)
+  const crest = DELL.crest + 380 * east
+  const rise = smoothstep(240 + 380 * east, crest, r) * (1 - smoothstep(crest + 150, DELL.fall + 450 * east, r))
+  // The gap: open within ~14° of the Walker's way, closed past ~26°.
+  const gx = DELL.gapX - DELL.x
+  const gz = DELL.gapZ - DELL.z
+  const c = (ex * gx + ez * gz) / (r * Math.sqrt(gx * gx + gz * gz))
+  const open = smoothstep(Math.cos(0.46), Math.cos(0.24), c)
+  // Rises of different heights, not a wall: the noise goes round the bowl.
+  const a = Math.atan2(ez, ex)
+  const tall = (60 + 45 * east) * (0.7 + 0.6 * fbm(hills, Math.cos(a) * 2.2 + 40, Math.sin(a) * 2.2 - 13, 3)) + 6 * hills(x * 0.01, z * 0.01)
+  return rise * (1 - open) * tall
 }
 
 /** Is (x, z) within the Undercroft's rectangle (grown by `margin`)? */
