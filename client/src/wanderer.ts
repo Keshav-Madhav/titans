@@ -1230,17 +1230,20 @@ export class Wanderer {
       this.chest.rotation.x = 0
       this.head.rotation.x = -0.5
     } else if (!this.grounded && !this.sliding) {
-      // In the air: knees up, arms out.
-      L[0].hip.rotation.x = -0.5
-      L[1].hip.rotation.x = 0.2
-      L[0].knee.rotation.x = 0.8
-      L[1].knee.rotation.x = 0.5
-      A[0].shoulder.rotation.set(-0.3, 0, -0.7)
-      A[1].shoulder.rotation.set(-0.3, 0, 0.7)
-      A[0].elbow.rotation.x = -0.3
-      A[1].elbow.rotation.x = -0.3
-      this.chest.rotation.x = 0.1
-      this.head.rotation.x = 0
+      // In the air: knees up, arms out. Dropping fast (a long fall), it comes apart: arms
+      // wheeling for a hold that is not there, legs running on nothing, eyes on the ground.
+      const fall = THREE.MathUtils.smoothstep(-this.vel.y, 7, 16)
+      const w = this.t * 7
+      L[0].hip.rotation.x = -0.5 + fall * (0.3 + 0.55 * Math.sin(w))
+      L[1].hip.rotation.x = 0.2 + fall * (-0.4 + 0.55 * Math.sin(w + Math.PI))
+      L[0].knee.rotation.x = 0.8 + fall * 0.4 * Math.max(0, Math.cos(w))
+      L[1].knee.rotation.x = 0.5 + fall * 0.4 * Math.max(0, Math.cos(w + Math.PI))
+      A[0].shoulder.rotation.set(-0.3 - fall * (0.9 + 0.8 * Math.sin(w * 0.8)), 0, -0.7 - fall * 0.5)
+      A[1].shoulder.rotation.set(-0.3 - fall * (0.9 + 0.8 * Math.sin(w * 0.8 + 2)), 0, 0.7 + fall * 0.5)
+      A[0].elbow.rotation.x = -0.3 - fall * 0.4
+      A[1].elbow.rotation.x = -0.3 - fall * 0.4
+      this.chest.rotation.x = 0.1 + fall * 0.2
+      this.head.rotation.x = fall * 0.45
     } else {
       // Walking and running: legs swing from the hips, knees bend on the
       // swing; arms counter-swing; the body leans in and bobs.
