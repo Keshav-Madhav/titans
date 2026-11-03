@@ -486,8 +486,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         an iron buckle)
   - [x] Tools: `grabTitan(id)`; `climbState().height` above the ground under you (any giant)
 - [x] Where a first climber can rest on the torso: less steep rock (a bulge's upper side) takes up to
-      60% less grip, and the first climb drains at 70%. The scripted first climb: grip out at
-      ~200 m and a fall → up onto the shoulders (240 m), standing
+      60% less grip, and the first climb drains at 70%. The scripted first climb (which only climbs
+      straight up, never looking for easier rock) varies with the giant's path: 205–240 m over two
+      runs, once standing on the shoulders (it was 185–220, never)
 - [ ] Still to look at: GPU-side frame spikes on real hardware
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
