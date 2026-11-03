@@ -22,7 +22,7 @@ export class Camp {
   private readonly bag: THREE.Group
   private readonly cloth: THREE.Mesh
   /** The fire ring's middle, and the smoke over it (later camps only). */
-  private readonly fire: THREE.Vector3
+  readonly fire: THREE.Vector3
   /** The smoke: one camera-facing quad per puff, drawn at once (40 sprites were 40 draws). */
   private smoke: THREE.InstancedMesh | null = null
   private smokeAlpha: THREE.InstancedBufferAttribute | null = null
@@ -79,16 +79,37 @@ export class Camp {
     const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.9, 10).rotateZ(Math.PI / 2).scale(1, 0.45, 1).rotateY(0.4), roll)
     bed.position.copy(at(-1.8, 0.9, 0.14))
     this.group.add(bed)
-    // A pole driven into the ground, leaning, with a strip of red cloth.
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 3.6, 6).translate(0, 1.8, 0), wood)
-    pole.position.copy(at(1.6, -1.2))
-    pole.rotation.set(0.12, 0, -0.1)
+    // A tall pole driven into the ground, leaning, a long strip of red cloth at its top
+    // (user: "the flags are too less in height… hard to spot": it was 3.6 m, lost in the
+    // grass from a hundred metres; now it stands well over a shrub and streams).
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, POLE, 7).translate(0, POLE / 2, 0), wood)
+    pole.position.copy(at(1.9, -1.4))
+    pole.rotation.set(0.07, 0, -0.06)
     this.group.add(pole)
-    const geo = new THREE.PlaneGeometry(1.7, 0.26, 12, 2).translate(0.85, 0, 0)
+    // A crosspiece lashed near the top, for the cloth to hang from.
+    const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5).rotateZ(Math.PI / 2).translate(0.3, POLE - 0.45, 0), wood)
+    pole.add(cross)
+    const geo = new THREE.PlaneGeometry(CLOTH, 0.5, 18, 2).translate(CLOTH / 2, 0, 0)
     this.rest = (geo.getAttribute('position').array as Float32Array).slice()
-    this.cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x9b2b22, roughness: 0.9, side: THREE.DoubleSide }))
-    this.cloth.position.set(0, 3.35, 0)
+    this.cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xa82a1f, roughness: 0.85, side: THREE.DoubleSide }))
+    this.cloth.position.set(0, POLE - 0.4, 0)
     pole.add(this.cloth)
+    // A tripod over the fire, a pot hanging from it: a shape no field grows.
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + 0.4
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 2.3, 5).translate(0, 1.15, 0), wood)
+      leg.position.copy(at(Math.cos(a) * 0.85, Math.sin(a) * 0.85))
+      leg.lookAt(this.fire.x, this.fire.y + 4.2, this.fire.z)
+      leg.rotateX(Math.PI / 2)
+      this.group.add(leg)
+    }
+    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.7), char)
+    pot.position.copy(at(0, 0, 0.75))
+    this.group.add(pot)
+    // The ground worn bare round the fire: trampled earth, the grass kept off it (see
+    // CAMP_BARE), so a camp reads as a place people stayed, not more meadow.
+    const bare = bareGround(at, terrain, CAMP.x, CAMP.z)
+    this.group.add(bare)
     // The bag, by the bedroll.
     this.bag = new THREE.Group()
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8).scale(1, 0.85, 0.8), leather)
@@ -105,6 +126,7 @@ export class Camp {
     this.group.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
     })
+    bare.castShadow = false
   }
 
   /** Close enough to take the bag (and it is still there). */
@@ -148,13 +170,62 @@ export class Camp {
     const a = pos.array as Float32Array
     for (let i = 0; i < pos.count; i++) {
       const x = this.rest[i * 3]
-      const k = x / 1.7
-      a[i * 3 + 2] = Math.sin(this.time * (4 + wind * 5) - x * 4.5) * 0.16 * k * (0.5 + wind)
+      const k = x / CLOTH
+      a[i * 3 + 2] = Math.sin(this.time * (3.2 + wind * 4) - x * 3.2) * 0.26 * k * (0.5 + wind)
       a[i * 3 + 1] = this.rest[i * 3 + 1] - k * k * 0.18 * (1 - wind * 0.6)
     }
     pos.needsUpdate = true
     this.cloth.geometry.computeVertexNormals()
   }
+}
+
+const POLE = 7.5
+const CLOTH = 3
+/** How far round a camp's fire the ground is worn bare (m): grass keeps off it. */
+export const CAMP_BARE = 4.2
+
+/** A disc of trampled earth draped on the ground, soft at its edge. */
+function bareGround(at: (dx: number, dz: number, lift?: number) => THREE.Vector3, _t: Terrain, cx: number, cz: number): THREE.Mesh {
+  const R = CAMP_BARE + 0.8
+  const geo = new THREE.CircleGeometry(R, 28, 0, Math.PI * 2).rotateX(-Math.PI / 2)
+  // (Rings of vertices, so it lies on the ground's swell rather than cutting through it.)
+  const ring = new THREE.RingGeometry(0.01, R, 28, 6).rotateX(-Math.PI / 2)
+  geo.dispose()
+  const p = ring.getAttribute('position') as THREE.BufferAttribute
+  for (let i = 0; i < p.count; i++) {
+    const v = at(p.getX(i), p.getZ(i), 0.05)
+    p.setXYZ(i, v.x - cx, v.y, v.z - cz)
+  }
+  ring.computeVertexNormals()
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  const rand = mulberry32(911)
+  const grad = g.createRadialGradient(64, 64, 10, 64, 64, 64)
+  grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+  grad.addColorStop(0.62, 'rgba(255,255,255,0.8)')
+  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 128, 128)
+  // Scuffs and darker patches.
+  g.globalCompositeOperation = 'source-atop'
+  for (let i = 0; i < 90; i++) {
+    g.fillStyle = `rgba(${rand() < 0.5 ? '40,30,20' : '150,130,100'},${0.12 + rand() * 0.2})`
+    g.beginPath()
+    g.ellipse(rand() * 128, rand() * 128, 2 + rand() * 9, 1 + rand() * 4, rand() * 3, 0, Math.PI * 2)
+    g.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  // (Ring UVs run round it; the texture wants a plain top-down mapping.)
+  const uv = ring.getAttribute('uv') as THREE.BufferAttribute
+  for (let i = 0; i < p.count; i++) uv.setXY(i, 0.5 + p.getX(i) / (2 * R), 0.5 - p.getZ(i) / (2 * R))
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6b5340, map: tex, roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+  const m = new THREE.Mesh(ring, mat)
+  m.position.set(cx, 0, cz)
+  m.receiveShadow = true
+  m.renderOrder = 1
+  return m
 }
 
 /** A soft, ragged puff (for the smoke). */
