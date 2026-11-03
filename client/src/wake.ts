@@ -35,6 +35,11 @@ export class Wake {
     r.mesh.visible = true
   }
 
+  /** Wading: a ring from each footfall in shallow water (`pace` 0 … 1, a run). */
+  step(x: number, level: number, z: number, pace: number): void {
+    this.spawn(x, level, z, 0.3, 0.8 + 1.2 * pace)
+  }
+
   /** `swimming` and where (and the water's surface there), `speed` m/s. */
   update(dt: number, swimming: boolean, p: THREE.Vector3, level: number, speed: number): void {
     if (swimming && !this.wasIn) for (let k = 0; k < 3; k++) this.spawn(p.x, level, p.z, 0.4 + k * 0.3, 2.4 - k * 0.4)

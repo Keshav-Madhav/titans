@@ -1765,6 +1765,11 @@ scene.add(prints.mesh)
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   sound.step(surf, pace)
+  // Wading: each footfall rings the water.
+  if (surf === 'water') {
+    const wl = waterAt(wanderer.pos.x, wanderer.pos.z)
+    if (!Number.isNaN(wl)) wake.step(wanderer.pos.x, wl, wanderer.pos.z, pace)
+  }
   // In sand (or mud), you leave prints.
   if (surf === 'sand' || surf === 'mud') prints.step(wanderer.pos.x, terrain.heightAt(wanderer.pos.x, wanderer.pos.z), wanderer.pos.z, wanderer.yaw, surf === 'sand' ? 1 : 0.8)
   // Running on loose ground, each footfall kicks up a little dust behind you.
