@@ -127,8 +127,8 @@ at a time, each with its own enormous thing):
 | **The Mire** | swamp: still black water, dead trees, low fog, reeds | something under the water whose back is an island; giants wading |
 | **The Dune Sea** | (have) | the Fallen; the sword |
 | **The Steps** | (have) | the Colonnade, the Stair, the Gate |
-| **The High Places** | snow and rock above the cloud deck's base | a giant frozen in a glacier; a stair cut up a mountain |
-| **The Shore** | a pale beach at the world's edge, then the sea | striders wading out to sea; something on the horizon the size of a mountain range |
+| **The High Places** | snow and rock above the cloud deck's base | a giant frozen in a glacier; a stair cut up a mountain — *built: the Frozen One in its ice block on the plateau, the stair cut up the cliff* |
+| **The Shore** | a pale beach at the world's edge, then the sea | striders wading out to sea; something on the horizon the size of a mountain range — *built: the Wader walking in the deep water; the Wall rising out of the sea beyond* |
 
 World growth: the playable ground widens from ~8 km to ~12 km; the lands become seven sectors
 round the valley, the sea along one side.

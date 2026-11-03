@@ -411,6 +411,53 @@ const scenes = {
     await page.evaluate(() => window.__g.lookFrom(null))
     if (r.beach.y < -2 || !r.swim || r.level !== -4 || r.found.length < 2 || !(r.wader > 0)) throw new Error('shore gate failed')
   },
+  // The High Places: walk up the stair cut in the cliff (it must be walkable), then the plateau and
+  // the Frozen One in the ice.
+  async high() {
+    const r = await page.evaluate(async () => {
+      const g = window.__g
+      g.weather.set('overcast', true)
+      const H = g.HIGH
+      const R = (H.foot + H.lip) / 2
+      const at = (t) => {
+        const d = H.foot - 220 + (H.lip + 160 - (H.foot - 220)) * t
+        const a = H.axis + (H.a0 * R + (H.a1 * R - H.a0 * R) * t) / R
+        return [Math.sin(a) * d, Math.cos(a) * d]
+      }
+      const [x0, z0] = at(0.3)
+      g.teleport(x0, z0)
+      await new Promise((res) => setTimeout(res, 6000))
+      const y0 = g.player().y
+      // Climb: keep facing the next point up the stair, W held.
+      // (Running: 20 s at a run up a ~21° stair is ~60 m of height; walking, ~30.)
+      g.input.press('KeyW')
+      g.input.press('ShiftLeft')
+      const t0 = performance.now()
+      while (performance.now() - t0 < 20000) {
+        const p = g.player()
+        let best = 0, bd = Infinity
+        for (let i = 0; i <= 200; i++) { const [x, z] = at(i / 200); const dd = Math.hypot(x - p.x, z - p.z); if (dd < bd) { bd = dd; best = i / 200 } }
+        const [nx, nz] = at(Math.min(1, best + 0.02))
+        g.setCam(Math.atan2(-(nx - p.x), -(nz - p.z)), 0.15)
+        await new Promise((res) => setTimeout(res, 120))
+      }
+      g.input.release('KeyW')
+      g.input.release('ShiftLeft')
+      const climbed = g.player().y - y0
+      // The plateau, near the ice.
+      const fx = Math.sin(H.axis) * (H.frozenD - 700), fz = Math.cos(H.axis) * (H.frozenD - 700)
+      g.teleport(fx, fz)
+      await new Promise((res) => setTimeout(res, 7000))
+      return { climbed, y: g.player().y, found: ['high', 'frozen'].filter((k) => g.finds.has(k)) }
+    })
+    console.log('high', JSON.stringify(r))
+    await page.evaluate(() => { const g = window.__g; const p = g.player(); const f = g.frozen.at; g.lookFrom([p.x, p.y + 3, p.z], [f.x, f.y + 260, f.z]) })
+    await shot('high-frozen')
+    await page.evaluate(() => { const g = window.__g; const p = g.player(); g.lookFrom([p.x, p.y + 4, p.z], [0, 400, 0]) })
+    await shot('high-over-the-clouds')
+    await page.evaluate(() => window.__g.lookFrom(null))
+    if (r.climbed < 45 || r.y < 760 || r.found.length < 2) throw new Error('high gate failed')
+  },
   // Aiming, as a player sees it: the real camera over the shoulder, the mark on an eye, the arrow
   // in flight, the eye closing — on the Sentinel, in the Undercroft, at a mesa.
   async aim() {

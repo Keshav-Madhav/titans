@@ -20,7 +20,6 @@ const NZ = BH / CELL
 
 export class Sea {
   readonly mesh: THREE.Mesh
-  private readonly bed = new Float32Array(NX * NZ)
   private readonly bedTex: THREE.DataTexture
   private filled = 0
   private readonly time = { value: 0 }
@@ -138,7 +137,6 @@ export class Sea {
       const ix = i % NX
       const iz = Math.floor(i / NX)
       const h = this.terrain.base.height(BX0 + (ix + 0.5) * CELL, BZ0 + (iz + 0.5) * CELL) - SHORE.sea
-      this.bed[i] = h
       data[i] = THREE.DataUtils.toHalfFloat(Math.max(-200, Math.min(200, h)))
     }
     this.filled = end

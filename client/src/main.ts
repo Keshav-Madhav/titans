@@ -22,6 +22,8 @@ import {
   DELL,
   SHORE,
   seaward,
+  HIGH,
+  highSector,
   PIT,
   inHall,
   type Box,
@@ -68,6 +70,7 @@ import { Camp, CAMP, CAMP_BARE } from './camp'
 import { soft, softScene, softSwitch } from './soft'
 import { Prints } from './prints'
 import { Sea } from './sea'
+import { Frozen } from './frozen'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -232,6 +235,7 @@ const mapPlaces: MapPlace[] = [
   })),
   { name: 'The Undercroft', kind: 'hall', x: HALL.x, z: HALL.z },
   { name: 'The Wader', kind: 'colossus', x: 0, z: SHORE.waderD },
+  { name: 'The Frozen One', kind: 'colossus', x: Math.sin(HIGH.axis) * HIGH.frozenD, z: Math.cos(HIGH.axis) * HIGH.frozenD },
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = (open?: boolean) => {
@@ -624,6 +628,15 @@ const spots = (() => {
     const l = Math.hypot(stairAt.x, stairAt.z)
     trail.push({ page: 'page-4', x: stairAt.x - (stairAt.x / l) * 330, z: stairAt.z - (stairAt.z / l) * 330 })
   }
+  // They came back down. South to the Shore (a camp on the beach, looking out at the Wader)…
+  trail.push({ page: 'page-5', x: 420, z: 8950 })
+  // …and then up the stair beyond the Steps, to the top of the cliff: the last camp.
+  {
+    const R = (HIGH.foot + HIGH.lip) / 2
+    const d = HIGH.lip + 260
+    const a = HIGH.axis + (HIGH.a1 * R) / R + 0.004
+    trail.push({ page: 'page-6', x: Math.sin(a) * d, z: Math.cos(a) * d })
+  }
   for (const c of trail) {
     const camp = new Camp(terrain, { x: c.x, z: c.z }, false)
     scene.add(camp.group)
@@ -993,6 +1006,12 @@ const sites: Site[] = [
     return { x: Math.sin(a) * SHORE.coast, z: Math.cos(a) * SHORE.coast }
   } },
   { id: 'wader', r: 5600, at: () => ({ x: 0, z: SHORE.waderD }) },
+  // The High Places: up on the plateau. And there, in the ice, the Frozen One.
+  { id: 'high', r: 600, at: () => {
+    const p = wanderer.pos
+    return highSector(p.x, p.z) > 0.5 && p.y > HIGH.top - 60 ? { x: p.x, z: p.z } : null
+  } },
+  { id: 'frozen', r: 1500, at: () => ({ x: Math.sin(HIGH.axis) * HIGH.frozenD, z: Math.cos(HIGH.axis) * HIGH.frozenD }) },
   { id: 'walker', r: 750, at: () => titans.get('t1')?.titan.gait ?? null },
   { id: 'wanderer2', r: 750, at: () => titans.get('t2')?.titan.gait ?? null },
   { id: 'herd', r: 950, at: () => {
@@ -1082,6 +1101,9 @@ function stepWader(dt: number): void {
   wader.step(dt, { forward: Math.cos(dh) > 0.4 ? 0.28 : 0, turn: THREE.MathUtils.clamp(dh * 1.2, -0.6, 0.6) }, waderEvents)
 }
 scene.add(wader.group)
+// The Frozen One, in the glacier on the High Places.
+const frozen = new Frozen(terrain)
+scene.add(frozen.group)
 // Awakenings: rarely, a colossus beyond the mountains moves, and the camera turns to watch it.
 const awakening = new Awakening(farGiants, sky.sunDir)
 /** The Ones Beyond: 0 hidden … 1 shown (see the frame loop); latched on once out of the dell. */
@@ -2121,6 +2143,7 @@ function frame(now: number): void {
     for (const t of farGiants) t.group.visible = sk > 0
   }
   if (Math.abs(camera.position.z - SHORE.waderD) < 9000) stepWader(dt)
+  frozen.update(dt, terrain, camera.position)
   for (const t of [...farGiants, ...herd.giants, wader]) {
     t.pose(terrain, dt)
     t.group.updateMatrixWorld(true)
@@ -2612,6 +2635,8 @@ const g = {
   tipState,
   sea,
   wader,
+  frozen,
+  HIGH,
   softSwitch,
   soft,
   effects,

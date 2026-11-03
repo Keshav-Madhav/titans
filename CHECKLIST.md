@@ -330,7 +330,19 @@ Each phase ends playable. Phases are in PLAN.md §6.
       read as a pillar of rock; walking, it is one of them); its footfalls leave the sea bed alone.
       Found: "The Shore" (place) and "The Wader" (giant, from the beach); on the map. Gate: `shot.mjs
       shore` (in the sweep)
-- [ ] The High Places (beyond the Steps)
+- [x] The High Places (2026-11-04): past the Steps the land stands up in one layered cliff (9 strata,
+      ~180 → 820 m) to a snow plateau above the cloud deck; the mountains hold back over it (shared
+      HIGH, `highSector`). A stair cut diagonally up the face: ~21° measured from one start height
+      (from the ground under each step the Steps' terraces made a 59° stretch), 2 m steps on half-run
+      risers (3 m on short risers was a 63° wall each step); running up it gains 64 m in 20 s. On top
+      the Frozen One (`frozen.ts`): one of them, 520 m, standing in a block of glacier ice (a generated
+      texture: fracture planes, bubbles, old snow bands), head turned back toward the stair; shards
+      about its foot. Found: The High Places (on the plateau), The Frozen One. Gate: `shot.mjs high`
+- [x] The traveller's trail goes on: page 5 at a camp on the beach (the Wader), page 6, the last, at
+      the top of the cliff stair (its smoke a beacon on the cliff); page 4 is "the fourth page" now
+- [x] Striders wade out to sea: due south their loop runs ~5 km out past the beach and back (the body
+      keeps up at the water; the feet only so far down)
+- [x] Wet sand: a darker, smoother band just above the waterline along the Shore
 
 ## W — Wrap-up (user: "wrap up everything so far first")
 - [x] `tools/gates.sh`: every gate in one run (lakes, save, and a scene per mechanic and look);

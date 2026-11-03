@@ -12,6 +12,7 @@
 //   only drawn out to the vegetation's middle range).
 
 import * as THREE from 'three'
+import { SHORE } from '@titans/shared'
 
 /**
  * Layer order: matches tools/pack-textures.py. The first eight are splatted on
@@ -312,6 +313,14 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gCanopy = vColor.r * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
         float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
         gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
+        // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
+        {
+          float sAng = abs(atan(gP.x, gP.z));
+          float sSec = 1.0 - smoothstep(${(SHORE.half * 0.75).toFixed(3)}, ${(SHORE.half * 1.25).toFixed(3)}, sAng);
+          float sWet = sSec * step(${(SHORE.coast - 1500).toFixed(1)}, length(gP.xz)) * (1.0 - smoothstep(${(SHORE.sea + 0.3).toFixed(2)}, ${(SHORE.sea + 2.4).toFixed(2)}, gP.y));
+          gAlb *= mix(1.0, 0.6, sWet);
+          gRough = mix(gRough, 0.45, sWet);
+        }
         // Ground a giant churned up, still bare (darkened in the vertex colour).
         gAlb *= vColor.g;
         // Cloud shadows drifting over the land.

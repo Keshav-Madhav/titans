@@ -81,12 +81,20 @@ export class BaseTerrain {
     this.hallTop = this.height(HALL.x, HALL.z)
     // (Measured before the Pit exists: NaN skips it in height().)
     this.pitTop = this.height(PIT.x + PIT.r + 40, PIT.z)
+    // Where the High Places' stair starts, the ground it starts from.
+    {
+      const R = (HIGH.foot + HIGH.lip) / 2
+      const a = HIGH.axis + (HIGH.a0 * R) / (HIGH.foot - 220)
+      this.stairY0 = this.height(Math.sin(a) * (HIGH.foot - 220), Math.cos(a) * (HIGH.foot - 220))
+    }
   }
 
   /** Ground level at the Undercroft (its roof); the floor is HALL.depth below. */
   hallTop = NaN
   /** Ground level round the Pit's lip. */
   pitTop = NaN
+  /** Ground level at the foot of the High Places' stair. */
+  stairY0 = NaN
 
   height(x: number, z: number): number {
     // Domain warp: bends every later feature so nothing reads as a circle.
@@ -195,16 +203,53 @@ export class BaseTerrain {
       h += (bed + ripple - h) * k
     }
 
+    // The High Places: a cliff up to a plateau, and a stair cut up its face.
+    const hsec = highSector(x, z)
+    if (hsec > 0 && d > HIGH.foot - 900 && d < HIGH.far + 1200) {
+      const top = HIGH.top + 22 * fbm(this.hills, x * 0.0011 + 1.7, z * 0.0011 - 6.2, 3)
+      const rise = smoothstep(HIGH.foot, HIGH.lip, d + 90 * this.mask(x * 0.0009 + 3.3, z * 0.0009))
+      // Layered rock, ledge over ledge, all the way up.
+      const cliff = top * strata(rise, 9) * (1 - smoothstep(HIGH.far, HIGH.far + 1200, d))
+      let up = Math.max(h, cliff)
+      // The stair: a straight cut in (distance, arc) — a long diagonal across the face.
+      let a = Math.atan2(x, z) - HIGH.axis
+      a = Math.atan2(Math.sin(a), Math.cos(a))
+      const R = (HIGH.foot + HIGH.lip) / 2
+      const p0d = HIGH.foot - 220, p0a = HIGH.a0 * R
+      const p1d = HIGH.lip + 160, p1a = HIGH.a1 * R
+      const sd = p1d - p0d, sa = p1a - p0a
+      const len = Math.hypot(sd, sa)
+      const qd = d - p0d, qa = a * R - p0a
+      const t = Math.min(1, Math.max(0, (qd * sd + qa * sa) / (len * len)))
+      const side = Math.abs(qd * sa - qa * sd) / len
+      if (side < 16 && t > 0 && t < 1) {
+        // From the land at its foot to the plateau, in 3 m steps, evenly (measured from the
+        // ground under each step, the Steps' terraces made parts of it a 59° climb).
+        const base = Number.isNaN(this.stairY0) ? h : this.stairY0
+        const sh = base + (HIGH.top - base) * t
+        // (2 m risers, each over half a step's run: ~37° at the riser, walkable; 3 m on a short
+        // riser was a 63° wall at every step.)
+        const step = 2
+        const k = sh / step
+        const stepped = (Math.floor(k) + smoothstep(0.5, 1, k - Math.floor(k))) * step
+        const w = 1 - smoothstep(7, 16, side)
+        up += (stepped - up) * w
+      }
+      h += (up - h) * hsec
+    }
+
     // Mountains ring the world from ~2.7 km, irregular via their own noise. A
     // broad massif lifts the range; ridges are carved into it at a long
     // wavelength so the skyline reads as ranges, not needles.
     // (Grown with the world: wider ranges, higher, further out.)
     const mk = 0.0006 / SPREAD
     const belt = smoothstep(LAND_EDGE, MOUNTAINS_FULL, d + 700 * SPREAD * this.mask(x * mk - 9.1, z * mk + 4.4))
-    if (belt > 0 && sector < 1) {
+    // (Over the High Places' plateau the mountains hold back until its far side.)
+    const beltHold = 1 - hsec * (1 - smoothstep(HIGH.far, HIGH.far + 1500, d))
+    if (belt > 0 && sector < 1 && beltHold > 0) {
       const massif = 0.5 + 0.5 * fbm(this.mask, wx * 0.0002 + 3.3, wz * 0.0002 - 8.8, 3)
       const rr = ridged(this.peaks, wx * 0.00026, wz * 0.00026, 6)
-      h += belt * (1 - sector) * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
+      h += belt * (1 - sector) * beltHold * (massif * 620 + rr * rr * 1000 * (0.4 + massif))
     }
 
     // The Wall (user, 2026-10-31: "very very far edge mountains, very tall…
@@ -379,6 +424,24 @@ export function shoreSector(x: number, z: number): number {
 /** Is (x, z) out past the beach (where the sea may be)? (The water's edge itself is wherever the ground goes under SHORE.sea.) */
 export function seaward(x: number, z: number): boolean {
   return shoreSector(x, z) > 0.02 && Math.hypot(x, z) > SHORE.coast - 1200
+}
+
+/**
+ * The High Places (CHECKLIST: "beyond the Steps"): north-east, past the Steps, the land stands
+ * up in one great cliff to a plateau above the cloud deck's base, snow on it. A stair is cut
+ * up the cliff's face on a long diagonal (~21°, in 2 m steps: walkable). On top, a glacier, and one
+ * of them frozen in it (client: the Frozen One).
+ * `axis` the direction (atan2(x, z)); `half` the sector's half-width; `foot`/`lip` the cliff's
+ * foot and top (metres from the centre); `top` the plateau's height; `far` where the mountains
+ * take over again. The stair runs from (`foot` − 220, axis + `a0`) to (`lip` + 160, axis + `a1`).
+ */
+export const HIGH = { axis: Math.atan2(0.866, -0.5), half: 0.24, foot: 11900, lip: 12550, top: 820, far: 15600, a0: -0.07, a1: 0.065, frozenD: 13900 }
+
+/** 0 … 1: how much of (x, z)'s direction is the High Places'. */
+export function highSector(x: number, z: number): number {
+  let a = Math.atan2(x, z) - HIGH.axis
+  a = Math.atan2(Math.sin(a), Math.cos(a))
+  return 1 - smoothstep(HIGH.half * 0.7, HIGH.half * 1.2, Math.abs(a))
 }
 
 /** Is (x, z) within the Undercroft's rectangle (grown by `margin`)? */

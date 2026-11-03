@@ -183,9 +183,11 @@ Beyond. A day is 24 minutes (four-fifths of it light); weather cycles overcast �
 | **The Old Wood** (north-west) | broadleaf and pine forest, ferns, giant trees; marsh patches in its low ground | the Grove of giant trees; the Drowned One lying in the biggest marsh, one hand lifted |
 | **The Dune Sea** (south) | rippled dunes, red rock mesas and hoodoos, canyons; sandstorms | the Fallen (ribs and skull); the Sword; the herd of five |
 | **The Steps** (north-east) | terraced ruins, dry grass, pines | the Colonnade; the Great Stair and the sealed Gate; the chained stones |
+| **The Shore** (south, past the Dune Sea) | a broad pale beach where the mountains break, then the sea out to the Wall; surf, clear shallows | the Wader, a kilometre tall, walking to and fro in the deep water with its back to the land |
+| **The High Places** (north-east, past the Steps) | one great layered cliff up to a snow plateau above the cloud deck; a stair cut diagonally up its face | the Frozen One, standing in a block of glacier ice, its head turned back toward the stair |
 
-Still to come (`STORY.md` §6): **the Shore** beyond the Dune Sea, **the High Places** beyond the
-Steps.
+The traveller's trail goes on into both: a camp on the beach (page 5) and the last camp at the top
+of the cliff stair (page 6); their fires still smoke, the last one a beacon on the cliff.
 
 **Carved, not rolling.** The heightfield carries the big forms (an escarpment round the Green,
 fault walls, mesas, canyons, rock spines, marsh hollows); signed-distance rock formations carry
@@ -235,7 +237,7 @@ F hands and toolbar · G a living land · H a bigger world, marshes.
 Next, a little of each at a time:
 - **B1 — Dread.** §2g, one piece at a time, each rare and slow.
 - **B2 — More adventure.** New roster pieces and new tools; finds that connect across lands.
-- **B3 — The Shore**, then **B4 — the High Places.**
+- ~~**B3 — The Shore**, then **B4 — the High Places.**~~ (done, 2026-11-04)
 - **B5 — Polish.** Title screen and settings, region soundscapes, performance pass.
 
 ## 7. Performance budget

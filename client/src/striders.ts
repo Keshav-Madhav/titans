@@ -9,7 +9,7 @@
 // far behind the body lifts and swings forward, one leg at a time, slowly.
 
 import * as THREE from 'three'
-import { mulberry32, SPREAD, type Terrain } from '@titans/shared'
+import { mulberry32, SPREAD, type Terrain, SHORE } from '@titans/shared'
 
 const LEGS = 4
 const HIP = 470 // body height above the ground
@@ -140,7 +140,8 @@ export class Striders {
     const a = s.heading + leg.angle
     const x = s.x + Math.sin(a) * REACH + Math.sin(s.heading) * 90
     const z = s.z + Math.cos(a) * REACH + Math.cos(s.heading) * 90
-    return out.set(x, this.terrain.heightAt(x, z), z)
+    // (In deep water a foot goes down only so far: the sea hides the rest.)
+    return out.set(x, Math.max(this.terrain.heightAt(x, z), SHORE.sea - 40), z)
   }
 
   update(dt: number): void {
@@ -149,13 +150,20 @@ export class Striders {
       // Round the far lands, slowly, the loop bending as it goes.
       const w = s.speed / s.radius
       s.orbit += w * dt
-      const r = s.radius + Math.sin(s.orbit * 3 + s.phase) * 350 * SPREAD
+      let r = s.radius + Math.sin(s.orbit * 3 + s.phase) * 350 * SPREAD
+      // Due south their loop runs out past the beach: they wade out into the sea a long way,
+      // and come back (STORY: "striders wading out to sea").
+      let ds = (s.orbit - Math.PI / 2) % (Math.PI * 2)
+      if (ds > Math.PI) ds -= Math.PI * 2
+      if (ds < -Math.PI) ds += Math.PI * 2
+      r += Math.max(0, SHORE.coast + 3800 - r) * Math.exp(-((ds / 0.22) ** 2))
       const nx = Math.cos(s.orbit) * r
       const nz = Math.sin(s.orbit) * r
       s.heading = Math.atan2(nx - s.x, nz - s.z)
       s.x = nx
       s.z = nz
-      const ground = this.terrain.heightAt(s.x, s.z)
+      // (In the sea the body keeps up at the water, not down with the bed: the legs go down to it.)
+      const ground = Math.max(this.terrain.heightAt(s.x, s.z), SHORE.sea - 40)
       const bob = Math.sin(this.t * 0.35 + s.phase) * 8
       const hip = _a.set(s.x, ground + HIP + bob, s.z)
       s.body.position.copy(hip)

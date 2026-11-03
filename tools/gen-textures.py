@@ -83,6 +83,9 @@ TEXTURES = {
     'dunesand': 'Fine desert sand seen from straight above: soft, regular wind ripples running in '
     'one direction across the whole image, warm pale golden ochre, very fine grain, a few darker '
     'coarse grains gathered in the ripple troughs, gentle and even, no footprints, no stones.',
+    'ice': 'The face of ancient glacier ice seen front-on: dense pale blue-white ice, long straight '
+    'fracture planes and fine cracks crossing it at angles, faint horizontal bands of old snow layers, '
+    'tiny trapped air bubbles, a little frost in the cracks; cold, translucent-looking, no sky, no reflection.',
     'relief': 'Weathered warm sandstone carved with a worn, shallow relief frieze of interlocking '
     'geometric bands and abstract giant figures, eroded by sand and wind until barely legible, fine '
     'grain, pale ochre with darker weathering in the grooves.',
