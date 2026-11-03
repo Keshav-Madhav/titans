@@ -1307,8 +1307,18 @@ export class Wanderer {
       // …and dip a little on the side of the leg swinging through.
       this.pelvis.rotation.z = Math.cos(s) * 0.035 * go * (1 - run * 0.5)
       if (this.sliding) {
-        A[0].shoulder.rotation.z = -1.0
-        A[1].shoulder.rotation.z = 1.0
+        // Down the scree: crouched, weight back into the slope, knees bent and feet braced
+        // ahead, one hand trailing on the ground behind, the other out for balance (it was
+        // an upright half-step, arms out like a scarecrow).
+        const sh = Math.sin(this.t * 9) * 0.04
+        L[0].hip.rotation.x = -0.75 + sh
+        L[1].hip.rotation.x = -0.45 - sh
+        L[0].knee.rotation.x = 1.05
+        L[1].knee.rotation.x = 1.25
+        A[0].shoulder.rotation.set(0.65, 0, -0.45)
+        A[0].elbow.rotation.x = -0.15
+        A[1].shoulder.rotation.set(-0.5, 0, 0.95 + sh)
+        A[1].elbow.rotation.x = -0.4
       }
       if (this.scrambleLean > 0.02) {
         // Hands reaching to the slope ahead, one then the other.
@@ -1322,7 +1332,7 @@ export class Wanderer {
       const breathe = Math.sin(this.t * 1.6) * 0.008 * (1 - Math.min(1, g))
       // Running, both feet leave the ground mid-stride: a bound up between footfalls.
       const bound = run * Math.max(0, Math.cos(s * 2)) * 0.045
-      this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe
+      this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe - (this.sliding ? 0.24 : 0)
       this.chest.rotation.x = this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + 0.55 * this.scrambleLean
       // The head stays level and looking ahead whatever the body does.
       this.head.rotation.x = -this.chest.rotation.x * 0.75
