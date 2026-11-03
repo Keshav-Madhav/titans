@@ -2185,6 +2185,7 @@ function frame(now: number): void {
   water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
   water.update(dt)
+  water.weather(weather.now.dark, weather.now.rain, [sea.mesh.material as THREE.MeshStandardMaterial])
   sea.update(dt, camera.position)
   wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
   // The air going past: gliding at speed, or falling (from about a 4 m drop on).

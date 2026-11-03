@@ -591,6 +591,18 @@ Each phase ends playable. Phases are in PLAN.md §6.
       hiding layers in the frame: motes, then the streaks, then each post pass.) Also: the
       Undercroft's key goes in a pocket before the bag; map names larger; wading rings the water
 
+## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
+- [ ] The icons still look bad
+- [ ] Climbing a giant: the camera fights it, the body goes into the rock, nowhere to rest so grip runs out
+- [ ] Running animation still buggy; the cape doesn't move with the shoulders
+- [ ] Raining, no sun, and the water still shows sun glints
+- [ ] Grass and foliage drawn in chunks, very close to the player
+- [ ] Traversal slow: a physics grappling hook?
+- [ ] No way to see the controls
+- [ ] The minimap lags, re-renders a lot, in chunks
+- [ ] Lag, performance: LODs
+- [ ] No music
+
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
       Cause: a giant resting a minute of real time turns to stone on load (a hill rises under it);

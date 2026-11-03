@@ -114,6 +114,23 @@ export class WaterView {
     }
   }
 
+  /**
+   * The weather on the water (user: "raining without sun, water reflects sunrays"): under a
+   * dark sky the surface is no mirror for a sun that isn't there, and rain roughens it.
+   * `dark` 0 … 1, `rain` 0 … 1. Applied to every lake and to `extra` (the sea).
+   */
+  weather(dark: number, rain: number, extra: THREE.MeshStandardMaterial[] = []): void {
+    const rough = 0.05 + 0.32 * dark + 0.3 * rain
+    const ripple = 0.2 + 0.35 * rain
+    const apply = (m: THREE.MeshStandardMaterial) => {
+      m.roughness = rough
+      m.normalScale.set(ripple, ripple)
+    }
+    for (const e of this.entries.values()) apply(e.mesh.material as THREE.MeshStandardMaterial)
+    apply(this.material)
+    for (const m of extra) apply(m)
+  }
+
   /** Drift the ripples. */
   update(dt: number): void {
     this.t += dt
