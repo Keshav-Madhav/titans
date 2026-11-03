@@ -658,6 +658,9 @@ export class Wanderer {
   private lanternOn = 0
   private readonly lanternGlow: THREE.Mesh
   private readonly capeAnchors: THREE.Vector3[] = []
+  /** The same, in the chest's own space. */
+  private readonly capeChest: THREE.Vector3[] = []
+  private readonly scarfChest: THREE.Vector3[] = []
   private readonly scarfAnchors = [new THREE.Vector3(-0.05, 1.47, -0.1), new THREE.Vector3(0.05, 1.47, -0.1)]
   private readonly capePins: THREE.Vector3[]
   private readonly scarfPins = [new THREE.Vector3(), new THREE.Vector3()]
@@ -860,6 +863,12 @@ export class Wanderer {
       this.capeAnchors.push(new THREE.Vector3(-Math.cos(a) * 0.22, 1.44, -Math.sin(a) * 0.15 - 0.03))
     }
     this.capePins = this.capeAnchors.map(() => new THREE.Vector3())
+    // (Pinned to the chest itself, not the body's root: it turns, leans and bobs with the
+    // shoulders — user: "the cape doesn't move with the shoulders".)
+    this.obj.updateMatrixWorld(true)
+    const toChest = this.chest.matrixWorld.clone().invert()
+    for (const a of this.capeAnchors) this.capeChest.push(a.clone().applyMatrix4(toChest))
+    for (const a of this.scarfAnchors) this.scarfChest.push(a.clone().applyMatrix4(toChest))
     // (Flaring toward the hem: a cloak, not a plank.)
     this.cape = new Cloth(9, 9, 0.135, red, (row) => 1 + 0.5 * (row / 8))
     this.cape.pleats = 0.07
@@ -1445,9 +1454,9 @@ export class Wanderer {
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
     this.obj.updateMatrixWorld(true)
     const m = this.obj.matrixWorld
-    const lean = this.chest.rotation.x
-    this.capeAnchors.forEach((a, i) => this.capePins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
-    this.scarfAnchors.forEach((a, i) => this.scarfPins[i].set(a.x, a.y - lean * 0.05, a.z - lean * 0.25).applyMatrix4(m))
+    const cm = this.chest.matrixWorld
+    this.capeChest.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(cm))
+    this.scarfChest.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(cm))
     this.hangDir.set(0, -1, -0.15).transformDirection(m)
     // The body's capsule, pelvis to chest, a little fatter than the body. (It must end below
     // the pins: a cap above them pushed the scarf's first links upward and it stood on end.)
