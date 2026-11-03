@@ -1252,6 +1252,28 @@ export class Wanderer {
       A[1].elbow.rotation.x = -0.3 - fall * 0.4
       this.chest.rotation.x = 0.1 + fall * 0.2
       this.head.rotation.x = fall * 0.45
+      // A running leap (not a long fall): a stride held in the air — the lead knee driven up,
+      // the trail leg stretched back, the arms opposite, leaning into it; reaching the lead
+      // foot down for the ground as you come down.
+      const leap = THREE.MathUtils.clamp(Math.hypot(this.vel.x, this.vel.z) / SPRINT, 0, 1) * (1 - fall)
+      if (leap > 0.02) {
+        const down = THREE.MathUtils.smoothstep(-this.vel.y, -1, 4)
+        const lead = this.lastHalf % 2 === 0 ? 0 : 1
+        const trail = 1 - lead
+        const mixL = (o: THREE.Object3D, x: number) => (o.rotation.x += (x - o.rotation.x) * leap)
+        mixL(L[lead].hip, -1.05 + 0.55 * down)
+        mixL(L[lead].knee, 1.1 - 0.6 * down)
+        mixL(L[trail].hip, 0.55)
+        mixL(L[trail].knee, 0.9)
+        mixL(A[lead].shoulder, 0.7)
+        mixL(A[trail].shoulder, -0.9)
+        mixL(A[lead].elbow, -0.9)
+        mixL(A[trail].elbow, -1.1)
+        A[lead].shoulder.rotation.z += ((lead ? 1 : -1) * 0.15 - A[lead].shoulder.rotation.z) * leap
+        A[trail].shoulder.rotation.z += ((trail ? 1 : -1) * 0.25 - A[trail].shoulder.rotation.z) * leap
+        this.chest.rotation.x += (0.28 - this.chest.rotation.x) * leap
+        this.head.rotation.x += (-0.15 - this.head.rotation.x) * leap
+      }
     } else {
       // Walking and running: legs swing from the hips, knees bend on the
       // swing; arms counter-swing; the body leans in and bobs.
