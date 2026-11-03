@@ -93,15 +93,17 @@ export class Ambience {
           float b = sin(uTime * (0.7 + fract(aPhase * 0.37) * 0.8) + aPhase);
           vGlow = smoothstep(0.55, 1.0, b);
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = (2.0 + 5.0 * vGlow) * clamp(60.0 / -mv.z, 0.6, 3.0);
+          // (Pinpricks with a little halo: at up to 21 px, bloomed, they were green tennis balls.)
+          gl_PointSize = (2.5 + 5.0 * vGlow) * clamp(40.0 / -mv.z, 0.7, 2.0);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: /* glsl */ `
         uniform float uOn;
         varying float vGlow;
         void main() {
-          float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
-          gl_FragColor = vec4(vec3(1.6, 2.4, 0.5) * vGlow * uOn, a * vGlow * uOn);
+          float r = length(gl_PointCoord - 0.5) * 2.0;
+          float a = exp(-r * r * 9.0) + 0.25 * exp(-r * r * 2.5) * (1.0 - r);
+          gl_FragColor = vec4(vec3(2.2, 3.2, 0.7) * vGlow * uOn, clamp(a, 0.0, 1.0) * vGlow * uOn);
         }`,
       transparent: true,
       depthWrite: false,
