@@ -2,6 +2,18 @@
 
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
+## 2026-11-04 — cycle 6 (graphics and fidelity)
+
+- **Ambient occlusion** (Q31): from the soft layers' depth — no second scene render; ~0.3 ms.
+- **Broken boulders** (Q32): fractured shapes, three variants near (~5k triangles), a lighter one far.
+- **Real grass blades** within 16 m (Q33): 30-blade tufts replace the flat cards near you; ~0.3–0.6 ms;
+  ring 16/10/0 m by quality.
+- **The wanderer's body** (Q34): shaped limbs, coat skirt halves that stride, coat sleeves.
+- **The lean answers the change of speed** (Q30).
+- Effect costs measured uncapped (no vsync), toggled in place: everything on 6.0–6.6 ms a frame.
+- Next on the fidelity list (survey, cycle 6): tree trunks up close (thin, faceted); the lakes' hard
+  white shoreline and flat water.
+
 ## 2026-11-04 — cycle 5
 
 - **Feet stay where they land** (Q28): foot IK; planted slip walk 19% → 1%, run → 5%, sprint → 6% of body speed.
