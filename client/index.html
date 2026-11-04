@@ -60,9 +60,32 @@
       }
       #fade.on { opacity: 1; transition: opacity 0.35s ease-out; }
       #loading {
-        position: fixed; inset: 0; display: grid; place-items: center;
-        background: linear-gradient(#5d7a99, #a9bccf 60%, #c9b896); transition: opacity 0.8s;
+        position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+        background: #4f5a63; transition: opacity 0.8s;
       }
+      /* While the land loads: the key art (concept/kneeling-giant.jpg, the game's own), full
+         bleed, drifting slowly in; dark at the top for the title. (It was a bare gradient for
+         ~5 s — QA Q16.) The title hides it: the real land is behind by then. */
+      #loading::before {
+        content: ''; position: absolute; inset: -2%; z-index: -1;
+        background: linear-gradient(rgba(14, 16, 20, 0.62), rgba(14, 16, 20, 0.18) 42%, rgba(14, 16, 20, 0) 60%, rgba(14, 16, 20, 0.35)), url(/loading.webp) 62% 50% / cover no-repeat;
+        animation: loading-drift 24s ease-out both;
+      }
+      #loading.title::before { display: none; }
+      /* The title over the empty sky above the cliffs, left — clear of the giant (centred, it sat on
+         its head and the line ran into the sword). A tall screen crops to the giant: centred there. */
+      #loading:not(.title) { place-items: start; }
+      #loading:not(.title) > div { margin: 11vh 0 0 7vw; }
+      #loading:not(.title) h1, #loading:not(.title) p { text-align: left; }
+      /* (A short screen — a phone on its side — sized by the height too: the title reached the giant.) */
+      #loading:not(.title) h1 { font-size: min(10vw, 16vh, 112px); }
+      @media (max-aspect-ratio: 1/1) {
+        #loading:not(.title) { place-items: start center; }
+        #loading:not(.title) > div { margin: 9vh 0 0; }
+        #loading:not(.title) h1, #loading:not(.title) p { text-align: center; }
+      }
+      @keyframes loading-drift { from { transform: scale(1.0); } to { transform: scale(1.07) translate(-1%, 0.6%); } }
+      @media (prefers-reduced-motion: reduce) { #loading::before { animation: none; } }
       #loading.done { opacity: 0; pointer-events: none; }
       /* The title: the land is ready behind it; a click wakes you. */
       #loading.title { cursor: pointer; background: linear-gradient(rgba(6, 7, 9, 0.92), rgba(10, 11, 14, 0.82) 60%, rgba(18, 16, 14, 0.9)); }

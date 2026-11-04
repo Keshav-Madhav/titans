@@ -27,12 +27,29 @@ against that direction, not against a plot it chose not to have.
 - Captions: the found things' words are good but arrived as a block of three paragraphs (Q8, fixed);
   read in a panel they were cut off (Q9, fixed).
 
+## The traveller's thread (checked, cycle 3)
+
+Six pages, in order across the lands: the first camp (the bag) → near the Herd → the Old Wood's
+edge → the foot of the Great Stair → the beach → the top of the cliff stair. Each names the next
+thing to find (the horn, the sight-stone, the wing-cloak "waiting at the top"), and they answer each
+other: page 4 "If I don't come back down…", page 5 "I came back down… I lost my nerve", page 6 "You
+don't have to follow me any further. But look down before you go." That is a beginning, a turn and
+an ending — the game's one through-line, and it closes. The journal lists every unfound page with
+where it is ("At a camp near the Herd, in the Dune Sea"), which is the "guess" the tip promises; the
+later camps' fires still smoke so they can be seen from afar. No contradiction found. Page 6 is
+reached by the high gate's stair walk.
+
+## Terminology (checked, cycle 3)
+
+Player-facing words (the journal, captions): "giant" for the living ones (27 entries); "the Ones
+Beyond" for the far colossi (one entry, introduced where you meet them); the builders are never
+named — "Not built for us", "We built the Steps", "whoever comes after". One line broke that: the
+sight-stone spoke of "the First Ones", a name used nowhere else (a leftover of the superseded plot
+drafts). Now: "marks left on the land by whoever was here before". "Colossus" and "titan" appear
+only in code, never to the player.
+
 ## Open
 
-- The traveller's pages: count them and walk the chain to the last; confirm the last page exists,
-  can be reached, and closes the thread (not yet done in this audit).
-- Terminology: "the First Ones", "the Ones Beyond", "colossi", "giants" — check the journal uses
-  each for one thing only.
 - The far lands (the Shore, the High Places) have fewer finds per square kilometre than the Green;
   each has its own idea (the sea and the Wader; the stair, the snow and the Frozen One), which is
   the rule (one idea per land) — adding finds there is optional, not essential.

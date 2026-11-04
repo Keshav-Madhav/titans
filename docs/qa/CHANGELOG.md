@@ -3,6 +3,9 @@
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
 ## 2026-11-04 — cycle 3
+- **Loading screen** (Q16): the key art instead of a bare gradient; the title placed clear of the
+  giant at every screen shape. Full gate sweep on the cycle-3 build: 50 passed.
+- **Terminology** (Q20): the one stray "First Ones" in player text replaced.
 
 - **Climbing camera** (Q14): further out on a giant (10 m) and a rock face (8 m); left alone, it
   tilts to look up along the body against the sky. A stronger tilt (−0.32) was tried and rejected —
