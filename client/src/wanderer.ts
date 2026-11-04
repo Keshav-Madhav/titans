@@ -341,17 +341,21 @@ class Cloth {
     this.p = new Float32Array(cols * rows * 3)
     this.q = new Float32Array(cols * rows * 3)
     this.floor = new Float32Array(cols * rows)
+    // Drawn finer than it is simulated (QA cycle 7: 9 × 9 particles drawn as 64 flat quads read as
+    // a stiff board): SUB vertices per cell, a smooth (Catmull-Rom) surface through the particles.
+    const RC = (cols - 1) * Cloth.SUB + 1
+    const RR = (rows - 1) * Cloth.SUB + 1
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cols * rows * 3), 3))
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RC * RR * 3), 3))
     // (The cloth's texture: across the width, and from the shoulders, v = 1, down to the hem.)
-    const uv = new Float32Array(cols * rows * 2)
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) uv.set([c / (cols - 1), 1 - r / (rows - 1)], (r * cols + c) * 2)
+    const uv = new Float32Array(RC * RR * 2)
+    for (let r = 0; r < RR; r++) for (let c = 0; c < RC; c++) uv.set([c / (RC - 1), 1 - r / (RR - 1)], (r * RC + c) * 2)
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
     const idx: number[] = []
-    for (let r = 0; r < rows - 1; r++) {
-      for (let c = 0; c < cols - 1; c++) {
-        const a = r * cols + c
-        idx.push(a, a + cols, a + 1, a + 1, a + cols, a + cols + 1)
+    for (let r = 0; r < RR - 1; r++) {
+      for (let c = 0; c < RC - 1; c++) {
+        const a = r * RC + c
+        idx.push(a, a + RC, a + 1, a + 1, a + RC, a + RC + 1)
       }
     }
     g.setIndex(idx)
@@ -528,10 +532,40 @@ class Cloth {
       }
     }
     const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute
-    ;(pos.array as Float32Array).set(p)
+    this.refine(pos.array as Float32Array)
     pos.needsUpdate = true
     this.mesh.geometry.computeVertexNormals()
   }
+
+  static readonly SUB = 3
+
+  /** The particles → the drawn surface: Catmull-Rom across each row, then down the columns. */
+  private refine(out: Float32Array): void {
+    const { cols, rows, p } = this
+    const S = Cloth.SUB
+    const RC = (cols - 1) * S + 1
+    const RR = (rows - 1) * S + 1
+    const cr = (a: number, b: number, c: number, d: number, t: number) => {
+      const t2 = t * t
+      return 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t2 * t)
+    }
+    const P = (r: number, c: number, k: number) => p[((Math.min(rows - 1, Math.max(0, r)) * cols + Math.min(cols - 1, Math.max(0, c))) * 3) + k]
+    // Across each particle row first (rows × RC), then down (RR × RC).
+    const tmp = this.tmp ?? (this.tmp = new Float32Array(rows * RC * 3))
+    for (let r = 0; r < rows; r++)
+      for (let x = 0; x < RC; x++) {
+        const c = Math.min(cols - 2, Math.floor(x / S))
+        const t = x / S - c
+        for (let k = 0; k < 3; k++) tmp[(r * RC + x) * 3 + k] = cr(P(r, c - 1, k), P(r, c, k), P(r, c + 1, k), P(r, c + 2, k), t)
+      }
+    const T = (r: number, x: number, k: number) => tmp[(Math.min(rows - 1, Math.max(0, r)) * RC + x) * 3 + k]
+    for (let y = 0; y < RR; y++) {
+      const r = Math.min(rows - 2, Math.floor(y / S))
+      const t = y / S - r
+      for (let x = 0; x < RC; x++) for (let k = 0; k < 3; k++) out[(y * RC + x) * 3 + k] = cr(T(r - 1, x, k), T(r, x, k), T(r + 1, x, k), T(r + 2, x, k), t)
+    }
+  }
+  private tmp: Float32Array | null = null
 
   private keep(i: number, j: number, len: number, pinnedI: boolean, stiff = 1): void {
     const p = this.p
