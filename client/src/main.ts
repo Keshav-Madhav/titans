@@ -85,6 +85,7 @@ import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
+import { loadRockScans } from './rock-scans'
 import { Dread } from './dread'
 import { Bell } from './bell'
 import { Eerie } from './eerie'
@@ -907,6 +908,8 @@ const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a lo
 /** Keep a clearing round each cairn (they are placed further down; plants grow later, lazily). */
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
+// Scanned boulders replace the made ones when they arrive (rock-scans.ts).
+void loadRockScans().then((s) => s && vegetation.useScannedRocks(s.near, s.far))
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)

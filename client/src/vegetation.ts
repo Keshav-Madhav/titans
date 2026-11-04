@@ -261,6 +261,24 @@ export class Vegetation {
   private readonly meshes = {} as Record<Kind, THREE.InstancedMesh>
   /** The distant kinds' wedges (the first is meshes[kind]). */
   private readonly sectors = new Map<Kind, THREE.InstancedMesh[]>()
+
+  /**
+   * Scanned boulders in place of the made ones (tools/build-rocks.mjs: CC0 photogrammetry, each cut
+   * to ~4k triangles near with its baked colour, normal and AO maps, ~600 far). `near` gives the three
+   * near shapes their own scan; the far ones take the first scan's far mesh and its material.
+   */
+  useScannedRocks(near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>, far: THREE.BufferGeometry): void {
+    const kinds = ['rockA', 'rockB', 'rockC'] as const
+    kinds.forEach((k, i) => {
+      const src = near[i % near.length]
+      this.meshes[k].geometry = src.geo
+      this.meshes[k].material = src.mat
+    })
+    for (const m of this.sectors.get('rock') ?? [this.meshes.rock]) {
+      m.geometry = far
+      m.material = near[0].mat
+    }
+  }
   /** The near trees' shadow casters: [detailed (close), simple (farther)]. */
   private readonly shadeCast = new Map<Kind, [THREE.InstancedMesh, THREE.InstancedMesh]>()
   private readonly cells = new Map<number, CellData>()
@@ -686,7 +704,10 @@ export class Vegetation {
       // The rock texture is warm brown: toward grey here, toward red in the Dune Sea.
       const t = 0.8 + rand() * 0.3
       const d = this.biome.desert(x, z)
-      this.col.setRGB(t * (1.1 + 0.2 * d), t * (1.28 - 0.18 * d), t * (1.5 - 0.55 * d))
+      // (Scanned stone carries its own colour: only a mild tint now — a little warmer and redder in
+      // the Dune Sea, a touch cooler on the Green.)
+      // (The scans are Namaqualand granite, orange with lichen: cooled toward grey on the Green.)
+      this.col.setRGB(t * (0.84 + 0.18 * d), t * (0.94 - 0.02 * d), t * (1.0 - 0.16 * d))
       const ry = rand() * 6.28
       const sy = sc * (0.7 + rand() * 0.6)
       this.add(batch('rock'), x, h - sc * 0.15, z, ry, sc, sy, this.col)
