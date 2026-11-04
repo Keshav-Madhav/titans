@@ -555,12 +555,62 @@ class Cloth {
 // --- the body ----------------------------------------------------------------------
 
 /** A limb segment: a tapered capsule hanging down from its joint (the group's origin). */
-function limb(len: number, r0: number, r1: number, mat: THREE.Material): THREE.Group {
+type LimbKind = 'thigh' | 'shin' | 'upperArm' | 'forearm'
+
+/**
+ * A limb with a body's shape (graphics pass, 2026-11-04: they were straight ten-sided cylinders —
+ * the mannequin look). A lathe along a real profile — the thigh full below the hip, the calf
+ * swelling at the back of the upper shin, the forearm fuller toward the elbow — oval in section,
+ * sixteen sides; the shins wound in their wraps (a spiral of raised bands). A ball at the joint.
+ */
+function limb(len: number, r0: number, r1: number, mat: THREE.Material, kind: LimbKind): THREE.Group {
   const g = new THREE.Group()
-  const m = new THREE.Mesh(
-    mergeGeometries([new THREE.CylinderGeometry(r1, r0, len, 10, 1).translate(0, -len / 2, 0).toNonIndexed(), new THREE.SphereGeometry(r0, 10, 6).toNonIndexed()])!,
-    mat,
-  )
+  const RINGS = 10
+  const SIDES = 16
+  const bulge = { thigh: 0.14, shin: 0.0, upperArm: 0.09, forearm: 0.12 }[kind]
+  const at = { thigh: 0.32, shin: 0.3, upperArm: 0.4, forearm: 0.25 }[kind]
+  const pos: number[] = []
+  const uvs: number[] = []
+  const idx: number[] = []
+  for (let j = 0; j <= RINGS; j++) {
+    const t = j / RINGS
+    let r = r0 + (r1 - r0) * t
+    r *= 1 + bulge * Math.exp(-((t - at) * (t - at)) / 0.045)
+    // (Rounded in at the ends: no flat cut where it meets the joint ball.)
+    r *= 0.9 + 0.1 * Math.sin(Math.PI * Math.min(1, 0.15 + t * 0.85))
+    for (let i = 0; i < SIDES; i++) {
+      const a = (i / SIDES) * Math.PI * 2
+      let x = Math.cos(a) * r
+      let z = Math.sin(a) * r * 0.86
+      // The calf: out behind the shin, high up.
+      if (kind === 'shin') {
+        const back = Math.max(0, -Math.sin(a))
+        z -= back * r * 0.32 * Math.exp(-((t - 0.28) * (t - 0.28)) / 0.03)
+        // The wraps: a spiral of raised bands round the shin.
+        const band = Math.sin((t * 9 + a / (Math.PI * 2)) * Math.PI * 2)
+        const k = 1 + 0.045 * Math.max(0, band) * (t > 0.08 && t < 0.86 ? 1 : 0)
+        x *= k
+        z *= k
+      }
+      pos.push(x, -len * t, z)
+      uvs.push(i / SIDES, t)
+    }
+  }
+  for (let j = 0; j < RINGS; j++)
+    for (let i = 0; i < SIDES; i++) {
+      const a = j * SIDES + i
+      const b = j * SIDES + ((i + 1) % SIDES)
+      const c = a + SIDES
+      const d = b + SIDES
+      idx.push(a, c, b, b, c, d)
+    }
+  const body = new THREE.BufferGeometry()
+  body.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  body.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  body.setIndex(idx)
+  // (Normals while indexed — smooth round the limb; recomputed after toNonIndexed they facet.)
+  body.computeVertexNormals()
+  const m = new THREE.Mesh(mergeGeometries([body.toNonIndexed(), new THREE.SphereGeometry(r0 * 0.9, 14, 8).toNonIndexed()])!, mat)
   m.castShadow = true
   g.add(m)
   return g
@@ -780,9 +830,32 @@ export class Wanderer {
 
     // Legs: thigh (tunic) and shin (boot), hung from the hips.
     for (const side of [-1, 1]) {
-      const hip = limb(0.44, 0.09, 0.072, tunic)
+      const hip = limb(0.44, 0.09, 0.072, tunic, 'thigh')
       hip.position.set(side * 0.095, 0, 0)
-      const knee = limb(0.44, 0.07, 0.06, wraps)
+      // The coat's skirt, in two halves, each hung on its own thigh (graphics pass, 2026-11-04:
+      // bare stick legs read as a jointed doll): flared, to just below the knee, open at the hem,
+      // a little longer behind. It swings with that leg, so a stride never cuts through it.
+      {
+        const skirt = new THREE.CylinderGeometry(0.118, 0.158, 0.54, 18, 6, true)
+        const sp = skirt.getAttribute('position')
+        for (let k = 0; k < sp.count; k++) {
+          const x = sp.getX(k)
+          const y = sp.getY(k)
+          const z = sp.getZ(k)
+          // Longer behind than in front, and folds round the hem.
+          const ang = Math.atan2(z, x)
+          const low = y < -0.2 ? 1 : 0
+          const fold = 1 + 0.06 * Math.sin(ang * 7 + side) * Math.max(0, -y / 0.27) * low
+          sp.setXYZ(k, x * fold, y - (z < 0 ? 0.035 * Math.max(0, -y / 0.27) : 0), z * fold * 0.9)
+        }
+        skirt.computeVertexNormals()
+        const coatMat = (tunic as THREE.MeshStandardMaterial).clone()
+        coatMat.side = THREE.DoubleSide
+        const coat = new THREE.Mesh(skirt.translate(side * 0.02, -0.2, 0), coatMat)
+        coat.castShadow = true
+        hip.add(coat)
+      }
+      const knee = limb(0.44, 0.07, 0.06, wraps, 'shin')
       knee.position.y = -0.44
       // A boot: a rounded upper over the ankle and a toe, on a darker sole.
       const boot = mergeGeometries([
@@ -799,9 +872,9 @@ export class Wanderer {
     }
     // Arms: sleeve, forearm, hand.
     for (const side of [-1, 1]) {
-      const shoulder = limb(0.29, 0.068, 0.058, tunic)
+      const shoulder = limb(0.29, 0.068, 0.058, tunic, 'upperArm')
       shoulder.position.set(side * 0.22, 0.52, 0)
-      const elbow = limb(0.27, 0.056, 0.048, tunic)
+      const elbow = limb(0.27, 0.056, 0.048, tunic, 'forearm')
       elbow.position.y = -0.29
       // A hand, not a ball: a mitten of palm and fingers, and a thumb.
       const hand = new THREE.Group()
