@@ -7,12 +7,12 @@
 set -u
 for i in $(seq 1 60); do
   L=$(sysctl -n vm.loadavg | awk '{print $2}')
-  if awk "BEGIN{exit !($L < 6)}" && ! pgrep -f "chrome.*--headless" >/dev/null; then
+  if awk "BEGIN{exit !($L < 6)}" && ! pgrep -f "[G]oogle Chrome.*--headless|[c]hrome-headless-shell" >/dev/null; then
     "$@"; rc=$?
     sleep 45
     exit $rc
   fi
-  [ "$i" = 1 ] && echo "[guarded] waiting: load $L$(pgrep -f 'chrome.*--headless' >/dev/null && echo ', another headless Chrome up')" >&2
+  [ "$i" = 1 ] && echo "[guarded] waiting: load $L$(pgrep -f '[G]oogle Chrome.*--headless|[c]hrome-headless-shell' >/dev/null && echo ', another headless Chrome up')" >&2
   sleep 10
 done
 echo "[guarded] gave up after 10 min: the machine never cooled (load $(sysctl -n vm.loadavg | awk '{print $2}'))" >&2
