@@ -12,6 +12,8 @@ import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } fro
 import type { Biome } from './biome'
 
 const CELL = 12
+/** Most blade tufts drawn at once (the ring's tufts; ~2–4k in thick grass). */
+const BLADE_CAP = 9000
 const RADIUS = 76
 const PER_CELL = 420
 const CAP = 38000
@@ -245,9 +247,11 @@ export class Grass {
     const bladeMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.92 })
     bladeMat.onBeforeCompile = hook(true)
     bladeMat.customProgramCacheKey = () => 'grass-blades'
-    this.blades = new THREE.InstancedMesh(bladeTuftGeometry(), bladeMat, CAP)
-    this.blades.instanceMatrix = this.mesh.instanceMatrix
-    this.blades.instanceColor = this.mesh.instanceColor
+    // (Their own instance lists, only the tufts within the blade ring: sharing the cards' lists,
+    // every tuft out to the edge of the last 12 m cell ran the blade vertex shader, hidden — ~4×
+    // the ring's area, the grass's main cost. QA cycle 7, measured by synced time.)
+    this.blades = new THREE.InstancedMesh(bladeTuftGeometry(), bladeMat, BLADE_CAP)
+    this.blades.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(BLADE_CAP * 3), 3)
     this.blades.count = 0
     this.blades.frustumCulled = false
     this.blades.receiveShadow = true
@@ -255,6 +259,8 @@ export class Grass {
   }
   /** The near tufts, as real blades (a child of the cards' mesh). */
   readonly blades: THREE.InstancedMesh
+  /** Tools: blade tufts drawn now. */
+  bladeCount = 0
 
   /** The ground changed (a giant's foot, a lake): lay those cells again. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
@@ -395,7 +401,29 @@ export class Grass {
       if (dist <= grassQuality.bladeR + 4 + CELL && grassQuality.bladeR > 0) nBlades = n
     }
     this.mesh.count = n
-    this.blades.count = nBlades
+    // The blades: of the near cells' tufts, those within the ring (+3 m for its ragged edge, +2 m the
+    // view may move before the next re-lay, +1 spare) — or all of them when the view is not
+    // tracked (re-laid only on crossing a cell).
+    {
+      const bm = this.blades.instanceMatrix.array as Float32Array
+      const bc = this.blades.instanceColor!.array as Float32Array
+      const lim = (grassQuality.bladeR + 6) ** 2
+      let b = 0
+      for (let i = 0; i < nBlades && b < BLADE_CAP; i++) {
+        if (view) {
+          const dx = im[i * 16 + 12] - cam.x
+          const dz = im[i * 16 + 14] - cam.z
+          if (dx * dx + dz * dz > lim) continue
+        }
+        bm.set(im.subarray(i * 16, i * 16 + 16), b * 16)
+        bc.set(ic.subarray(i * 3, i * 3 + 3), b * 3)
+        b++
+      }
+      this.blades.count = b
+      this.blades.instanceMatrix.needsUpdate = true
+      this.blades.instanceColor!.needsUpdate = true
+      this.bladeCount = b
+    }
     this.count = n
     this.mesh.instanceMatrix.needsUpdate = true
     this.mesh.instanceColor!.needsUpdate = true

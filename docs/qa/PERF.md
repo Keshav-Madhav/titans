@@ -224,3 +224,10 @@ needs a real window to check against (headless has no display backpressure) — 
   2.5 ms a frame (titan.ts nearLods). Gates climb, grapple, giant, awakening, fps pass.
 - (Load-time lesson: the same build measured 5.9 s at 01:30 and 9.0 s at 02:00 — the machine, not
   the code. Compare load times only within one run, side by side.)
+- **Grass blades drawn only within their ring** (synced): the near blade tufts shared the cards'
+  instance list and were drawn for every tuft out to the edge of the last 12 m cell — ~4× the
+  ring's area — each hidden past the ring by the vertex shader. Their own list now holds only the
+  tufts within the ring (+3 m ragged edge, +2 m the view may move before a re-lay, +1). Blades
+  0.9 → 0.5 ms; the frame unchanged (1.85 mean difference, against 7.18 between two shots of the
+  old build). A first idea, shrinking the ring 16 → 12 m, saved nothing — the draw count had
+  never followed the ring, which is what found this. walk, run, sfx, adversary pass.
