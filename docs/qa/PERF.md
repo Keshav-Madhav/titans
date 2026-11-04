@@ -158,3 +158,11 @@ numbers read ~2.5× slow, differences hold:
   differ, against 2.8% between two shots of the *same* setting (drifting cloud, the wanderer
   breathing). The difference cannot be seen; the ground's small relief is in its normal maps.
 - Draw order: terrain last instead of front-to-back sorted: +2 ms. Kept sorted.
+- **God rays**: drawn at a quarter of the screen instead of half, and not drawn at all while the
+  sun is out of frame (they were: 56 taps a pixel that each returned black). Midday 1.56 → 0.41 ms;
+  facing a low sun −3.2 ms headless. Same frame, clock frozen, A/B/A: rays at quarter differ from
+  stock by 3.8 (mean |Δ|), below two stock shots' own 3.9–4.6 — unseen.
+- **Rejected: bloom from a quarter of the screen** (−0.4 to −1.1 ms headless). Its blur widths are
+  in pixels per level, so every level spread twice as far: mean |Δ| 10.8 against the 4 noise floor,
+  a wider milky veil toward a low sun. Kept stock. (A first comparison had been confounded by the
+  dawn haze changing between shots: compare with the clock frozen, A/B/A, always.)

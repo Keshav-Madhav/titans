@@ -108,7 +108,7 @@ import { Pause } from './pause'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
-import { Post } from './post'
+import { Post, bloomSize, raysSize } from './post'
 import { Weather } from './weather'
 import { crash, isBroken, watchErrors } from './crash'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent, type Settings } from './save'
@@ -2938,6 +2938,8 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  bloomSize,
+  raysSize,
   terrainExp,
   get skirts() {
     return skirts

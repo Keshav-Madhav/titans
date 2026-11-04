@@ -76,16 +76,53 @@ class GodRaysPass extends Pass {
     )
   }
 
+  /** Tools: the size the shafts are drawn at, as a divisor of the screen (2 = half). */
+  static div = 4
+  private cleared = false
+
   setSize(w: number, h: number): void {
-    this.target.setSize(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)))
+    // (Quarter size: the shafts are a long radial blur, and at half size 56 taps a pixel cost more
+    // than the bloom. Nothing in them is sharp enough to need the pixels.)
+    const d = GodRaysPass.div
+    this.target.setSize(Math.max(1, Math.floor(w / d)), Math.max(1, Math.floor(h / d)))
   }
 
   render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
+    // The sun out of frame (most of the time): no shafts, so nothing to draw — the target is
+    // cleared once and kept black.
+    if (this.uniforms.sunSeen.value <= 0) {
+      if (!this.cleared) {
+        const c = renderer.getClearColor(new THREE.Color())
+        const a = renderer.getClearAlpha()
+        renderer.setRenderTarget(this.target)
+        renderer.setClearColor(0x000000, 0)
+        renderer.clear(true, false, false)
+        renderer.setClearColor(c, a)
+        this.cleared = true
+      }
+      return
+    }
+    this.cleared = false
     this.uniforms.tScene.value = read.texture
     renderer.setRenderTarget(this.target)
     this.quad.render(renderer)
   }
 }
+
+/**
+ * The bloom, with its size a tool can change. (Tried 2, 2026-11-04: starting the blur chain at a
+ * quarter of the screen saved ~0.4 ms but every level spread twice as far — toward a low sun the
+ * haze became a wide milky veil, the thing the threshold below was tuned against. Kept stock.)
+ */
+class SizedBloom extends UnrealBloomPass {
+  /** Tools: 2 starts the chain at a quarter of the screen (to compare). */
+  static div = 1
+  setSize(w: number, h: number): void {
+    super.setSize(Math.max(1, Math.round(w / SizedBloom.div)), Math.max(1, Math.round(h / SizedBloom.div)))
+  }
+}
+export const bloomSize = SizedBloom
+export const raysSize = GodRaysPass
 
 /**
  * Clamp the HDR scene before bloom and rays read it: the sky's sun disk is
@@ -295,7 +332,7 @@ export class Post {
     this.ao = new AOPass(camera)
     this.composer.addPass(this.ao)
     this.composer.addPass(new ClampPass())
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
+    this.bloom = new SizedBloom(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)
     this.composer.addPass(this.rays)
     this.grade = new GradePass(this.rays)
