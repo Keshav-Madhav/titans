@@ -163,7 +163,9 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         float patchy = triTex(vLayer.x, 1.0 / (vLayer.z * 6.0), vRockPos + 17.0, rN, nTmp).g;
         float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
         // Ground layers on top get the ground's green; generated moss is coloured already.
-        vec3 topTint = vLayer.y < 7.5 ? vec3(0.8, 1.15, 0.7) : vec3(0.72, 0.8, 0.66);
+        // (Green only for the grassy layers — grass, dry grass, forest litter: the Fallen's skull wore
+        // its drifted sand as a lemon-green smear. Sand and snow keep their own colour.)
+        vec3 topTint = vLayer.y < 2.5 ? vec3(0.8, 1.15, 0.7) : vLayer.y < 7.5 ? vec3(1.0, 0.97, 0.9) : vec3(0.72, 0.8, 0.66);
         // The moss's repeat (QA cycle 7: on the Drowned One, 200 m long, its 3.2 m tile read as one
         // even knit from a few hundred metres). A second look at ~17 m, taking over with distance,
         // and broad lighter/darker swathes — only where there is moss.
