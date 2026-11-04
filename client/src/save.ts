@@ -9,6 +9,9 @@ import type { LakesSave, MountainInfo, TitanSnapshot } from '@titans/shared'
 // v3: the world grew again (the lands to ~10 km, the Mire); an older save's lakes and map belong to the old land.
 const SAVE_KEY = 'titans.adventure.v3'
 const SETTINGS_KEY = 'titans.adventure.settings'
+// The save before the last one: a write that half-fails, or a save that will not parse,
+// falls back to it instead of starting the adventure over.
+const BACKUP_KEY = 'titans.adventure.v3.prev'
 
 export type SavedEvent =
   | ['d', number, number, number, number] // drag: ax, az, bx, bz
@@ -52,9 +55,31 @@ export interface Settings {
   resolution: 'auto' | number
   /** Detail (terrain, shadows, plants): 'auto', or 0 high, 1 medium, 2 low. */
   detail: 'auto' | 0 | 1 | 2
+  /** How far the ground shakes the camera, 0 … 1 (less by default when the system asks for reduced motion). */
+  shake: number
+  /** Lightning: a full white flash, or a soft one. */
+  softFlash: boolean
 }
 
-export const DEFAULT_SETTINGS: Settings = { sound: true, volume: 0.85, music: 0.8, sensitivity: 1, invertY: false, resolution: 'auto', detail: 'auto' }
+const calmer = (() => {
+  try {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+})()
+
+export const DEFAULT_SETTINGS: Settings = {
+  sound: true,
+  volume: 0.85,
+  music: 0.8,
+  sensitivity: 1,
+  invertY: false,
+  resolution: 'auto',
+  detail: 'auto',
+  shake: calmer ? 0.35 : 1,
+  softFlash: calmer
+}
 
 const mm = (v: number) => Math.round(v * 1000) / 1000
 
@@ -73,19 +98,52 @@ export function unpackEvent(s: SavedEvent) {
   return { type: 'footfall' as const, foot: s[1], x: s[2], z: s[3], heading: s[4], hx: s[5], hz: s[6], step: s[7], ...(s[8] ? { stomp: true } : {}) }
 }
 
-export function loadWorld(): SaveData | null {
+/** A save that parses but is not one of ours (edited, cut off, from elsewhere) is refused. */
+function sane(d: unknown): d is SaveData {
+  const x = d as SaveData
+  return (
+    !!x &&
+    x.v === 1 &&
+    Array.isArray(x.events) &&
+    !!x.titans &&
+    typeof x.titans === 'object' &&
+    !!x.mountains &&
+    !!x.player &&
+    [x.player.x, x.player.y, x.player.z].every((n) => typeof n === 'number' && Number.isFinite(n))
+  )
+}
+
+function read(key: string): SaveData | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
-    const d = JSON.parse(raw) as SaveData
-    return d.v === 1 ? d : null
+    const d = JSON.parse(raw) as unknown
+    return sane(d) ? d : null
   } catch {
     return null
   }
 }
 
+/**
+ * The adventure, and whether it came from the backup (the last save was broken).
+ * Null when there is neither.
+ */
+export function loadWorld(): { data: SaveData; fromBackup: boolean } | null {
+  const d = read(SAVE_KEY)
+  if (d) return { data: d, fromBackup: false }
+  const b = read(BACKUP_KEY)
+  return b ? { data: b, fromBackup: true } : null
+}
+
 /** Returns false if the browser refused (storage full or blocked). */
 export function saveWorld(d: SaveData): boolean {
+  try {
+    // The good save so far becomes the backup, then the new one is written over it.
+    const prev = localStorage.getItem(SAVE_KEY)
+    if (prev && sane(JSON.parse(prev))) localStorage.setItem(BACKUP_KEY, prev)
+  } catch {
+    // no room for the backup: still try the save itself
+  }
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(d))
     return true
@@ -97,6 +155,7 @@ export function saveWorld(d: SaveData): boolean {
 export function clearWorld(): void {
   try {
     localStorage.removeItem(SAVE_KEY)
+    localStorage.removeItem(BACKUP_KEY)
   } catch {
     // nothing to clear
   }
@@ -105,7 +164,9 @@ export function clearWorld(): void {
 export function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>
-    return { ...DEFAULT_SETTINGS, ...s, sound: s.sound !== false }
+    const m = { ...DEFAULT_SETTINGS, ...s, sound: s.sound !== false }
+    if (!(m.shake >= 0 && m.shake <= 1)) m.shake = DEFAULT_SETTINGS.shake
+    return m
   } catch {
     return { ...DEFAULT_SETTINGS }
   }

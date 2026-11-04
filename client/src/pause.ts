@@ -109,7 +109,7 @@ export class Pause {
       r.append(l, control)
       this.body.appendChild(r)
     }
-    const slider = (k: 'volume' | 'music' | 'sensitivity', min: number, max: number, step: number) => {
+    const slider = (k: 'volume' | 'music' | 'sensitivity' | 'shake', min: number, max: number, step: number) => {
       const i = document.createElement('input')
       i.type = 'range'
       i.min = String(min)
@@ -119,7 +119,7 @@ export class Pause {
       i.addEventListener('input', () => this.set(k, Number(i.value)))
       return i
     }
-    const toggle = (k: 'sound' | 'invertY') => {
+    const toggle = (k: 'sound' | 'invertY' | 'softFlash') => {
       const b = document.createElement('button')
       b.className = 'pause-toggle'
       const draw = () => {
@@ -175,5 +175,8 @@ export class Pause {
     section('Picture')
     row('Resolution', choose('resolution', RESOLUTIONS))
     row('Detail', choose('detail', DETAILS))
+    section('Comfort')
+    row('Ground shake', slider('shake', 0, 1, 0.05))
+    row('Soft lightning', toggle('softFlash'))
   }
 }

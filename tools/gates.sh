@@ -23,8 +23,9 @@ run() {
 }
 run lakes npx tsx tools/fill-bench.ts
 run save node tools/single.mjs
+run respect node tools/respect.mjs "$out"
 # The playable world, a scene each (each throws if what it tests does not hold).
-for s in walk run climb fall undercroft eerie bell dread rocks cairns map discover bag spots raid wisp resonance bow aim sight horn glide flight steps uncover offer mire herd awakening hands daynight lands_weather life weather wall vistas colossi forest giant carved shore high grapple; do
+for s in walk run climb fall undercroft eerie bell dread rocks cairns map discover bag spots raid wisp resonance bow aim sight horn glide flight steps uncover offer mire herd awakening hands daynight lands_weather life weather wall vistas colossi forest giant carved shore high grapple pause; do
   run "$s" env SHOTS="$out" node tools/shot.mjs "$s"
 done
 echo "--- $pass passed, $fail failed${failed:+: ${failed[*]}}"

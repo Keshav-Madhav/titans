@@ -35,6 +35,8 @@ export class CameraRig {
   /** Mouse look speed (settings) and whether pushing the mouse up looks down. */
   sensitivity = 1
   invertY = false
+  /** The player's shake setting, 0 … 1. */
+  shakeScale = 1
   private trauma = 0
   private shakeT = 0
 
@@ -154,7 +156,7 @@ export class CameraRig {
     if (this.trauma > 0.002) {
       this.shakeT += dt
       const t = this.shakeT
-      const a = SHAKE_MAX * this.trauma * this.trauma
+      const a = SHAKE_MAX * this.trauma * this.trauma * this.shakeScale
       cam.x += a * (Math.sin(t * 21.7) + 0.5 * Math.sin(t * 37.1 + 1.3)) / 1.5
       cam.y += a * (Math.sin(t * 25.3 + 2.1) + 0.5 * Math.sin(t * 41.9 + 0.4)) / 1.5
       cam.z += a * (Math.sin(t * 19.1 + 4.2) + 0.5 * Math.sin(t * 33.7 + 2.9)) / 1.5

@@ -392,6 +392,36 @@ const scenes = {
     }
     await page.evaluate(() => window.__g.lookFrom(null))
   },
+  // The pause page: controls and every setting, top and bottom, desktop and phone width;
+  // nothing past the panel's edge.
+  async pause() {
+    await page.evaluate(() => window.__g.pause.show())
+    await page.waitForTimeout(600)
+    const over = async () => page.evaluate(() => {
+      const panel = document.getElementById('pause').getBoundingClientRect()
+      return [...document.querySelectorAll('#pause-body *')].filter((e) => {
+        const r = e.getBoundingClientRect()
+        return r.width > 0 && (r.right > panel.right + 1 || r.left < panel.left - 1)
+      }).map((e) => e.tagName + '.' + e.className).slice(0, 5)
+    })
+    await page.screenshot({ path: `${OUT}/pause-top.png` })
+    await page.evaluate(() => { const b = document.getElementById('pause-body'); b.scrollTop = b.scrollHeight })
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: `${OUT}/pause-bottom.png` })
+    const wide = await over()
+    await page.setViewportSize({ width: 844, height: 390 })
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: `${OUT}/pause-phone.png` })
+    await page.evaluate(() => { const b = document.getElementById('pause-body'); b.scrollTop = b.scrollHeight })
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: `${OUT}/pause-phone-bottom.png` })
+    const narrow = await over()
+    // "Go on" in sight without scrolling, at both sizes.
+    const goOn = await page.evaluate(() => { const r = document.getElementById('pause-resume').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0 })
+    if (!goOn) throw new Error('"Go on" is out of sight on a short window')
+    console.log('pause overflow', JSON.stringify({ wide, narrow }))
+    if (wide.length || narrow.length) throw new Error('pause page spills past its panel')
+  },
   // The Shore: the beach, the sea (you swim in it), the Wader wading out in the deep.
   async shore() {
     const r = await page.evaluate(async () => {

@@ -261,12 +261,21 @@ kbd {
   backdrop-filter: blur(6px) saturate(0.7); -webkit-backdrop-filter: blur(6px) saturate(0.7);
 }
 #pause-frame {
-  width: min(520px, calc(100vw - 32px)); max-height: 88vh; overflow: auto; padding: 34px 40px 30px; color: var(--ink-brown);
+  width: min(520px, calc(100vw - 32px)); max-height: 88vh; overflow: hidden; padding: 34px 40px 30px; color: var(--ink-brown);
+  display: flex; flex-direction: column;
   background: linear-gradient(90deg, rgba(90, 64, 34, 0.16), transparent 7%, transparent 93%, rgba(90, 64, 34, 0.16)), var(--tex-page), #e2d6bc;
   background-size: auto, 256px; border-radius: 4px; animation: open 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 0 0 9px #4a321f, 0 0 0 10px #2a1c10, inset 0 0 50px rgba(120, 90, 50, 0.25), 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 #pause-frame h1 { margin: 0; font: italic 38px/1 var(--serif-title); }
+/* The page scrolls between the title and the buttons; "Go on" is always in reach. The
+   edges fade where there is more above or below. */
+#pause-body {
+  flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0 -12px; padding: 0 12px 10px;
+  scrollbar-width: thin; scrollbar-color: rgba(90, 58, 32, 0.45) transparent;
+  mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 26px), transparent);
+}
+#pause-frame .pause-actions { flex: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(58, 42, 24, 0.25); }
 .pause-sub { margin: 6px 0 4px; font: italic 16px var(--serif); color: var(--ink-soft); }
 #pause-body h2 {
   margin: 22px 0 6px; padding-bottom: 4px; font: 600 13px var(--serif); letter-spacing: 0.2em; text-transform: uppercase;
@@ -305,4 +314,41 @@ kbd {
   .pause-row:has(.pause-choice) .pause-choice { width: 100%; }
   .pause-choice button { flex: 1 1 0; padding-left: 4px !important; padding-right: 4px !important; }
   .pause-actions { column-gap: 4px; }
+}
+
+/* When something breaks (crash.ts): a card, never a frozen frame. */
+#crash {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: rgba(7, 8, 10, 0.72); animation: crash-in 0.3s ease-out;
+}
+#crash .crash-card {
+  width: min(520px, calc(100vw - 32px)); padding: 26px 28px 22px; border-radius: 10px;
+  background: #1b1a17; color: var(--ink); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(242, 193, 78, 0.25);
+}
+#crash h2 { margin: 0 0 8px; font: 600 26px/1.2 var(--serif); color: #f2e3c0; }
+#crash p { margin: 0 0 18px; font: 17px/1.45 var(--serif); color: rgba(244, 239, 230, 0.78); }
+/* Nothing of the game's own HUD over or under the card. */
+body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
+#crash .crash-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+#crash button {
+  font: 600 15px/1 var(--serif); letter-spacing: 0.02em; padding: 11px 18px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(244, 239, 230, 0.25); background: transparent; color: var(--ink);
+}
+#crash button.wake { background: #f2c14e; color: #1b1a17; border-color: #f2c14e; }
+#crash button:hover { filter: brightness(1.1); }
+#crash pre {
+  margin: 16px 0 0; max-height: 120px; overflow: auto; padding: 8px 10px; border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35); font: 10.5px/1.45 ui-monospace, Menlo, monospace; color: rgba(244, 239, 230, 0.5);
+  white-space: pre-wrap; word-break: break-all;
+}
+@keyframes crash-in { from { opacity: 0; transform: scale(0.98); } }
+
+/* A short window (a phone held sideways): the page keeps most of its height for the settings. */
+@media (max-height: 480px) {
+  #pause-frame { max-height: calc(100vh - 28px); padding: 16px 26px 14px; }
+  #pause-frame h1 { font-size: 26px; }
+  .pause-sub { display: none; }
+  #pause-body h2 { margin-top: 14px; }
+  #pause-frame .pause-actions { margin-top: 8px; padding-top: 10px; }
 }

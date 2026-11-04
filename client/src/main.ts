@@ -107,6 +107,7 @@ import { Quality } from './quality'
 import { installAtmosphere } from './atmosphere'
 import { Post } from './post'
 import { Weather } from './weather'
+import { crash, isBroken, watchErrors } from './crash'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent, type Settings } from './save'
 
 const STEP = 1 / 60
@@ -1042,7 +1043,9 @@ const sites: Site[] = [
     const a = Math.atan2(p.x, p.z)
     return { x: Math.sin(a) * SHORE.coast, z: Math.cos(a) * SHORE.coast }
   } },
-  { id: 'wader', r: 5600, at: () => ({ x: 0, z: SHORE.waderD }) },
+  // (Met from the beach, looking out at it: within 5.6 km it was "met" inside the Husk, in the
+  // Dune Sea, with dunes and mountains between.)
+  { id: 'wader', r: 3500, at: () => (seaward(wanderer.pos.x, wanderer.pos.z) || Math.hypot(wanderer.pos.x, wanderer.pos.z) > SHORE.coast - 1500 ? { x: wader.gait.x, z: wader.gait.z } : null) },
   { id: 'stranded', r: 420, at: placeAt('stranded') },
   // The High Places: up on the plateau. And there, in the ice, the Frozen One.
   { id: 'high', r: 600, at: () => {
@@ -1311,7 +1314,7 @@ function record(ev: GaitEvent | MountainRise): void {
 }
 
 function saveLocal(): void {
-  if (!localSave) return
+  if (!localSave || isBroken()) return
   const data: SaveData = {
     v: 1,
     savedAt: Date.now(),
@@ -1331,8 +1334,11 @@ function saveLocal(): void {
 
 /** Back where you left off. False if there was nothing to load. */
 function loadLocal(): boolean {
-  const d = loadWorld()
-  if (!d) return false
+  const got = loadWorld()
+  if (!got) return false
+  const d = got.data
+  // (The last save would not read: this is the one before it, a few seconds older.)
+  if (got.fromBackup) setTimeout(() => narration.say('The last save was damaged. You wake from the one before it.'), 2500)
   for (const e of d.events) {
     localEvents.push(e)
     onGait(unpackEvent(e), true)
@@ -1394,6 +1400,7 @@ function newWorld(): void {
 addEventListener('pagehide', () => saveLocal())
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) saveLocal()
+  sound.away(document.hidden)
 })
 
 // The debug readout is out of the way unless asked for: ` toggles it (or ?debug).
@@ -2203,7 +2210,23 @@ function shedRubble(dt: number): void {
 /** The main thread's work per frame, the last 1200 (ms; tools read it to find hitches). */
 const work: number[] = []
 function frame(now: number): void {
+  if (isBroken()) return
   requestAnimationFrame(frame)
+  try {
+    frameBody(now)
+  } catch (err) {
+    crash(err, `frame (${opening})`)
+  }
+}
+
+// QA (?qa=throw): a frame breaks on purpose 8 s in, to prove the card and that the save survives.
+let qaThrowAt = params.get('qa') === 'throw' ? 8000 : 0
+
+function frameBody(now: number): void {
+  if (qaThrowAt && now > qaThrowAt) {
+    qaThrowAt = 0
+    throw new Error('qa: a frame broken on purpose')
+  }
   if (document.hidden) {
     last = now
     return
@@ -2695,6 +2718,8 @@ function applySettings(s: Settings): void {
   sound.setMusic(s.music)
   rig.sensitivity = s.sensitivity
   rig.invertY = s.invertY
+  rig.shakeScale = s.shake
+  weather.softFlash = s.softFlash
   if (!toolMode) quality.choose(s.resolution, s.detail)
 }
 applySettings(settings)
@@ -2744,6 +2769,7 @@ addEventListener('keydown', (e) => {
   }
 })
 
+watchErrors()
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
@@ -2846,6 +2872,7 @@ const g = {
   sound,
   tips,
   narration,
+  pause,
   /** A giant's foot coming down at (x, z), through the real event path (tools). */
   footfallAt(x: number, z: number, stomp = false) {
     onGait({ type: 'footfall', foot: 0, x, z, heading: 0, hx: 0, hz: 1, step: 0, ...(stomp ? { stomp } : {}) })

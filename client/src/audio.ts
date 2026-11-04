@@ -630,6 +630,13 @@ export class Sound {
     return this.music
   }
 
+  /** The tab hidden or the window minimised: every sound stops where it is, and goes on after. */
+  away(hidden: boolean): void {
+    if (!this.ctx) return
+    if (hidden) void this.ctx.suspend().catch(() => {})
+    else void this.ctx.resume().catch(() => {})
+  }
+
   /** Overall volume, 0 … 1. */
   setVolume(v: number): void {
     this.volume = v

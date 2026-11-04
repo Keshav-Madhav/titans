@@ -123,6 +123,8 @@ export class Weather {
    * storm brings no rain but sand — ochre air, grit driven flat by the wind.
    */
   desert = 0
+  /** Settings: lightning as a soft glow, not a white flash. */
+  softFlash = false
   /** 0 … 1: up on the High Places (it snows there). */
   high = 0
   private readonly shadeDrift = new THREE.Vector2()
@@ -380,7 +382,7 @@ export class Weather {
     }
     this.flashLeft = Math.max(0, this.flashLeft - dt)
     const t = this.flashLeft
-    const flash = t > 0 ? (t > 0.35 ? 1 : t > 0.27 ? 0.15 : t > 0.2 ? 0.8 : t / 0.2 * 0.4) : 0
+    const flash = (t > 0 ? (t > 0.35 ? 1 : t > 0.27 ? 0.15 : t > 0.2 ? 0.8 : t / 0.2 * 0.4) : 0) * (this.softFlash ? 0.3 : 1)
 
     const u = this.uniforms
     u.uTime.value += dt
