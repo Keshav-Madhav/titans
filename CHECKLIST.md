@@ -248,7 +248,7 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] D12 Watching: stand still near the Walker, the Grey One or the Herd for 18 s ("Watching… ●●●○○")
       and you learn something of how it lives
 - [x] D12 A land's cairns all lit → an ember from them (the Old Wood, the Dune Sea, the Steps)
-- [ ] Still to come: offerings (a shrine that takes a trinket and gives back words)
+- [x] Offerings: a shrine that takes a trinket and gives back words (`offerings.ts`; gate `shot.mjs offer`)
 - [x] Made stones (words, ringing stones, the camp) in the carved texture, not plain grey boxes
 - [x] Chained stones are solid now (they were skipped as "floating": unclimbable though still)
 - [x] Gate: `shot.mjs discover`, `bag`, `spots` (every trinket placed on a level top and taken)
