@@ -5,6 +5,8 @@
 // so you can see one from a long way off and wonder how to get up there.
 
 import * as THREE from 'three'
+import { mulberry32 } from '@titans/shared'
+import { weatheredStone } from './weathered-stone'
 
 /**
  * Dressed, carved stone for the small made things (the stones with words,
@@ -83,15 +85,14 @@ export class Spots {
         // A standing slab, leaning a little, a carved line catching the light,
         // and a few pebbles stacked at its foot.
         const g = new THREE.Group()
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.8, 0.3, 1, 3, 1), slab)
-        const p = body.geometry.getAttribute('position') as THREE.BufferAttribute
-        for (let i = 0; i < p.count; i++) if (p.getY(i) > 0.5) p.setX(i, p.getX(i) * 0.82)
-        body.geometry.computeVertexNormals()
+        // (Weathered: worn round, a corner of its top gone — QA cycle 7; untapered so the carving
+        // stays on its face.)
+        const body = new THREE.Mesh(weatheredStone(0.95, 1.8, 0.3, mulberry32(Math.round(s.at.x * 13 + s.at.z * 7)), true, 0), slab)
         body.position.y = 0.85
         const line = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 1.1), rune)
-        line.position.set(0, 0.95, 0.152)
+        line.position.set(0, 0.95, 0.158)
         const line2 = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.06), rune)
-        line2.position.set(0, 1.25, 0.152)
+        line2.position.set(0, 1.25, 0.158)
         g.add(body)
         // (The carving and the pebbles: only close by.)
         const detail = new THREE.Group()
