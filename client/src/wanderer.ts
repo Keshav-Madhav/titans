@@ -34,6 +34,8 @@ const FLY_G = 11
 const KL = 0.079
 const CD0 = 0.04
 const ACCEL = 14
+/** The most you can brake by, letting go on the ground (m/s²): a long run stops in ~2/3 s. */
+const BRAKE = 22
 const JUMP = 5.6
 /** Water deeper than this, you swim (metres); you float this far down in it; swimming speeds. */
 const SWIM_DEPTH = 1.3
@@ -967,8 +969,20 @@ export class Wanderer {
     else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
     const speed = sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
     const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
-    this.vel.x += (wx * speed - this.vel.x) * k
-    this.vel.z += (wz * speed - this.vel.z) * k
+    // Letting go at speed, the body brakes over a few strides, not on the spot (QA cycle 5: from a
+    // long run it stopped in a quarter of a second — ~200 m/s² at first, a snap no one could
+    // make). At most BRAKE; a walk still stops in under 0.2 s.
+    let bx = (wx * speed - this.vel.x) * k
+    let bz = (wz * speed - this.vel.z) * k
+    if (len === 0 && this.grounded) {
+      const b = Math.hypot(bx, bz)
+      if (b > BRAKE * dt) {
+        bx *= (BRAKE * dt) / b
+        bz *= (BRAKE * dt) / b
+      }
+    }
+    this.vel.x += bx
+    this.vel.z += bz
 
     // Too steep to stand on: no walking up it, and you slide down.
     const gx = terrain.heightAt(this.pos.x + 0.5, this.pos.z) - terrain.heightAt(this.pos.x - 0.5, this.pos.z)

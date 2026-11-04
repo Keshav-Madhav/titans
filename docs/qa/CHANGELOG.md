@@ -4,6 +4,10 @@ Newest first. Each entry: what changed, why, how it was verified. Commit hashes 
 
 ## 2026-11-04 — cycle 5
 
+- **Feet stay where they land** (Q28): foot IK; planted slip walk 19% → 1%, run → 5%, sprint → 6% of body speed.
+- **Stops take a few strides** (Q29): braking capped at 22 m/s² when you let go.
+- **Far grass colour** (Q26, partial), **grip gauge** (Q27), **night cloak** (Q25).
+
 - **You read at night** (Q25): the red cloak glows faintly in its own colour as it gets dark. Cycle-4 sweep: 51 passed.
 - **Sunset clouds** (Q22), **new scenes** (grove, dusk, mire) — cycle 4, ef2faac.
 
