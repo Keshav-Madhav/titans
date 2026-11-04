@@ -107,7 +107,7 @@ import { Wake } from './wake'
 import { Pause } from './pause'
 import { Tips } from './tips'
 import { Quality } from './quality'
-import { installAtmosphere } from './atmosphere'
+import { fogSun, fogSunHold, installAtmosphere, setFogSun } from './atmosphere'
 import { Post, bloomSize, raysSize } from './post'
 import { Weather } from './weather'
 import { crash, isBroken, watchErrors } from './crash'
@@ -2398,6 +2398,7 @@ function frameBody(now: number): void {
   birds.render()
   sky.tick(dt)
   sky.advance(dt)
+  setFogSun(sky.sunDir)
   weather.part = awakening.reveal
   weather.desert = biome.desert(camera.position.x, camera.position.z)
   weather.high = highSector(camera.position.x, camera.position.z) * THREE.MathUtils.smoothstep(camera.position.y, HIGH.top - 200, HIGH.top - 40)
@@ -2938,6 +2939,8 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  fogSun,
+  fogSunHold,
   bloomSize,
   raysSize,
   terrainExp,

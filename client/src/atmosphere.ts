@@ -58,6 +58,20 @@ export class AirFog extends THREE.Fog {
   }
 }
 
+/** The sun's direction for the haze's glow (normalised); set each frame with setFogSun. */
+export const fogSun = { x: 0, y: 1, z: 0 }
+
+/** Tools: hold fogSun where a tool put it (to compare the glow's direction, same frame). */
+export const fogSunHold = { on: false }
+
+export function setFogSun(d: THREE.Vector3): void {
+  if (fogSunHold.on) return
+  const l = Math.hypot(d.x, d.y, d.z) || 1
+  fogSun.x = d.x / l
+  fogSun.y = d.y / l
+  fogSun.z = d.z / l
+}
+
 export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number; pit?: { x: number; z: number; r: number; top: number } } = {}): void {
   const cloudBase = (opts.cloudBase ?? 255).toFixed(1)
   const H = (opts.heightScale ?? 380).toFixed(1)
@@ -89,8 +103,17 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
     gl_FragColor.rgb *= 1.0 - 0.94 * pin;
   }`
     : ''
-  const s = sunDir.clone().normalize()
-  const sun = `vec3(${s.x.toFixed(4)}, ${s.y.toFixed(4)}, ${s.z.toFixed(4)})`
+  // The sun as the haze sees it: a live uniform on every fogged material. (It was written into the
+  // shader as a constant at load, so the warm glow stayed where the sun had been at load, all day.)
+  // One plain {x, y, z} shared by all: three clones Vector3 uniform values per material, but passes
+  // a plain object through as is, and its vec3 setter reads .x .y .z.
+  fogSun.x = sunDir.x
+  fogSun.y = sunDir.y
+  fogSun.z = sunDir.z
+  const lib = THREE.ShaderLib as unknown as Record<string, { uniforms: Record<string, THREE.IUniform> }>
+  for (const k of Object.keys(lib)) if (lib[k].uniforms?.fogColor) lib[k].uniforms.fogSunDir = { value: fogSun }
+  ;(THREE.UniformsLib.fog as Record<string, THREE.IUniform>).fogSunDir = { value: fogSun }
+  const sun = 'fogSunDir'
   const C = THREE.ShaderChunk as unknown as Record<string, string>
 
   C.fog_pars_vertex = /* glsl */ `
@@ -112,6 +135,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   C.fog_pars_fragment = /* glsl */ `
 #ifdef USE_FOG
   uniform vec3 fogColor;
+  uniform vec3 fogSunDir;
   varying float vFogDepth;
   varying vec3 vFogWorld;
   #ifdef FOG_EXP2

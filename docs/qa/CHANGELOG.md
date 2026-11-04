@@ -2,6 +2,31 @@
 
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
+## 2026-11-04 — cycle 7 (one standard everywhere; the M5 Pro "struggling")
+
+Fidelity (the user: "good rocks in a shitty-texture game is off too"):
+- **Scanned stone** (CC0 photogrammetry, baked maps, two LODs) for boulders and pebbles [f885019, eba16e5].
+- **Trees**: rounded trunks with root flares; no screen-door branches, none through cliffs [877d157, b8701bf].
+- **Lakes**: a thin waterline, water kept inside its lake [f9875d8, fc4bef0].
+- **Snow** reads as snow: wind-carved drifts, cold hollows, glitter [09e0adf].
+- **Statues** (Q42–Q46, the user): no one-texture repeat; bone aged; sand not green; weathering
+  from the ground up; rubble and fallen fragments of their own stone, ferns in it; carving worn
+  [192798e … 852ac7d].
+- **The cloak stays red against the sun** [8d431bd].
+- **The horizon mountains get their ridgelines back** (Q48): the far ring was 256–512 m triangles [85b8227].
+
+Performance (measured at a MacBook's real 1512×945 ×2, GPU timer queries):
+- **Terrain blend unrolled** — arrays indexed by a variable spilled to memory on Apple GPUs: 10 → 4.5 ms;
+  the governor reads GPU time, starts at ratio 1, caps at 1.5 [443e662, b027c5a].
+- **View culling** of instanced near things [d4f05b2].
+- **Near terrain no longer split into sub-pixel slivers**: −11% GPU, image unchanged [a93343f].
+- **God rays** quarter size and skipped when the sun is out of frame: midday 1.56 → 0.41 ms [3618222].
+- Paired-toggle breakdown of what remains (PERF.md, cycle 7c). Rejected, with evidence: a far terrain
+  material, quarter-size bloom (visibly widened the glow).
+
+Tools: `tools/guarded.sh` (browser runs only on a quiet machine) and a load monitor, after the
+machine nearly went down twice [9e009d3, 36a31c4, fc4e0c9]; the bell gate aims exactly [4932194].
+
 ## 2026-11-04 — cycle 6 (graphics and fidelity)
 
 - **Ambient occlusion** (Q31): from the soft layers' depth — no second scene render; ~0.3 ms.
