@@ -337,8 +337,17 @@ export class Rocks {
           this.farWaiting.push(f)
         }
         const useFar = !!f.far && (d > LOD_R || !f.mesh)
-        if (f.far) f.far.visible = useFar
         if (f.mesh) f.mesh.visible = !useFar
+        if (f.far) {
+          // Up close the coarse twin still has a job: it casts the shadow, drawn only into the
+          // shadow map (layer 2), while the detailed mesh is seen and casts nothing. (A giant
+          // tree's trunk or a colossus near you was half a million triangles in the shadow pass.)
+          f.far.visible = true
+          const shadowOnly = !useFar
+          f.far.layers.set(shadowOnly ? 2 : 0)
+          f.far.castShadow = shadowOnly
+          if (f.mesh) f.mesh.castShadow = !shadowOnly
+        }
       }
       if ((d < BUILD_R || f.always) && !f.mesh && !f.queued) {
         f.queued = true
