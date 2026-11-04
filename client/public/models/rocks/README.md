@@ -9,6 +9,10 @@ CC0 (public domain) photogrammetry scans from [Poly Haven](https://polyhaven.com
 | namaqualand_boulder_03-{near,far}.glb | namaqualand_boulder_03 | 121,546 | 4,000 | 600 |
 | namaqualand_boulder_05-{near,far}.glb | namaqualand_boulder_05 | 117,622 | 4,000 | 600 |
 
+| rock_09-near.glb | rock_09 (by Jenelle van Heerden) | 23,280 | 150 | — |
+
+The small stones in the grass are `rock_09`, one level only (`NEAR=150 FAR=0`).
+
 `tools/build-rocks.mjs` makes them: welded, centred, scaled so the widest half-extent is 1, base set
 just under the ground line, simplified with meshoptimizer. The near file keeps the scan's colour,
 normal (OpenGL) and AO/roughness/metal maps — the fine relief rides in the normal map baked from the

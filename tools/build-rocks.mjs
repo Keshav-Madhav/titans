@@ -9,6 +9,7 @@
 // its base sits a little under the ground line.
 //
 //   node tools/build-rocks.mjs <dir of downloaded scans>   →  client/public/models/rocks/*.glb
+//   NEAR=300 FAR=0 node tools/build-rocks.mjs <dir>         (the small stones: one level, ~300 triangles)
 //
 // Sources and licences: client/public/models/rocks/README.md.
 import { NodeIO } from '@gltf-transform/core'
@@ -67,6 +68,7 @@ for (const name of readdirSync(SRC)) {
   const dir = join(SRC, name)
   if (!statSync(dir).isDirectory()) continue
   const file = join(dir, `${name}.gltf`)
-  await build(name, file, 4000, true)
-  await build(name, file, 600, false)
+  // (NEAR / FAR triangles from the environment; FAR=0 makes no far version — the pebbles.)
+  await build(name, file, Number(process.env.NEAR ?? 4000), true)
+  if (Number(process.env.FAR ?? 600) > 0) await build(name, file, Number(process.env.FAR ?? 600), false)
 }

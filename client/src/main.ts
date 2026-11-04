@@ -909,7 +909,7 @@ const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a lo
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
 // Scanned boulders replace the made ones when they arrive (rock-scans.ts).
-void loadRockScans().then((s) => s && vegetation.useScannedRocks(s.near, s.far))
+void loadRockScans().then((s) => s && vegetation.useScannedRocks(s.near, s.far, s.pebble))
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)

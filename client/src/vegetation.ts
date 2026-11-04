@@ -20,6 +20,8 @@ import type { PaintField } from './paint'
 const CELL = 96
 /** Within this the boulders are drawn in full detail, three broken shapes (m). */
 const ROCK_NEAR = 90
+/** Small stones: only the cells whose middle is this near (m) — the one you are in and its neighbours. */
+const PEBBLE_R = 110
 /** Wedges round you for the distant kinds (each frustum-culled on its own). */
 const SECTORS = 8
 /**
@@ -36,7 +38,7 @@ const SECTORED: Kind[] = ['coniferMid', 'coniferFar', 'broadMid', 'broadFar', 'b
 const REGROW = 300
 const GCELL = 24 // grass cells
 
-type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
+type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'pebble' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
   coniferNear: 7000,
   coniferMid: 12000,
@@ -48,6 +50,7 @@ const CAP: Record<Kind, number> = {
   rockA: 1500,
   rockB: 1500,
   rockC: 1500,
+  pebble: 3000,
   bush: 9000,
   grass: 34000,
   reed: 6000,
@@ -66,7 +69,7 @@ interface Batch {
 function pack(b: Batch): Batch {
   return { m: Float32Array.from(b.m), c: Float32Array.from(b.c), n: b.n }
 }
-type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'bush' | 'reed' | 'shrub' | 'fern' | 'stalk', Batch>>
+type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'pebble' | 'bush' | 'reed' | 'shrub' | 'fern' | 'stalk', Batch>>
 
 /** The rock material's layers (sides, tops, metres per tile) on every vertex. */
 function rockLayers(g: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -151,6 +154,8 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   rockA: () => rockLayers(colored(brokenRock(21, 4, [1.15, 0.85, 1.0], 0.42), 0xffffff)),
   rockB: () => rockLayers(colored(brokenRock(57, 4, [0.75, 1.25, 1.05], 0.48), 0xffffff)),
   rockC: () => rockLayers(colored(brokenRock(93, 4, [1.2, 0.7, 1.1], 0.55), 0xffffff)),
+  // Small stones in the grass, near you (a scan replaces it: rock-scans.ts).
+  pebble: () => rockLayers(colored(brokenRock(7, 1, [1, 0.7, 1], 0.5), 0xffffff)),
   // Bushes and scrub: clumps of leaf cards, as the trees are.
   bush: () => bushGeometry(31, 12),
   shrub: () => bushGeometry(37, 4, 0.7),
@@ -251,7 +256,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   },
 }
 
-const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, coniferFar: 0, broadNear: 0.014, broadMid: 0.01, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
+const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, coniferFar: 0, broadNear: 0.014, broadMid: 0.01, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, pebble: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
 
 export class Vegetation {
   readonly group = new THREE.Group()
@@ -267,7 +272,11 @@ export class Vegetation {
    * to ~4k triangles near with its baked colour, normal and AO maps, ~600 far). `near` gives the three
    * near shapes their own scan; the far ones take the first scan's far mesh and its material.
    */
-  useScannedRocks(near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>, far: THREE.BufferGeometry): void {
+  useScannedRocks(near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>, far: THREE.BufferGeometry, pebble?: { geo: THREE.BufferGeometry; mat: THREE.Material }): void {
+    if (pebble) {
+      this.meshes.pebble.geometry = pebble.geo
+      this.meshes.pebble.material = pebble.mat
+    }
     const kinds = ['rockA', 'rockB', 'rockC'] as const
     kinds.forEach((k, i) => {
       const src = near[i % near.length]
@@ -321,7 +330,7 @@ export class Vegetation {
     for (const k of Object.keys(GEOMS) as Kind[]) {
       let mat: THREE.MeshStandardMaterial
       if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid' || k === 'coniferFar' || k === 'broadFar' || k === 'bush' || k === 'shrub') mat = foliageMaterial(foliage, this.time, SWAY[k] || 0.004)
-      else if (k === 'rock' || k === 'rockA' || k === 'rockB' || k === 'rockC') mat = rockMat
+      else if (k === 'rock' || k === 'rockA' || k === 'rockB' || k === 'rockC' || k === 'pebble') mat = rockMat
       else {
         mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
         if (SWAY[k] > 0) this.sway(mat, SWAY[k])
@@ -469,7 +478,7 @@ export class Vegetation {
   }
 
   private rebuild(cam: THREE.Vector3): void {
-    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
+    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, pebble: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const sn = new Map<Kind, number[]>()
     for (const [k, list] of this.sectors) sn.set(k, list.map(() => 0))
@@ -571,6 +580,7 @@ export class Vegetation {
         if (c.rockB) push('rockB', c.rockB)
         if (c.rockC) push('rockC', c.rockC)
       } else if (d < this.midR * 0.55 && c.rock) push('rock', c.rock)
+      if (d < PEBBLE_R && c.pebble) push('pebble', c.pebble)
       if (d < this.midR * 0.55) {
         if (c.bush) push('bush', c.bush)
       }
@@ -714,6 +724,23 @@ export class Vegetation {
       // (Which broken shape, from where it lies — not from the cell's draws, so nothing else moves.)
       const vk = (['rockA', 'rockB', 'rockC'] as const)[Math.abs(Math.floor(x * 7.31) + Math.floor(z * 3.17)) % 3]
       this.add(batch(vk), x, h - sc * 0.15, z, ry, sc, sy, this.col)
+    }
+    // Small stones in the grass (graphics pass, 2026-11-04: ground with nothing on it but grass read
+    // as a lawn): a couple of hundred a cell (one in ~40 m²), mostly a hand's width, now and then a
+    // fist or a loaf. (At a third of that you never saw one.)
+    for (let i = 0; i < 220; i++) {
+      const x = x0 + rand() * CELL
+      const z = z0 + rand() * CELL
+      const h = this.ground(x, z, 400)
+      if (h === null) continue
+      // (Sized to show over the grass: at 6–35 cm they were all hidden in it.)
+      const sc = 0.12 + rand() * rand() * 0.38
+      // (The pebble scan is a dark brown stone: lifted and cooled toward the boulders' grey — as it
+      // came it read as dark holes in the grass.)
+      const t = 1.25 + rand() * 0.45
+      const d = this.biome.desert(x, z)
+      this.col.setRGB(t * (1.05 + 0.2 * d), t * (1.2 - 0.05 * d), t * (1.45 - 0.3 * d))
+      this.add(batch('pebble'), x, h - sc * 0.08, z, rand() * 6.28, sc, sc * (0.75 + rand() * 0.5), this.col)
     }
     // Bushes: along forest edges and near water.
     for (let i = 0; i < 30; i++) {
