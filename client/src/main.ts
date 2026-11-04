@@ -86,6 +86,7 @@ import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
 import { loadRockScans } from './rock-scans'
+import { StatueSkirts } from './statue-skirts'
 import { Dread } from './dread'
 import { Bell } from './bell'
 import { Eerie } from './eerie'
@@ -909,7 +910,18 @@ const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a lo
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
 // Scanned boulders replace the made ones when they arrive (rock-scans.ts).
-void loadRockScans().then((s) => s && vegetation.useScannedRocks(s.near, s.far, s.pebble))
+// …and round the statues' feet, rubble and fallen fragments made from them (statue-skirts.ts).
+let skirts: StatueSkirts | null = null
+void loadRockScans().then((s) => {
+  if (!s) return
+  vegetation.useScannedRocks(s.near, s.far, s.pebble)
+  // (The made figures — not the giant trees' trunks, which are colossus shapes too, nor the bones,
+  // which lie in sand that drifts over them instead.)
+  const STATUES = new Set(['sentinel', 'sword', 'monolith', 'reclining', 'husk', 'mourner'])
+  const standing = rocks.formations.filter((f) => STATUES.has(f.kind as string) && !f.float)
+  skirts = new StatueSkirts(standing, terrain, (x, y, z) => rocks.sdfAt(x, y, z), s.near, s.far)
+  scene.add(skirts.group)
+})
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)
@@ -2424,6 +2436,7 @@ function frameBody(now: number): void {
   // (At a long drop the wind rises: vertigo is heard as much as seen.)
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo), awe())
   vegetation.update(dt, camera.position)
+  skirts?.update(camera.position)
   grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera)
   rocks.update(camera.position)
   cairns.update(dt)
@@ -2923,6 +2936,9 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  get skirts() {
+    return skirts
+  },
   cullSwitch,
   grassQ: grassQuality,
   soft,
