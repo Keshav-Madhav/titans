@@ -98,7 +98,7 @@ import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation } from './vegetation'
 import { foliageFocus } from './trees'
-import { Grass } from './grass'
+import { Grass, grassQuality } from './grass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
 import { Wake } from './wake'
@@ -2912,6 +2912,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  grassQ: grassQuality,
   soft,
   effects,
   prints,

@@ -20,6 +20,7 @@
 // `?quality=0|1|2` pins a detail level (tools; the resolution then stays put too).
 
 import { aoSwitch } from './ao'
+import { grassQuality } from './grass'
 import type * as THREE from 'three'
 import type { TerrainView } from './terrain-view'
 
@@ -85,6 +86,8 @@ export class Quality {
     const L = LEVELS[level]
     // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
     aoSwitch.quality = level < 2
+    // Real grass blades round you (grass.ts): 16 m at High, 10 at Medium, none at Low.
+    grassQuality.bladeR = [16, 10, 0][level]
     // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
     aoSwitch.quality = level < 2
     this.terrain.splitK = L.splitK

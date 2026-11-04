@@ -19,22 +19,32 @@ const FRESH_PER_FRAME = 3
 
 /** The blades: a canvas of thin curved strokes, light at the tips. */
 function bladesTexture(): THREE.CanvasTexture {
-  const W = 256
-  const H = 128
+  // A tuft, not a band (graphics pass, 2026-11-04): the blades crowd toward the middle and stand
+  // tallest there, thinning and shortening toward the edges; their roots darken and fade out over
+  // the last few pixels, so a clump has no hard straight line where it meets the ground. (It was 70
+  // blades spread evenly, all from the bottom row: each clump read as a cut-out wedge.)
+  const W = 512
+  const H = 256
   const c = document.createElement('canvas')
   c.width = W
   c.height = H
   const g = c.getContext('2d')!
   const rand = mulberry32(777)
-  for (let i = 0; i < 70; i++) {
-    const x = 6 + rand() * (W - 12)
-    const h = H * (0.45 + rand() * 0.55)
-    const lean = (rand() - 0.5) * 26
-    const w = 2.2 + rand() * 2.6
+  const mid = W / 2
+  for (let i = 0; i < 150; i++) {
+    // Toward the middle (a sum of draws), never quite to the card's edge.
+    const off = ((rand() + rand() + rand()) / 1.5 - 1) * W * 0.44
+    const x = THREE.MathUtils.clamp(mid + off, 8, W - 8)
+    const edge = Math.abs(off) / (W / 2)
+    const h = H * (0.34 + rand() * 0.62) * (1 - 0.6 * Math.pow(edge, 1.4))
+    const lean = (rand() - 0.5) * 46 + off * 0.12
+    const w = 1.6 + rand() * 2.4
+    const hue = 68 + rand() * 32
     const grad = g.createLinearGradient(0, H, 0, H - h)
-    const hue = 70 + rand() * 30
-    grad.addColorStop(0, `hsl(${hue}, 32%, 30%)`)
-    grad.addColorStop(1, `hsl(${hue - 8}, ${34 + rand() * 18}%, ${56 + rand() * 16}%)`)
+    // (The root fades out: no straight edge at the ground.)
+    grad.addColorStop(0, `hsla(${hue}, 30%, 20%, 0)`)
+    grad.addColorStop(0.07, `hsla(${hue}, 30%, 24%, 1)`)
+    grad.addColorStop(1, `hsl(${hue - 8}, ${34 + rand() * 18}%, ${54 + rand() * 18}%)`)
     g.fillStyle = grad
     g.beginPath()
     g.moveTo(x - w, H)
@@ -71,6 +81,79 @@ function cardGeometry(): THREE.BufferGeometry {
   return g
 }
 
+/** Within this the tufts are real blades; past it, the painted cards (m, from the camera). */
+const BLADE_R = 16
+/** The blade ring's radius now (quality.ts: High 16, Medium 10, Low 0 — cards only). */
+export const grassQuality = { bladeR: BLADE_R }
+
+/**
+ * A tuft of real blades (graphics pass, 2026-11-04): thirty tapered, curving blades in two
+ * segments, roots spread a little, leaning out; dark at the root, pale at the tip in the cards' own
+ * hues; normals up, so they light as the ground and the cards do. Near you only — from above, the
+ * cards' three crossed planes read as stars and wedges; real blades read as grass.
+ */
+function bladeTuftGeometry(): THREE.BufferGeometry {
+  const rand = mulberry32(4242)
+  const pos: number[] = []
+  const col: number[] = []
+  const uv: number[] = []
+  const base = new THREE.Color()
+  const tipC = new THREE.Color()
+  const c = new THREE.Color()
+  // (Two segments a blade, thirty blades a tuft: a tuft must cover the ground a card did — at
+  // fourteen blades the meadow round you looked bald — for fewer triangles than the first try.)
+  const rows = [0, 0.55, 1]
+  for (let b = 0; b < 30; b++) {
+    const a = rand() * Math.PI * 2
+    const r0 = Math.sqrt(rand()) * 0.4
+    const rx = Math.cos(a) * r0
+    const rz = Math.sin(a) * r0
+    const h = 0.32 + rand() * 0.34
+    const w = 0.018 + rand() * 0.016
+    const lean = 0.08 + rand() * 0.3
+    const turn = a + (rand() - 0.5) * 0.9
+    const lx = Math.cos(turn)
+    const lz = Math.sin(turn)
+    // Facing across its lean (a blade is a ribbon, seen broad from the side).
+    const fx = -lz
+    const fz = lx
+    const hue = (68 + rand() * 32) / 360
+    base.setHSL(hue, 0.3, 0.22, THREE.SRGBColorSpace)
+    tipC.setHSL(hue - 8 / 360, 0.36 + rand() * 0.16, 0.5 + rand() * 0.16, THREE.SRGBColorSpace)
+    const ring: number[][] = []
+    for (const t of rows) {
+      const out = lean * t * t
+      const cx = rx + lx * out
+      const cz = rz + lz * out
+      const y = h * t * (1 - 0.18 * t * lean * 3)
+      const half = w * (1 - t) * (1 - t * 0.2)
+      ring.push([cx - fx * half, y, cz - fz * half, cx + fx * half, y, cz + fz * half, t])
+    }
+    for (let k = 0; k < rows.length - 1; k++) {
+      const [ax0, ay0, az0, ax1, ay1, az1, t0] = ring[k]
+      const [bx0, by0, bz0, bx1, by1, bz1, t1] = ring[k + 1]
+      const quad = [
+        [ax0, ay0, az0, t0], [ax1, ay1, az1, t0], [bx1, by1, bz1, t1],
+        [ax0, ay0, az0, t0], [bx1, by1, bz1, t1], [bx0, by0, bz0, t1],
+      ]
+      for (const [x, y, z, t] of quad) {
+        pos.push(x, y, z)
+        c.copy(base).lerp(tipC, t)
+        col.push(c.r, c.g, c.b)
+        uv.push(0.5, t)
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  const n = new Float32Array(pos.length)
+  for (let k = 1; k < n.length; k += 3) n[k] = 1
+  g.setAttribute('normal', new THREE.BufferAttribute(n, 3))
+  return g
+}
+
 interface Cell {
   m: Float32Array
   c: Float32Array
@@ -86,6 +169,7 @@ export class Grass {
     uWind: { value: new THREE.Vector2(1, 0.4) },
     uGust: { value: 0.5 },
     uRadius: { value: RADIUS },
+    uBladeR: { value: BLADE_R },
   }
   private lastKey = NaN
   private dirty = true
@@ -101,14 +185,18 @@ export class Grass {
   ) {
     const mat = new THREE.MeshStandardMaterial({ map: bladesTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95 })
     mat.alphaToCoverage = true
-    mat.onBeforeCompile = (sh) => {
+    const hook = (blades: boolean) => (sh: THREE.WebGLProgramParametersWithUniforms) => {
       Object.assign(sh.uniforms, this.uniforms)
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime, uGust, uRadius;\nuniform vec3 uPlayer;\nuniform vec2 uWind;\nvarying float vTip;')
+        .replace('#include <common>', '#include <common>\nuniform float uTime, uGust, uRadius, uBladeR;\nuniform vec3 uPlayer;\nuniform vec2 uWind;\nvarying float vTip;')
         .replace(
           '#include <project_vertex>',
           `vec3 root = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
           vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+          // Near you real blades, past BLADE_R the cards: each tuft goes over at its own distance
+          // (a hash of where it stands), so there is no ring.
+          float bladeCut = uBladeR + (fract(sin(dot(root.xz, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 6.0;
+          bool bladeHide = ${blades ? 'distance(root.xz, cameraPosition.xz) > bladeCut' : 'distance(root.xz, cameraPosition.xz) < bladeCut'};
           float tip = uv.y;
           vTip = tip;
           // Waves rolling across the field with the wind, and a flutter.
@@ -128,7 +216,8 @@ export class Grass {
           float edge = 1.0 - smoothstep(uRadius - 30.0, uRadius, distance(root.xz, cameraPosition.xz));
           wp.y = mix(root.y - 0.02, wp.y, edge);
           vec4 mvPosition = viewMatrix * wp;
-          gl_Position = projectionMatrix * mvPosition;`,
+          gl_Position = projectionMatrix * mvPosition;
+          if (bladeHide) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`,
         )
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying float vTip;')
@@ -138,12 +227,28 @@ export class Grass {
         // Blades right at the lens dissolve instead of filling the frame.
         .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (length(vViewPosition) < 0.9 + 0.8 * fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453)) discard;')
     }
+    mat.onBeforeCompile = hook(false)
+    mat.customProgramCacheKey = () => 'grass-cards'
     this.mesh = new THREE.InstancedMesh(cardGeometry(), mat, CAP)
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
     this.mesh.count = 0
     this.mesh.frustumCulled = false
     this.mesh.receiveShadow = true
+    // The near tufts as real blades: the same instances (the list is nearest first), drawn only
+    // within the blade ring; the cards hide there.
+    const bladeMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.92 })
+    bladeMat.onBeforeCompile = hook(true)
+    bladeMat.customProgramCacheKey = () => 'grass-blades'
+    this.blades = new THREE.InstancedMesh(bladeTuftGeometry(), bladeMat, CAP)
+    this.blades.instanceMatrix = this.mesh.instanceMatrix
+    this.blades.instanceColor = this.mesh.instanceColor
+    this.blades.count = 0
+    this.blades.frustumCulled = false
+    this.blades.receiveShadow = true
+    this.mesh.add(this.blades)
   }
+  /** The near tufts, as real blades (a child of the cards' mesh). */
+  readonly blades: THREE.InstancedMesh
 
   /** The ground changed (a giant's foot, a lake): lay those cells again. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
@@ -207,6 +312,10 @@ export class Grass {
   update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number): void {
     const u = this.uniforms
     u.uTime.value += dt
+    if (u.uBladeR.value !== grassQuality.bladeR) {
+      u.uBladeR.value = grassQuality.bladeR
+      this.dirty = true
+    }
     u.uPlayer.value.copy(player)
     u.uGust.value = 0.25 + wind * 0.9
     const ccx = Math.floor(cam.x / CELL)
@@ -221,6 +330,7 @@ export class Grass {
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) order.push([dx * dx + dz * dz, ccx + dx, ccz + dz])
     order.sort((a, b) => a[0] - b[0])
     let n = 0
+    let nBlades = 0
     const im = this.mesh.instanceMatrix.array as Float32Array
     const ic = this.mesh.instanceColor!.array as Float32Array
     // (New cells are laid a few a frame — nearest first — and the rest the frames after: a
@@ -246,8 +356,10 @@ export class Grass {
       im.set(fit >= c.n ? c.m : c.m.subarray(0, fit * 16), n * 16)
       ic.set(fit >= c.n ? c.c : c.c.subarray(0, fit * 3), n * 3)
       n += fit
+      if (dist <= grassQuality.bladeR + 4 + CELL && grassQuality.bladeR > 0) nBlades = n
     }
     this.mesh.count = n
+    this.blades.count = nBlades
     this.count = n
     this.mesh.instanceMatrix.needsUpdate = true
     this.mesh.instanceColor!.needsUpdate = true
