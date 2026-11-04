@@ -4,6 +4,7 @@
 // everything you pick up goes in, and I opens it: each thing drawn, named, and
 // what it is (as far as you can tell).
 
+import { actionOf } from './input'
 import { CATALOGUE, type Discoveries, type Find } from './discovery'
 
 /** The things the bag holds: tools, relics and trinkets (the bag itself is the container, not an item). */
@@ -25,7 +26,7 @@ export class Bag {
 
   constructor(private readonly finds: Discoveries) {
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyI') this.toggle()
+      if (actionOf(e.code) === 'KeyI') this.toggle()
       else if (e.code === 'Escape' && this.open) this.toggle()
     })
     this.panel.addEventListener('click', (e) => {

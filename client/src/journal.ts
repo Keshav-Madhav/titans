@@ -2,6 +2,7 @@
 // catalogue lists it — and, for what you have not, a line of where to look.
 // Also the title card that rises when you find something.
 
+import { actionOf } from './input'
 import { CATALOGUE, KIND_TITLES, type Discoveries, type Find, type FindKind } from './discovery'
 import { drawIcon } from './bag'
 
@@ -28,7 +29,7 @@ export class Journal {
 
   constructor(private readonly finds: Discoveries) {
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyJ' && this.allowed()) this.toggle()
+      if (actionOf(e.code) === 'KeyJ' && this.allowed()) this.toggle()
       else if (e.code === 'Escape' && this.open) this.toggle()
     })
     this.panel.addEventListener('click', () => this.toggle())

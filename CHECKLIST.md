@@ -634,8 +634,8 @@ Held against the bar, honestly. ✅ already met · 🔧 done in this round · �
 - 🔧 All sound suspends while the tab is hidden.
 - 🔧 Pause page: "Go on" always in reach (it sat below the fold at 760 px); short-window layout (pause gate checks overflow).
 - 🔧 Nitpicks found by review: the Wader "met" from inside the Husk; the Old Wood's wisp waiting under a Mire pool; grass on pool beds.
-- ⬜ Gamepad (no Gamepad API yet).
-- ⬜ Rebinding: keys are read by code in place; needs one binding table read by actions.
+- 🔧 Gamepad: left stick walks (round dead zone, part-way walks slower), right stick looks, A jump, X use, B line, Y horn, RB run, LT/RT bow, LB sight, Back map, d-pad journal/bag, Start pause (keys gate, simulated pad). Pause page buttons are not pad-navigable yet.
+- 🔧 Rebinding: one binding table (input.ts ACTIONS); click a keycap on the pause page, press the new key, Esc keeps it, a key in use swaps, reset; saved with the settings; every prompt's keycaps relabel to the player's keys (keys gate). Mouse buttons are not rebindable.
 - ⬜ Hold-to-toggle for the holds (V sight-stone, Q draw, G reel).
 - ⬜ Text-size setting (captions, cards).
 - ⬜ Sound is all synthesised (WebAudio) — the bar asks for recorded SFX (CC0 recordings, AUDIO.md). Big; needs free sources.

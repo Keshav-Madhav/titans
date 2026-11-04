@@ -57,6 +57,8 @@ export interface Settings {
   detail: 'auto' | 0 | 1 | 2
   /** How far the ground shakes the camera, 0 … 1 (less by default when the system asks for reduced motion). */
   shake: number
+  /** Rebound keys: action (its default code) → the key chosen. Empty: as made. */
+  keys: Record<string, string>
   /** Lightning: a full white flash, or a soft one. */
   softFlash: boolean
 }
@@ -78,6 +80,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resolution: 'auto',
   detail: 'auto',
   shake: calmer ? 0.35 : 1,
+  keys: {},
   softFlash: calmer
 }
 
@@ -166,6 +169,8 @@ export function loadSettings(): Settings {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>
     const m = { ...DEFAULT_SETTINGS, ...s, sound: s.sound !== false }
     if (!(m.shake >= 0 && m.shake <= 1)) m.shake = DEFAULT_SETTINGS.shake
+    if (!m.keys || typeof m.keys !== 'object') m.keys = {}
+    m.keys = Object.fromEntries(Object.entries(m.keys).filter(([a, k]) => typeof a === 'string' && typeof k === 'string' && k !== 'Escape'))
     return m
   } catch {
     return { ...DEFAULT_SETTINGS }

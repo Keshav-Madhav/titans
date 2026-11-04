@@ -14,6 +14,7 @@
 // a coarser one standing in until each is ready — and the map opens framed on
 // what you have seen; the wheel zooms, a drag pans.
 
+import { actionOf } from './input'
 import * as THREE from 'three'
 import { inBasin, WORLD_HALF, type Lake, type RegionName, type Terrain } from '@titans/shared'
 
@@ -116,7 +117,7 @@ export class WorldMap {
     this.full = document.getElementById('map-canvas') as HTMLCanvasElement
     this.panel = document.getElementById('map')!
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyM' && this.allowed()) this.toggle()
+      if (actionOf(e.code) === 'KeyM' && this.allowed()) this.toggle()
       else if (e.code === 'Escape' && this.open) this.toggle()
     })
     // Click outside the sheet to put it away; on it, drag to pan and wheel to zoom.

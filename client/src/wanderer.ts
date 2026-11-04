@@ -898,8 +898,10 @@ export class Wanderer {
     let wz = fz * move.y + fx * move.x
     const len = Math.hypot(wx, wz)
     if (len > 0) {
-      wx /= len
-      wz /= len
+      // (A stick part-way over walks slower; keys are always all the way.)
+      const mag = Math.min(1, Math.hypot(move.x, move.y))
+      wx *= mag / len
+      wz *= mag / len
     }
     // Deep water: you swim, head above it, slower; no falling, no running.
     const bed = terrain.heightAt(this.pos.x, this.pos.z)

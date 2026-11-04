@@ -39,7 +39,7 @@ import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
 import { loadTerrainTextures, LAYER } from './terrain-material'
 import { SkySystem } from './sky'
-import { Input } from './input'
+import { Input, setBindings, watchKeycaps } from './input'
 import { MAX_SLOPE, Wanderer } from './wanderer'
 import { setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
@@ -2223,12 +2223,16 @@ function frame(now: number): void {
 
 // QA (?qa=throw): a frame breaks on purpose 8 s in, to prove the card and that the save survives.
 let qaThrowAt = params.get('qa') === 'throw' ? 8000 : 0
+let padAt = 0
 
 function frameBody(now: number): void {
   if (qaThrowAt && now > qaThrowAt) {
     qaThrowAt = 0
     throw new Error('qa: a frame broken on purpose')
   }
+  // The pad, read once a frame (before anything asks the keys).
+  input.pollPad(Math.min(0.1, Math.max(0, (now - padAt) / 1000)))
+  padAt = now
   if (document.hidden) {
     last = now
     return
@@ -2721,6 +2725,7 @@ function applySettings(s: Settings): void {
   rig.sensitivity = s.sensitivity
   rig.invertY = s.invertY
   rig.shakeScale = s.shake
+  setBindings(s.keys)
   weather.softFlash = s.softFlash
   if (!toolMode) quality.choose(s.resolution, s.detail)
 }
@@ -2772,6 +2777,16 @@ addEventListener('keydown', (e) => {
 })
 
 watchErrors()
+watchKeycaps()
+// Start on the pad: the pause, and again to go on.
+input.onPadStart = () => {
+  if (toolMode || opening === 'title') return
+  if (pause.open) pause.resume()
+  else if (!anyOpen()) {
+    if (document.pointerLockElement) document.exitPointerLock()
+    pause.show()
+  }
+}
 requestAnimationFrame(frame)
 
 // ---------------------------------------------------------------------------
