@@ -663,11 +663,37 @@ const spots = (() => {
   }
   if (mesa) {
     const y = mesa.y - 22
-    set(
-      'eyes-mesa',
-      [0.5, 2.6, 4.4].map((a) => [new THREE.Vector3(mesa!.x + Math.cos(a) * 260, y, mesa!.z + Math.sin(a) * 260), new THREE.Vector3(mesa!.x, y, mesa!.z)] as [THREE.Vector3, THREE.Vector3]),
-      ground(mesa.x + Math.cos(0.5) * 120, mesa.z + Math.sin(0.5) * 120),
-    )
+    // Three eyes round the mesa that can each be shot from ground you can stand on (a gate found
+    // one walled off by the dunes, Q51): try headings all round, keep those with a clear line from
+    // somewhere 30–460 m out along the eye's facing, then take three well apart.
+    const ray = (a: number): [THREE.Vector3, THREE.Vector3] => [new THREE.Vector3(mesa!.x + Math.cos(a) * 260, y, mesa!.z + Math.sin(a) * 260), new THREE.Vector3(mesa!.x, y, mesa!.z)]
+    const clear = (from: THREE.Vector3, to: THREE.Vector3): boolean => {
+      const d = to.clone().sub(from)
+      const len = d.length() - 3.5
+      d.normalize()
+      for (let t = 1; t < len; t += 1.5) {
+        const p = from.clone().addScaledVector(d, t)
+        if (H(p.x, p.z) > p.y || rocks.sdfAt(p.x, p.y, p.z) < 0.3) return false
+      }
+      return true
+    }
+    const shootable = (a: number): boolean => {
+      const [from, to] = ray(a)
+      const e = meet(from, to)
+      if (!e) return false
+      for (const d of [30, 60, 100, 160, 240, 340, 460]) {
+        const q = e.at.clone().addScaledVector(e.normal, d)
+        if (clear(new THREE.Vector3(q.x, H(q.x, q.z) + 1.7, q.z), e.at)) return true
+      }
+      return false
+    }
+    const picked: number[] = []
+    for (let a = 0.5; a < 0.5 + Math.PI * 2 - 0.01 && picked.length < 3; a += 0.3) {
+      if (picked.every((b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) > 1.4) && shootable(a)) picked.push(a)
+    }
+    if (picked.length >= 3) {
+      set('eyes-mesa', picked.slice(0, 3).map(ray), ground(mesa.x + Math.cos(picked[0]) * 120, mesa.z + Math.sin(picked[0]) * 120))
+    }
   }
   // The traveller's trail: the first camp's page, then three more camps across the lands.
   list.push(['page-1', 'page', ground(CAMP.x + 1.1, CAMP.z + 1.4)])
