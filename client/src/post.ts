@@ -306,6 +306,8 @@ class SceneThenSoft extends Pass {
 }
 
 export class Post {
+  /** How far the bloom backs off facing a low sun (Q47); 0 = not at all (tools compare). */
+  static lowSunTame = 0.8
   readonly composer: EffectComposer
   readonly bloom: UnrealBloomPass
   readonly rays = new GodRaysPass()
@@ -373,11 +375,16 @@ export class Post {
     // traveller's trail leads; at noon, anywhere). The sky is bright well past any threshold then,
     // so under a high sun the bloom fades almost away. A low sun, and the night's lights, keep it.
     const high = THREE.MathUtils.smoothstep(sunDir.y, 0.15, 0.45)
-    this.bloom.strength = 0.34 * (1 - 0.85 * high * Math.max(facing, 0.75))
+    // (And a low sun in frame did the same (Q47): the bright sky round it spread over a third of
+    // the view at dawn and dusk, the land under it washed grey-white. Facing a risen sun, the bloom
+    // backs off too — the sun itself keeps a glow; the haze and the rays carry the rest.)
+    const up = THREE.MathUtils.smoothstep(sunDir.y, -0.03, 0.05)
+    const glare = Math.max(high * Math.max(facing, 0.75), facing * edge * up * Post.lowSunTame)
+    this.bloom.strength = 0.34 * (1 - 0.85 * glare)
     // And the lit ground itself: under a high sun the Dune Sea's sand is far past 1.25 — the whole
     // ground bloomed into a milky veil and the wanderer on it read as a pale ghost. The threshold
     // rises with the sun (a low sun and the night's lights keep the bloom they had).
-    this.bloom.threshold = 1.25 + 2.2 * high
+    this.bloom.threshold = 1.25 + 2.2 * Math.max(high, facing * edge * up * Post.lowSunTame * 0.5)
     const g = this.grade.uniforms
     g.time.value += dt
     g.aspect.value = innerWidth / innerHeight
