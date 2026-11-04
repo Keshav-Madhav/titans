@@ -156,6 +156,15 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           }
           cA *= 0.7 + 0.6 * smoothstep(0.2, 0.8, macro);
         }
+        // Bone that has lain out for ages (the Fallen's ribs and skull read as clean white tubes):
+        // its faint cracks and stains drawn out, aged toward ivory, darker and dirtier underneath
+        // where it stays shaded and sand-stained.
+        if (abs(vLayer.x - 10.0) < 0.5) {
+          float bl = dot(cA, vec3(0.333));
+          cA = clamp(vec3(bl) + (cA - vec3(bl)) * 1.4 + (bl - 0.66) * 1.6, 0.0, 1.0);
+          cA *= vec3(1.02, 0.97, 0.86);
+          cA *= mix(1.0, 0.6, smoothstep(0.1, -0.7, rN.y));
+        }
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);
         // Moss, leaf litter or sand on the faces that look up — in patches, the
         // stone showing through (a big flat top must not read as one green sheet).
