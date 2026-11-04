@@ -490,6 +490,16 @@ const spots = (() => {
     list.push(['lore-fallen', 'stone', ground(rib.x, rib.z)])
     list.push(['horn-ribs', 'trinket', topNear(rib.x, rib.z, 120)])
   }
+  {
+    // The High Places: a stone where the stair comes out on top; the old ice by the Frozen One.
+    const R = (HIGH.foot + HIGH.lip) / 2
+    const a = HIGH.axis + (HIGH.a1 * R) / R + 0.012
+    const d = HIGH.lip + 200
+    list.push(['lore-stair-top', 'stone', ground(Math.sin(a) * d, Math.cos(a) * d)])
+    const fx = Math.sin(HIGH.axis + 0.02) * (HIGH.frozenD - 330)
+    const fz = Math.cos(HIGH.axis + 0.02) * (HIGH.frozenD - 330)
+    list.push(['ice-frozen', 'trinket', ground(fx, fz)])
+  }
   const sk = P('skull')
   if (sk) list.push(['tooth-skull', 'trinket', topNear(sk.x, sk.z, 60)])
   const strandedSkull = P('stranded-skull')

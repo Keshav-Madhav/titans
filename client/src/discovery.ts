@@ -88,6 +88,7 @@ export const CATALOGUE: Find[] = [
   // Words on stone: left by those who came before you (no one you will meet).
   f('lore', 'lore-knee', "A stone at the Sentinel's knee", 'Near the Sentinel, on the side that faces the Green.', 'We camped at its knee for nine days before we were sure it was not a statue. On the tenth it sighed, and the grass lay flat for a mile.'),
   f('lore', 'lore-hall', 'A stone in the Undercroft', 'On the floor of the Undercroft.', 'Not built for us. The steps are wrong for our legs, the doors too high to knock on. We sleep here when it storms. So do other things.'),
+  f('lore', 'lore-stair-top', 'A stone at the top of the cliff', 'Where the stair cut up the cliff past the Steps comes out.', 'We cut this so that we could come up and look at it. It was the first of them to stop. We wanted to see why. We still do not know. We come up anyway, once in a life, and look, and go down quieter.'),
   f('lore', 'lore-fallen', 'A stone under the ribs', 'Among the bones of the Fallen.', 'This one lay down in the sand and did not get up. The others came, one at a time, over a year. They stood here a while. Then they went back to their lands.'),
   f('lore', 'lore-sword', 'A stone by the Sword', 'At the foot of the Sword.', 'No one has lifted it. No one has seen it lifted. The sand around it is undisturbed. Perhaps it grew.'),
   f('lore', 'lore-stair', 'A stone before the Gate', 'At the top of the Great Stair.', 'If you have climbed this far, you know what the steps were for. Do not knock. We knocked.'),
@@ -167,6 +168,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'feather-spire', 'A grey feather', 'On top of a spire in the Dune Sea.', 'A grey feather as long as your arm. Nothing you have seen has wings this size. Yet.', 'feather', '#8f8f92'),
   f('trinket', 'coin-arch', 'A stamped coin', 'On top of the stone arch out on the Green.', 'A coin with a triangle stamped on one side and nothing on the other.', 'coin', '#b89a52'),
   f('trinket', 'bell-grove', 'A small bell', 'Among the roots of the biggest tree in the Grove.', 'A bronze bell, green with age. It has no clapper, and yet when the wind is right it rings.', 'bell', '#6f8a6a'),
+  f('trinket', 'ice-frozen', 'A piece of the old ice', 'At the foot of the Frozen One, among the broken shards.', 'A chip of the glacier that holds it, the size of your fist. It does not melt in your hand. Something small and dark is caught in the middle of it, and you cannot tell what.', 'shard', '#bfd4dc'),
   f('trinket', 'scale-stranded', 'A scale from the sea', 'On top of the skull of the Stranded, up the beach.', 'A scale the size of a shield, blue-grey, thin as a fingernail and stronger than anything you own. It smells of the sea even now.', 'shard', '#7ea4c8'),
   f('trinket', 'shard-mesa', 'A glassy shard', 'On top of a mesa in the Dune Sea, beside a stone.', 'A shard of black glassy stone, warm to the touch, with a single scratch on it like a tally mark.', 'shard', '#2e2a2e'),
 ]
