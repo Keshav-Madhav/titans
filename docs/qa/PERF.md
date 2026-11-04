@@ -188,3 +188,32 @@ numbers read ~2.5× slow, differences hold:
 - **The foliage dither computed, not looked up**: the leaves' 16-entry Bayer table was indexed by a
   variable — the pattern that spilled the terrain's arrays to memory on Apple GPUs. The same values
   from bit arithmetic (checked against the table for all 16 cells).
+
+## Cycle 7d — the meter was wrong: GPU timer queries vs synced time
+
+The timer queries (EXT_disjoint_timer_query, `quality.gpuMs`) misreport on this driver (ANGLE on
+Metal). Rendering the post chain directly and reading back one pixel after each frame (which waits
+for the GPU) gives the true time per frame (`qa/cycle7/sync-pairs.mjs`, 6 interleaved rounds):
+
+| | timer query | synced |
+| --- | ---: | ---: |
+| frame, the Green, 1512×945 ×1.5, headless | 15.4 ms | **11.7 ms** |
+| bloom on → off | −7.2 ms | **−0.5 to −0.7 ms** |
+| bloom off: frame | 8.2 ms | ~11.1 ms |
+
+So the timer both over- and under-reads, by several ms, depending on what the frame contains. What
+holds (synced, the Green): terrain 3.0 ms (its layered shading 1.4 of it), grass 1.1, bloom 0.5–0.7,
+AO 0.5, vegetation 0.4, rocks and statues 0.4 (2M triangles: triangles are cheap, pixels are not),
+the sun's lighting and shadow 0.6, clouds 0.1, rays 0 (sun out of frame), the shadow map render 0.1,
+an empty scene's floor (post chain + submission) ~3.2. Draw calls alone are nearly free (300 more
+identical draws: 0.1 ms).
+
+Restated with this meter: the bloom fold saves 0.2–0.9 ms (noise ~±0.3); the terrain layer cut
+0.1–0.2 ms in the Green (mixed ground — the Dune Sea figure stands unrestated); the skipped second
+depth resolve after the soft layers ~0.1 ms. The earlier timer-based figures in 7b/7c were
+differences between two readings of the same broken meter: their direction holds (each change was
+also verified by image and by triangle counts), their size is uncertain.
+
+**Consequence for the game:** the quality governor steers by max(frame interval, gpuMs). With the
+timer reading ~30% high in the Green, it can drop resolution that the frame could afford. Fixing it
+needs a real window to check against (headless has no display backpressure) — Q50.

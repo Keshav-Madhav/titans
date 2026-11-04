@@ -115,8 +115,8 @@ class GodRaysPass extends Pass {
  * haze became a wide milky veil, the thing the threshold below was tuned against. Kept stock.)
  */
 class SizedBloom extends UnrealBloomPass {
-  /** Tools: 2 starts the chain at a quarter of the screen (to compare). */
-  static div = 1
+  /** 2: the chain starts at a quarter of the screen, blur radii halved (setSize). Tools: 1 = stock. */
+  static div = 2
   /**
    * The bloom is added in the grade pass (one read of the frame it makes anyway) instead of by its
    * own additive draw over the whole frame — a full-size read and write saved. Tools: false = stock.
@@ -126,12 +126,26 @@ class SizedBloom extends UnrealBloomPass {
     this.blendMaterial.visible = !SizedBloom.fold
     super.render(renderer, write, read, dt, mask)
   }
+  /** Stock blur kernels, and the same halved — for a chain begun at a quarter of the screen. */
+  private stockMats?: THREE.ShaderMaterial[]
+  private halfMats?: THREE.ShaderMaterial[]
   setSize(w: number, h: number): void {
+    // A chain begun at a quarter of the screen with the blur radii halved spreads the light exactly
+    // as far on screen as the stock one (radii are in that level's pixels) at about an eighth of the
+    // work — the stock bloom was 7.4 of 15.7 ms. (Halving the size alone, cycle 7, spread it twice
+    // as far: rejected.)
+    const self = this as unknown as { separableBlurMaterials: THREE.ShaderMaterial[]; _getSeparableBlurMaterial(k: number): THREE.ShaderMaterial }
+    if (!this.stockMats) {
+      this.stockMats = self.separableBlurMaterials
+      this.halfMats = [3, 5, 7, 9, 11].map((k) => self._getSeparableBlurMaterial(k))
+    }
+    self.separableBlurMaterials = SizedBloom.div === 2 ? this.halfMats! : this.stockMats
     super.setSize(Math.max(1, Math.round(w / SizedBloom.div)), Math.max(1, Math.round(h / SizedBloom.div)))
   }
 }
 export const bloomSize = SizedBloom
 export const raysSize = GodRaysPass
+export const sceneSoft = { get skip() { return SceneThenSoft.skipDepthResolve }, set skip(v: boolean) { SceneThenSoft.skipDepthResolve = v } }
 
 const GRADE = {
   uniforms: {
@@ -253,6 +267,8 @@ class GradePass extends Pass {
  * the target's depth texture, which the second reads to fade clouds and mist into solids.
  */
 class SceneThenSoft extends Pass {
+  /** Tools: false resolves the depth again after the soft layers (as before, to compare). */
+  static skipDepthResolve = true
   constructor(
     private readonly scene: THREE.Scene,
     private readonly camera: THREE.PerspectiveCamera,
@@ -272,7 +288,12 @@ class SceneThenSoft extends Pass {
     softScene.fog = this.scene.fog
     const auto = renderer.autoClear
     renderer.autoClear = false
+    // (The soft layers write no depth: the depth just resolved for them stays right. Without this
+    // the multisampled depth was resolved a second time every frame, for nothing.)
+    const keep = read.resolveDepthBuffer
+    if (SceneThenSoft.skipDepthResolve) read.resolveDepthBuffer = false
     renderer.render(softScene, this.camera)
+    read.resolveDepthBuffer = keep
     renderer.autoClear = auto
   }
 }

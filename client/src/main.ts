@@ -108,7 +108,7 @@ import { Pause } from './pause'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { fogSun, fogSunHold, installAtmosphere, setFogSun } from './atmosphere'
-import { Post, bloomSize, raysSize } from './post'
+import { Post, bloomSize, raysSize, sceneSoft } from './post'
 import { Weather } from './weather'
 import { crash, isBroken, watchErrors } from './crash'
 import { clearWorld, loadSettings, loadWorld, packEvent, saveSettings, saveWorld, unpackEvent, type SaveData, type SavedEvent, type Settings } from './save'
@@ -2944,6 +2944,7 @@ const g = {
   fogSunHold,
   bloomSize,
   raysSize,
+  sceneSoft,
   terrainExp,
   get skirts() {
     return skirts
