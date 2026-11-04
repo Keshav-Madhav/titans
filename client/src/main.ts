@@ -2429,7 +2429,9 @@ function frame(now: number): void {
           : free && giantToHold()
             ? `<kbd>E</kbd>Take hold`
           : free && wallToClimb()
-            ? `<kbd>E</kbd>Climb`
+            ? `<kbd>E</kbd>Climb${finds.has('line') ? ' · <kbd>G</kbd>Throw the line' : ''}`
+          : grapple.attached && !wanderer.grounded
+            ? `<kbd>G</kbd>Haul in · <kbd>Space</kbd>Let go`
           : watchProgress > 0.08
             ? `Watching… <span class="dots">${'●'.repeat(Math.ceil(watchProgress * 5))}${'○'.repeat(5 - Math.ceil(watchProgress * 5))}</span>`
             : ''
