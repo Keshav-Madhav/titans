@@ -868,6 +868,8 @@ const CAIRN_LANDS: Record<string, string[]> = {
  * of how it lives. Returns how far along (0 … 1) for the prompt.
  */
 const watch = { id: '', t: 0 }
+/** Who you are watching, for the prompt ("Watching…" alone did not say what was going on). */
+const WATCH_NAMES: Record<string, string> = { 'watch-walker': 'the Walker', 'watch-grey': 'the Grey One', 'watch-herd': 'the herd' }
 const WATCH_FOR = 18
 function watching(dt: number): number {
   const p = wanderer.pos
@@ -2481,7 +2483,7 @@ function frameBody(now: number): void {
           : grapple.attached && !wanderer.grounded
             ? `<kbd>G</kbd>Haul in · <kbd>Space</kbd>Let go`
           : watchProgress > 0.08
-            ? `Watching… <span class="dots">${'●'.repeat(Math.ceil(watchProgress * 5))}${'○'.repeat(5 - Math.ceil(watchProgress * 5))}</span>`
+            ? `Watching ${WATCH_NAMES[watch.id] ?? ''}… <span class="dots">${'●'.repeat(Math.ceil(watchProgress * 5))}${'○'.repeat(5 - Math.ceil(watchProgress * 5))}</span>`
             : ''
   if (html !== promptHtml) {
     promptHtml = html

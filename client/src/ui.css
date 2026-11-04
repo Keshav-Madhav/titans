@@ -388,3 +388,7 @@ body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
 
 /* The pad's place on the pause page. */
 #pause.pad button:focus, #pause.pad input:focus { outline: 2px solid #b8352a; outline-offset: 2px; }
+
+/* A page open (bag, journal, map, pause): the "found" card and the prompt wait behind it, out of
+   sight — they showed through above the bag ("The grappling line" over its title). */
+body:has(#bag[style*="flex"], #journal[style*="flex"], #map[style*="flex"], #pause[style*="flex"]) :is(#found, #prompt) { opacity: 0 !important; transition: opacity 0.2s; }
