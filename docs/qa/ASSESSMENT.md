@@ -39,13 +39,20 @@ Would someone mistake it for a prototype? Less often — the remaining tells:
 - **One standard everywhere**: scanned stone, aged statues with rubble at their feet, worn carving,
   snow, trees, lakes, the horizon mountains' ridgelines (Q48), and no white veil facing a low sun (Q47).
 
+- **The meter itself was wrong** (PERF 7d): GPU timer queries misread by several ms on ANGLE/Metal.
+  By synced time a Green frame is ~11.7 ms headless at ×1.5 (≈6 ms in a real window), terrain 3.0,
+  grass 1.1, the sun 0.6, bloom ~0.5 — comfortably in budget. The governor still trusts the timer (Q50).
+- **Later in cycle 7**: dunes like sand (Q51), giants rounded up close (built when you come near),
+  near trees with real limbs, the Steps' walls dressed stone (Q53), plants off cliff ledges (Q49),
+  far crowns not blocks, the haze glow following the sun, no white veil facing a low sun (Q47).
+
 ## Next
 
-1. **What still costs** (PERF.md 7c): the terrain's layered shader (~5 ms headless of ~45), bloom,
-   AO, clouds, grass. Find waste like the spilled arrays, not cuts in quality.
-2. **Compressed ground textures** (KTX2/Basis) to afford 2K ground in today's GPU memory.
-3. Q36 (a stray water slab), Q24 (sunset mist), Q23 (one GPU hitch at the reveal).
-4. Statue cracks and earth heaped against their feet (Q45, the part not yet done).
+1. **Q50 — the governor in a real window**: compare its chosen resolution against synced frame time
+   in a visible browser (headless has no display back-pressure); then decide what it should trust.
+2. Q52 (one blank frame, intermittent), Q36 (transient water slab), Q49's remaining cluster.
+3. Compressed ground textures (KTX2/Basis; `basis_universal` is free in brew) for 2K ground.
+4. A fresh worst-first survey after each batch: the climbing views, night, storm.
 
 ## Not verified here (limits)
 
