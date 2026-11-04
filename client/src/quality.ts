@@ -26,6 +26,8 @@ import type { TerrainView } from './terrain-view'
 
 interface Level {
   splitK: number
+  /** The same for the far ring of mountains (terrain-view.ts farSplitK). */
+  farSplitK: number
   res: number
   shadow: number
   /** Vegetation: detailed trees, simple trees, grass radii. */
@@ -33,9 +35,9 @@ interface Level {
 }
 
 const LEVELS: Level[] = [
-  { splitK: 1.0, res: 64, shadow: 4096, veg: [170, 750, 70] },
-  { splitK: 1.0, res: 64, shadow: 2048, veg: [130, 550, 50] },
-  { splitK: 1.0, res: 32, shadow: 1024, veg: [95, 380, 32] },
+  { splitK: 1.0, farSplitK: 3, res: 64, shadow: 4096, veg: [170, 750, 70] },
+  { splitK: 1.0, farSplitK: 2.5, res: 64, shadow: 2048, veg: [130, 550, 50] },
+  { splitK: 1.0, farSplitK: 1.5, res: 32, shadow: 1024, veg: [95, 380, 32] },
 ]
 
 /** The frame time we hold (ms): 60 a second, a little slack. */
@@ -95,6 +97,7 @@ export class Quality {
     // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
     aoSwitch.quality = level < 2
     this.terrain.splitK = L.splitK
+    this.terrain.farSplitK = L.farSplitK
     if (this.vegetation) [this.vegetation.nearR, this.vegetation.midR, this.vegetation.grassR] = L.veg
     this.terrain.setResolution(L.res)
     this.setDpr(this.dpr)

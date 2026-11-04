@@ -166,3 +166,8 @@ numbers read ~2.5× slow, differences hold:
   in pixels per level, so every level spread twice as far: mean |Δ| 10.8 against the 4 noise floor,
   a wider milky veil toward a low sun. Kept stock. (A first comparison had been confounded by the
   dawn haze changing between shots: compare with the clock frozen, A/B/A, always.)
+- **The far mountains given back their triangles** (Q48), for free: chunks of 2 km and up split at
+  3× their size instead of 1×. +0.6M triangles in the Green; GPU median 52.5 → 46.0 ms (k 1 → 2.5,
+  i.e. noise — not slower) in the Green, 23.0 → 22.5 on the High Ice, 41.7 → 41.9 in the Dune Sea.
+  Far chunks cover a thin strip of screen with large triangles: no slivers, so no quad waste. The
+  waste was in the *near* terrain's foreshortened slivers (above), not in the triangle count.

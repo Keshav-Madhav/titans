@@ -18,6 +18,8 @@ const LEAF = 64
 const MAX_LEVEL = Math.round(Math.log2(ROOT / LEAF))
 /** Chunks this size (metres) and up are built on the half-resolution grid. */
 const FAR_CHUNK = 1024
+/** Chunks this size (metres) and up split by farSplitK. */
+const FAR_SPLIT_FROM = 2048
 
 /** Everything that depends on the chunk resolution N (quads per side). */
 interface Grid {
@@ -113,6 +115,12 @@ export class TerrainView {
    * finer distant terrain and more triangles; the quality governor sets it.
    */
   splitK = 1.5
+  /**
+   * The same for chunks of FAR_SPLIT_FROM and up — the far ring of mountains on every horizon.
+   * At splitK they stayed in 8–16 km chunks of 256–512 m triangles: bare flat facets on the
+   * skyline (Q48). They cover little of the screen, so splitting them sooner costs little.
+   */
+  farSplitK = 2.5
   /** Where forests and meadows are (forests read as dark canopy from afar). */
   biome: Biome | null = null
   private readonly w: RegionWeights = { valley: 0, forest: 0, desert: 0, ruins: 0, mire: 0 }
@@ -216,7 +224,8 @@ export class TerrainView {
       const dx = Math.max(0, Math.abs(x0 + size / 2 - cam.x) - size / 2)
       const dz = Math.max(0, Math.abs(z0 + size / 2 - cam.z) - size / 2)
       const dy = cam.y - hc
-      if (dx * dx + dy * dy + dz * dz < size * this.splitK * (size * this.splitK)) {
+      const k = size >= FAR_SPLIT_FROM ? this.farSplitK : this.splitK
+      if (dx * dx + dy * dy + dz * dz < size * k * (size * k)) {
         const l = level + 1
         this.collect(l, ix * 2, iz * 2, cam, out)
         this.collect(l, ix * 2 + 1, iz * 2, cam, out)
