@@ -170,6 +170,64 @@ function trunk(r0: number, r1: number, h: number, hex: number, segs = 7): THREE.
 }
 
 /**
+ * A near tree's limb (QA cycle 7, the Old Wood: straight eight-sided poles jutting from the trunk
+ * like sticks pushed into it): a tapered tube along a curve that leaves the trunk, arcs outward and
+ * turns up into the crown, with a smaller fork part way along. Base at the origin, reaching along
+ * +x; the caller turns it round the trunk.
+ */
+function limbNear(len: number, r0: number, rand: () => number, hex: number, depth = 0): THREE.BufferGeometry {
+  const lift = 0.35 + rand() * 0.3
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(len * 0.35, len * 0.12, (rand() - 0.5) * len * 0.12),
+    new THREE.Vector3(len * 0.7, len * (0.3 + lift * 0.3), (rand() - 0.5) * len * 0.2),
+    new THREE.Vector3(len * 0.9, len * (0.55 + lift * 0.5), (rand() - 0.5) * len * 0.25),
+  ])
+  const SEG = depth ? 5 : 9
+  const RAD = depth ? 5 : 8
+  const frames = curve.computeFrenetFrames(SEG, false)
+  const pos: number[] = []
+  const uv: number[] = []
+  const idx: number[] = []
+  for (let i = 0; i <= SEG; i++) {
+    const t = i / SEG
+    const c = curve.getPointAt(t)
+    // Tapering to a point-ish tip; a little swelling where it leaves the trunk.
+    const r = r0 * (1 - 0.72 * t) * (1 + 0.35 * Math.exp(-t * 14))
+    const n = frames.normals[i]
+    const b = frames.binormals[i]
+    for (let j = 0; j <= RAD; j++) {
+      const a = (j / RAD) * Math.PI * 2
+      const cs = Math.cos(a)
+      const sn = Math.sin(a)
+      pos.push(c.x + r * (cs * n.x + sn * b.x), c.y + r * (cs * n.y + sn * b.y), c.z + r * (cs * n.z + sn * b.z))
+      uv.push(0.002 + (j / RAD) * (BARK_U - 0.004), BARK_V[0] + 0.01 + t * (BARK_V[1] - BARK_V[0] - 0.02))
+    }
+  }
+  for (let i = 0; i < SEG; i++)
+    for (let j = 0; j < RAD; j++) {
+      const a = i * (RAD + 1) + j
+      const b = a + RAD + 1
+      idx.push(a, b, a + 1, a + 1, b, b + 1)
+    }
+  let g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  g = shade(g, hex)
+  if (depth === 0) {
+    // A fork: a thinner limb from about halfway, turned off to one side and up.
+    const at = 0.45 + rand() * 0.2
+    const p = curve.getPointAt(at)
+    const fork = limbNear(len * 0.5, r0 * 0.5, rand, hex, 1)
+    fork.rotateZ(0.35 + rand() * 0.3).rotateY((rand() < 0.5 ? -1 : 1) * (0.6 + rand() * 0.5)).translate(p.x, p.y, p.z)
+    g = finish([g, fork])
+  }
+  return g
+}
+
+/**
  * A near tree's trunk (graphics pass, 2026-11-04: up close it was a seven-sided pole): fourteen
  * sides, eight rings; at the foot a root flare spreading into lobes, the trunk bending a little as
  * it rises, bark in shallow vertical ridges. Same bark strip as the plain one.
@@ -216,8 +274,8 @@ export function broadleafGeometry(seed: number, far = false, faint = false): THR
   // A few limbs reaching up into the crown.
   for (let i = 0; i < (faint ? 0 : far ? 2 : 5); i++) {
     const a = (i / 5) * Math.PI * 2 + rand()
-    const limb = trunk(0.22, 0.08, 3.8, 0x6b5440, far ? 5 : 8)
-    limb.rotateZ(0.75).rotateY(a).translate(0, 5.2 + rand() * 0.8, 0)
+    const limb = far ? trunk(0.22, 0.08, 3.8, 0x6b5440, 5).rotateZ(0.75) : limbNear(3.9 + rand() * 0.8, 0.24, rand, 0x56432f).rotateZ(0.18 + rand() * 0.2)
+    limb.rotateY(a).translate(0, 5.0 + rand() * 1.0, 0)
     parts.push(limb)
   }
   const centre = new THREE.Vector3(0, 8.6, 0)
