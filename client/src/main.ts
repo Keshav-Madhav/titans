@@ -1345,6 +1345,8 @@ function loadLocal(): boolean {
     tipState.bag = true
   }
   for (const s of spots.spots) if (s.kind === 'trinket' && finds.has(s.id)) spots.take(s.id)
+  // (A save from before the line was its own find: it came with the bag.)
+  if (finds.has('bag') && !finds.has('line')) finds.load([...finds.save(), 'line'])
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
   for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
   for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
@@ -1648,7 +1650,8 @@ function simulate(dt: number): void {
       camp.take()
       finds.find('bag')
       tipState.bag = true
-      setTimeout(() => narration.say('Folded inside: a map, mostly blank, an empty notebook, and a coil of rope with an iron hook on the end (G).'), 2600)
+      setTimeout(() => narration.say('Folded inside: a map, mostly blank, and an empty notebook. And under them, a coil of rope.'), 2600)
+      setTimeout(() => finds.find('line'), 6500)
     } else if (offerings.near(wanderer.pos) && input.pressed('KeyE')) {
       const s = offerings.near(wanderer.pos)!
       const want = CATALOGUE.find((c) => c.id === s.def.wants)
@@ -2281,7 +2284,7 @@ function frame(now: number): void {
   clothWind.set(1, 0, 0.4).normalize().multiplyScalar(0.8 + weather.now.wind * weather.now.wind * 7)
   // What is in your hands: the tool in use (the pose and the prop follow), and the toolbar.
   wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 ? 'sight' : null
-  toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : null))
+  toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : grapple.busy ? 'line' : null))
   // The keys for the map, the journal and the bag show once you have the bag (the map and the notebook are in it).
   hud.setHave(toolMode || bag.have)
   wanderer.hasBag = toolMode || bag.have

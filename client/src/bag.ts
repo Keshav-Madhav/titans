@@ -81,7 +81,7 @@ export class Bag {
  * a glance, in the journal's ink on its paper.
  */
 /** The painted icons (tools/gen-icons.py; user: "the icons still look bad" — line drawings). */
-const PAINTED = ['stone', 'shard', 'ring', 'key', 'horn', 'figure', 'feather', 'coin', 'tooth', 'beads', 'bell', 'bow', 'bag', 'tablet', 'peak', 'giant']
+const PAINTED = ['line', 'stone', 'shard', 'ring', 'key', 'horn', 'figure', 'feather', 'coin', 'tooth', 'beads', 'bell', 'bow', 'bag', 'tablet', 'peak', 'giant']
 const painted = new Map<string, HTMLImageElement>()
 /** Load them all once at start (drawn as line art until they are in). */
 export function loadIcons(): Promise<void> {

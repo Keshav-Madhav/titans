@@ -50,6 +50,7 @@ ICONS = {
     'bag': 'a soft patched leather satchel with a flap and a single buckle, worn brown',
     'tablet': 'a small weathered stone tablet carved with rows of worn unreadable glyphs',
     'peak': 'a tiny painted landscape vignette: one tall pale mountain with a little snow, on a small floating disc of grass',
+    'line': 'a neat coil of thick old hemp rope with a small three-pronged iron grappling hook tied to its end',
     'giant': 'a tiny carved stone statuette of a huge hunched gorilla-like giant made of mossy rock, standing',
 }
 

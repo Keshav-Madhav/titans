@@ -4,7 +4,7 @@
 import { CATALOGUE, type Discoveries } from './discovery'
 import { drawIcon } from './bag'
 
-const KEYS: Record<string, string> = { bow: 'Q', horn: 'H', cloak: 'Space', sight: 'V' }
+const KEYS: Record<string, string> = { line: 'G', bow: 'Q', horn: 'H', cloak: 'Space', sight: 'V' }
 
 export class Toolbar {
   private readonly el = document.getElementById('tools')!
