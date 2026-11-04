@@ -52,6 +52,8 @@ const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
 const _fwd = new THREE.Vector3(0, 0, 1)
 const _tv = new THREE.Vector3()
+const _ikA = new THREE.Vector3()
+const _ikB = new THREE.Vector3()
 const _cx = new THREE.Vector3()
 const _cy = new THREE.Vector3()
 const _cz = new THREE.Vector3()
@@ -664,6 +666,10 @@ export class Wanderer {
   private readonly wing: THREE.Mesh
   private readonly head = new THREE.Group()
   private readonly legs: Leg[] = []
+  /** Each leg's place in its stance this frame (0 … 1, landing → lift-off), or -1 in the air. */
+  private readonly stance = [-1, -1]
+  /** Where each planted ankle is pinned on the ground (null: not planted). */
+  private readonly footLock: Array<THREE.Vector3 | null> = [null, null]
   private readonly arms: Arm[] = []
   /** What is in your hands (main.ts sets it while a tool is in use): its prop shows, the arms take its pose. */
   holding: 'bow' | 'horn' | 'sight' | null = null
@@ -1150,6 +1156,62 @@ export class Wanderer {
    * arms swinging, breathing; reaching and pulling when climbing; the cape and
    * scarf in the `wind` (an acceleration, m/s²). `dark` (0 … 1) brightens the lantern.
    */
+  /**
+   * Feet that stay where they are put (QA cycle 5, the user's "walking looks like sliding"; measured
+   * at the sole: a planted foot slid at ~20% of the body's speed in every gait, and sank up to
+   * 10 cm into the ground). Each foot, when it lands, is pinned to the ground where it came down;
+   * while it is planted the hip and knee are solved (two bones, in the leg's own plane) to keep the
+   * ankle on the pin; it eases in at the landing and out before lift-off, so the swing hands over
+   * without a pop. Only walking and running on open ground.
+   */
+  private plantFeet(ground: (x: number, z: number) => number): void {
+    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding && !this.onBody
+    if (!onFoot || this.speed < 0.4 || this.stunned > 0 || this.landK > 0.05) {
+      this.footLock[0] = this.footLock[1] = null
+      return
+    }
+    this.obj.updateMatrixWorld(true)
+    const L1 = 0.44
+    const L2 = 0.44
+    for (let i = 0; i < 2; i++) {
+      const t = this.stance[i]
+      const leg = this.legs[i]
+      if (t < 0) {
+        this.footLock[i] = null
+        continue
+      }
+      // The ankle now (the pose as swung), and its pin: where it came down, at the ground.
+      leg.knee.localToWorld(_ikA.set(0, -L2, 0))
+      if (!this.footLock[i]) this.footLock[i] = new THREE.Vector3(_ikA.x, ground(_ikA.x, _ikA.z) + 0.055, _ikA.z)
+      const pin = this.footLock[i]!
+      // The pin in the hip's own frame (its parent's space, from the hip joint).
+      const parent = leg.hip.parent!
+      parent.worldToLocal(_ikB.copy(pin)).sub(leg.hip.position)
+      const tx = _ikB.x
+      const ty = _ikB.y
+      const tz = _ikB.z
+      // Sideways first: the hips twist as you walk and swing each hip out over its foot (left
+      // unsolved, the ankle missed its pin by that much — 5–8 cm — and still slid). The hip rolls
+      // out to it; the rest is solved in the plane the leg then swings in, its bones shortened by
+      // the roll.
+      const roll = Math.asin(THREE.MathUtils.clamp(tx / Math.max(0.12, Math.hypot(tx, ty, tz)), -0.5, 0.5))
+      const cr = Math.cos(roll)
+      const l1 = L1 * cr
+      const l2 = L2 * cr
+      // (Out of reach, the leg straightens toward the pin: it is not let go — let go, the next
+      // frame pinned it again wherever the ankle had slid to, and the foot slid all the same.)
+      const d = THREE.MathUtils.clamp(Math.hypot(ty, tz), 0.12, (l1 + l2) * 0.999)
+      const aim = Math.atan2(-tz, -ty)
+      const knee = Math.PI - Math.acos(THREE.MathUtils.clamp((l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2), -1, 1))
+      const off = Math.acos(THREE.MathUtils.clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1))
+      // In at the landing, out before the lift.
+      const w = Math.min(1, Math.min(t, 1 - t) * 10)
+      leg.hip.rotation.x += (aim - off - leg.hip.rotation.x) * w
+      leg.hip.rotation.z += (roll - leg.hip.rotation.z) * w
+      leg.knee.rotation.x += (knee - leg.knee.rotation.x) * w
+    }
+  }
+
   animate(dt: number, ground: (x: number, z: number) => number, wind: THREE.Vector3, dark: number): void {
     this.t += dt
     this.scrambleLean += ((this.scrambling ? 1 : 0) - this.scrambleLean) * Math.min(1, dt * 6)
@@ -1355,7 +1417,9 @@ export class Wanderer {
           const t = (u - st0) / f
           n = 1 - 2 * t
           c = -Math.sin(Math.PI * t)
+          this.stance[i] = t
         } else {
+          this.stance[i] = -1
           const v = ((u - (st0 + f) + 1) % 1) / (1 - f)
           n = -Math.cos(Math.PI * v)
           c = Math.sin(Math.PI * v)
@@ -1558,6 +1622,7 @@ export class Wanderer {
     this.windV.z += Math.sin(airA) * air
     const speed = Math.hypot(this.vel.x, this.vel.z)
     this.cape.rest += ((speed < 0.6 && !this.gliding ? 1 : 0) - this.cape.rest) * Math.min(1, dt * 0.8)
+    this.plantFeet(ground)
     // The legs, as the cloth sees them (thigh and shin each): it falls round them, not through.
     for (let i = 0; i < 2; i++) {
       const L = this.legs[i]

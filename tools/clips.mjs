@@ -120,6 +120,18 @@ const CLIPS = {
 
 // (Not in the default set: run by name.)
 const EXTRA = {
+  // The run, close and from the side: walk, run, the long run, stop — to judge the animation.
+  async stride(page) {
+    await ready(page)
+    await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.teleport(-600, 400); g.setCam(Math.PI / 2, 0.05, 4.2) })
+    await wait(page, 3000)
+    await mark(page)
+    // (The camera keeps its bearing; W walks away from it, so look side-on by walking with D.)
+    await hold(page, ['KeyD'], 4000)
+    await hold(page, ['KeyD', 'ShiftLeft'], 5000)
+    await hold(page, ['KeyD', 'ShiftLeft'], 5000)
+    await wait(page, 1500)
+  },
   // Into the Grove: the giant trees, walking among them.
   async grove(page) {
     await ready(page)
