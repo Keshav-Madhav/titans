@@ -81,3 +81,29 @@ Each effect toggled in place on the Green (cycle 6): AO ~0.3 ms, grass blades ~0
 scanned boulders added ~0.08 M triangles, the stones ~0.1 M. Everything stays well inside 16.7 ms;
 the Grove's 3 M triangles is the number to watch (Medium detail drops the blade ring to 10 m, Low
 drops blades and AO).
+
+## Cycle 7 — where the frame goes, and culling
+
+**Breakdown** (the Grove, quality pinned at High and full resolution, each part toggled off in
+place, bracketed by baselines before and after): terrain **3.1 ms** of ~8; half resolution saves
+**3.9 ms**; AO, bloom, rays, shadows, vegetation, grass and the soft layers each **0.0–0.25 ms**.
+The game is limited by per-pixel work (fill), not by triangles — the first readings, before quality
+was pinned, were void: the adaptive quality dropped to Low mid-test.
+
+**Culling.** Near trees, scanned boulders, stones, reeds, ferns and stalks were drawn all round the
+camera; now per instance against the view (re-culled after 0.5 m or ~2° of camera change, 3 m
+margin for shadows); grass per 12 m cell (re-laid after a 7° turn). Triangles: Green 1.91 → 1.62–1.78 M,
+Grove 3.22 → 2.70–2.75 M (same session, toggled), the High Places' foot 1.53 → 1.14 M. Frame time
+did not move measurably — as the breakdown predicts; it frees headroom for detail rather than time.
+
+**Terrain shader trims.** Cliff layers did 13 texture fetches each, always: now axes under 3% of the
+blend are skipped, the small-scale look is not fetched past ~160 m (where it was 12% of the colour),
+and no normal maps are fetched past 650 m (where they were faded out). Visually identical on the
+cliff, Grove, Sentinel and Colonnade views. Its saving could not be measured cleanly: the user's own
+builds held the machine at load 25–35 and even GPU timer queries wandered 12.7–16.3 ms between
+baselines. To re-measure on a quiet machine with `qa/cycle6/gputime.mjs`.
+
+**A false alarm, recorded.** A survey after these changes showed sky through the meadow and the land
+above the camera; bisecting back to the committed build showed the same. It was the survey script:
+a fixed 3.5 s wait after teleporting, before the terrain had streamed in. Scripts now wait for
+`terrainView.settled()`.

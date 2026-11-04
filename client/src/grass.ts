@@ -7,6 +7,7 @@
 // so nothing pops.
 
 import * as THREE from 'three'
+import { cullSwitch } from './vegetation'
 import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import type { Biome } from './biome'
 
@@ -172,6 +173,11 @@ export class Grass {
     uBladeR: { value: BLADE_R },
   }
   private lastKey = NaN
+  private readonly viewQ = new THREE.Quaternion(2, 0, 0, 0)
+  private readonly viewP = new THREE.Vector3(Infinity, 0, 0)
+  private readonly frustum = new THREE.Frustum()
+  private readonly projView = new THREE.Matrix4()
+  private readonly sphere = new THREE.Sphere()
   private dirty = true
   /** Cards drawn now (tools). */
   count = 0
@@ -309,7 +315,7 @@ export class Grass {
     return c
   }
 
-  update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number): void {
+  update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number, view?: THREE.Camera): void {
     const u = this.uniforms
     u.uTime.value += dt
     if (u.uBladeR.value !== grassQuality.bladeR) {
@@ -321,9 +327,28 @@ export class Grass {
     const ccx = Math.floor(cam.x / CELL)
     const ccz = Math.floor(cam.z / CELL)
     const k = key(ccx, ccz)
-    if (k === this.lastKey && !this.dirty) return
+    // (Laid again when you cross a cell, and when the view has turned or moved enough that other
+    // cells come into it: only cells in view are drawn — optimisation pass, 2026-11-04; all round
+    // you, the blades behind the camera were ~half the grass's triangles.)
+    let turned = false
+    if (view && !cullSwitch.on) {
+      if (this.viewQ.w !== 3) this.dirty = true
+      this.viewQ.set(0, 0, 0, 3)
+      view = undefined
+    }
+    if (view) {
+      view.updateMatrixWorld()
+      turned = view.quaternion.angleTo(this.viewQ) > 0.12 || view.position.distanceToSquared(this.viewP) > 4
+    }
+    if (k === this.lastKey && !this.dirty && !turned) return
     this.lastKey = k
     this.dirty = false
+    if (view) {
+      this.viewQ.copy(view.quaternion)
+      this.viewP.copy(view.position)
+      this.projView.multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse)
+      this.frustum.setFromProjectionMatrix(this.projView)
+    }
     // Nearest cells first, so what is close is never missing.
     const r = Math.ceil(RADIUS / CELL)
     const order: Array<[number, number, number]> = []
@@ -338,6 +363,17 @@ export class Grass {
     let fresh = 0
     for (const [d2, cx, cz] of order) {
       if (Math.sqrt(d2) * CELL > RADIUS + CELL) continue
+      // A cell outside the view (with a margin: the view turns before the next re-lay): skipped.
+      if (view) {
+        this.sphere.center.set((cx + 0.5) * CELL, cam.y, (cz + 0.5) * CELL)
+        this.sphere.center.y = this.terrain.heightAt(this.sphere.center.x, this.sphere.center.z)
+        this.sphere.radius = CELL * 0.75 + 4
+        // (Widened: a re-lay waits for a 7° turn, so what is just outside must already be there.)
+        if (!this.frustum.intersectsSphere(this.sphere) && Math.sqrt(d2) * CELL > CELL * 1.5) {
+          this.sphere.radius += Math.sqrt(d2) * CELL * 0.14
+          if (!this.frustum.intersectsSphere(this.sphere)) continue
+        }
+      }
       if (!this.cells.has(key(cx, cz))) {
         if (fresh >= FRESH_PER_FRAME) {
           this.dirty = true

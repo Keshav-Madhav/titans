@@ -159,7 +159,9 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float s = 1.0 / LSCALE[i];
           vec2 uv = p.xz * s;
           vec4 c = textureGrad(tLayerColor, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s);
-          vec4 n = textureGrad(tLayerNormal, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s);
+          // (Past ~650 m the relief is faded out to the surface normal anyway (gNorm, below): no
+          // fetch for it — optimisation pass, 2026-11-04: the terrain was 3.1 of ~8 ms.)
+          vec4 n = distance(p, cameraPosition) < 650.0 ? textureGrad(tLayerNormal, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s) : vec4(0.5, 0.5, 0.5, 1.0);
           if (farT > 0.0) {
             float s2 = s * 0.19;
             vec2 uv2 = mat2(0.8, -0.6, 0.6, 0.8) * p.xz * s2 + 0.37;
@@ -180,33 +182,55 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float s = 1.0 / LSCALE[i];
           vec3 w = pow(abs(N), vec3(4.0));
           w /= (w.x + w.y + w.z);
+          // (An axis carrying under 3% is left out — most walls are lit by one or two — and the
+          // rest renormalised. Optimisation pass, 2026-11-04: a cliff layer was 13 fetches always.)
+          w *= step(0.03, w);
+          w /= max(1e-4, w.x + w.y + w.z);
           float L = float(i);
-          vec4 cx = textureGrad(tLayerColor, vec3(p.zy * s, L), dpx.zy * s, dpy.zy * s);
-          vec4 cy = textureGrad(tLayerColor, vec3(p.xz * s, L), dpx.xz * s, dpy.xz * s);
-          vec4 cz = textureGrad(tLayerColor, vec3(p.xy * s, L), dpx.xy * s, dpy.xy * s);
-          vec4 nx = textureGrad(tLayerNormal, vec3(p.zy * s, L), dpx.zy * s, dpy.zy * s);
-          vec4 ny = textureGrad(tLayerNormal, vec3(p.xz * s, L), dpx.xz * s, dpy.xz * s);
-          vec4 nz = textureGrad(tLayerNormal, vec3(p.xy * s, L), dpx.xy * s, dpy.xy * s);
-          col = cx.rgb * w.x + cy.rgb * w.y + cz.rgb * w.z;
-          // A second look at the same rock, at an unrelated scale and offset, mixed in by a
-          // slow noise: a wall tens of metres high showed the texture's repeat as a quilted
-          // grid.
-          {
-            float s2 = s * 0.41;
-            vec3 o = vec3(0.37, 0.61, 0.13);
-            vec3 c2 = textureGrad(tLayerColor, vec3((p.zy + o.zy * 40.0) * s2, L), dpx.zy * s2, dpy.zy * s2).rgb * w.x
-              + textureGrad(tLayerColor, vec3((p.xz + o.xz * 40.0) * s2, L), dpx.xz * s2, dpy.xz * s2).rgb * w.y
-              + textureGrad(tLayerColor, vec3((p.xy + o.xy * 40.0) * s2, L), dpx.xy * s2, dpy.xy * s2).rgb * w.z;
-            float m = smoothstep(0.3, 0.7, texture2D(tDetail, p.xz * 0.009 + p.y * 0.006).r);
-            // (Farther off, mostly the larger: from a couple of hundred metres the small tile's
-            // repeat was what read as the quilting.)
-            float k2 = max(0.25 + 0.5 * m, 0.88 * smoothstep(30.0, 160.0, distance(p, cameraPosition)));
-            col = mix(col, c2, k2);
-            // (The relief too: the quilting was mostly its light and shade.)
-            nx = mix(nx, textureGrad(tLayerNormal, vec3((p.zy + o.zy * 40.0) * s2, L), dpx.zy * s2, dpy.zy * s2), k2);
-            ny = mix(ny, textureGrad(tLayerNormal, vec3((p.xz + o.xz * 40.0) * s2, L), dpx.xz * s2, dpy.xz * s2), k2);
-            nz = mix(nz, textureGrad(tLayerNormal, vec3((p.xy + o.xy * 40.0) * s2, L), dpx.xy * s2, dpy.xy * s2), k2);
+          float dist = distance(p, cameraPosition);
+          bool wantN = dist < 650.0;
+          float s2 = s * 0.41;
+          vec3 o = vec3(0.37, 0.61, 0.13);
+          float m = smoothstep(0.3, 0.7, texture2D(tDetail, p.xz * 0.009 + p.y * 0.006).r);
+          // (Farther off, mostly the larger: from a couple of hundred metres the small tile's
+          // repeat was what read as the quilting.)
+          float k2 = max(0.25 + 0.5 * m, 0.88 * smoothstep(30.0, 160.0, dist));
+          // Past ~160 m the larger look is 88% of it: the small one is not fetched at all.
+          bool base = k2 < 0.86;
+          vec4 flatN = vec4(0.5, 0.5, 0.5, 1.0);
+          vec3 c1 = vec3(0.0);
+          vec3 c2 = vec3(0.0);
+          vec4 nx = flatN; vec4 ny = flatN; vec4 nz = flatN;
+          // A second look at the same rock, at an unrelated scale and offset, mixed in by a slow
+          // noise: a wall tens of metres high showed the texture's repeat as a quilted grid.
+          if (w.x > 0.0) {
+            vec2 u1 = p.zy * s; vec2 u2 = (p.zy + o.zy * 40.0) * s2;
+            c2 += textureGrad(tLayerColor, vec3(u2, L), dpx.zy * s2, dpy.zy * s2).rgb * w.x;
+            vec4 n2 = wantN ? textureGrad(tLayerNormal, vec3(u2, L), dpx.zy * s2, dpy.zy * s2) : flatN;
+            if (base) {
+              c1 += textureGrad(tLayerColor, vec3(u1, L), dpx.zy * s, dpy.zy * s).rgb * w.x;
+              nx = mix(wantN ? textureGrad(tLayerNormal, vec3(u1, L), dpx.zy * s, dpy.zy * s) : flatN, n2, k2);
+            } else nx = n2;
           }
+          if (w.y > 0.0) {
+            vec2 u1 = p.xz * s; vec2 u2 = (p.xz + o.xz * 40.0) * s2;
+            c2 += textureGrad(tLayerColor, vec3(u2, L), dpx.xz * s2, dpy.xz * s2).rgb * w.y;
+            vec4 n2 = wantN ? textureGrad(tLayerNormal, vec3(u2, L), dpx.xz * s2, dpy.xz * s2) : flatN;
+            if (base) {
+              c1 += textureGrad(tLayerColor, vec3(u1, L), dpx.xz * s, dpy.xz * s).rgb * w.y;
+              ny = mix(wantN ? textureGrad(tLayerNormal, vec3(u1, L), dpx.xz * s, dpy.xz * s) : flatN, n2, k2);
+            } else ny = n2;
+          }
+          if (w.z > 0.0) {
+            vec2 u1 = p.xy * s; vec2 u2 = (p.xy + o.xy * 40.0) * s2;
+            c2 += textureGrad(tLayerColor, vec3(u2, L), dpx.xy * s2, dpy.xy * s2).rgb * w.z;
+            vec4 n2 = wantN ? textureGrad(tLayerNormal, vec3(u2, L), dpx.xy * s2, dpy.xy * s2) : flatN;
+            if (base) {
+              c1 += textureGrad(tLayerColor, vec3(u1, L), dpx.xy * s, dpy.xy * s).rgb * w.z;
+              nz = mix(wantN ? textureGrad(tLayerNormal, vec3(u1, L), dpx.xy * s, dpy.xy * s) : flatN, n2, k2);
+            } else nz = n2;
+          }
+          col = base ? mix(c1, c2, k2) : c2;
           vec3 tx = unpackN(nx);
           vec3 ty = unpackN(ny);
           vec3 tz = unpackN(nz);

@@ -24,6 +24,24 @@ const ROCK_NEAR = 90
 const PEBBLE_R = 110
 /** Wedges round you for the distant kinds (each frustum-culled on its own). */
 const SECTORS = 8
+/** Tools: false draws every near instance again (to measure the culling, same frame). */
+export const cullSwitch = { on: true }
+/**
+ * The near kinds culled per instance against the view, every time the camera moves or turns enough
+ * (optimisation pass, 2026-11-04: they were drawn all round you — the trees and boulders behind the
+ * camera too, ~2–4k triangles each). [bounding radius, its centre's height] in instance units.
+ */
+const CULLED: Partial<Record<Kind, [number, number]>> = {
+  coniferNear: [7.5, 6.5],
+  broadNear: [7.5, 7],
+  rockA: [1.5, 0.3],
+  rockB: [1.5, 0.4],
+  rockC: [1.5, 0.3],
+  pebble: [1.2, 0.2],
+  reed: [1.2, 0.6],
+  fern: [1.0, 0.3],
+  stalk: [1.0, 0.6],
+}
 /**
  * Trees nearer than this cast their own leaf-dappled shadows; farther (to the
  * edge of the shadow map), a simple stand-in's — the shadow pass drew every
@@ -266,6 +284,67 @@ export class Vegetation {
   private readonly meshes = {} as Record<Kind, THREE.InstancedMesh>
   /** The distant kinds' wedges (the first is meshes[kind]). */
   private readonly sectors = new Map<Kind, THREE.InstancedMesh[]>()
+  /** Every instance of the culled kinds near you (rebuild() fills it; cull() draws what is in view). */
+  private readonly full = new Map<Kind, { m: Float32Array; c: Float32Array; n: number }>()
+  private cullDirty = true
+  private readonly cullPos = new THREE.Vector3(Infinity, 0, 0)
+  private readonly cullQ = new THREE.Quaternion()
+  private readonly frustum = new THREE.Frustum()
+  private readonly projView = new THREE.Matrix4()
+  private readonly sphere = new THREE.Sphere()
+  /** Tools: instances drawn / held, per culled kind (last cull). */
+  cullStats: Record<string, string> = {}
+
+  /** Draw only the near instances in view (with a margin for the shadows of what is just outside). */
+  cull(camera: THREE.Camera): void {
+    if (!cullSwitch.on) {
+      if (this.cullStats.off !== '1') {
+        for (const [k, f] of this.full) {
+          const mesh = this.meshes[k]
+          ;(mesh.instanceMatrix.array as Float32Array).set(f.m)
+          ;(mesh.instanceColor!.array as Float32Array).set(f.c)
+          mesh.count = f.n
+          mesh.instanceMatrix.needsUpdate = true
+          mesh.instanceColor!.needsUpdate = true
+        }
+        this.cullStats.off = '1'
+        this.cullDirty = true
+      }
+      return
+    }
+    this.cullStats.off = '0'
+    if (!this.cullDirty && camera.position.distanceToSquared(this.cullPos) < 0.25 && camera.quaternion.angleTo(this.cullQ) < 0.03) return
+    this.cullDirty = false
+    this.cullPos.copy(camera.position)
+    this.cullQ.copy(camera.quaternion)
+    this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    this.frustum.setFromProjectionMatrix(this.projView)
+    for (const [k, f] of this.full) {
+      const [r, yo] = CULLED[k]!
+      const mesh = this.meshes[k]
+      const dm = mesh.instanceMatrix.array as Float32Array
+      const dc = mesh.instanceColor!.array as Float32Array
+      const m = f.m
+      let v = 0
+      for (let i = 0; i < f.n; i++) {
+        const o = i * 16
+        const sx = Math.hypot(m[o], m[o + 1], m[o + 2])
+        const sy = Math.hypot(m[o + 4], m[o + 5], m[o + 6])
+        this.sphere.center.set(m[o + 12], m[o + 13] + yo * sy, m[o + 14])
+        this.sphere.radius = r * Math.max(sx, sy) + 3
+        if (!this.frustum.intersectsSphere(this.sphere)) continue
+        if (v !== i) {
+          dm.set(m.subarray(o, o + 16), v * 16)
+          dc.set(f.c.subarray(i * 3, i * 3 + 3), v * 3)
+        }
+        v++
+      }
+      mesh.count = v
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.instanceColor!.needsUpdate = true
+      this.cullStats[k] = `${v}/${f.n}`
+    }
+  }
 
   /**
    * Scanned boulders in place of the made ones (tools/build-rocks.mjs: CC0 photogrammetry, each cut
@@ -623,6 +702,10 @@ export class Vegetation {
       mesh.count = n[k]
       mesh.instanceMatrix.needsUpdate = true
       mesh.instanceColor!.needsUpdate = true
+      if (CULLED[k]) {
+        this.full.set(k, { m: (mesh.instanceMatrix.array as Float32Array).slice(0, n[k] * 16), c: (mesh.instanceColor!.array as Float32Array).slice(0, n[k] * 3), n: n[k] })
+        this.cullDirty = true
+      }
     }
     for (const [k, casters] of this.shadeCast) {
       casters.forEach((m, j) => {

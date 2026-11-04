@@ -97,7 +97,7 @@ import { Birds } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
-import { Vegetation } from './vegetation'
+import { Vegetation, cullSwitch } from './vegetation'
 import { foliageFocus } from './trees'
 import { Grass, grassQuality } from './grass'
 import { Sound, type Surface } from './audio'
@@ -2420,7 +2420,7 @@ function frameBody(now: number): void {
   // (At a long drop the wind rises: vertigo is heard as much as seen.)
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo), awe())
   vegetation.update(dt, camera.position)
-  grass.update(dt, camera.position, wanderer.pos, weather.now.wind)
+  grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera)
   rocks.update(camera.position)
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
@@ -2653,6 +2653,9 @@ function frameBody(now: number): void {
   terrainView.update(camera.position, ready ? 5 : 40)
   sky.follow(focus, camera)
   renderer.info.reset()
+  // Near plants and stones: only those in view (the camera is final for this frame now).
+  camera.updateMatrixWorld()
+  vegetation.cull(camera)
   post.render(dt, sky.sunDir)
   work.push(performance.now() - t0)
   if (work.length > 1200) work.shift()
@@ -2915,6 +2918,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  cullSwitch,
   grassQ: grassQuality,
   soft,
   effects,
