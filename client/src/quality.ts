@@ -19,6 +19,7 @@
 // its own, and a visible pop), and on a 60 Hz screen rarely climbed back.
 // `?quality=0|1|2` pins a detail level (tools; the resolution then stays put too).
 
+import { aoSwitch } from './ao'
 import type * as THREE from 'three'
 import type { TerrainView } from './terrain-view'
 
@@ -82,6 +83,10 @@ export class Quality {
   private apply(level: number): void {
     this.level = level
     const L = LEVELS[level]
+    // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
+    aoSwitch.quality = level < 2
+    // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
+    aoSwitch.quality = level < 2
     this.terrain.splitK = L.splitK
     if (this.vegetation) [this.vegetation.nearR, this.vegetation.midR, this.vegetation.grassR] = L.veg
     this.terrain.setResolution(L.res)

@@ -18,6 +18,7 @@ import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { soft, softScene, softSwitch } from './soft'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { AOPass } from './ao'
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 
 /** Screen-space light shafts (GPU Gems 3, ch. 13), into a half-size target. */
@@ -271,6 +272,7 @@ export class Post {
   readonly composer: EffectComposer
   readonly bloom: UnrealBloomPass
   readonly rays = new GodRaysPass()
+  readonly ao: AOPass
   readonly grade: GradePass
   /** Off: render straight to the screen (the lowest quality). */
   enabled = true
@@ -289,6 +291,9 @@ export class Post {
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(size.x, size.y, THREE.FloatType) })
     this.composer = new EffectComposer(renderer, target)
     this.composer.addPass(new SceneThenSoft(scene, camera))
+    // Ambient occlusion from that depth (ao.ts): before the clamp, the bloom and the grade.
+    this.ao = new AOPass(camera)
+    this.composer.addPass(this.ao)
     this.composer.addPass(new ClampPass())
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)

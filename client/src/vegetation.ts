@@ -10,7 +10,7 @@
 // the forest. Everything is instanced and sways a little in the wind.
 
 import * as THREE from 'three'
-import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
 import { inBasin, makeSimplex2, mulberry32, poolBowl, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import { LAYER } from './terrain-material'
@@ -18,6 +18,8 @@ import type { Biome } from './biome'
 import type { PaintField } from './paint'
 
 const CELL = 96
+/** Within this the boulders are drawn in full detail, three broken shapes (m). */
+const ROCK_NEAR = 90
 /** Wedges round you for the distant kinds (each frustum-culled on its own). */
 const SECTORS = 8
 /**
@@ -34,7 +36,7 @@ const SECTORED: Kind[] = ['coniferMid', 'coniferFar', 'broadMid', 'broadFar', 'b
 const REGROW = 300
 const GCELL = 24 // grass cells
 
-type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
+type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
   coniferNear: 7000,
   coniferMid: 12000,
@@ -43,6 +45,9 @@ const CAP: Record<Kind, number> = {
   broadMid: 12000,
   broadFar: 26000,
   rock: 5000,
+  rockA: 1500,
+  rockB: 1500,
+  rockC: 1500,
   bush: 9000,
   grass: 34000,
   reed: 6000,
@@ -61,7 +66,7 @@ interface Batch {
 function pack(b: Batch): Batch {
   return { m: Float32Array.from(b.m), c: Float32Array.from(b.c), n: b.n }
 }
-type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'bush' | 'reed' | 'shrub' | 'fern' | 'stalk', Batch>>
+type CellData = Partial<Record<'conifer' | 'broad' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'bush' | 'reed' | 'shrub' | 'fern' | 'stalk', Batch>>
 
 /** The rock material's layers (sides, tops, metres per tile) on every vertex. */
 function rockLayers(g: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -81,23 +86,53 @@ function colored(g: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   return g
 }
 
-function lumpy(g: THREE.BufferGeometry, seed: number, amt: number): THREE.BufferGeometry {
+
+/**
+ * A boulder that was broken off something (graphics pass, 2026-11-04: the user — "a flat 10-triangle
+ * rock doesn't match"; every boulder was the one smooth lumpy blob, scaled and turned). A rounded
+ * lump, then cut by a few planes — flat broken faces meeting at real edges — a little fine relief,
+ * and settled on a flat underside. Normals creased at the cuts: sharp edges, smooth elsewhere.
+ */
+function brokenRock(seed: number, detail: number, shape: [number, number, number] = [1.1, 0.72, 0.95], depth = 0.45): THREE.BufferGeometry {
+  const rand = mulberry32(seed)
+  let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, detail)
   g.deleteAttribute('normal')
   g.deleteAttribute('uv')
   g = mergeVertices(g, 1e-4)
-  const n = makeSimplex2(seed)
+  const big = makeSimplex2(seed * 7 + 1)
+  const fine = makeSimplex2(seed * 13 + 5)
   const p = g.getAttribute('position')
+  const v = new THREE.Vector3()
+  // The cuts: a few planes, mostly steep (broken sides), one or two shallow (a worn top).
+  const cuts: Array<[THREE.Vector3, number]> = []
+  const nCuts = 6 + Math.floor(rand() * 4)
+  for (let i = 0; i < nCuts; i++) {
+    const a = rand() * Math.PI * 2
+    const up = i < 2 ? 0.55 + rand() * 0.4 : (rand() - 0.35) * 0.7
+    const n = new THREE.Vector3(Math.cos(a), up, Math.sin(a)).normalize()
+    // (Deep enough to bite: cut at 62–84% of the radius they barely touched the lump — it still
+    // read as a smooth mound.)
+    cuts.push([n, depth + rand() * 0.25])
+  }
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i)
-    const y = p.getY(i)
-    const z = p.getZ(i)
-    const k = 1 + amt * n(x * 1.7 + y, z * 1.7 - y)
-    p.setXYZ(i, x * k, y * k, z * k)
+    v.fromBufferAttribute(p, i)
+    // The rounded lump.
+    v.multiplyScalar(1 + 0.2 * big(v.x * 1.3 + v.y * 0.7, v.z * 1.3 - v.y * 0.5))
+    // Broken off flat along each cut.
+    for (const [n, d] of cuts) {
+      const k = v.dot(n)
+      if (k > d) v.addScaledVector(n, d - k)
+    }
+    // Fine relief: grain and small pits (kept small, so the cut faces stay flat).
+    v.multiplyScalar(1 + 0.025 * fine(v.x * 6 + v.y * 3, v.z * 6 - v.y * 2.5))
+    // Settled: the underside flattened into the ground.
+    if (v.y < -0.3) v.y = -0.3 + (v.y + 0.3) * 0.25
+    p.setXYZ(i, v.x, v.y, v.z)
   }
   g.computeVertexNormals()
-  return g
+  g = toCreasedNormals(g, 0.55)
+  return g.scale(shape[0], shape[1], shape[2])
 }
-
 
 const SRGB = THREE.SRGBColorSpace
 
@@ -110,7 +145,12 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   broadMid: () => broadleafGeometry(11, true),
   broadFar: () => broadleafGeometry(11, true, true),
   // Boulders: lumpy, flattened, textured as rock (rocks.ts' tri-planar material).
-  rock: () => rockLayers(colored(lumpy(lumpy(new THREE.IcosahedronGeometry(1, 3), 21, 0.22), 22, 0.08).scale(1.1, 0.68, 0.95), 0xffffff)),
+  // (Near: three broken shapes in full detail; farther, the lighter one.)
+  rock: () => rockLayers(colored(brokenRock(21, 3, [1.15, 0.85, 1.0], 0.42), 0xffffff)),
+  // (A broken block; a tall slab, tipped; a round stone split and worn.)
+  rockA: () => rockLayers(colored(brokenRock(21, 4, [1.15, 0.85, 1.0], 0.42), 0xffffff)),
+  rockB: () => rockLayers(colored(brokenRock(57, 4, [0.75, 1.25, 1.05], 0.48), 0xffffff)),
+  rockC: () => rockLayers(colored(brokenRock(93, 4, [1.2, 0.7, 1.1], 0.55), 0xffffff)),
   // Bushes and scrub: clumps of leaf cards, as the trees are.
   bush: () => bushGeometry(31, 12),
   shrub: () => bushGeometry(37, 4, 0.7),
@@ -211,7 +251,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   },
 }
 
-const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, coniferFar: 0, broadNear: 0.014, broadMid: 0.01, broadFar: 0, rock: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
+const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, coniferFar: 0, broadNear: 0.014, broadMid: 0.01, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, bush: 0.03, grass: 0.16, reed: 0.1, shrub: 0, fern: 0.05, stalk: 0.14 }
 
 export class Vegetation {
   readonly group = new THREE.Group()
@@ -263,7 +303,7 @@ export class Vegetation {
     for (const k of Object.keys(GEOMS) as Kind[]) {
       let mat: THREE.MeshStandardMaterial
       if (k === 'coniferNear' || k === 'broadNear' || k === 'coniferMid' || k === 'broadMid' || k === 'coniferFar' || k === 'broadFar' || k === 'bush' || k === 'shrub') mat = foliageMaterial(foliage, this.time, SWAY[k] || 0.004)
-      else if (k === 'rock') mat = rockMat
+      else if (k === 'rock' || k === 'rockA' || k === 'rockB' || k === 'rockC') mat = rockMat
       else {
         mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
         if (SWAY[k] > 0) this.sway(mat, SWAY[k])
@@ -276,7 +316,7 @@ export class Vegetation {
       const mesh = new THREE.InstancedMesh(geo, mat, cap)
       mesh.count = 0
       mesh.frustumCulled = sectored
-      mesh.castShadow = k === 'coniferNear' || k === 'broadNear' || k === 'rock'
+      mesh.castShadow = k === 'coniferNear' || k === 'broadNear' || k === 'rock' || k === 'rockA' || k === 'rockB' || k === 'rockC'
       mesh.receiveShadow = k !== 'coniferMid' && k !== 'broadMid' && k !== 'coniferFar' && k !== 'broadFar'
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP[k] * 3), 3)
       this.meshes[k] = mesh
@@ -411,7 +451,7 @@ export class Vegetation {
   }
 
   private rebuild(cam: THREE.Vector3): void {
-    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
+    const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const sn = new Map<Kind, number[]>()
     for (const [k, list] of this.sectors) sn.set(k, list.map(() => 0))
@@ -508,8 +548,12 @@ export class Vegetation {
         }
         if (b && near) shade(nearKind, b)
       }
+      if (d < ROCK_NEAR) {
+        if (c.rockA) push('rockA', c.rockA)
+        if (c.rockB) push('rockB', c.rockB)
+        if (c.rockC) push('rockC', c.rockC)
+      } else if (d < this.midR * 0.55 && c.rock) push('rock', c.rock)
       if (d < this.midR * 0.55) {
-        if (c.rock) push('rock', c.rock)
         if (c.bush) push('bush', c.bush)
       }
       if (d < this.midR * 0.85 && c.shrub) push('shrub', c.shrub)
@@ -643,7 +687,12 @@ export class Vegetation {
       const t = 0.8 + rand() * 0.3
       const d = this.biome.desert(x, z)
       this.col.setRGB(t * (1.1 + 0.2 * d), t * (1.28 - 0.18 * d), t * (1.5 - 0.55 * d))
-      this.add(batch('rock'), x, h - sc * 0.25, z, rand() * 6.28, sc, sc * (0.7 + rand() * 0.6), this.col)
+      const ry = rand() * 6.28
+      const sy = sc * (0.7 + rand() * 0.6)
+      this.add(batch('rock'), x, h - sc * 0.15, z, ry, sc, sy, this.col)
+      // (Which broken shape, from where it lies — not from the cell's draws, so nothing else moves.)
+      const vk = (['rockA', 'rockB', 'rockC'] as const)[Math.abs(Math.floor(x * 7.31) + Math.floor(z * 3.17)) % 3]
+      this.add(batch(vk), x, h - sc * 0.15, z, ry, sc, sy, this.col)
     }
     // Bushes: along forest edges and near water.
     for (let i = 0; i < 30; i++) {

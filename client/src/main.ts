@@ -69,6 +69,7 @@ import { Journal } from './journal'
 import { Bag, loadIcons } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
 import { soft, softScene, softSwitch } from './soft'
+import { aoSwitch } from './ao'
 import { Prints } from './prints'
 import { Sea } from './sea'
 import { Frozen } from './frozen'
@@ -2675,6 +2676,23 @@ function frameBody(now: number): void {
         for (const o of hidden) o.visible = false
         void done
       }
+      // …and every texture uploaded now, not on first sight (QA Q23: stepping out into the daylight
+      // reveal stalled one frame 83–167 ms with the CPU idle — the land's big textures going up to
+      // the GPU at the camera cut).
+      const seen = new Set<THREE.Texture>()
+      for (const root of [scene, softScene])
+        root.traverse((o) => {
+          const mats = (o as THREE.Mesh).material
+          if (!mats) return
+          for (const m of Array.isArray(mats) ? mats : [mats]) {
+            for (const v of Object.values(m as unknown as Record<string, unknown>)) if (v instanceof THREE.Texture) seen.add(v)
+            // (Textures that come in by onBeforeCompile — the land's — live only on the compiled
+            // program's uniforms, which the renderer keeps per material.)
+            for (const u of [(m as THREE.ShaderMaterial).uniforms, (renderer.properties.get(m) as { uniforms?: Record<string, { value: unknown }> }).uniforms])
+              if (u) for (const k in u) if (u[k]?.value instanceof THREE.Texture) seen.add(u[k].value as THREE.Texture)
+          }
+        })
+      for (const t of seen) if (!(t as THREE.Texture & { isRenderTargetTexture?: boolean }).isRenderTargetTexture) renderer.initTexture(t)
     }
     if (!params.has('nowarm')) {
       warm()
@@ -2893,6 +2911,7 @@ const g = {
   frozen,
   HIGH,
   softSwitch,
+  aoSwitch,
   soft,
   effects,
   prints,
