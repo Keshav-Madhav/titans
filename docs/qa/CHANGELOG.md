@@ -2,6 +2,25 @@
 
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
+## 2026-11-05 — cycle 7, overnight (measured properly; one standard everywhere)
+
+The meter: GPU timer queries misread by several ms on ANGLE/Metal; costs are now measured by synced
+time (render + 1-px readback, interleaved) [2fe1a57]. A Green frame: ~12 ms headless ×1.5.
+
+- **Performance (synced)**: bloom added in the grade pass, foliage dither computed not looked up
+  [4c98924]; grass blades drawn only within their ring, 0.9 → 0.5 ms [28a1b1b].
+- **The land**: dunes like sand — rounded crests, a gentle side, a slip face (Q51) [ea49d07]; the
+  Steps' terrace walls dressed stone (Q53) [9c454d7]; plants off cliff ledges (Q49) [2664ddf].
+- **The giants close up**: rounded masses, not flat facets — the fine mesh built when you come near
+  [8dc2154].
+- **Trees**: near broadleaves with curved, forked limbs [453bb43]; far crowns not blocks [4c98924].
+- **Stone that has stood a long time**: standing stones (Q54), lore stones, the altar and shrines —
+  worn round, broken, carved at true scale [3d9e97d, e870f1f, 36b902f].
+- **The wanderer**: the cloak's weave catches the light [578ac22]; the cape drawn as a smooth
+  surface through its particles [7dda198].
+- **Fixed on the way, by the sweep**: the mesa's bow targets placed where a player can shoot them
+  [4794e4e]; a NaN at a weathered block's face centre [36b902f].
+
 ## 2026-11-04 — cycle 7 (one standard everywhere; the M5 Pro "struggling")
 
 Fidelity (the user: "good rocks in a shitty-texture game is off too"):
