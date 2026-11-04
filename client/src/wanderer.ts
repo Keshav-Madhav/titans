@@ -225,7 +225,7 @@ function fabricTexture(kind: 'wool' | 'wrap' | 'leather'): THREE.CanvasTexture {
  * The cloak's weave: a fine twill, soft lengthwise folds, wear at the edges and
  * a darker embroidered band at the hem (grey, multiplied by the cloak's colour).
  */
-function clothTexture(): THREE.CanvasTexture {
+function clothTexture(): { map: THREE.CanvasTexture; normal: THREE.CanvasTexture } {
   const W = 256
   const H = 256
   const c = document.createElement('canvas')
@@ -237,6 +237,7 @@ function clothTexture(): THREE.CanvasTexture {
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   const noise = new Float32Array(W)
   for (let i = 0; i < W; i++) noise[i] = rnd()
+  const height = new Float32Array(W * H)
   for (let y = 0; y < H; y++) {
     const v = y / H // 0 top (shoulders) … 1 hem
     for (let x = 0; x < W; x++) {
@@ -255,6 +256,8 @@ function clothTexture(): THREE.CanvasTexture {
       const band = b0 || b1 || zig ? 0.55 : v > 0.8 && v < 0.9 ? 0.86 : 1
       const speck = 0.97 + rnd() * 0.06
       const l = Math.max(0, Math.min(1, twill * fold * wear * band * speck))
+      // Relief for the normal map: the weave's ribs, the folds, the stitched band raised a little.
+      height[y * W + x] = 0.55 * (twill - 0.94) / 0.06 + 2.2 * (fold - 0.9) / 0.1 + (band < 0.9 ? 0.25 : 0)
       const k = (y * W + x) * 4
       img.data[k] = img.data[k + 1] = img.data[k + 2] = l * 255
       img.data[k + 3] = 255
@@ -264,7 +267,29 @@ function clothTexture(): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 4
-  return t
+  // (QA cycle 7: the colour alone moved a few percent and the cloak read as flat red plastic — the
+  // weave and the folds must catch the light.) A normal map from the same relief.
+  const cn = document.createElement('canvas')
+  cn.width = W
+  cn.height = H
+  const gn = cn.getContext('2d')!
+  const nimg = gn.createImageData(W, H)
+  const hAt = (x: number, y: number) => height[((y + H) % H) * W + ((x + W) % W)]
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const dx = (hAt(x + 1, y) - hAt(x - 1, y)) * 0.5
+      const dy = (hAt(x, y + 1) - hAt(x, y - 1)) * 0.5
+      const nz = 1 / Math.hypot(dx, dy, 1)
+      const k = (y * W + x) * 4
+      nimg.data[k] = (0.5 - dx * nz * 0.5) * 255
+      nimg.data[k + 1] = (0.5 + dy * nz * 0.5) * 255
+      nimg.data[k + 2] = (0.5 + nz * 0.5) * 255
+      nimg.data[k + 3] = 255
+    }
+  gn.putImageData(nimg, 0, 0)
+  const n = new THREE.CanvasTexture(cn)
+  n.anisotropy = 4
+  return { map: t, normal: n }
 }
 
 /** A limb the cloth keeps out of: a→b, radius r. */
@@ -747,12 +772,26 @@ export class Wanderer {
   private readonly axisB = new THREE.Vector3()
   private readonly hangDir = new THREE.Vector3()
   private readonly windV = new THREE.Vector3()
-  private readonly redCloth: THREE.MeshStandardMaterial
+  private readonly redCloth: THREE.MeshPhysicalMaterial
   /** 0 … 1: how far the view looks into the sun (main sets it; the cloak glows a little against it). */
   backlit = 0
 
   constructor(cloak: THREE.ColorRepresentation = RED) {
-    const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.86, side: THREE.DoubleSide, map: clothTexture() })
+    // Cloth: the weave and folds in a normal map, and sheen — the soft bright rim fabric has at
+    // grazing angles (QA cycle 7: it read as flat red plastic).
+    const cloth = clothTexture()
+    const red = new THREE.MeshPhysicalMaterial({
+      color: cloak,
+      roughness: 0.86,
+      side: THREE.DoubleSide,
+      map: cloth.map,
+      normalMap: cloth.normal,
+      normalScale: new THREE.Vector2(1.2, 1.2),
+      // (Deep red and faint: a pale sheen at full strength washed it to salmon under cloud.)
+      sheen: 0.3,
+      sheenRoughness: 0.7,
+      sheenColor: new THREE.Color(cloak).multiplyScalar(1.25),
+    })
     // The red reads in the dark too (QA cycle 4: in the Mire at night the hood was a muddy smear —
     // you are the one thing in the land that must always read): a faint glow of its own colour,
     // nothing by day, rising with the dark (animate()).
