@@ -322,6 +322,17 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float gBand = mix(gBandThin, gBandThick, 0.55);
           gAlb *= mix(1.0, 0.74 + 0.46 * gBand, gRockW * 0.8);
         }
+        // The Steps' cut walls are dressed stone, not raw cliff (QA cycle 7: up close the terrace
+        // risers read as poured concrete). The Steps' weight rides in vColor.r below zero (above
+        // zero is the Old Wood's; the two lands never meet). Fetched only on the Steps' steep ground.
+        float gMason = max(-vColor.r, 0.0) * gRockW;
+        if (gMason > 0.02) {
+          vec3 mc; vec3 mn; float mh;
+          triLayer(${LAYERS.indexOf('flagstone')}, gP, gDx, gDy, gTriN, gN, mc, mn, mh);
+          float mk = smoothstep(0.02, 0.45, gMason);
+          gAlb = mix(gAlb, mc * vec3(0.94, 0.91, 0.86), mk * 0.9);
+          gNorm = mix(gNorm, mn, mk);
+        }
         gNorm = normalize(gNorm + gN * 1e-3);
         gRough = gSum > 1e-4 ? gRough / gSum : 0.9;
         // Far away, the normal detail would only shimmer.
@@ -334,7 +345,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
 
         // The Old Wood from afar: a mottled canopy where the trees stop being drawn.
         // Cliffs differ by land: mossy and dark in the Old Wood, pale grey elsewhere (red in the dunes).
-        gAlb = mix(gAlb, gAlb * vec3(0.66, 0.78, 0.62), gRockW * vColor.r * (1.0 - vColor.b));
+        gAlb = mix(gAlb, gAlb * vec3(0.66, 0.78, 0.62), gRockW * max(vColor.r, 0.0) * (1.0 - vColor.b));
         // Big, slow variation over open ground — greener and yellower swathes,
         // darker hollows — so a plain never reads as one flat sheet from afar.
         float gM1 = texture2D(tDetail, gP.xz * 0.0011).r;
@@ -343,7 +354,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         vec3 gCool = gAlb * vec3(0.86, 1.0, 0.92);
         gAlb = mix(gAlb, mix(gCool, gWarm, gM1), (1.0 - gRockW) * 0.7);
         gAlb *= 0.88 + 0.24 * gM2;
-        float gCanopy = vColor.r * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
+        float gCanopy = max(vColor.r, 0.0) * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
         if (gCanopy > 0.004) {
           float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
           gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
