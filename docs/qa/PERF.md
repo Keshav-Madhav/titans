@@ -67,3 +67,17 @@ resumes it (16 ms).
 | grove (walking among the giant trees) | 53.0 | 33.4 | 0 | 316 | 1,511,101 |
 | dusk (sunset into night, walking) | 59.5 | 16.8 | 0 | 424 | 957,082 |
 | mire at night | 59.5 | 16.8 | 0 | 236 | 889,385 |
+
+## Cycle 6 — graphics and fidelity, measured uncapped
+
+Uncapped (no vsync, no frame limit), 300 frames, same view, headless on this Mac:
+
+| Scene | mean ms | p99 ms | draw calls | triangles |
+| --- | ---: | ---: | ---: | ---: |
+| green (AO, grass blades, scanned boulders and stones) | 5.78 | 10.1 | 492 | 1.90 M |
+| grove (densest: giant trees, blades, scans) | 7.88 | 15.9 | 437 | 3.03 M |
+
+Each effect toggled in place on the Green (cycle 6): AO ~0.3 ms, grass blades ~0.3–0.6 ms. The
+scanned boulders added ~0.08 M triangles, the stones ~0.1 M. Everything stays well inside 16.7 ms;
+the Grove's 3 M triangles is the number to watch (Medium detail drops the blade ring to 10 m, Low
+drops blades and AO).
