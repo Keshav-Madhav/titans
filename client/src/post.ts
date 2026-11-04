@@ -124,50 +124,6 @@ class SizedBloom extends UnrealBloomPass {
 export const bloomSize = SizedBloom
 export const raysSize = GodRaysPass
 
-/**
- * Clamp the HDR scene before bloom and rays read it: the sky's sun disk is
- * thousands of times brighter than the land, and spread by bloom it would
- * flood the frame. (Past tone mapping a luminance of 6 is white anyway.)
- */
-class ClampPass extends Pass {
-  private readonly quad: FullScreenQuad
-  private readonly uniforms = { tScene: { value: null as THREE.Texture | null }, limit: { value: 6.0 } }
-
-  constructor() {
-    super()
-    this.quad = new FullScreenQuad(
-      new THREE.ShaderMaterial({
-        uniforms: this.uniforms,
-        vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-        fragmentShader: /* glsl */ `
-          uniform sampler2D tScene;
-          uniform float limit;
-          varying vec2 vUv;
-          void main() {
-            vec3 c = texture2D(tScene, vUv).rgb;
-            // A bad pixel (NaN, infinity, a mirror-sharp highlight) must not
-            // become a glowing blot: scrub it, and cap each channel as well as
-            // the brightness (a huge red+blue with no green passed the
-            // brightness cap and bloomed magenta on the cliffs).
-            if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
-            c = max(c, vec3(0.0));
-            float l = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-            c *= min(1.0, limit / l);
-            gl_FragColor = vec4(min(c, vec3(limit * 1.5)), 1.0);
-          }`,
-        depthTest: false,
-        depthWrite: false,
-      }),
-    )
-  }
-
-  render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
-    this.uniforms.tScene.value = read.texture
-    renderer.setRenderTarget(write)
-    this.quad.render(renderer)
-  }
-}
-
 const GRADE = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
@@ -332,8 +288,8 @@ export class Post {
     this.composer.addPass(new SceneThenSoft(scene, camera))
     // Ambient occlusion from that depth (ao.ts): before the clamp, the bloom and the grade.
     this.ao = new AOPass(camera)
+    // (It ends with the HDR clamp the bloom and rays need — once its own full-screen pass.)
     this.composer.addPass(this.ao)
-    this.composer.addPass(new ClampPass())
     this.bloom = new SizedBloom(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)
     this.composer.addPass(this.rays)

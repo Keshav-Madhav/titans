@@ -154,7 +154,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // uploaded top row first, so the image's "up" is -v).
         #define T_NRM_R 650.0
         // Experiments (tools): bit 1 only the two strongest layers, 2 no anti-tiling second sample,
-        // 4 no normal maps.
+        // 4 no normal maps, 8 fetch even the layers that cannot show (to measure the cut).
         uniform int uTerrainExp;
         vec3 unpackN(vec4 t) {
           vec2 xy = t.rg * 2.0 - 1.0;
@@ -288,7 +288,11 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         if ((uTerrainExp & 1) != 0) {
           ${[0,1,2,3,4,5,6,7].map(i => `if (gW[${i}] > gW1) { gW2 = gW1; gW1 = gW[${i}]; } else if (gW[${i}] > gW2) gW2 = gW[${i}];`).join('\n          ')}
         }
-        float gCut = max(0.004, gW2 - 1e-4);
+        // A layer shows only within 0.18 of the top of the height blend, and its texture lifts it at
+        // most 0.55 (gH = h·0.55 + w): one more than 0.73 under the strongest can never show, so it
+        // is not fetched. The same image, fewer fetches where one ground dominates — most of it.
+        float gWMax = max(max(max(gW[0], gW[1]), max(gW[2], gW[3])), max(max(gW[4], gW[5]), max(gW[6], gW[7])));
+        float gCut = max(max(0.004, (uTerrainExp & 8) != 0 ? 0.0 : gWMax - 0.73), gW2 - 1e-4);
         ${[0,1,2,3,4,5,6,7].map(i => `vec3 gCol${i} = vec3(0.0); vec3 gNrm${i} = vec3(0.0, 1.0, 0.0); float gH${i} = -10.0;
         if (gW[${i}] >= gCut) {
           vec3 c; vec3 n; float h;

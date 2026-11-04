@@ -52,6 +52,8 @@ export class Mist {
     map: { value: bankTexture() },
     uColor: { value: new THREE.Color() },
     uSun: { value: new THREE.Vector3() },
+    /** Tools: 0 = the old unshaded mist (to compare). */
+    uDusk: { value: 1 },
     uAmount: { value: 1 },
   }
 
@@ -85,6 +87,7 @@ export class Mist {
         uniform sampler2D map;
         uniform vec3 uColor;
         uniform vec3 uSun;
+        uniform float uDusk;
         uniform float uAmount;
         varying vec2 vUv;
         varying float vFade;
@@ -95,7 +98,16 @@ export class Mist {
           if (a < 0.004) discard;
           vec3 toCam = normalize(cameraPosition - vWorld);
           float sunward = pow(max(dot(-toCam, normalize(uSun)), 0.0), 4.0);
-          vec3 col = uColor * (1.04 + 0.12 * vUv.y) + vec3(1.0, 0.92, 0.78) * sunward * 0.25;
+          // (Q24: lying low, the mist is in the land's shade once the sun is low — it stayed fog-bright
+          // while the ground under it darkened at sunset. Dimmer and cooler as the sun drops; toward
+          // the sun it still catches the light.)
+          float lit = smoothstep(-0.04, 0.22, uSun.y);
+          vec3 shade = mix(vec3(0.56, 0.6, 0.7), vec3(1.0), lit);
+          // (Only at dusk and dawn: by night the fog colour is dark already, and moonlit mist in the
+          // Mire should still read.)
+          shade = mix(shade, vec3(0.92, 0.96, 1.04), 1.0 - smoothstep(-0.22, -0.06, uSun.y));
+          shade = mix(vec3(1.0), shade, uDusk);
+          vec3 col = uColor * shade * (1.04 + 0.12 * vUv.y) + vec3(1.0, 0.86, 0.68) * sunward * mix(0.25, mix(0.45, 0.25, lit), uDusk);
           gl_FragColor = vec4(col, a);
         }`,
       transparent: true,

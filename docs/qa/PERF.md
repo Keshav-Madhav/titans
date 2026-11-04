@@ -171,3 +171,14 @@ numbers read ~2.5× slow, differences hold:
   i.e. noise — not slower) in the Green, 23.0 → 22.5 on the High Ice, 41.7 → 41.9 in the Dune Sea.
   Far chunks cover a thin strip of screen with large triangles: no slivers, so no quad waste. The
   waste was in the *near* terrain's foreshortened slivers (above), not in the triangle count.
+- **Ground layers that can never show are not fetched.** The height blend keeps a layer only within
+  0.18 of the top, and a texture lifts a layer at most 0.55, so a layer more than 0.73 under the
+  strongest cannot appear. Same frame with and without (tool bit 8): differences equal to two shots
+  of the same setting (Green 5.18 vs 5.25, Dunes 4.15 vs 3.99, Old Wood 10.1 vs 9.5 — the noise).
+  Dune Sea −1.53 ms (15.9 → 14.4, ~10%), Green and Old Wood ~0 (mixed ground: nothing to skip).
+- **The HDR clamp folded into the AO pass**: it was its own full-screen pass right after AO's last
+  one — a whole HDR frame read and written again for a few instructions. Same maths, one pass fewer.
+- **AO blur reads one small texture**: the AO pass writes each pixel's distance beside its value,
+  so the blur's 9 taps no longer also read the full-size float depth 9 times.
+- (A quieter machine read ~16 ms headless for the scenes above — the 40+ ms earlier this cycle was
+  other apps' GPU load. Paired toggles are why the differences held anyway.)

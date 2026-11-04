@@ -64,6 +64,9 @@ export interface ColossusPlacement {
  * much of the sky a point sees), for built stone whose shape is known — corners where a wall
  * meets the floor go dark as they do in life — and its uniforms.
  */
+/** Tools: switches on the rock shader, shared by every rock material (soil 0 = no earth at the foot). */
+export const rockTools = { soil: { value: 1 } }
+
 export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }, weathered = false): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
   // (Weathered: the formations, which carry each point's height above the land, aAbove.)
@@ -72,6 +75,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
+    sh.uniforms.uRockSoil = rockTools.soil
     if (occlusion) {
       Object.assign(sh.uniforms, occlusion.uniforms)
       sh.fragmentShader = sh.fragmentShader
@@ -112,6 +116,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         `#include <common>
         uniform highp sampler2DArray tLayerColor;
         uniform highp sampler2DArray tLayerNormal;
+        uniform float uRockSoil;
         varying vec3 vLayer;
         varying vec3 vRockPos;
         varying vec3 vRockN;
@@ -207,6 +212,25 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
             vec3 mossC = triTex(13.0, 1.0 / 2.5, vRockPos, rN, nM);
             vec3 grown = dusty ? cA * damp : mix(cA * vec3(0.62, 0.66, 0.55), mossC * vec3(0.85, 0.95, 0.8), smoothstep(0.3, 0.7, wn) * 0.75);
             cA = mix(cA, grown, band);
+          }
+          // Earth heaped against the foot (Q45): the ground's own soil and turf banked up the stone,
+          // a ragged line — a hand's breadth on a boulder, a few metres on a colossus. In sand,
+          // drifted sand.
+          // (Only against faces steep enough to bank earth on, and never metres of it: a figure lying
+          // on its back is low all over — the first try, 5 m on any face, buried the Drowned One's
+          // whole body in dirt.)
+          float heap = clamp(vAbove.y * 0.008, 0.3, 2.5) * (0.5 + 1.0 * smoothstep(0.2, 0.8, wn));
+          float soil = (1.0 - smoothstep(heap * 0.55, heap, vAbove.x)) * (1.0 - smoothstep(0.3, 0.7, rN.y)) * uRockSoil;
+          if (soil > 0.001) {
+            bool sandy = abs(vLayer.y - 4.0) < 0.5;
+            vec3 nG;
+            vec3 ground = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nG);
+            vec3 nE2;
+            vec3 mud = triTex(3.0, 1.0 / 2.0, vRockPos + 53.0, rN, nE2);
+            vec3 groundT = vLayer.y < 2.5 ? ground * vec3(0.8, 1.15, 0.7) : ground;
+            vec3 earth = sandy ? groundT : mix(mud * 0.9, groundT, smoothstep(0.35, 0.75, wn));
+            cA = mix(cA, earth, soil);
+            nA = normalize(mix(nA, nG, soil * 0.7));
           }
         }
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);

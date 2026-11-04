@@ -55,6 +55,9 @@ interface Entry {
   version: number
 }
 
+/** Streams shorter than this (cells, ~metres) are not drawn. */
+const MIN_STREAM = 24
+
 export class WaterView {
   readonly group = new THREE.Group()
   private readonly entries = new Map<number, Entry>()
@@ -93,6 +96,9 @@ export class WaterView {
     this.streamCheck = 0.3
     const live = new Set<number>()
     for (const s of lakes.streams()) {
+      // (Q36: a run of a few metres that soaks into the first hollow is no stream — drawn, it is a
+      // little hard slab of water standing on a slope with nothing feeding it.)
+      if (s.cells.length < MIN_STREAM) continue
       live.add(s.id)
       const e = this.streams.get(s.id)
       if (e && e.sig === s.sig) continue

@@ -8,7 +8,8 @@
 //   1. AO: the view position and normal rebuilt from depth; 12 taps on a spiral, turned per pixel,
 //      within a radius in metres (a little wider far off, so a giant's folds darken too).
 //   2. Blur: 9 taps, weighted by depth so it never bleeds across an edge.
-//   3. Apply: the colour darkened by it, fading out into fog and the far distance.
+//   3. Apply: the colour darkened by it, fading out into fog and the far distance; then the HDR
+//      clamp for bloom (formerly its own pass).
 
 import * as THREE from 'three'
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js'
@@ -42,7 +43,8 @@ const aoMat = new THREE.ShaderMaterial({
       float vz = viewZAt(vUv);
       float z = -vz;
       // The sky and the far land: nothing to shut the light out from.
-      if (z > 1800.0 || z < 0.2) { gl_FragColor = vec4(1.0); return; }
+      // (Its depth goes out with it in .g, for the blur: one small texture read, not two.)
+      if (z > 1800.0 || z < 0.2) { gl_FragColor = vec4(1.0, z, 0.0, 1.0); return; }
       vec3 p = viewPosAt(vUv, vz);
       // The normal from depth: of the two neighbours each way, the nearer in depth (an edge picks
       // the surface this pixel is on, not the one behind it).
@@ -73,7 +75,7 @@ const aoMat = new THREE.ShaderMaterial({
         occ += max(0.0, nv - 0.08) * (1.0 - smoothstep(R * R * 0.6, R * R * 1.6, d2));
       }
       float ao = 1.0 - occ / 12.0 * 2.8;
-      gl_FragColor = vec4(vec3(clamp(ao, 0.0, 1.0)), 1.0);
+      gl_FragColor = vec4(clamp(ao, 0.0, 1.0), z, 0.0, 1.0);
     }`,
   depthTest: false,
   depthWrite: false,
@@ -94,16 +96,17 @@ const blurMat = new THREE.ShaderMaterial({
     uniform vec2 uRes;
     varying vec2 vUv;
     void main() {
-      float z0 = -viewZAt(vUv);
+      // (The AO pass wrote each pixel's distance in .g beside its value: no full-size depth reads.)
+      float z0 = texture2D(tAO, vUv).g;
       vec2 px = 1.0 / uRes;
       float sum = 0.0;
       float w = 0.0;
       for (int y = -1; y <= 1; y++)
         for (int x = -1; x <= 1; x++) {
           vec2 uv = vUv + vec2(float(x), float(y)) * px * 1.5;
-          float z = -viewZAt(uv);
-          float wi = 1.0 / (1.0 + abs(z - z0) / (0.02 * z0 + 0.05) * 4.0);
-          sum += texture2D(tAO, uv).r * wi;
+          vec2 t = texture2D(tAO, uv).rg;
+          float wi = 1.0 / (1.0 + abs(t.g - z0) / (0.02 * z0 + 0.05) * 4.0);
+          sum += t.r * wi;
           w += wi;
         }
       gl_FragColor = vec4(vec3(sum / w), 1.0);
@@ -121,6 +124,8 @@ const applyMat = new THREE.ShaderMaterial({
     uProj: { value: new THREE.Vector2() },
     uStrength: { value: 0.75 },
     uDebug: { value: 0 },
+    /** The HDR clamp's brightness limit (past tone mapping, 6 is white anyway). */
+    uLimit: { value: 6.0 },
   },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
   fragmentShader: /* glsl */ `
@@ -129,6 +134,7 @@ const applyMat = new THREE.ShaderMaterial({
     uniform sampler2D tAO;
     uniform float uStrength;
     uniform float uDebug;
+    uniform float uLimit;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tColor, vUv);
@@ -137,7 +143,18 @@ const applyMat = new THREE.ShaderMaterial({
       // Out into the haze it fades: the air between washes contact shadows out.
       float k = uStrength * (1.0 - smoothstep(250.0, 1400.0, z));
       float m = mix(1.0, ao, k);
-      gl_FragColor = uDebug > 0.5 ? vec4(vec3(m), 1.0) : vec4(c.rgb * m, c.a);
+      if (uDebug > 0.5) { gl_FragColor = vec4(vec3(m), 1.0); return; }
+      // Then the HDR clamp, before bloom and rays read it (it was its own full-screen pass right
+      // after this one — a whole frame read and written again for a few instructions): the sun
+      // disk is thousands of times brighter than the land, and a bad pixel (NaN, infinity, a
+      // mirror-sharp highlight) must not become a glowing blot. Each channel is capped as well as
+      // the brightness (a huge red+blue with no green bloomed magenta on the cliffs).
+      vec3 col = c.rgb * m;
+      if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
+      col = max(col, vec3(0.0));
+      float l = max(dot(col, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+      col *= min(1.0, uLimit / l);
+      gl_FragColor = vec4(min(col, vec3(uLimit * 1.5)), 1.0);
     }`,
   depthTest: false,
   depthWrite: false,

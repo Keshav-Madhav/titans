@@ -52,7 +52,7 @@ import { CliffClimb } from './cliff'
 import { Mountains } from './mountains'
 import { Wildlife, type Threat } from './wildlife'
 import { ancientTrails } from './ancient'
-import { Rocks, rockMaterial } from './rocks'
+import { Rocks, rockMaterial, rockTools } from './rocks'
 import { Colossi } from './colossi'
 import { Leviathans } from './leviathans'
 import { Undercroft } from './hall'
@@ -2939,6 +2939,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  rockTools,
   fogSun,
   fogSunHold,
   bloomSize,
