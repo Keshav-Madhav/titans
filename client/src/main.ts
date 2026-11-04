@@ -2361,6 +2361,10 @@ function frameBody(now: number): void {
     }
     hud.news(j, b)
   } else hud.news(false, false)
+  {
+    camera.getWorldDirection(_bl)
+    wanderer.backlit = THREE.MathUtils.smoothstep(_bl.x * sky.sunDir.x + _bl.z * sky.sunDir.z, 0.15, 0.75) * (1 - sky.night)
+  }
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
   water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
   water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
@@ -2731,6 +2735,7 @@ const birdSpots: Array<{ x: number; z: number; pale?: boolean }> = []
 const SHORE_BIRDS = [-0.3, -0.18, -0.06, 0.06, 0.24, 0.33]
 const mapGiants: Array<{ x: number; z: number }> = []
 const clothWind = new THREE.Vector3()
+const _bl = new THREE.Vector3()
 const _head = new THREE.Vector3()
 /** The ground the cloth must stay above: the land, or the rock you stand on. */
 const groundAt = (x: number, z: number) => {

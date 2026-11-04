@@ -748,6 +748,8 @@ export class Wanderer {
   private readonly hangDir = new THREE.Vector3()
   private readonly windV = new THREE.Vector3()
   private readonly redCloth: THREE.MeshStandardMaterial
+  /** 0 … 1: how far the view looks into the sun (main sets it; the cloak glows a little against it). */
+  backlit = 0
 
   constructor(cloak: THREE.ColorRepresentation = RED) {
     const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.86, side: THREE.DoubleSide, map: clothTexture() })
@@ -1762,7 +1764,9 @@ export class Wanderer {
     const flicker = 0.9 + 0.1 * Math.sin(this.t * 11) * Math.sin(this.t * 7.3)
     // It comes up by itself as the dark comes on (and is all but out by day).
     this.lanternOn += (Math.max(0, (dark - 0.25) / 0.75) - this.lanternOn) * Math.min(1, dt * 0.8)
-    this.redCloth.emissiveIntensity = 0.16 * this.lanternOn
+    // …and against the light: looking toward the sun the cloak went near-black on the bright beach
+    // (QA cycle 7). The red keeps a faint glow of its own as the view turns into the sun.
+    this.redCloth.emissiveIntensity = Math.max(0.16 * this.lanternOn, 0.5 * this.backlit)
     this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
     this.lantern.distance = 10 + this.lanternOn * 18
     // The glass: dim amber by day (a lantern hardly lit), bright and warm in the dark.
