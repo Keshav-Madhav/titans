@@ -33,12 +33,16 @@ Would someone mistake it for a prototype? Less often — the remaining tells:
 
 ## Next
 
-1. Q23 — texture pre-upload at the warm-up is written (textures from materials and from the compiled
-   programs' uniforms, uploaded behind the title); it needs an A/B on a quiet machine before it is
-   believed (the first baseline ran at load average 23 and read 45 fps — contaminated).
-2. Q24 (sunset mist) — wants a look in a real window.
-3. Sound: a person's ears on the mix with the recordings in it.
-4. The running animation: the user's own eye (CHECKLIST P3).
+1. **View culling** (written, building after the sweep): near trees, scanned boulders, stones,
+   reeds and ferns culled per instance; grass culled per cell. They were drawn all round the camera.
+2. **Everything to one standard** (the user: "having good rocks in a shitty-texture game is off
+   too"): a fresh survey of the common views after the sweep, worst-first — the mid/far grassland
+   (most of every frame), cliffs and ravine walls, the Sentinel's tatters, far trees.
+3. **Compressed ground textures** (KTX2/Basis) to afford 2K ground at today's GPU memory (~190 MB
+   for 34 maps at 1K uncompressed; 2K uncompressed would be ~760 MB). Needs an encoder
+   (`ktx2-encoder`, MIT, WebAssembly) and the terrain's texture arrays loading as compressed
+   arrays — a project, not a tweak.
+4. Q36 (a stray water slab), Q24 (sunset mist), Q23 (one GPU hitch at the reveal).
 
 ## Not verified here (limits)
 
