@@ -28,6 +28,36 @@ function fbm(n: Noise2, x: number, y: number, octaves: number): number {
 
 // Ridged multifractal: sharp crests, each octave weighted by the one above,
 // so detail gathers on the ridges and valleys stay smooth. Returns ~[0, 1].
+/**
+ * Dune crests (QA cycle 7: the ridged noise made symmetric V ridges — two flat planes meeting at a
+ * knife edge, read as geometry, not sand). As ridged, but the first octave's crest is rounded (a
+ * smooth |n|) and its flanks unequal: a long gentle side and a steeper slip face.
+ */
+function duneRidge(n: Noise2, x: number, y: number, octaves: number): number {
+  let sum = 0
+  let amp = 0.5
+  let weight = 1
+  let norm = 0
+  for (let o = 0; o < octaves; o++) {
+    const a = n(x, y)
+    // (Smooth |a|, rounded over ~0.07 of the crest; one side 0.55×, the other 0.8× as steep as before — a
+    // steeper slip face crossed the rock threshold and painted red cliff on the sand.)
+    const s = a >= 0 ? a * 0.55 : -a * 0.8
+    const e = o === 0 ? 0.07 : 0.02
+    let r = Math.max(0, 1 - (Math.sqrt(s * s + e * e) - e))
+    r *= r * 0.5 + 0.5
+    r *= weight
+    weight = r * 2 > 1 ? 1 : r * 2
+    sum += r * amp
+    norm += amp
+    const nx = 1.6 * x + 1.2 * y
+    y = -1.2 * x + 1.6 * y
+    x = nx
+    amp *= 0.5
+  }
+  return sum / norm
+}
+
 function ridged(n: Noise2, x: number, y: number, octaves: number): number {
   let sum = 0
   let amp = 0.5
@@ -124,7 +154,7 @@ export class BaseTerrain {
     if (r.desert > 0.001) {
       const u = wx * 0.94 + wz * 0.34
       const v = -wx * 0.34 + wz * 0.94
-      const crest = ridged(this.dunes, u * 0.0042, v * 0.0013, 3)
+      const crest = duneRidge(this.dunes, u * 0.0042, v * 0.0013, 3)
       const swell = 0.5 + 0.5 * fbm(this.dunes, wx * 0.0008 + 9.1, wz * 0.0008 - 4.4, 3)
       h += r.desert * (36 * crest * crest + 22 * swell)
     }

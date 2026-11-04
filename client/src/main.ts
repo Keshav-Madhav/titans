@@ -478,17 +478,22 @@ const spots = (() => {
   const formation = (kind: string, land: string) => rocks.formations.find((f) => f.kind === kind && regions.name(f.x, f.z) === land)
   // A mesa top in the Dune Sea: high above its surroundings, flat on top.
   let mesa: THREE.Vector3 | null = null
-  for (let z = 2800; z <= 6400 && !mesa; z += 150) {
-    for (let x = -3600; x <= 3600 && !mesa; x += 150) {
+  for (let z = 2800; z <= 6400 && !mesa; z += 75) {
+    for (let x = -3600; x <= 3600 && !mesa; x += 75) {
       if (regions.name(x, z) !== 'desert') continue
       const h = H(x, z)
       let ring = 0
       let flat = 0
+      // (And sheer all round: the first spot this found was a hillside at the land's edge, whose
+      // eyes met its ground by luck — rounded dune crests (Q51) took that luck away. A mesa's sides
+      // fall 25 m within 60 m every way; its top carries the dunes' relief, so "flat" is within 4 m.)
+      let drop = Infinity
       for (let k = 0; k < 8; k++) {
         ring += H(x + Math.cos(k * 0.785) * 160, z + Math.sin(k * 0.785) * 160) / 8
         flat = Math.max(flat, Math.abs(H(x + Math.cos(k * 0.785) * 14, z + Math.sin(k * 0.785) * 14) - h))
+        drop = Math.min(drop, h - H(x + Math.cos(k * 0.785) * 60, z + Math.sin(k * 0.785) * 60))
       }
-      if (h - ring > 45 && flat < 1.5) mesa = ground(x, z)
+      if (h - ring > 45 && flat < 4 && drop > 25) mesa = ground(x, z)
     }
   }
   const list: Array<[string, Spot['kind'], THREE.Vector3 | null | undefined]> = []
