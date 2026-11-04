@@ -29,3 +29,4 @@ detail-bar audit); they are not repeated here.
 | Q17 | — | Gemini: "stray broken geometry in the sky" | green @13 s | qa/cycle1/green-13.png | It is a flying giant (a leviathan) far off | — | not a bug | frame checked |
 | Q18 | — | Gemini: "the line is a straight rigid segment" | grapple @12 s | qa/cycle1/grapple-12.png | Under tension, reeling: a taut line is straight; it sags when slack (grapple.ts) | — | not a bug | — |
 | Q19 | — | Gemini: "no footprints in sand", "cape has no cloth sim" | — | — | Both exist (prints.ts; the cape is a verlet cloth) | — | not a bug | sand prints gate; cloth traced in Q6 |
+| Q21 | P2 | The bag, journal and map could all be open at once, stacked over each other | with the bag open press J, then M | qa/adv1 (tools/adversary.mjs) | Each page toggled alone; nothing closed the others | Opening a page closes any other | fixed | adversary: I, J, M, I each leave only their own page open |

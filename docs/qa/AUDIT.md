@@ -82,5 +82,9 @@ PERF.md. Median 60 everywhere measured; the one systematic stall (the first gest
 
 Bad `?weather=` (fixed, Q3), a thrown frame (card, Q1), a damaged save (Q2), rebinding conflicts and
 Esc while listening (keys gate), focus loss (keys released), a hidden tab (sound suspends, save on
-hide). Not yet tried: rapid pause/resume during a climb; resizing mid-climb; reloading during the
-title → waking hand-over.
+hide). `tools/adversary.mjs` (in the sweep) now also does: three reloads during the title → waking
+hand-over; every key mashed while running; the pages flipped fast; pause/resume twelve times in a
+second mid-climb and the window resized four ways; let-go keys pressed while paused on a giant
+(ignored, as they should be); focus lost with W held (stops); a fall from the Colonnade spamming
+jump and the line. One real bug: the pages stacked (Q21, fixed). Nothing threw; the wanderer was
+always somewhere sane.

@@ -3,6 +3,9 @@
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
 ## 2026-11-04 — cycle 3
+- **Adversarial QA** (`tools/adversary.mjs`, in the sweep): reloads mid-waking, key mashing, page
+  flipping, pause/resize mid-climb, focus loss, a fall with the line spammed. Found: the pages stacked
+  (Q21) — now one page at a time.
 - **Loading screen** (Q16): the key art instead of a bare gradient; the title placed clear of the
   giant at every screen shape. Full gate sweep on the cycle-3 build: 50 passed.
 - **Terminology** (Q20): the one stray "First Ones" in player text replaced.

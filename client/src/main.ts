@@ -242,7 +242,13 @@ const mapPlaces: MapPlace[] = [
   { name: 'The Frozen One', kind: 'colossus', x: Math.sin(HIGH.axis) * HIGH.frozenD, z: Math.cos(HIGH.axis) * HIGH.frozenD },
 ]
 const worldMap = new WorldMap(terrain, mapPlaces)
+/** One page at a time: opening one closes any other (they piled up — the bag, the journal and
+ *  the map all open over each other, found by mashing their keys; QA adversary). */
+function onlyPage(keep: { open: boolean }): void {
+  for (const p of [bag, journal, worldMap]) if (p !== keep && p.open) p.toggle()
+}
 worldMap.onToggle = (open?: boolean) => {
+  if (open) onlyPage(worldMap)
   input.releaseAll()
   if (open && tipState.high > 150) tipState.mapped = true
   sound.ui(open === false ? 'map-close' : 'map-open')
@@ -987,6 +993,7 @@ function dreadWorld() {
   }
 }
 journal.onToggle = (open?: boolean) => {
+  if (open) onlyPage(journal)
   input.releaseAll()
   sound.ui(open === false ? 'book-close' : 'book-open')
 }
@@ -994,6 +1001,7 @@ journal.allowed = () => toolMode || bag.have
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
 bag.onToggle = (open) => {
+  if (open) onlyPage(bag)
   input.releaseAll()
   sound.ui(open ? 'bag-open' : 'bag-close')
   if (open) tipState.looked = true
