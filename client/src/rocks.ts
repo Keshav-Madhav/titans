@@ -361,8 +361,28 @@ export class Rocks {
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(col, 3))
     geometry.setAttribute('aLayer', new THREE.BufferAttribute(layer, 3))
+    // Weathered from the ground up too (the Colonnade's pillars stood spotless to the clouds): each
+    // point's height above the land under it, and how tall the work is.
+    {
+      const pos = geometry.getAttribute('position')
+      geometry.computeBoundingBox()
+      const bb = geometry.boundingBox!
+      const tall = Math.max(1, bb.max.y - bb.min.y)
+      const c = Math.cos(p.rot)
+      const sn = Math.sin(p.rot)
+      const above = new Float32Array(n * 2)
+      for (let i = 0; i < n; i++) {
+        const lx = pos.getX(i)
+        const lz = pos.getZ(i)
+        const wx = p.x + lx * c + lz * sn
+        const wz = p.z - lx * sn + lz * c
+        above[i * 2] = p.y + pos.getY(i) - this.terrain.heightAt(wx, wz)
+        above[i * 2 + 1] = tall
+      }
+      geometry.setAttribute('aAbove', new THREE.BufferAttribute(above, 2))
+    }
     geometry.computeBoundingSphere()
-    const mesh = new THREE.Mesh(geometry, p.occlusion ? rockMaterial(this.textures, p.occlusion) : this.material)
+    const mesh = new THREE.Mesh(geometry, p.occlusion ? rockMaterial(this.textures, p.occlusion, true) : this.material)
     mesh.position.set(p.x, p.y, p.z)
     mesh.rotation.y = p.rot
     mesh.castShadow = true
