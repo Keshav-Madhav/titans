@@ -24,7 +24,9 @@ page.on('console', (m) => {
 
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 })
 const t0 = Date.now()
-await page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 120000 })
+// (240 s: with the machine busy a healthy load took over 120 s and failed four gates in one
+// sweep, each passing alone. A real hang still fails.)
+await page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 240000 })
 console.log(`ready in ${Date.now() - t0} ms`)
 await page.waitForTimeout(900) // the loading veil fades for 0.8 s
 
@@ -342,7 +344,7 @@ const scenes = {
   },
   // From where you wake, toward each land: is there room between the big things?
   async vistas() {
-    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 180000 })
+    await page.waitForFunction(() => window.__g.rocks.formations.filter((f) => f.always).every((f) => f.mesh), null, { timeout: 300000 })
     await page.evaluate(() => window.__g.weather.set('breaking', true))
     const views = [
       ['north-sentinel', 0, -1],
