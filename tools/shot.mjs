@@ -419,8 +419,26 @@ const scenes = {
     // "Go on" in sight without scrolling, at both sizes.
     const goOn = await page.evaluate(() => { const r = document.getElementById('pause-resume').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0 })
     if (!goOn) throw new Error('"Go on" is out of sight on a short window')
-    console.log('pause overflow', JSON.stringify({ wide, narrow }))
-    if (wide.length || narrow.length) throw new Error('pause page spills past its panel')
+    // The largest text: the same rules hold (scrolls, nothing past the edge, Go on in sight).
+    // (Scrolled into the body's view by hand: Playwright scrolls the clipped frame itself.)
+    await page.evaluate(() => [...document.querySelectorAll('#pause-body button')].find((b) => b.textContent === 'Largest').scrollIntoView({ block: 'center' }))
+    await page.locator('.pause-row', { hasText: 'Text size' }).locator('button', { hasText: 'Largest' }).click()
+    await page.waitForTimeout(300)
+    const bigNarrow = await over()
+    const bigGo = await page.evaluate(() => { const r = document.getElementById('pause-resume').getBoundingClientRect(); return r.bottom <= innerHeight && r.top >= 0 })
+    await page.screenshot({ path: `${OUT}/pause-phone-big.png` })
+    await page.setViewportSize({ width: 1280, height: 760 })
+    await page.waitForTimeout(300)
+    const bigWide = await over()
+    await page.screenshot({ path: `${OUT}/pause-big.png` })
+    await page.evaluate(() => { window.__g.pause.resume(); window.__g.narration.say('A long caption, to see the largest text wrap where it should, and not run under the map or off the screen.') })
+    await page.waitForTimeout(800)
+    await page.screenshot({ path: `${OUT}/hud-big.png` })
+    await page.evaluate(() => window.__g.pause.show())
+    await page.evaluate(() => [...document.querySelectorAll('#pause-body button')].find((b) => b.textContent === 'As made').click())
+    console.log('pause overflow', JSON.stringify({ wide, narrow, bigWide, bigNarrow, bigGo }))
+    if (wide.length || narrow.length || bigWide.length || bigNarrow.length) throw new Error('pause page spills past its panel')
+    if (!bigGo) throw new Error('"Go on" out of sight with the largest text')
   },
   // The Shore: the beach, the sea (you swim in it), the Wader wading out in the deep.
   async shore() {

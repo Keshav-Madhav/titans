@@ -34,14 +34,18 @@ kbd {
 
 /* The key strip along the bottom: quiet, no box. */
 #hint {
-  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
-  font: 14px/1 var(--serif); letter-spacing: 0.02em; color: rgba(246, 240, 228, 0.86);
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  /* Clear of the minimap on both sides (it ran under it with large text): wraps instead. */
+  width: max-content; max-width: calc((100vw - 420px) / var(--text-zoom, 1));
+  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 15px; row-gap: 0;
+  font: 14px/1.7 var(--serif); letter-spacing: 0.02em; color: rgba(246, 240, 228, 0.86);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); pointer-events: none; transition: opacity 0.8s;
   padding: 10px 28px 6px;
   /* (A soft band of shade behind it: it has to read over bright grass.) */
   background: radial-gradient(ellipse at 50% 70%, rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0.26) 55%, transparent 75%);
 }
 /* Out of the picture while you move, once you know the keys (hud.ts settle). */
+#hint > span { white-space: nowrap; }
 #hint.away { opacity: 0; transition: opacity 2.4s; }
 #hint kbd.news { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.85), 0 0 12px rgba(232, 160, 80, 0.6); animation: glint 2.4s ease-in-out infinite; }
 @keyframes glint { 50% { box-shadow: 0 0 0 2px rgba(232, 160, 80, 0.35), 0 0 4px rgba(232, 160, 80, 0.2); } }
@@ -60,7 +64,8 @@ kbd {
 
 /* The narration: captions over the world, bottom left, fading as they age. */
 #narration {
-  position: fixed; left: 22px; bottom: 58px; width: min(440px, 28vw, calc(100vw - 44px)); min-width: min(300px, calc(100vw - 44px));
+  /* (Lifted with the text size: the key strip below may wrap to two lines.) */
+  position: fixed; left: 22px; bottom: calc(58px + (var(--text-zoom, 1) - 1) * 90px); width: min(440px, 28vw, calc(100vw - 44px)); min-width: min(300px, calc(100vw - 44px));
   display: flex; flex-direction: column; gap: 8px; pointer-events: none;
   /* (Its own stacking context: the darkening's z-index -1 then sits behind the captions but
      above the game — without it, it went behind the canvas and never showed.) */
@@ -151,7 +156,7 @@ kbd {
 
 /* The bag: tooled leather, stitched round, the things in it laid in soft hollows. */
 #bag-frame {
-  position: relative; width: min(820px, calc(100vw - 32px)); max-height: 84vh; overflow: auto; padding: 30px 34px 32px;
+  position: relative; width: min(820px, calc((100vw - 32px) / var(--text-zoom, 1))); max-height: calc(84vh / var(--text-zoom, 1)); overflow: auto; padding: 30px 34px 32px;
   display: grid; grid-template-columns: 1fr 260px; gap: 26px; color: var(--gilt);
   background: var(--tex-leather), #4f3522; background-size: 256px;
   border-radius: 16px;
@@ -205,7 +210,7 @@ kbd {
 
 /* The journal: an open notebook, a page each side of the gutter. */
 #journal-frame {
-  position: relative; width: min(1040px, calc(100vw - 40px)); max-height: 86vh; overflow: auto; padding: 34px 48px 40px;
+  position: relative; width: min(1040px, calc((100vw - 40px) / var(--text-zoom, 1))); max-height: calc(86vh / var(--text-zoom, 1)); overflow: auto; padding: 34px 48px 40px;
   color: var(--ink-brown);
   background:
     linear-gradient(90deg, transparent 47.5%, rgba(70, 48, 24, 0.2) 49.6%, rgba(40, 26, 12, 0.32) 50%, rgba(70, 48, 24, 0.2) 50.4%, transparent 52.5%),
@@ -261,7 +266,7 @@ kbd {
   backdrop-filter: blur(6px) saturate(0.7); -webkit-backdrop-filter: blur(6px) saturate(0.7);
 }
 #pause-frame {
-  width: min(520px, calc(100vw - 32px)); max-height: 88vh; overflow: hidden; padding: 34px 40px 30px; color: var(--ink-brown);
+  width: min(520px, calc((100vw - 32px) / var(--text-zoom, 1))); max-height: calc(88vh / var(--text-zoom, 1)); overflow: hidden; padding: 34px 40px 30px; color: var(--ink-brown);
   display: flex; flex-direction: column;
   background: linear-gradient(90deg, rgba(90, 64, 34, 0.16), transparent 7%, transparent 93%, rgba(90, 64, 34, 0.16)), var(--tex-page), #e2d6bc;
   background-size: auto, 256px; border-radius: 4px; animation: open 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -346,7 +351,7 @@ body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
 
 /* A short window (a phone held sideways): the page keeps most of its height for the settings. */
 @media (max-height: 480px) {
-  #pause-frame { max-height: calc(100vh - 28px); padding: 16px 26px 14px; }
+  #pause-frame { max-height: calc((100vh - 28px) / var(--text-zoom, 1)); padding: 16px 26px 14px; }
   #pause-frame h1 { font-size: 26px; }
   .pause-sub { display: none; }
   #pause-body h2 { margin-top: 14px; }
@@ -376,3 +381,7 @@ body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
 #pause button.pause-resetkeys { margin: 2px 0 0; padding-left: 0; }
 #pause button.pause-resetkeys:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
 .pause-pad { margin: 8px 0 4px; font: italic 14px/1.45 var(--serif); color: var(--ink-soft); }
+
+/* Text size (settings): the captions, prompts, cards and pages grow together; the layout
+   rules (wrap, the pause body scrolling) hold at every step. */
+#hint, #tips, #narration, #prompt, #found, #role, #bag-frame, #journal-frame, #pause-frame { zoom: var(--text-zoom, 1); }

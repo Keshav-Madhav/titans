@@ -2726,6 +2726,8 @@ function applySettings(s: Settings): void {
   rig.invertY = s.invertY
   rig.shakeScale = s.shake
   setBindings(s.keys)
+  input.toggles = s.toggleHolds
+  document.documentElement.style.setProperty('--text-zoom', String(s.textSize))
   weather.softFlash = s.softFlash
   if (!toolMode) quality.choose(s.resolution, s.detail)
 }

@@ -636,8 +636,8 @@ Held against the bar, honestly. ✅ already met · 🔧 done in this round · �
 - 🔧 Nitpicks found by review: the Wader "met" from inside the Husk; the Old Wood's wisp waiting under a Mire pool; grass on pool beds.
 - 🔧 Gamepad: left stick walks (round dead zone, part-way walks slower), right stick looks, A jump, X use, B line, Y horn, RB run, LT/RT bow, LB sight, Back map, d-pad journal/bag, Start pause (keys gate, simulated pad). Pause page buttons are not pad-navigable yet.
 - 🔧 Rebinding: one binding table (input.ts ACTIONS); click a keycap on the pause page, press the new key, Esc keeps it, a key in use swaps, reset; saved with the settings; every prompt's keycaps relabel to the player's keys (keys gate). Mouse buttons are not rebindable.
-- ⬜ Hold-to-toggle for the holds (V sight-stone, Q draw, G reel).
-- ⬜ Text-size setting (captions, cards).
+- 🔧 Holds as toggles (setting): run, draw (Q / right mouse / LT), sight-stone. G stays a hold: a press throws the line, holding reels.
+- 🔧 Text size (As made / Larger / Largest): captions, prompts, cards, bag, journal and pause grow together; panels divide their screen-relative sizes by it; the key strip wraps clear of the minimap (no line starting with a dot); captions lift above it (pause gate checks at the largest size, desktop and phone).
 - ⬜ Sound is all synthesised (WebAudio) — the bar asks for recorded SFX (CC0 recordings, AUDIO.md). Big; needs free sources.
 - ⬜ Seeded randomness: a few gameplay picks still use Math.random (awakening, spots, wisps, main).
 - ⬜ A frame-rate proof (same inputs at 30/60/144 Hz give the same walk).

@@ -14,6 +14,11 @@ const RESOLUTIONS: Choice<Settings['resolution']> = [
   [0.75, '¾'],
   [0.5, '½'],
 ]
+const TEXT_SIZES: Choice<Settings['textSize']> = [
+  [1, 'As made'],
+  [1.2, 'Larger'],
+  [1.4, 'Largest'],
+]
 const DETAILS: Choice<Settings['detail']> = [
   ['auto', 'Auto'],
   [0, 'High'],
@@ -153,7 +158,7 @@ export class Pause {
       i.addEventListener('input', () => this.set(k, Number(i.value)))
       return i
     }
-    const toggle = (k: 'sound' | 'invertY' | 'softFlash') => {
+    const toggle = (k: 'sound' | 'invertY' | 'softFlash' | 'toggleHolds') => {
       const b = document.createElement('button')
       b.className = 'pause-toggle'
       const draw = () => {
@@ -168,7 +173,7 @@ export class Pause {
       })
       return b
     }
-    const choose = <K extends 'resolution' | 'detail'>(k: K, options: Choice<Settings[K]>) => {
+    const choose = <K extends 'resolution' | 'detail' | 'textSize'>(k: K, options: Choice<Settings[K]>) => {
       const g = document.createElement('span')
       g.className = 'pause-choice'
       for (const [v, name] of options) {
@@ -245,7 +250,9 @@ export class Pause {
     row('Resolution', choose('resolution', RESOLUTIONS))
     row('Detail', choose('detail', DETAILS))
     section('Comfort')
+    row('Text size', choose('textSize', TEXT_SIZES))
     row('Ground shake', slider('shake', 0, 1, 0.05))
     row('Soft lightning', toggle('softFlash'))
+    row('Holds as toggles (run, bow, sight-stone)', toggle('toggleHolds'))
   }
 }

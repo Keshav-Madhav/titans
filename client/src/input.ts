@@ -25,6 +25,9 @@ export const ACTIONS: ReadonlyArray<readonly [string, string]> = [
   ['KeyI', 'Bag'],
 ]
 
+/** Actions that can be a toggle instead of a hold (settings: "Holds as toggles"). */
+export const TOGGLEABLE = new Set(['ShiftLeft', 'KeyQ', 'KeyV', 'Mouse2'])
+
 /** The rebinding page is listening for a key: the game ignores keys meanwhile. */
 export const capture = { on: false }
 
@@ -94,6 +97,7 @@ export class Input {
       if (e.repeat || (e.target as HTMLElement | null)?.tagName === 'INPUT' || capture.on) return
       const a = actionOf(e.code)
       if (a) {
+        if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.down.add(a)
         this.pressedOnce.add(a)
       }
@@ -117,7 +121,10 @@ export class Input {
       // A left click while looking around (pointer locked) is an action, not a lock request.
       if (e.button === 0 && document.pointerLockElement === canvas) this.clicks++
       // While looking around, the right button is held like a key (drawing the bow).
-      if (e.button === 2 && document.pointerLockElement === canvas) this.down.add('Mouse2')
+      if (e.button === 2 && document.pointerLockElement === canvas) {
+        if (this.toggles) this.flip('Mouse2')
+        this.down.add('Mouse2')
+      }
     })
     addEventListener('mouseup', (e) => {
       if (e.button === 2) {
@@ -141,7 +148,17 @@ export class Input {
     )
   }
 
+  /** Holds as toggles (settings): a press holds it, the next press lets go. */
+  toggles = false
+  private readonly latched = new Set<string>()
+
+  private flip(a: string): void {
+    if (this.latched.has(a)) this.latched.delete(a)
+    else this.latched.add(a)
+  }
+
   held(code: string): boolean {
+    if (this.toggles && TOGGLEABLE.has(code)) return this.latched.has(code)
     return this.down.has(code) || this.padHeld.has(code)
   }
 
@@ -194,6 +211,7 @@ export class Input {
       const a = PAD_BUTTONS[i]
       if (!a) return
       if (on && !was) {
+        if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.padHeld.add(a)
         this.pressedOnce.add(a)
       } else if (!on && was) this.padHeld.delete(a)
@@ -238,6 +256,7 @@ export class Input {
 
   /** Drop every held key (focus moved to chat, etc.). */
   releaseAll(): void {
+    this.latched.clear()
     this.down.clear()
     this.padHeld.clear()
     this.pressedOnce.clear()

@@ -25,8 +25,8 @@ export class Hud {
     if (any && !this.hasNews) this.newsAge = 0
     this.hasNews = any
     for (const k of this.hint.querySelectorAll('kbd')) {
-      if (k.textContent === 'J') k.classList.toggle('news', journal)
-      if (k.textContent === 'I') k.classList.toggle('news', bag)
+      if ((k.dataset.k ?? k.textContent) === 'J') k.classList.toggle('news', journal)
+      if ((k.dataset.k ?? k.textContent) === 'I') k.classList.toggle('news', bag)
     }
   }
 
@@ -53,7 +53,13 @@ export class Hud {
     this.mode = mode
     this.modeAge = 0
     this.role.innerHTML = mode === 'climbing' ? '<b>Climbing</b>' : mode === 'flying' ? '<b>Flying</b>' : '<b>Wanderer</b>'
-    this.hint.innerHTML = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '') + (mode === 'wanderer' ? ' · <kbd>?</kbd> controls' : '')
+    const all = HINTS[mode] + (mode === 'wanderer' && this.haveBag ? ' · <kbd>M</kbd> map · <kbd>J</kbd> journal · <kbd>I</kbd> bag' : '') + (mode === 'wanderer' ? ' · <kbd>?</kbd> controls' : '')
+    // Each key and its word kept together; the strip wraps between them (never a line
+    // starting with a dot), spaced instead of dotted.
+    this.hint.innerHTML = all
+      .split(' · ')
+      .map((x) => `<span>${x}</span>`)
+      .join('')
   }
 
   private haveBag = false
