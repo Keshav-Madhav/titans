@@ -2035,7 +2035,10 @@ function pushYaw(): number {
 /** Pushed up against rock you could take hold of (for the prompt): a land cliff or a solid. */
 let wallSeen = { at: 0, yes: false }
 function wallToClimb(): boolean {
-  if (mantle.push < 0.3 || !wanderer.grounded) return false
+  // (Swimming too: a lake in a giant's footprint has sheer banks, and with no prompt there a
+  // swimmer pressed against one never learnt E takes hold — the first-hour run swam at one for
+  // seventeen minutes.)
+  if (mantle.push < 0.3 || !(wanderer.grounded || wanderer.swimming)) return false
   const now = performance.now()
   if (now - wallSeen.at > 250) {
     chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
