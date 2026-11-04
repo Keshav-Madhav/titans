@@ -5,7 +5,7 @@
 ## Where it stands
 
 TITANS reads as a game with a point of view: a small figure, very large slow things, weather and
-light doing the work. Since the QA loop began (cycles 1–4):
+light doing the work. Since the QA loop began (cycles 1–6):
 
 - **It holds up when played.** The first hour plays through from a fresh profile without getting
   stuck. Nine scenes (opening, Green, climb, grapple, storm, Shore, Grove, dusk, Mire at night)
@@ -33,10 +33,12 @@ Would someone mistake it for a prototype? Less often — the remaining tells:
 
 ## Next
 
-1. The sweep for cycle 4 (running).
-2. A Gemini pass on the dusk/Mire/Grove frames, checked frame by frame.
-3. The grass edge seen from a height (CHECKLIST P3).
-4. Q24 and Q23 when there is a real window to look through.
+1. Q23 — texture pre-upload at the warm-up is written (textures from materials and from the compiled
+   programs' uniforms, uploaded behind the title); it needs an A/B on a quiet machine before it is
+   believed (the first baseline ran at load average 23 and read 45 fps — contaminated).
+2. Q24 (sunset mist) — wants a look in a real window.
+3. Sound: a person's ears on the mix with the recordings in it.
+4. The running animation: the user's own eye (CHECKLIST P3).
 
 ## Not verified here (limits)
 
