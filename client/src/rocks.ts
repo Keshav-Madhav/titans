@@ -173,6 +173,18 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           cA *= vec3(1.02, 0.97, 0.86);
           cA *= mix(1.0, 0.6, smoothstep(0.1, -0.7, rN.y));
         }
+        // Carving worn away (the Colonnade: "carved all over with figures too worn to read" — it was
+        // crisp, even wallpaper to the clouds). In broad patches, and more toward the weather side
+        // (up), the carved stone gives way to plain worn rock: the relief softened and gone.
+        if (abs(vLayer.x - 8.0) < 0.5 || abs(vLayer.x - 9.0) < 0.5) {
+          vec3 nE;
+          float wear = triTex(vLayer.x, 1.0 / 61.0, vRockPos + 141.0, rN, nE).g;
+          vec3 nP;
+          vec3 plain = triTex(6.0, 1.0 / 7.0, vRockPos + 9.0, rN, nP) * vec3(1.05, 1.0, 0.92);
+          float worn = smoothstep(0.38, 0.62, wear + 0.18 * rN.y);
+          cA = mix(cA, mix(plain, vec3(dot(cA, vec3(0.333))), 0.35), worn * 0.85);
+          nA = normalize(mix(nA, nP, worn * 0.85));
+        }
         // Weathered from the ground up (the user, 2026-11-04: the statues "look like someone placed
         // them there — something that has existed for a while, the environment would have grown round
         // it"). A damp band climbing a ragged height off the land — taller on taller things — dark and
