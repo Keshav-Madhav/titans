@@ -29,12 +29,25 @@
         background: var(--panel); font: 11px/1.45 ui-monospace, 'SF Mono', Menlo, monospace;
         color: var(--ink-dim); white-space: pre; pointer-events: none;
       }
+      /* Grip (hud.ts): a leather strap with quarter ticks, a label, a ghost of what was lost. */
       #grip {
-        position: fixed; left: 50%; bottom: 62px; width: 160px; height: 6px; margin-left: -80px; border-radius: 3px;
-        background: rgba(18, 20, 26, 0.45); display: none; overflow: hidden;
+        position: fixed; left: 50%; bottom: 74px; transform: translate(-50%, 6px); display: flex; align-items: center; gap: 9px;
+        opacity: 0; transition: opacity 0.35s, transform 0.35s; pointer-events: none;
       }
-      #grip i { display: block; height: 100%; width: 100%; background: #f2c14e; transition: background 0.3s; }
-      #grip.low i { background: #e0573f; }
+      #grip.on { opacity: 1; transform: translate(-50%, 0); }
+      #grip .grip-label { font: italic 13px/1 'EB Garamond', Georgia, serif; letter-spacing: 0.12em; color: rgba(246, 240, 228, 0.82); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+      #grip .grip-track {
+        position: relative; width: 168px; height: 9px; border-radius: 5px; overflow: hidden;
+        background: linear-gradient(#2a1c10, #3a2818); box-shadow: 0 0 0 1px rgba(20, 12, 6, 0.85), 0 0 0 2px rgba(214, 180, 120, 0.28), 0 2px 8px rgba(0, 0, 0, 0.45);
+      }
+      #grip .grip-track > * { position: absolute; left: 0; top: 0; bottom: 0; display: block; }
+      #grip b { width: 100%; background: rgba(255, 232, 190, 0.55); }
+      #grip i { width: 100%; background: linear-gradient(#f4d488, #d9a648 60%, #b9832e); transition: background 0.3s; }
+      #grip i::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 6px; background: rgba(255, 246, 220, 0); transition: background 0.2s; }
+      #grip.gain i::after { background: rgba(255, 246, 220, 0.85); box-shadow: 0 0 8px rgba(255, 236, 180, 0.9); }
+      #grip u { right: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(20, 12, 6, 0.75) calc(25% - 1px) 25%); }
+      #grip.low i { background: linear-gradient(#f08a6a, #d0452c 60%, #a8301c); animation: grip-low 0.7s ease-in-out infinite; }
+      @keyframes grip-low { 50% { filter: brightness(1.45); } }
       #sight {
         position: fixed; inset: 0; pointer-events: none; opacity: 0;
         background: radial-gradient(ellipse at center, rgba(40, 90, 100, 0.06) 35%, rgba(6, 22, 28, 0.62) 100%);

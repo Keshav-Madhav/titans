@@ -93,15 +93,43 @@ export class Hud {
   }
 
   private mode = ''
-  private readonly grip = document.getElementById('grip')!
-  private readonly gripBar = this.grip.firstElementChild as HTMLElement
+  // A leather strap with quarter ticks: the ghost (a loss, held then drained), the fill, the ticks.
+  private readonly grip = (() => {
+    const g = document.getElementById('grip')!
+    g.innerHTML = '<span class="grip-label">grip</span><span class="grip-track"><b></b><i></i><u></u></span>'
+    return g
+  })()
+  private readonly gripGhost = this.grip.querySelector('b') as HTMLElement
+  private readonly gripBar = this.grip.querySelector('i') as HTMLElement
+  private ghost = 1
+  private ghostHold = 0
+  private gripLast = 1
+  private gripAt = 0
 
-  /** Grip stamina bar, shown only while climbing. */
+  /**
+   * Grip, while climbing. A loss flashes and holds as a pale "ghost" before it drains; regaining
+   * glows at the leading edge; under a quarter it pulses. (It was a bare 6 px yellow bar — QA:
+   * it read as a debug widget.)
+   */
   setGrip(stamina: number | null): void {
-    this.grip.style.display = stamina === null ? 'none' : 'block'
-    if (stamina === null) return
-    this.gripBar.style.width = `${Math.round(stamina * 100)}%`
+    const now = performance.now()
+    const dt = Math.min(0.1, (now - (this.gripAt || now)) / 1000)
+    this.gripAt = now
+    this.grip.classList.toggle('on', stamina !== null)
+    if (stamina === null) {
+      this.ghost = 1
+      this.gripLast = 1
+      return
+    }
+    if (stamina >= this.ghost) {
+      this.ghost = stamina
+      this.ghostHold = 0
+    } else if ((this.ghostHold += dt) > 0.3) this.ghost = Math.max(stamina, this.ghost - dt * 0.6)
+    this.gripBar.style.width = `${(stamina * 100).toFixed(1)}%`
+    this.gripGhost.style.width = `${(this.ghost * 100).toFixed(1)}%`
     this.grip.classList.toggle('low', stamina < 0.25)
+    this.grip.classList.toggle('gain', stamina > this.gripLast + 1e-4)
+    this.gripLast = stamina
   }
 
   loaded(): void {
