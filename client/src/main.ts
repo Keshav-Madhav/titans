@@ -18,6 +18,7 @@ import {
   SPREAD,
   TITAN_HEIGHT,
   WORLD_SEED,
+  mulberry32,
   HALL,
   DELL,
   SHORE,
@@ -108,6 +109,7 @@ import { Pause } from './pause'
 import { Tips } from './tips'
 import { Quality } from './quality'
 import { fogSun, fogSunHold, installAtmosphere, setFogSun } from './atmosphere'
+import { weatheredStone } from './weathered-stone'
 import { Post, bloomSize, raysSize, sceneSoft } from './post'
 import { Weather } from './weather'
 import { crash, isBroken, watchErrors } from './crash'
@@ -334,7 +336,7 @@ const mound = (() => {
   earth.position.set(MOUND.x, y - 0.4, MOUND.z)
   earth.receiveShadow = true
   // A corner of carved stone pokes out of it: the hint.
-  const corner = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 1.1), carvedStone())
+  const corner = new THREE.Mesh(weatheredStone(1.3, 0.9, 1.1, mulberry32(77), true, 0.1), carvedStone())
   corner.position.set(MOUND.x + 4.5, y + 1.2, MOUND.z - 2)
   corner.rotation.set(0.3, 0.6, 0.2)
   const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.0), carvedStone())
@@ -581,7 +583,8 @@ const spots = (() => {
   if (pillar) list.push(['beads-pillar', 'trinket', new THREE.Vector3(pillar.x + 1.5, (rocks.topAt(pillar.x + 1.5, pillar.z) ?? pillar.y), pillar.z)])
   // The bow, on an altar at the Undercroft's far end, with a stone beside it.
   const altarAt = ground(HALL.x + 186, HALL.z)
-  const altar = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.1, 1.3), carvedStone())
+  // (Weathered, its top flat: the bow lies on it.)
+  const altar = new THREE.Mesh(weatheredStone(2.6, 1.1, 1.3, mulberry32(91), false, 0, true), carvedStone())
   altar.position.set(altarAt.x, altarAt.y + 0.55, altarAt.z)
   altar.castShadow = altar.receiveShadow = true
   scene.add(altar)

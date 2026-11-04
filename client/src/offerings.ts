@@ -9,6 +9,8 @@ import type { Terrain } from '@titans/shared'
 import { CATALOGUE } from './discovery'
 import { drawIcon } from './bag'
 import { carvedStone } from './spots'
+import { mulberry32 } from '@titans/shared'
+import { weatheredStone } from './weathered-stone'
 
 export interface ShrineDef {
   /** What it answers with (a lore id). */
@@ -27,11 +29,13 @@ export class Offerings {
     for (const def of defs) {
       const y = terrain.heightAt(def.x, def.z)
       const g = new THREE.Group()
-      const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 1.2), carvedStone())
+      // (Weathered stone — QA cycle 7; the base's top stays flat, the bowl sits on it.)
+      const rs = mulberry32(Math.round(def.x * 3 + def.z * 5))
+      const base = new THREE.Mesh(weatheredStone(1.8, 0.7, 1.2, rs, false, 0, true), carvedStone())
       base.position.y = 0.3
       const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.3, 0.22, 16, 1, true), carvedStone())
       bowl.position.y = 0.76
-      const back = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.7, 0.3), carvedStone())
+      const back = new THREE.Mesh(weatheredStone(1.6, 1.7, 0.3, rs, true, 0), carvedStone())
       back.position.set(0, 1.2, -0.5)
       // The carving: what it wants, drawn on the stone (dim until answered).
       const want = CATALOGUE.find((c) => c.id === def.wants)
@@ -39,7 +43,7 @@ export class Offerings {
       tex.colorSpace = THREE.SRGBColorSpace
       const glow = new THREE.MeshBasicMaterial({ map: tex, transparent: true, color: new THREE.Color(0.5, 0.46, 0.4) })
       const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), glow)
-      plaque.position.set(0, 1.35, -0.34)
+      plaque.position.set(0, 1.35, -0.33)
       g.add(base, bowl, back, plaque)
       g.position.set(def.x, y, def.z)
       // Facing the land's centre.
