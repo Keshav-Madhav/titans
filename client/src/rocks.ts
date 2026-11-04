@@ -131,6 +131,31 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         `vec3 rN = normalize(vRockN);
         vec3 nA; vec3 nB;
         vec3 cA = triTex(vLayer.x, 1.0 / vLayer.z, vRockPos, rN, nA);
+        // Never one texture's repeat across a body hundreds of metres long (the user, 2026-11-04:
+        // "the Drowned One and other titan statues have a tiling, plain, placeholder-like texture" —
+        // its moss repeated every few metres and read as an even knit from afar). Two more looks at
+        // the same surface, ~5× and ~20× larger, taking over with distance, and broad swathes of
+        // light and dark that repeat at nothing near the body's size.
+        {
+          float rd = distance(vRockPos, cameraPosition);
+          float kMid = smoothstep(20.0, 160.0, rd);
+          float kFar = smoothstep(180.0, 900.0, rd);
+          vec3 nT;
+          float macro = triTex(vLayer.x, 1.0 / (vLayer.z * 37.0), vRockPos + 211.0, rN, nT).g;
+          if (kMid > 0.01) {
+            vec3 n2;
+            vec3 c2 = triTex(vLayer.x, 1.0 / (vLayer.z * 4.7), vRockPos + 53.0, rN, n2);
+            float k = max(0.8 * kMid, 0.3 * smoothstep(0.35, 0.65, macro));
+            cA = mix(cA, c2, k);
+            nA = normalize(mix(nA, n2, k));
+          }
+          if (kFar > 0.01) {
+            vec3 n3;
+            vec3 c3 = triTex(vLayer.x, 1.0 / (vLayer.z * 21.0), vRockPos + 11.0, rN, n3);
+            cA = mix(cA, c3, 0.65 * kFar);
+          }
+          cA *= 0.7 + 0.6 * smoothstep(0.2, 0.8, macro);
+        }
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);
         // Moss, leaf litter or sand on the faces that look up — in patches, the
         // stone showing through (a big flat top must not read as one green sheet).
@@ -139,6 +164,20 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
         // Ground layers on top get the ground's green; generated moss is coloured already.
         vec3 topTint = vLayer.y < 7.5 ? vec3(0.8, 1.15, 0.7) : vec3(0.72, 0.8, 0.66);
+        // The moss's repeat (QA cycle 7: on the Drowned One, 200 m long, its 3.2 m tile read as one
+        // even knit from a few hundred metres). A second look at ~17 m, taking over with distance,
+        // and broad lighter/darker swathes — only where there is moss.
+        if (topT > 0.01) {
+          float rd = distance(vRockPos, cameraPosition);
+          vec3 nB2;
+          vec3 cB2 = triTex(vLayer.y, 1.0 / 17.0, vRockPos + 31.0, rN, nB2);
+          float k2 = max(0.85 * smoothstep(30.0, 220.0, rd), 0.35 * smoothstep(0.3, 0.7, patchy));
+          cB = mix(cB, cB2, k2);
+          nB = normalize(mix(nB, nB2, k2));
+          vec3 nS;
+          float swath = triTex(vLayer.y, 1.0 / 90.0, vRockPos + 7.0, rN, nS).g;
+          cB *= 0.72 + 0.56 * smoothstep(0.2, 0.8, swath);
+        }
         diffuseColor.rgb = mix(cA, cB * topTint, topT) * vColor.rgb;
         rockN = normalize(mix(nA, nB, topT));`,
       )
