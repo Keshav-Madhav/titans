@@ -180,9 +180,19 @@ export class WaterView {
     const W = b.w + 2
     const H = b.h + 2
     // (Stored above the lake's lowest point, as half floats: centimetres near the shore.)
-    const data = new Uint16Array(W * H)
-    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) data[j * W + i] = THREE.DataUtils.toHalfFloat(heightAt(b.x0 + i - 1, b.z0 + j - 1) - b.bottom)
-    const bed = new THREE.DataTexture(data, W, H, THREE.RedFormat, THREE.HalfFloatType)
+    // (And whether each cell is the lake's at all, in G: the mesh runs a cell past the shore for the
+    // ground to cut, but where the land just past the rim dips below the water that border cell stood
+    // as a floating blue slab over the grass — QA Q36. The water fades out where G does.)
+    const data = new Uint16Array(W * H * 2)
+    for (let j = 0; j < H; j++)
+      for (let i = 0; i < W; i++) {
+        const k = (j * W + i) * 2
+        data[k] = THREE.DataUtils.toHalfFloat(heightAt(b.x0 + i - 1, b.z0 + j - 1) - b.bottom)
+        const bi = i - 1
+        const bj = j - 1
+        data[k + 1] = THREE.DataUtils.toHalfFloat(bi >= 0 && bj >= 0 && bi < b.w && bj < b.h && b.mask[bj * b.w + bi] ? 1 : 0)
+      }
+    const bed = new THREE.DataTexture(data, W, H, THREE.RGFormat, THREE.HalfFloatType)
     bed.magFilter = bed.minFilter = THREE.LinearFilter
     bed.needsUpdate = true
     const m = this.material.clone()
@@ -218,7 +228,10 @@ export class WaterView {
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
-          float wDepth = vWaterW.y - (texture2D(uBed, (vWaterW.xz - uBedO) / uBedS).r + uBottom);
+          vec2 wBed = texture2D(uBed, (vWaterW.xz - uBedO) / uBedS).rg;
+          float wDepth = vWaterW.y - (wBed.r + uBottom);
+          // Outside the lake's own cells (the border the mesh runs over): gone.
+          if (wBed.g < 0.35) discard;
           float wDeep = smoothstep(0.15, 4.0, wDepth);
           // Shallows: clear, green over the bed; further out the deep blue.
           diffuseColor.rgb = mix(vec3(0.24, 0.42, 0.36), diffuseColor.rgb, wDeep);
