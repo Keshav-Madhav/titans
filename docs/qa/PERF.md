@@ -182,3 +182,9 @@ numbers read ~2.5× slow, differences hold:
   so the blur's 9 taps no longer also read the full-size float depth 9 times.
 - (A quieter machine read ~16 ms headless for the scenes above — the 40+ ms earlier this cycle was
   other apps' GPU load. Paired toggles are why the differences held anyway.)
+- **The bloom is added in the grade pass**, not by its own additive draw over the whole frame:
+  −0.30 ms facing a low sun, −0.37 ms at midday (paired); same frame A/B/A, the difference (4.2, 4.4)
+  is the noise of two stock shots (3.9, 5.8).
+- **The foliage dither computed, not looked up**: the leaves' 16-entry Bayer table was indexed by a
+  variable — the pattern that spilled the terrain's arrays to memory on Apple GPUs. The same values
+  from bit arithmetic (checked against the table for all 16 cells).

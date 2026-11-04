@@ -68,10 +68,14 @@ export function foliageTexture(): THREE.CanvasTexture {
   for (let i = 0; i < 520; i++) {
     const x = lx0 + 14 + rand() * (lw - 28)
     const y = 14 + rand() * (SIZE - 28)
-    // Thinner toward the edges: a rounded clump, not a square of leaves.
+    // Thinner toward the edges: a lobed clump well inside its card, never touching the card's edge
+    // (filled to the edge, the mipmaps far off turned every card into a solid square and the far
+    // crowns read as stacks of blocks — cycle 7, the Green's hilltop trees).
     const ex = (x - (lx0 + lw / 2)) / (lw / 2)
     const ey = (y - SIZE / 2) / (SIZE / 2)
-    if (ex * ex + ey * ey > 0.95 + rand() * 0.1) continue
+    const ang = Math.atan2(ey, ex)
+    const lobe = 0.7 + 0.12 * Math.sin(ang * 5 + 1.3) + 0.06 * Math.sin(ang * 9 + 0.4)
+    if (Math.hypot(ex, ey) > lobe + rand() * 0.08) continue
     const l = 17 + rand() * 15 + (1 - y / SIZE) * 6
     g.fillStyle = `hsl(${80 + rand() * 24}, ${40 + rand() * 20}%, ${l}%)`
     g.save()
@@ -95,7 +99,8 @@ export function foliageTexture(): THREE.CanvasTexture {
       const y = 8 + t * (SIZE - 16)
       const spread = (1 - Math.abs(t - 0.45) * 1.4) * nw * 0.16
       const side = rand() < 0.5 ? -1 : 1
-      g.strokeStyle = `hsl(${118 + rand() * 25}, ${28 + rand() * 15}%, ${17 + rand() * 13}%)`
+      // (A touch lighter than true-dark: at 17–30% the firs read as black cut-outs against the green.)
+      g.strokeStyle = `hsl(${116 + rand() * 25}, ${30 + rand() * 15}%, ${21 + rand() * 15}%)`
       g.lineWidth = 2 + rand() * 1.5
       g.beginPath()
       g.moveTo(cx, y)
@@ -229,7 +234,7 @@ export function broadleafGeometry(seed: number, far = false, faint = false): THR
     const py = u * 1.7 + 0.3
     const pz = Math.sin(t) * s * (far ? 3.3 : 3.9)
     for (let k = 0; k < (faint ? 2 : far ? 3 : 9); k++) {
-      const q = card(faint ? 5.6 : far ? 4.6 : 3.0, faint ? 5.6 : far ? 4.6 : 3.0, LEAVES)
+      const q = card(faint ? 6.4 : far ? 5.3 : 3.4, faint ? 6.4 : far ? 5.3 : 3.4, LEAVES)
       q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2).rotateZ((rand() - 0.5) * 0.8)
       q.translate(centre.x + px + (rand() - 0.5) * 1.1, centre.y + py + (rand() - 0.5) * 1.0, centre.z + pz + (rand() - 0.5) * 1.1)
       crown.push(q)
@@ -334,10 +339,13 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         float nearCam = length(vViewPosition);
         // An ordered 4×4 (Bayer) threshold: an even screen-door, not white noise (which read as
         // crawling grey static across a fir branch passing close to the camera).
+        // (Computed, not looked up: a table indexed by a variable goes to memory per pixel on Apple
+        // GPUs — the terrain's 10 ms, cycle 7. 4·b2(low bits) + b2(high bits), b2 the 2×2 matrix.)
         ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0));
-        int bi = bq.x + bq.y * 4;
-        float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
-        float dith = (bayer[bi] + 0.5) / 16.0;
+        int b2lo = ((bq.x ^ bq.y) & 1) * 2 + (bq.y & 1);
+        ivec2 bh = bq >> 1;
+        int b2hi = ((bh.x ^ bh.y) & 1) * 2 + (bh.y & 1);
+        float dith = (float(4 * b2lo + b2hi) + 0.5) / 16.0;
         // (A narrow band: over 2.6 m of depth the whole near branch was a screen-door — QA cycle 6, a
         // forest frame half covered in an even dot grid. Over 0.6 m it is a soft edge, not a pattern.)
         if (nearCam < 3.0 + 0.6 * dith) discard;

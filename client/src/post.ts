@@ -117,6 +117,15 @@ class GodRaysPass extends Pass {
 class SizedBloom extends UnrealBloomPass {
   /** Tools: 2 starts the chain at a quarter of the screen (to compare). */
   static div = 1
+  /**
+   * The bloom is added in the grade pass (one read of the frame it makes anyway) instead of by its
+   * own additive draw over the whole frame — a full-size read and write saved. Tools: false = stock.
+   */
+  static fold = true
+  render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget, dt: number, mask: boolean): void {
+    this.blendMaterial.visible = !SizedBloom.fold
+    super.render(renderer, write, read, dt, mask)
+  }
   setSize(w: number, h: number): void {
     super.setSize(Math.max(1, Math.round(w / SizedBloom.div)), Math.max(1, Math.round(h / SizedBloom.div)))
   }
@@ -128,6 +137,9 @@ const GRADE = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     tRays: { value: null as THREE.Texture | null },
+    /** The bloom, added here instead of by its own full-screen additive draw (SizedBloom.fold). */
+    tBloom: { value: null as THREE.Texture | null },
+    bloomOn: { value: 0 },
     rayColor: { value: new THREE.Color(1.0, 0.86, 0.66) },
     rayStrength: { value: 0.32 },
     exposure: { value: 0.84 },
@@ -146,6 +158,8 @@ const GRADE = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform sampler2D tRays;
+    uniform sampler2D tBloom;
+    uniform float bloomOn;
     uniform vec3 rayColor;
     uniform float rayStrength;
     uniform float exposure;
@@ -176,13 +190,10 @@ const GRADE = {
       // (No lens fringing: red and blue read a fraction of a pixel aside, and wherever fine detail
       // alternates pixel by pixel — the dither of leaves dissolving near the camera — bright sky
       // bled into those two channels only and dark green leaves came out purple.)
-      vec2 off = vec2(0.0);
       // Under water the picture wavers.
       vec2 uv = vUv + under * 0.006 * vec2(sin(vUv.y * 38.0 + time * 2.1), cos(vUv.x * 31.0 + time * 1.7));
-      vec3 c;
-      c.r = texture2D(tDiffuse, uv + off).r;
-      c.g = texture2D(tDiffuse, uv).g;
-      c.b = texture2D(tDiffuse, uv - off).b;
+      vec3 c = texture2D(tDiffuse, uv).rgb;
+      if (bloomOn > 0.5) c += texture2D(tBloom, uv).rgb;
       c += texture2D(tRays, vUv).rgb * rayColor * rayStrength;
       c = aces(c * exposure * (1.0 - 0.12 * mood) * (1.0 + flash * 0.8));
 
@@ -217,7 +228,10 @@ class GradePass extends Pass {
   readonly uniforms = THREE.UniformsUtils.clone(GRADE.uniforms) as typeof GRADE.uniforms
   private readonly quad: FullScreenQuad
 
-  constructor(private readonly rays: GodRaysPass) {
+  constructor(
+    private readonly rays: GodRaysPass,
+    private readonly bloom: SizedBloom,
+  ) {
     super()
     this.quad = new FullScreenQuad(
       new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: GRADE.vertexShader, fragmentShader: GRADE.fragmentShader, depthTest: false, depthWrite: false }),
@@ -227,6 +241,8 @@ class GradePass extends Pass {
   render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget): void {
     this.uniforms.tDiffuse.value = read.texture
     this.uniforms.tRays.value = this.rays.target.texture
+    this.uniforms.tBloom.value = this.bloom.renderTargetsHorizontal[0].texture
+    this.uniforms.bloomOn.value = this.bloom.enabled && SizedBloom.fold ? 1 : 0
     renderer.setRenderTarget(this.renderToScreen ? null : write)
     this.quad.render(renderer)
   }
@@ -293,7 +309,7 @@ export class Post {
     this.bloom = new SizedBloom(new THREE.Vector2(size.x, size.y), 0.34, 0.7, 1.25)
     this.composer.addPass(this.bloom)
     this.composer.addPass(this.rays)
-    this.grade = new GradePass(this.rays)
+    this.grade = new GradePass(this.rays, this.bloom as SizedBloom)
     this.composer.addPass(this.grade)
   }
 
