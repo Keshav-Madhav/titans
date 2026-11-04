@@ -6,6 +6,7 @@
 // what was kept under it is yours. Get it wrong and they fall silent.
 
 import * as THREE from 'three'
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32, type Terrain } from '@titans/shared'
 import { carvedStone } from './spots'
 
@@ -36,6 +37,65 @@ interface Ring {
   reward: THREE.Vector3
 }
 
+/**
+ * A standing stone that has stood a long time (QA cycle 7: they were clean boxes with knife edges,
+ * like concrete posts set down on the grass): a tapering block with rounded corners (a squircle
+ * section), weather-rounded top edges, small dents, and — `broken` — a corner of the top gone.
+ */
+function weatheredStone(w: number, h: number, d: number, rand: () => number, broken = true, taper = 0.22): THREE.BufferGeometry {
+  let geo: THREE.BufferGeometry = new THREE.BoxGeometry(w, h, d, 6, Math.max(6, Math.round(h * 3)), 4)
+  const p = geo.getAttribute('position') as THREE.BufferAttribute
+  const uv = geo.getAttribute('uv') as THREE.BufferAttribute
+  const s1 = rand() * 100
+  const breakSide = rand() < 0.5 ? -1 : 1
+  const breakDepth = broken ? 0.06 + rand() * 0.12 : 0
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i) / (w / 2)
+    let z = p.getZ(i) / (d / 2)
+    const y = p.getY(i)
+    const t = (y + h / 2) / h
+    // Square section → squircle: the corners worn round.
+    const m = Math.max(Math.abs(x), Math.abs(z), 1e-6)
+    const ux = x / m
+    const uz = z / m
+    const k = 1 / Math.pow(ux ** 4 + uz ** 4, 0.25)
+    x = ux * k * m
+    z = uz * k * m
+    // Taper, and the top edges rounded over the last ~12%.
+    const top = Math.max(0, (t - 0.88) / 0.12)
+    const shrink = (1 - taper * t) * (1 - 0.35 * top * top)
+    // Dents and swells: a slow hash noise, a few centimetres.
+    const n = Math.sin(x * 3.1 + y * 2.3 + s1) * Math.sin(z * 2.7 - y * 1.9 + s1 * 1.3) * 0.035
+    let px = x * (w / 2) * shrink * (1 + n)
+    let pz = z * (d / 2) * shrink * (1 + n)
+    let py = y - top * top * h * 0.03
+    // A corner of the top broken off, long ago (a slanting cut).
+    if (breakDepth > 0) {
+      const cut = h / 2 - h * breakDepth * Math.max(0, x * breakSide * 0.7 + 0.3)
+      if (py > cut) py = cut + (py - cut) * 0.15
+    }
+    p.setXYZ(i, px, py, pz)
+    // (Texture in metres, not one tile per face: on a 4 m stone the carving stretched into wood grain.)
+    uv.setXY(i, (px + pz) * 0.55, py * 0.55)
+  }
+  // Smooth normals across the old box edges: the faces' vertices are split there (each face has its
+  // own UVs), so take normals from a position-only merged copy and hand them back by position.
+  const solid = mergeVertices(new THREE.BufferGeometry().setAttribute('position', p.clone()).setIndex(geo.getIndex()), 1e-4)
+  solid.computeVertexNormals()
+  const key = (x: number, y: number, z: number) => `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`
+  const byPos = new Map<string, [number, number, number]>()
+  const sp = solid.getAttribute('position')
+  const sn = solid.getAttribute('normal')
+  for (let i = 0; i < sp.count; i++) byPos.set(key(sp.getX(i), sp.getY(i), sp.getZ(i)), [sn.getX(i), sn.getY(i), sn.getZ(i)])
+  geo.computeVertexNormals()
+  const nrm = geo.getAttribute('normal') as THREE.BufferAttribute
+  for (let i = 0; i < p.count; i++) {
+    const v = byPos.get(key(p.getX(i), p.getY(i), p.getZ(i)))
+    if (v) nrm.setXYZ(i, v[0], v[1], v[2])
+  }
+  return geo
+}
+
 export class Resonance {
   readonly group = new THREE.Group()
   readonly rings: Ring[] = []
@@ -56,16 +116,9 @@ export class Resonance {
         const at = new THREE.Vector3(def.x + Math.cos(a) * RING, 0, def.z + Math.sin(a) * RING)
         at.y = terrain.heightAt(at.x, at.z)
         const h = HEIGHTS[rank]
-        const geo = new THREE.BoxGeometry(1.1, h, 0.7, 1, 4, 1)
-        const p = geo.getAttribute('position') as THREE.BufferAttribute
-        for (let i = 0; i < p.count; i++) {
-          const t = (p.getY(i) + h / 2) / h
-          p.setX(i, p.getX(i) * (1 - 0.25 * t))
-          p.setZ(i, p.getZ(i) * (1 - 0.2 * t))
-        }
-        geo.computeVertexNormals()
+        const geo = weatheredStone(1.1, h, 0.7, rand)
         const m = new THREE.Mesh(geo, stoneMat)
-        m.position.set(at.x, at.y + h / 2 - 0.2, at.z)
+        m.position.set(at.x, at.y + h / 2 - 0.35, at.z)
         m.rotation.y = -a
         m.castShadow = m.receiveShadow = true
         const rune = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.0, 1.2), transparent: true, opacity: 0.15 })
@@ -78,7 +131,7 @@ export class Resonance {
       })
       // The slab, low, with the order carved on it.
       const slab = new THREE.Group()
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.2, 1.6), stoneMat)
+      const body = new THREE.Mesh(weatheredStone(2.6, 1.2, 1.6, rand, false, 0) /* (no taper: the carved clue lies on its face) */, stoneMat)
       body.position.y = 0.4
       body.castShadow = body.receiveShadow = true
       const clue = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.9), new THREE.MeshStandardMaterial({ map: clueTexture(def.order), transparent: true, roughness: 1 }))
