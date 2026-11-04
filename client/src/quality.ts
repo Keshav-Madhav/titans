@@ -134,6 +134,7 @@ export class Quality {
   private gpuExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null
   private gpuPending: WebGLQuery[] = []
   private gpuLast = 0
+  private gpuAt = 0
   private initGpuTimer(): void {
     try {
       this.gpuExt = this.renderer.getContext().getExtension('EXT_disjoint_timer_query_webgl2')
@@ -144,7 +145,15 @@ export class Quality {
   /** Wrap the frame's rendering: `begin` before, `end` after. */
   gpuBegin(): void {
     const ext = this.gpuExt
-    if (!ext || this.gpuPending.length > 4) return
+    if (!ext) return
+    // (Results that never come — a GPU reset, a disjoint — are dropped, and a reading older than
+    // half a second is forgotten: a stale number held the governor at a long-gone cost.)
+    if (this.gpuPending.length > 4) {
+      const gl = this.renderer.getContext() as WebGL2RenderingContext
+      for (const q of this.gpuPending) gl.deleteQuery(q)
+      this.gpuPending = []
+    }
+    if (performance.now() - this.gpuAt > 500) this.gpuLast = 0
     const gl = this.renderer.getContext() as WebGL2RenderingContext
     const q = gl.createQuery()
     if (!q) return
@@ -162,7 +171,10 @@ export class Quality {
     while (this.gpuPending.length > 1 || (this.gpuPending.length === 1 && !this.gpuOpen)) {
       const q = this.gpuPending[0]
       if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break
-      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) this.gpuLast = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6
+      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+        this.gpuLast = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6
+        this.gpuAt = performance.now()
+      }
       gl.deleteQuery(q)
       this.gpuPending.shift()
     }
