@@ -2643,7 +2643,24 @@ function frameBody(now: number): void {
     // Compile every shader now, behind the title (user: "game hitches" — the first sight of
     // the water, a colossus, the bow, the fireflies at dusk each stalled a frame compiling
     // its program). Again a little later, for what is still being built then.
-    const warm = () => renderer.compileAsync(scene, camera).catch(() => {})
+    // Both scenes (the soft one — rain, the cloud deck, mist — is drawn by its own pass and was
+    // never warmed: the first storm stalled 200 ms), and what is hidden now too (rain on a clear
+    // day, the sand's wisps): shown for the compile call only, which builds every program before
+    // it returns; hidden again before any frame is drawn.
+    const warm = () => {
+      for (const root of [scene, softScene]) {
+        const hidden: THREE.Object3D[] = []
+        root.traverse((o) => {
+          if (!o.visible && ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Group).isGroup)) {
+            hidden.push(o)
+            o.visible = true
+          }
+        })
+        const done = renderer.compileAsync(root, camera, scene).catch(() => {})
+        for (const o of hidden) o.visible = false
+        void done
+      }
+    }
     if (!params.has('nowarm')) {
       warm()
       setTimeout(warm, 15000)

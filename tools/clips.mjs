@@ -26,6 +26,8 @@ async function look(page, dx, dy, steps = 12) {
   for (let i = 1; i <= steps; i++) await page.mouse.move(W / 2 + (dx * i) / steps, H / 2 + (dy * i) / steps)
   await page.mouse.up({ button: 'right' })
 }
+/** The scene starts here: frames before (loading, a teleport's streaming) are not the scene's. */
+const mark = (page) => page.evaluate(() => (window.__mark = performance.now()))
 const hold = async (page, keys, ms) => {
   for (const k of keys) await page.keyboard.down(k)
   await wait(page, ms)
@@ -41,6 +43,7 @@ const CLIPS = {
     await page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
     await wait(page, 2500)
     await page.mouse.click(W / 2, H / 2)
+    await mark(page)
     await wait(page, 7000)
     await hold(page, ['KeyW'], 4000)
     await look(page, 300, 0)
@@ -53,6 +56,7 @@ const CLIPS = {
     await ready(page)
     await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.teleport(-600, 400); g.setCam(0.4, 0.08, 8) })
     await wait(page, 3000)
+    await mark(page)
     await hold(page, ['KeyW'], 2500)
     await page.keyboard.down('KeyW')
     await page.keyboard.down('ShiftLeft')
@@ -72,6 +76,7 @@ const CLIPS = {
     await ready(page)
     await page.evaluate(() => { window.__g.weather.set('clear', true); window.__g.grabTitan() })
     await wait(page, 1500)
+    await mark(page)
     await hold(page, ['KeyW'], 9000)
     await look(page, 300, -60)
     await hold(page, ['KeyW', 'KeyD'], 4000)
@@ -82,6 +87,7 @@ const CLIPS = {
     await ready(page)
     await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.finds.find('bag'); const H = g.HIGH; const d = H.foot + 200; const a = H.axis + 0.12; g.teleport(Math.sin(a) * d, Math.cos(a) * d); g.setCam(H.axis + 0.12 + Math.PI, -0.3, 8) })
     await wait(page, 5000)
+    await mark(page)
     await page.keyboard.down('KeyG')
     await wait(page, 4200)
     await page.keyboard.up('KeyG')
@@ -94,6 +100,7 @@ const CLIPS = {
     await ready(page)
     await page.evaluate(() => { const g = window.__g; g.teleport(1300, 3700); g.weather.set('storm', true); g.setCam(0, 0.06, 8) })
     await wait(page, 3000)
+    await mark(page)
     await hold(page, ['KeyW'], 6000)
     await look(page, 600, 0, 30)
     await hold(page, ['KeyW', 'ShiftLeft'], 4000)
@@ -103,6 +110,7 @@ const CLIPS = {
     await ready(page)
     await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.teleport(300, 9200); g.setCam(Math.PI + 0.2, 0.05, 8) })
     await wait(page, 4000)
+    await mark(page)
     await hold(page, ['KeyW', 'ShiftLeft'], 6000)
     await hold(page, ['KeyW'], 5000)
     await look(page, 500, -30, 30)
@@ -132,7 +140,7 @@ for (const [name, play] of Object.entries(CLIPS)) {
     const raf = window.requestAnimationFrame.bind(window)
     let last = 0
     window.requestAnimationFrame = (f) => raf((t) => {
-      if (last) window.__ft.push(t - last)
+      if (last) window.__ft.push([t, t - last])
       last = t
       f(t)
     })
@@ -153,12 +161,18 @@ for (const [name, play] of Object.entries(CLIPS)) {
     errors.push('clip: ' + e.message)
   }
   clearInterval(sampler)
-  const ft = await page.evaluate(() => window.__ft ?? []).catch(() => [])
+  const { ft, long } = await page
+    .evaluate(() => {
+      const m = window.__mark ?? 0
+      const after = (window.__ft ?? []).filter(([t]) => t > m)
+      return { ft: after.map(([, d]) => d), long: after.filter(([, d]) => d > 33.4).map(([t, d]) => [+((t - m) / 1000).toFixed(2), +d.toFixed(0)]) }
+    })
+    .catch(() => ({ ft: [], long: [] }))
   await ctx.close()
   const vid = readdirSync(dir).find((f) => f.endsWith('.webm'))
   if (vid) renameSync(`${dir}/${vid}`, `${OUT}/${name}.webm`)
-  // The last 80% of frames (the load is not the scene).
-  const play_ = ft.slice(Math.floor(ft.length * 0.2)).filter((x) => x < 2000)
+  // The scene's frames: after its mark (the load and the setup are not the scene).
+  const play_ = ft.filter((x) => x < 2000)
   const sorted = [...play_].sort((a, b) => a - b)
   const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? 0
   const mean = play_.reduce((a, b) => a + b, 0) / Math.max(1, play_.length)
@@ -172,6 +186,8 @@ for (const [name, play] of Object.entries(CLIPS)) {
     fps1Low: +low1.toFixed(1),
     frameMs: { p50: +pct(0.5).toFixed(1), p99: +pct(0.99).toFixed(1), max: +(sorted[sorted.length - 1] ?? 0).toFixed(1) },
     over33ms: play_.filter((x) => x > 33.4).length,
+    /** When each long frame came (s after the scene began) and how long it was (ms). */
+    long,
     drawCalls: avg('calls'),
     triangles: avg('tris'),
     heapMB: +((samples[samples.length - 1]?.heap ?? 0) / 1048576).toFixed(0),
@@ -184,5 +200,5 @@ for (const [name, play] of Object.entries(CLIPS)) {
     execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', `${OUT}/${name}.webm`, '-vf', 'fps=1,scale=480:-1,tile=5x5', '-frames:v', '1', '-q:v', '4', `${OUT}/${name}-sheet.jpg`])
   } catch {}
 }
-writeFileSync(`${OUT}/perf.json`, JSON.stringify(perf, null, 1))
+writeFileSync(`${OUT}/perf${only.length ? '-' + only.join('-') : ''}.json`, JSON.stringify(perf, null, 1))
 await browser.close()

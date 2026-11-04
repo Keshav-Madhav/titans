@@ -66,8 +66,21 @@ export class Sound {
   private lastAt = new Map<string, number>()
   private voices = 0
 
+  /** Made at load, suspended (no gesture yet): its first creation stalls ~190 ms opening the
+   *  audio device, and made on the first click that stall landed on the first click. */
+  private early: AudioContext | null = null
+
   constructor(enabled: boolean) {
     this.on = enabled
+    // (Off the critical frame: a moment after the page has drawn, behind the loading screen.)
+    setTimeout(() => {
+      if (this.ctx || this.early) return
+      try {
+        this.early = new AudioContext()
+      } catch {
+        // made on the gesture instead
+      }
+    }, 50)
     const start = () => {
       this.start()
       removeEventListener('pointerdown', start)
@@ -89,7 +102,8 @@ export class Sound {
   private start(): void {
     if (this.ctx) return
     try {
-      this.ctx = new AudioContext()
+      this.ctx = this.early ?? new AudioContext()
+      if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {})
     } catch {
       return
     }
