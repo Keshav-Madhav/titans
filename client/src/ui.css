@@ -68,11 +68,12 @@ kbd {
 }
 #narration::before {
   /* A soft darkening behind the captions (not a box): they read over bright grass and sky. */
-  content: ''; position: fixed; left: 0; bottom: 0; width: min(620px, 42vw); height: 260px; z-index: -1;
-  background: radial-gradient(ellipse at 0% 100%, rgba(10, 8, 6, 0.42), transparent 70%);
+  content: ''; position: fixed; left: 0; bottom: 0; width: min(680px, 46vw); height: 380px; z-index: -1;
+  /* (Stronger and taller: a long passage ran above it, and over sand or snow it washed out.) */
+  background: radial-gradient(ellipse at 0% 100%, rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0.25) 45%, transparent 72%);
 }
 #narration .line {
-  font: italic 17px/1.38 var(--serif); color: #f7f1e5; overflow-wrap: anywhere;
+  font: italic 18px/1.4 var(--serif); color: #f7f1e5; overflow-wrap: anywhere;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 0, 0, 0.45);
   transition: opacity 1.6s, transform 1.6s; animation: rise 0.9s ease-out;
 }
