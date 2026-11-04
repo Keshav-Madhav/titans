@@ -44,7 +44,7 @@ import { MAX_SLOPE, Wanderer } from './wanderer'
 import { setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
-import { CameraRig, RIDE_CAM, WANDERER_CAM } from './camera-rig'
+import { CameraRig, CLIFF_CAM, CLIMB_CAM, RIDE_CAM, WANDERER_CAM } from './camera-rig'
 import { Hud } from './hud'
 import { Narration } from './narration'
 import { Climber } from './climb'
@@ -2230,6 +2230,7 @@ function frame(now: number): void {
 // QA (?qa=throw): a frame breaks on purpose 8 s in, to prove the card and that the save survives.
 let qaThrowAt = params.get('qa') === 'throw' ? 8000 : 0
 let padAt = 0
+let climbLookIdle = 0
 
 function frameBody(now: number): void {
   if (qaThrowAt && now > qaThrowAt) {
@@ -2509,7 +2510,7 @@ function frameBody(now: number): void {
     // slowly, to look the way it walks (until you look about yourself).
     const ridden = climber.active ? heldAwake() : undefined
     const riding = !!ridden && ridden.gait.speed > 0.4
-    rig.blendTo(riding ? RIDE_CAM : WANDERER_CAM)
+    rig.blendTo(riding ? RIDE_CAM : climber.active ? CLIMB_CAM : cliff.active ? CLIFF_CAM : WANDERER_CAM)
     rig.ease(dt)
     if (riding && Math.abs(look.dx) < 1) {
       let dy = ridden!.gait.heading + Math.PI - rig.yaw
@@ -2518,6 +2519,12 @@ function frameBody(now: number): void {
       // …and from a little above, looking down over the land going by.
       if (Math.abs(look.dy) < 1) rig.pitch += (0.32 - rig.pitch) * Math.min(1, dt * 0.5)
     }
+    // Climbing a giant, left alone a moment, the view tilts to look up along its body against the
+    // sky (QA Q14: facing its skin you lost the giant; looking up you see how much is left).
+    if (climber.active && !riding) {
+      climbLookIdle = Math.abs(look.dx) + Math.abs(look.dy) > 0.5 ? 0 : climbLookIdle + dt
+      if (climbLookIdle > 1.2) rig.pitch += (-0.14 - rig.pitch) * Math.min(1, dt * 0.6)
+    } else climbLookIdle = 0
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
     if (wanderer.gliding) {

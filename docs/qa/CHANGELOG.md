@@ -2,6 +2,12 @@
 
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
+## 2026-11-04 — cycle 3
+
+- **Climbing camera** (Q14): further out on a giant (10 m) and a rock face (8 m); left alone, it
+  tilts to look up along the body against the sky. A stronger tilt (−0.32) was tried and rejected —
+  it put the wanderer off the bottom of the frame (evidence/c3-climb-*.jpg).
+
 ## 2026-11-04 — cycle 2
 
 - **The first click no longer stalls 200 ms** [e4a6f2b]. `new AudioContext()` took 187 ms on the

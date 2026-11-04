@@ -15,6 +15,13 @@ export interface CameraProfile {
 }
 
 export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 5.5, focusHeight: 1.55, follow: 18 }
+/**
+ * Climbing a giant: further out than on foot (QA Q14 — at 5.5 m the giant's skin filled the screen
+ * and you lost the giant: no silhouette, no ground below, no sense of where on it you were).
+ */
+export const CLIMB_CAM: CameraProfile = { minDist: 3, maxDist: 30, dist: 10, focusHeight: 1.2, follow: 10 }
+/** On a rock face: between the two. */
+export const CLIFF_CAM: CameraProfile = { minDist: 2.5, maxDist: 24, dist: 8, focusHeight: 1.3, follow: 12 }
 /** Riding a walking giant: pulled back and up, smoothed against its sway, so you see the land go by under it. */
 export const RIDE_CAM: CameraProfile = { minDist: 6, maxDist: 60, dist: 26, focusHeight: 4, follow: 4 }
 
