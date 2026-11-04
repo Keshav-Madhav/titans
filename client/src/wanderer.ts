@@ -670,6 +670,9 @@ export class Wanderer {
   private readonly legs: Leg[] = []
   /** Each leg's place in its stance this frame (0 … 1, landing → lift-off), or -1 in the air. */
   private readonly stance = [-1, -1]
+  /** The speed last frame and its smoothed rate of change (m/s²), for the lean. */
+  private leanSpeed = 0
+  private leanAcc = 0
   /** Where each planted ankle is pinned on the ground (null: not planted). */
   private readonly footLock: Array<THREE.Vector3 | null> = [null, null]
   private readonly arms: Arm[] = []
@@ -1487,7 +1490,15 @@ export class Wanderer {
       // Running, both feet leave the ground mid-stride: a bound up between footfalls.
       const bound = run * Math.max(0, Math.cos(s * 2)) * 0.045
       this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe - (this.sliding ? 0.24 : 0)
-      this.chest.rotation.x = this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + 0.55 * this.scrambleLean
+      // The lean also answers the change of speed: into it as you set off, back against it as you
+      // brake (QA cycle 6 — it hung off the speed alone, so a hard stop and a steady run looked alike).
+      if (dt > 0) {
+        const acc = (hs - this.leanSpeed) / dt
+        this.leanSpeed = hs
+        this.leanAcc += (THREE.MathUtils.clamp(acc, -25, 25) - this.leanAcc) * Math.min(1, dt * 6)
+      }
+      const surge = this.grounded ? THREE.MathUtils.clamp(this.leanAcc * 0.012, -0.22, 0.12) : 0
+      this.chest.rotation.x = this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + surge + 0.55 * this.scrambleLean
       // The head stays level and looking ahead whatever the body does.
       this.head.rotation.x = -this.chest.rotation.x * 0.75
       this.head.rotation.y = -this.chest.rotation.y - this.pelvis.rotation.y
