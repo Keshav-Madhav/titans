@@ -67,9 +67,13 @@ export class Quality {
     public vegetation: { nearR: number; midR: number; grassR: number; markDirty?: unknown } | null = null,
   ) {
     this.pinned = pin !== null && /^[012]$/.test(pin)
-    // Sharp on a high-density screen, but not 4× the pixels of a normal one to start with.
-    this.maxDpr = Math.min(devicePixelRatio, 2)
-    this.dpr = Math.min(this.maxDpr, 1.5)
+    // (The game is bound by work per pixel, so the pixel ratio is the big lever. Measured on a
+    // MacBook-sized window, GPU time per frame on the Green: ratio 2 → 58 ms, 1.5 → 23 ms, 1 → 15 ms.
+    // It starts at 1 and may rise to 1.5 when there is clear room — never 2 — the user, on an
+    // M5 Pro: "massive performance issues".)
+    this.maxDpr = Math.min(devicePixelRatio, 1.5)
+    this.dpr = Math.min(this.maxDpr, 1)
+    this.initGpuTimer()
     this.apply(this.pinned ? Number(pin) : 0)
   }
 
@@ -124,9 +128,54 @@ export class Quality {
     else if (resolution === 'auto' && this.dpr > this.maxDpr) this.setDpr(this.maxDpr)
   }
 
+  // GPU time per frame, measured (EXT_disjoint_timer_query_webgl2), where the browser has it: the
+  // interval between frames does not show a GPU that is behind until it is far behind, and the
+  // governor held a ratio costing 23 ms a frame while it read 60 fps.
+  private gpuExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null
+  private gpuPending: WebGLQuery[] = []
+  private gpuLast = 0
+  private initGpuTimer(): void {
+    try {
+      this.gpuExt = this.renderer.getContext().getExtension('EXT_disjoint_timer_query_webgl2')
+    } catch {
+      this.gpuExt = null
+    }
+  }
+  /** Wrap the frame's rendering: `begin` before, `end` after. */
+  gpuBegin(): void {
+    const ext = this.gpuExt
+    if (!ext || this.gpuPending.length > 4) return
+    const gl = this.renderer.getContext() as WebGL2RenderingContext
+    const q = gl.createQuery()
+    if (!q) return
+    gl.beginQuery(ext.TIME_ELAPSED_EXT, q)
+    this.gpuPending.push(q)
+    this.gpuOpen = true
+  }
+  private gpuOpen = false
+  gpuEnd(): void {
+    const ext = this.gpuExt
+    if (!ext || !this.gpuOpen) return
+    const gl = this.renderer.getContext() as WebGL2RenderingContext
+    gl.endQuery(ext.TIME_ELAPSED_EXT)
+    this.gpuOpen = false
+    while (this.gpuPending.length > 1 || (this.gpuPending.length === 1 && !this.gpuOpen)) {
+      const q = this.gpuPending[0]
+      if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break
+      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) this.gpuLast = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6
+      gl.deleteQuery(q)
+      this.gpuPending.shift()
+    }
+  }
+  /** The last measured GPU ms per frame (0: not measured here). */
+  get gpuMs(): number {
+    return this.gpuLast
+  }
+
   /** Call once per rendered frame (not while the loading veil is up). */
   frame(now: number): void {
-    if (this.last) this.times.push(now - this.last)
+    // The frame's cost: the longer of its interval and its measured GPU time.
+    if (this.last) this.times.push(Math.max(now - this.last, this.gpuLast))
     this.last = now
     const span = now - this.since
     if (span < WINDOW) return

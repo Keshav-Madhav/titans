@@ -37,7 +37,7 @@ import {
 } from '@titans/shared'
 import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
-import { loadTerrainTextures, LAYER } from './terrain-material'
+import { loadTerrainTextures, LAYER, terrainExp } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input, setBindings, watchKeycaps } from './input'
 import { MAX_SLOPE, Wanderer } from './wanderer'
@@ -2673,7 +2673,9 @@ function frameBody(now: number): void {
   // Near plants and stones: only those in view (the camera is final for this frame now).
   camera.updateMatrixWorld()
   vegetation.cull(camera)
+  quality.gpuBegin()
   post.render(dt, sky.sunDir)
+  quality.gpuEnd()
   work.push(performance.now() - t0)
   if (work.length > 1200) work.shift()
 
@@ -2936,6 +2938,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  terrainExp,
   get skirts() {
     return skirts
   },

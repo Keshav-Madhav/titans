@@ -107,3 +107,25 @@ baselines. To re-measure on a quiet machine with `qa/cycle6/gputime.mjs`.
 above the camera; bisecting back to the committed build showed the same. It was the survey script:
 a fixed 3.5 s wait after teleporting, before the terrain had streamed in. Scripts now wait for
 `terrainView.settled()`.
+
+## Cycle 7b — the user's M5 Pro "struggling": measured at a MacBook window
+
+The earlier numbers were taken at 1280×720, pixel ratio 1 — a quarter of a MacBook Pro's pixels.
+At 1512×945 CSS, ratio 2 (GPU time per frame from timer queries, interleaved toggles, quiet machine):
+
+| | before | after |
+| --- | ---: | ---: |
+| Green, ratio 2 (the governor could climb there) | 58 ms | never used now (cap 1.5) |
+| Green, ratio 1.5 | 22.4 ms | **18.1 ms** |
+| Green, ratio 1 (the new start) | 15 ms | ~12 ms |
+
+- **The terrain was 10 ms of 22**, and it was not triangles (cut 5×: no change), shadows (none
+  cast; receiving 1 ms) or texture fetches (trimming them: ~1 ms). It was the 8-layer blend written
+  as loops over arrays indexed by a variable — on Apple GPUs (through ANGLE/Metal) such arrays live
+  in memory, per pixel. Written out per layer with constant indices: **terrain ~10 → ~4.5 ms**, the
+  image unchanged. This, not lowering quality, was the waste.
+- **The governor could not see the GPU**: it held ratio 1.5 at 23 ms of GPU work while reading 60
+  fps, and could climb to 2. It now reads GPU time (EXT_disjoint_timer_query) and steers by the
+  larger of that and the frame interval; it starts at ratio 1 and may rise to 1.5.
+- Dead ends, recorded: a cheaper far-terrain material (no change: far chunks cover little screen);
+  per-pass timer queries (all read ~0 on this driver — only whole-frame queries work).

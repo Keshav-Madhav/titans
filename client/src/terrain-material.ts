@@ -104,12 +104,16 @@ const list = (a: number[]) => a.map((v) => v.toFixed(3)).join(', ')
 export const groundShade = { value: new THREE.Vector4(0, 0, 0.6, 0) }
 
 /** The ground material: MeshStandardMaterial with the splat patched in. */
+/** Tools: switches for measuring the terrain shader's parts (uTerrainExp). */
+export const terrainExp = { u: { value: 0 } }
+
 export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.tLayerColor = { value: tex.color }
     shader.uniforms.tLayerNormal = { value: tex.normal }
     shader.uniforms.tDetail = { value: detail }
+    shader.uniforms.uTerrainExp = terrainExp.u
     shader.uniforms.groundShade = groundShade
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -148,6 +152,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
 
         // A tangent-space normal from the packed texel (Y flipped: the arrays are
         // uploaded top row first, so the image's "up" is -v).
+        #define T_NRM_R 650.0
+        // Experiments (tools): bit 1 only the two strongest layers, 2 no anti-tiling second sample,
+        // 4 no normal maps.
+        uniform int uTerrainExp;
         vec3 unpackN(vec4 t) {
           vec2 xy = t.rg * 2.0 - 1.0;
           xy.y = -xy.y;
@@ -161,8 +169,8 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           vec4 c = textureGrad(tLayerColor, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s);
           // (Past ~650 m the relief is faded out to the surface normal anyway (gNorm, below): no
           // fetch for it — optimisation pass, 2026-11-04: the terrain was 3.1 of ~8 ms.)
-          vec4 n = distance(p, cameraPosition) < 650.0 ? textureGrad(tLayerNormal, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s) : vec4(0.5, 0.5, 0.5, 1.0);
-          if (farT > 0.0) {
+          vec4 n = (distance(p, cameraPosition) < T_NRM_R && (uTerrainExp & 4) == 0) ? textureGrad(tLayerNormal, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s) : vec4(0.5, 0.5, 0.5, 1.0);
+          if (farT > 0.0 && (uTerrainExp & 2) == 0) {
             float s2 = s * 0.19;
             vec2 uv2 = mat2(0.8, -0.6, 0.6, 0.8) * p.xz * s2 + 0.37;
             vec4 c2 = textureGrad(tLayerColor, vec3(uv2, float(i)), dpx.xz * s2, dpy.xz * s2);
@@ -188,7 +196,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           w /= max(1e-4, w.x + w.y + w.z);
           float L = float(i);
           float dist = distance(p, cameraPosition);
-          bool wantN = dist < 650.0;
+          bool wantN = dist < T_NRM_R;
           float s2 = s * 0.41;
           vec3 o = vec3(0.37, 0.61, 0.13);
           float m = smoothstep(0.3, 0.7, texture2D(tDetail, p.xz * 0.009 + p.y * 0.006).r);
@@ -196,7 +204,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           // repeat was what read as the quilting.)
           float k2 = max(0.25 + 0.5 * m, 0.88 * smoothstep(30.0, 160.0, dist));
           // Past ~160 m the larger look is 88% of it: the small one is not fetched at all.
-          bool base = k2 < 0.86;
+          bool base = k2 < 0.86 && T_NRM_R > 1.0;
           vec4 flatN = vec4(0.5, 0.5, 0.5, 1.0);
           vec3 c1 = vec3(0.0);
           vec3 c2 = vec3(0.0);
@@ -266,53 +274,50 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // projection turns smoothly round a cliff instead of jumping at each edge.
         vec2 gHor = gFlat.xz * sign(gFlat.y + 1e-4);
         vec3 gTriN = normalize(mix(gN, vec3(gHor.x, 0.12, gHor.y) / max(1e-3, length(gHor)), gSteep * 0.9));
+        // (Written out per layer — every array index a constant — not looped: indexed by a variable,
+        // the per-layer arrays went to memory on Apple GPUs for every pixel; trimming the work
+        // inside the loop saved nothing, and the terrain was 10 of 22 ms. Optimisation pass, 2026-11-04.)
         if (gSteep > 0.0) {
-          for (int i = 0; i < 8; i++) if (i != 5 && i != 6) gW[i] *= 1.0 - gSteep;
+          ${[0,1,2,3,4,7].map(i => `gW[${i}] *= 1.0 - gSteep;`).join(' ')}
           gW[5] += gSteep * vColor.b;
           gW[6] += gSteep * (1.0 - vColor.b);
         }
-        vec3 gCol[8];
-        vec3 gNrm[8];
-        float gH[8];
         float gTop = -10.0;
-        for (int i = 0; i < 8; i++) {
-          gH[i] = -10.0;
-          if (gW[i] < 0.004) continue;
-          vec3 c; vec3 n; float h;
-          // Cliffs: on steep ground, project from the sides, not from above — the
-          // smoothed normal leans up, and a top-down projection streaks down a wall.
-          if (i == 5 || i == 6) triLayer(i, gP, gDx, gDy, gTriN, gN, c, n, h);
-          else topLayer(i, gP, gDx, gDy, gN, gFar, c, n, h);
-          gCol[i] = c * LTINT[i];
-          gNrm[i] = n;
-          // A layer's height counts for less as its weight thins out.
-          gH[i] = h * 0.55 + gW[i];
-          gTop = max(gTop, gH[i]);
+        // (Experiment 1: only the two strongest layers.)
+        float gW1 = 0.0; float gW2 = 0.0;
+        if ((uTerrainExp & 1) != 0) {
+          ${[0,1,2,3,4,5,6,7].map(i => `if (gW[${i}] > gW1) { gW2 = gW1; gW1 = gW[${i}]; } else if (gW[${i}] > gW2) gW2 = gW[${i}];`).join('\n          ')}
         }
+        float gCut = max(0.004, gW2 - 1e-4);
+        ${[0,1,2,3,4,5,6,7].map(i => `vec3 gCol${i} = vec3(0.0); vec3 gNrm${i} = vec3(0.0, 1.0, 0.0); float gH${i} = -10.0;
+        if (gW[${i}] >= gCut) {
+          vec3 c; vec3 n; float h;
+          ${i === 5 || i === 6 ? `triLayer(${i}, gP, gDx, gDy, gTriN, gN, c, n, h);` : `topLayer(${i}, gP, gDx, gDy, gN, gFar, c, n, h);`}
+          gCol${i} = c * LTINT[${i}];
+          gNrm${i} = n;
+          gH${i} = h * 0.55 + gW[${i}];
+          gTop = max(gTop, gH${i});
+        }`).join('\n        ')}
         vec3 gAlb = vec3(0.0);
         vec3 gNorm = vec3(0.0);
         float gRough = 0.0;
         float gSum = 0.0;
-        for (int i = 0; i < 8; i++) {
-          if (gH[i] < -5.0) continue;
-          float b = max(gH[i] - gTop + 0.18, 0.0);
-          gAlb += gCol[i] * b;
-          gNorm += gNrm[i] * b;
-          gRough += LROUGH[i] * b;
-          gSum += b;
-        }
-        // (Nothing to blend — every layer's weight gone at a ledge's seam:
-        // a mid stone, not black and mirror-smooth.)
+        ${[0,1,2,3,4,5,6,7].map(i => `if (gH${i} > -5.0) { float b = max(gH${i} - gTop + 0.18, 0.0); gAlb += gCol${i} * b; gNorm += gNrm${i} * b; gRough += LROUGH[${i}] * b; gSum += b; }`).join('\n        ')}
         gAlb = gSum > 1e-4 ? gAlb / gSum : vec3(0.3, 0.29, 0.27);
         // Cliffs in strata: bands lighter and darker, thick and thin together,
         // dipping and wandering across a wall (evenly ruled stripes read as a
         // layer cake, not as rock laid down over ages).
         float gRockW = (gW[5] + gW[6]) / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]);
-        float gDip = (texture2D(tDetail, gP.xz * 0.0006).r - 0.5) * 2.4 + (texture2D(tDetail, gP.xz * 0.0041 + 0.3).r - 0.5) * 0.5;
-        float gBandThin = texture2D(tDetail, vec2(gP.y * 0.021 + gDip, 0.37)).r;
-        float gBandThick = texture2D(tDetail, vec2(gP.y * 0.0047 + gDip * 0.6 + 0.2, 0.61)).r;
-        float gBand = mix(gBandThin, gBandThick, 0.55);
-        gAlb *= mix(1.0, 0.74 + 0.46 * gBand, gRockW * 0.8);
+        // (Every detail below is fetched only where it shows — optimisation pass, 2026-11-04: on a
+        // MacBook-sized window the terrain was 10 of 23 ms, most pixels fetching cliff strata,
+        // canopy and far-grass patterns multiplied by zero.)
+        if (gRockW > 0.01) {
+          float gDip = (texture2D(tDetail, gP.xz * 0.0006).r - 0.5) * 2.4 + (texture2D(tDetail, gP.xz * 0.0041 + 0.3).r - 0.5) * 0.5;
+          float gBandThin = texture2D(tDetail, vec2(gP.y * 0.021 + gDip, 0.37)).r;
+          float gBandThick = texture2D(tDetail, vec2(gP.y * 0.0047 + gDip * 0.6 + 0.2, 0.61)).r;
+          float gBand = mix(gBandThin, gBandThick, 0.55);
+          gAlb *= mix(1.0, 0.74 + 0.46 * gBand, gRockW * 0.8);
+        }
         gNorm = normalize(gNorm + gN * 1e-3);
         gRough = gSum > 1e-4 ? gRough / gSum : 0.9;
         // Far away, the normal detail would only shimmer.
@@ -335,8 +340,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         gAlb = mix(gAlb, mix(gCool, gWarm, gM1), (1.0 - gRockW) * 0.7);
         gAlb *= 0.88 + 0.24 * gM2;
         float gCanopy = vColor.r * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
-        float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
-        gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
+        if (gCanopy > 0.004) {
+          float gCrowns = texture2D(tDetail, gP.xz * 0.06).r;
+          gAlb = mix(gAlb, mix(vec3(0.040, 0.052, 0.024), vec3(0.085, 0.098, 0.045), gCrowns), gCanopy);
+        }
         // Grassland reads as the grass cards do, near and far (user: "grass rendering in chunks,
         // very close"): where the cards stop, the bare ground beyond was ~10% lighter and bluer
         // than the field of blades, a hard edge round you. Toned toward the cards' average.
@@ -346,22 +353,27 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           // Far grass: where the blades stop (30–70 m) the ground takes on their broken light and
           // shade, so the field goes on past them instead of turning to smooth felt; it fades out
           // again where it would only shimmer.
-          float gBlade = texture2D(tDetail, gP.xz * 1.7).r * 0.55 + texture2D(tDetail, gP.xz * 0.53 + 0.2).r * 0.45;
           float gFarG = smoothstep(30.0, 70.0, gDist) * (1.0 - smoothstep(260.0, 520.0, gDist));
-          gAlb *= mix(1.0, 0.78 + 0.4 * gBlade, gGrass * (1.0 - gRockW) * gFarG);
+          float gFarGK = gGrass * (1.0 - gRockW) * gFarG;
+          if (gFarGK > 0.004) {
+            float gBlade = texture2D(tDetail, gP.xz * 1.7).r * 0.55 + texture2D(tDetail, gP.xz * 0.53 + 0.2).r * 0.45;
+            gAlb *= mix(1.0, 0.78 + 0.4 * gBlade, gFarGK);
+          }
           // …and their colour, at a scale that still reads from a crest: the blades are tinted per
           // clump from green to straw, so past them the slopes were smooth pastel lawn (CHECKLIST
           // P3, "the edge still shows from a height"). Straw clumps a few metres across, wider
           // drier swathes, darker gaps between — faded in where the blades thin out, kept far.
           // (Big enough to survive the mipmaps: at 50–900 m a pattern a few metres across is averaged
           // to flat grey before it reaches the screen — the first try changed 3/255.)
+          float gFar2 = gGrass * (1.0 - gRockW) * smoothstep(40.0, 95.0, gDist) * (1.0 - smoothstep(900.0, 1600.0, gDist));
+          if (gFar2 > 0.004) {
           float gClump = texture2D(tDetail, gP.xz * 0.045 + 0.37).r;
           float gSwath = texture2D(tDetail, gP.xz * 0.009 + 0.71).r;
           // (The detail texture lives in a narrow mid-grey band: thresholds round its middle, or the
           // pattern came out all one value — measured: 3/255 of change on the first try.)
           float gStraw = smoothstep(0.44, 0.58, gClump * 0.5 + gSwath * 0.5);
-          float gFar2 = gGrass * (1.0 - gRockW) * smoothstep(40.0, 95.0, gDist) * (1.0 - smoothstep(900.0, 1600.0, gDist));
           gAlb = mix(gAlb, gAlb * mix(vec3(0.74, 0.8, 0.78), vec3(1.24, 1.1, 0.66), gStraw), gFar2 * 0.85);
+          }
         }
         // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
         {
