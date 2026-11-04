@@ -1002,13 +1002,32 @@ const scenes = {
         const g = window.__g
         const T = new g.THREE.Vector3(b[0], b[1], b[2])
         const dir = new g.THREE.Vector3()
-        for (let i = 0; i < 40; i++) {
-          await new Promise((r) => requestAnimationFrame(r))
+        const frame = () => new Promise((r) => requestAnimationFrame(r))
+        // Aim as a player would end up aiming, but exactly: face the bell (yaw from where you
+        // stand), then find the pitch that puts the view on it by bisection. (Nudging yaw and pitch
+        // in proportion stalled 30° off when the spot needed a steep upward shot — 2026-11-04,
+        // after the trees by the Colonnade's plinths changed which spot the gate picks.)
+        for (let pass = 0; pass < 2; pass++) {
+          const p = g.player()
+          g.rig.yaw = Math.atan2(-(T.x - p.x), -(T.z - p.z))
+          let lo = -0.75
+          let hi = 1.4
+          for (let i = 0; i < 14; i++) {
+            g.rig.pitch = (lo + hi) / 2
+            await frame()
+            await frame()
+            g.camera.getWorldDirection(dir)
+            const want = T.clone().sub(g.camera.position).normalize()
+            // (Lower pitch looks higher.)
+            if (Math.asin(dir.y) < Math.asin(want.y)) hi = g.rig.pitch
+            else lo = g.rig.pitch
+          }
+          // Then the yaw once more against the camera's own position (it sits off your shoulder).
+          await frame()
           g.camera.getWorldDirection(dir)
           const want = T.clone().sub(g.camera.position).normalize()
           const yawErr = Math.atan2(want.x, want.z) - Math.atan2(dir.x, dir.z)
-          g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr)) * 0.8
-          g.rig.pitch = Math.max(-0.75, Math.min(1.4, g.rig.pitch - (Math.asin(want.y) - Math.asin(dir.y)) * 0.35))
+          g.rig.yaw += Math.atan2(Math.sin(yawErr), Math.cos(yawErr))
         }
       }, b)
       if (attempt === 0) await shot('bell-aim')
