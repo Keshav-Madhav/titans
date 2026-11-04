@@ -24,6 +24,13 @@ Performance (measured at a MacBook's real 1512×945 ×2, GPU timer queries):
 - Paired-toggle breakdown of what remains (PERF.md, cycle 7c). Rejected, with evidence: a far terrain
   material, quarter-size bloom (visibly widened the glow).
 
+- **No white veil facing a low sun** (Q47): the bloom alone, tamed now as it already was under a
+  high sun [442ad1e]; the haze's glow follows the sun through the day [34a1767].
+- **Ground layers that can never show are not fetched** (Dune Sea −10%); the HDR clamp folded into
+  the AO pass; the AO blur off the full-size depth; earth at the statues' feet (Q45); dusk mist in
+  shade (Q24); overflow stubs not drawn (Q36, mitigated) [265fef2].
+- **Gate sweep 36 → 25 min**: one shared Chrome, a fresh context per gate [44b5340].
+
 Tools: `tools/guarded.sh` (browser runs only on a quiet machine) and a load monitor, after the
 machine nearly went down twice [9e009d3, 36a31c4, fc4e0c9]; the bell gate aims exactly [4932194].
 
