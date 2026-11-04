@@ -11,7 +11,11 @@ import * as THREE from 'three'
  * material). `farther`: coarser geometries and the distance (from the tile's
  * middle) each takes over at — a tile then is a THREE.LOD.
  */
-export function splitByTile(src: THREE.InstancedMesh, tile: number, farther: Array<[THREE.BufferGeometry, number]> = []): THREE.Group {
+/**
+ * `shadowGeo`: cast the near level's shadow from this (cheaper) geometry instead, on a stand-in
+ * drawn only into the shadow map (layer `shadowLayer`), the visible level casting nothing.
+ */
+export function splitByTile(src: THREE.InstancedMesh, tile: number, farther: Array<[THREE.BufferGeometry, number]> = [], shadowGeo?: THREE.BufferGeometry, shadowLayer = 2): THREE.Group {
   const group = new THREE.Group()
   const a = src.instanceMatrix.array
   const byTile = new Map<string, number[]>()
@@ -55,6 +59,18 @@ export function splitByTile(src: THREE.InstancedMesh, tile: number, farther: Arr
       lod.addLevel(m, k === 0 ? 0 : farther[k - 1][1])
     })
     group.add(lod)
+    if (shadowGeo && src.castShadow) {
+      const near = levels[0]
+      near.castShadow = false
+      const sh = new THREE.InstancedMesh(shadowGeo, src.material, list.length)
+      sh.instanceMatrix.array.set(near.instanceMatrix.array)
+      sh.position.copy(mid).add(near.position)
+      sh.castShadow = true
+      sh.receiveShadow = false
+      sh.layers.set(shadowLayer)
+      sh.computeBoundingSphere()
+      group.add(sh)
+    }
   }
   return group
 }

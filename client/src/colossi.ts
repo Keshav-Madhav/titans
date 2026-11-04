@@ -218,11 +218,19 @@ export class Colossi {
     crown.receiveShadow = true
     crown.count = ci
     // (Far off, the same crowns from fewer, bigger cards: 2,520 triangles each to 720, then 240.)
+    // (Their shadows from the 720-triangle crowns, not the 2,520: in the Grove the crowns'
+    // shadows were ~0.8 M triangles a frame, as much as everything you could see.)
+    const mid = canopyGeometry(31, 64, 24, 90, 4)
     this.group.add(
-      splitByTile(crown, 400, [
-        [canopyGeometry(31, 64, 24, 90, 4), 900],
-        [canopyGeometry(31, 64, 32, 60, 2), 2200],
-      ]),
+      splitByTile(
+        crown,
+        400,
+        [
+          [mid, 900],
+          [canopyGeometry(31, 64, 32, 60, 2), 2200],
+        ],
+        mid,
+      ),
     )
 
     // The Steps: a colonnade rising into the clouds, some pillars broken.
