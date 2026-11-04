@@ -164,6 +164,36 @@ function trunk(r0: number, r1: number, h: number, hex: number, segs = 7): THREE.
   return shade(g, hex)
 }
 
+/**
+ * A near tree's trunk (graphics pass, 2026-11-04: up close it was a seven-sided pole): fourteen
+ * sides, eight rings; at the foot a root flare spreading into lobes, the trunk bending a little as
+ * it rises, bark in shallow vertical ridges. Same bark strip as the plain one.
+ */
+function trunkNear(r0: number, r1: number, h: number, hex: number, seed: number): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(r1, r0, h, 14, 8).translate(0, h / 2, 0)
+  const p = g.getAttribute('position')
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i)
+    const y = p.getY(i)
+    const z = p.getZ(i)
+    const t = y / h
+    const a = Math.atan2(z, x)
+    // Roots: out at the foot in four or five lobes, dying away in the first metre or so.
+    const lobes = 0.55 + 0.45 * Math.abs(Math.cos(a * 2.5 + seed))
+    let k = 1 + 0.75 * Math.exp(-t * 11) * lobes
+    // Bark ridges.
+    k *= 1 + 0.035 * Math.sin(a * 11 + t * 3 + seed)
+    // A slight bend, more toward the top.
+    const bx = Math.sin(seed * 1.7) * 0.18 * t * t
+    const bz = Math.cos(seed * 1.3) * 0.18 * t * t
+    p.setXYZ(i, x * k + bx, y, z * k + bz)
+  }
+  g.computeVertexNormals()
+  const a = g.getAttribute('uv')
+  for (let i = 0; i < a.count; i++) a.setXY(i, 0.002 + a.getX(i) * (BARK_U - 0.004), BARK_V[0] + 0.01 + a.getY(i) * (BARK_V[1] - BARK_V[0] - 0.02))
+  return shade(g, hex)
+}
+
 function finish(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
 }
@@ -177,11 +207,11 @@ export function broadleafGeometry(seed: number, far = false, faint = false): THR
   // A stout trunk standing clear under the crown: from across a field a tree
   // with no visible trunk reads as a dark blob hanging in the air.
   // (Far off, thicker than true: a trunk thinner than a pixel leaves the crown hanging in the air.)
-  const parts: THREE.BufferGeometry[] = [far ? trunk(1.15, 0.7, 6.9, 0x5c4836, faint ? 3 : 5) : trunk(0.62, 0.32, 6.6, 0x6b5440, 7)]
+  const parts: THREE.BufferGeometry[] = [far ? trunk(1.15, 0.7, 6.9, 0x5c4836, faint ? 3 : 5) : trunkNear(0.62, 0.32, 6.6, 0x6b5440, seed)]
   // A few limbs reaching up into the crown.
   for (let i = 0; i < (faint ? 0 : far ? 2 : 5); i++) {
     const a = (i / 5) * Math.PI * 2 + rand()
-    const limb = trunk(0.22, 0.08, 3.8, 0x6b5440, 5)
+    const limb = trunk(0.22, 0.08, 3.8, 0x6b5440, far ? 5 : 8)
     limb.rotateZ(0.75).rotateY(a).translate(0, 5.2 + rand() * 0.8, 0)
     parts.push(limb)
   }
