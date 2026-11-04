@@ -686,9 +686,16 @@ export class Wanderer {
   private readonly axisB = new THREE.Vector3()
   private readonly hangDir = new THREE.Vector3()
   private readonly windV = new THREE.Vector3()
+  private readonly redCloth: THREE.MeshStandardMaterial
 
   constructor(cloak: THREE.ColorRepresentation = RED) {
     const red = new THREE.MeshStandardMaterial({ color: cloak, roughness: 0.86, side: THREE.DoubleSide, map: clothTexture() })
+    // The red reads in the dark too (QA cycle 4: in the Mire at night the hood was a muddy smear —
+    // you are the one thing in the land that must always read): a faint glow of its own colour,
+    // nothing by day, rising with the dark (animate()).
+    red.emissive.set(cloak)
+    red.emissiveIntensity = 0
+    this.redCloth = red
     // (Each with its own weave or grain: a flat colour read as a mannequin.)
     const tunic = new THREE.MeshStandardMaterial({ color: TUNIC, roughness: 0.94, map: fabricTexture('wool') })
     const leather = new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.72, map: fabricTexture('leather') })
@@ -1572,6 +1579,7 @@ export class Wanderer {
     const flicker = 0.9 + 0.1 * Math.sin(this.t * 11) * Math.sin(this.t * 7.3)
     // It comes up by itself as the dark comes on (and is all but out by day).
     this.lanternOn += (Math.max(0, (dark - 0.25) / 0.75) - this.lanternOn) * Math.min(1, dt * 0.8)
+    this.redCloth.emissiveIntensity = 0.16 * this.lanternOn
     this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
     this.lantern.distance = 10 + this.lanternOn * 18
     // The glass: dim amber by day (a lantern hardly lit), bright and warm in the dark.

@@ -1,33 +1,36 @@
 # Quality assessment (living — updated each cycle)
 
-*As of cycle 2, 2026-11-04.*
+*As of cycle 4, 2026-11-04.*
 
 ## Where it stands
 
 TITANS reads as a game with a point of view: a small figure, very large slow things, weather and
-light doing the work. The first hour plays through from a fresh profile without getting stuck, and
-holds 60 fps at the median in every scene measured here, now with no long frames in the scenes
-re-measured. The interface is one design system (leather, paper, ink) and survives large text,
-rebinding, a pad, colour-blind vision and short windows. Failure is handled: a broken frame shows a
-card and keeps the save; a damaged save falls back.
+light doing the work. Since the QA loop began (cycles 1–4):
 
-Would someone mistake it for a prototype? In places, still:
+- **It holds up when played.** The first hour plays through from a fresh profile without getting
+  stuck. Nine scenes (opening, Green, climb, grapple, storm, Shore, Grove, dusk, Mire at night)
+  hold 60 fps at the median; after the first-gesture fix, eight of them have no frame over 33 ms.
+- **It holds up when abused.** Reloads mid-waking, key mashing, page flipping, pause/resize
+  mid-climb, focus loss: nothing throws, the wanderer is always somewhere sane, and one page opens
+  at a time (Q21). A broken frame shows a card and keeps the save; a damaged save falls back.
+- **The first impression improved.** The loading screen is now the key art (Q16); the first click
+  no longer stalls (Q15); the climb shows the giant (Q14); captions do not pile up (Q8, Q9).
 
-1. **Climbing** — the camera sits on the giant's skin; you lose the giant (Q14). This is the game's
-   signature moment and the weakest-looking one in the clips.
-2. **The loading screen** — five seconds of a bare gradient (Q16).
-3. **Sound** — recorded steps and pages, but the score and the giants are synthesised and nobody
-   has listened to the mix with the new recordings in it.
-4. **The running animation** — the user called it buggy (P3 playtest); the specifics are awaited.
+Would someone mistake it for a prototype? Less often — the remaining tells:
 
-## Next, in order
+1. **Sound** — recorded steps and pages, synthesised score and giants; the mix is unheard by a
+   person.
+2. **The running animation** — the user called it buggy (CHECKLIST P3); specifics awaited.
+3. **Light at the edges of the day** — sunset clouds now warm (Q22) but subtly; the sunset mist
+   (Q24) wants a look in a real window.
+4. **One GPU hitch at the daylight reveal** (Q23) — once, at a camera cut.
 
-1. The climbing camera (Q14): pull out and to the side on the big surfaces so the giant's silhouette
-   and the ground below are in frame; verify in the climb clip.
-2. Trace the opening's 83 ms frame (title → waking).
-3. Walk the traveller's pages to the last one (NARRATIVE open).
-4. The loading screen (Q16).
-5. A full gate sweep on the final build of the cycle.
+## Next
+
+1. The sweep for cycle 4 (running).
+2. A Gemini pass on the dusk/Mire/Grove frames, checked frame by frame.
+3. The grass edge seen from a height (CHECKLIST P3).
+4. Q24 and Q23 when there is a real window to look through.
 
 ## Not verified here (limits)
 

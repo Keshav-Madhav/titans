@@ -2,6 +2,11 @@
 
 Newest first. Each entry: what changed, why, how it was verified. Commit hashes in brackets.
 
+## 2026-11-04 — cycle 5
+
+- **You read at night** (Q25): the red cloak glows faintly in its own colour as it gets dark. Cycle-4 sweep: 51 passed.
+- **Sunset clouds** (Q22), **new scenes** (grove, dusk, mire) — cycle 4, ef2faac.
+
 ## 2026-11-04 — cycle 3
 - **Adversarial QA** (`tools/adversary.mjs`, in the sweep): reloads mid-waking, key mashing, page
   flipping, pause/resize mid-climb, focus loss, a fall with the line spammed. Found: the pages stacked
