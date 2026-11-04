@@ -621,6 +621,29 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [~] Lag, performance: LODs — measured what the GPU is given per scene part: the land was 1.1–1.2 M triangles a frame everywhere. Far chunks (1 km+, seen from 1.6 km+) now built on half the quads, and the top quality splits at 1.35× (was 1.6): 1,217k → 654k on the Green, 1,078k → 599k at the Shore, distant land unchanged to look at. Far trees (past ~340 m, where the ground's canopy colour takes over) thinned to 40% by 750 m, an even hashed scatter: the Grove's trees 745k → 485k (its land 1,152k → 610k). Shadows: the shadow pass adds ~0.1 M triangles on the Green, 1.3 M in the Grove (its giant trees' crowns and trunks, near you, rightly casting); culling casters by distance saved nothing (three already culls to the shadow camera) and was reverted — shadow-only low-detail twins would be the next step — done: colossi and giant trees cast from their coarse twins, the giant crowns from 720-triangle stand-ins (Grove 3.24 → 2.41 M triangles a frame, the shadows the same). Draw calls: far giants' plates and fur hidden on silhouettes, the Frozen One's detail chosen at any distance and its ice one mesh (Green 581 → 507 calls). Smoothness measured: a 40 s run across the world, main thread median 3.3 ms, p99 4.7, worst 9.7 (none over 12); the camera behind you steady (your screen height sd 0.5%). Not measurable here: GPU time on real hardware. Seen: a walking giant's fur cards right at the camera read as dark shards
 - [~] No music — the score was a quiet drone and a lone glass note every 7–30 s. Now every minute or so a slow phrase (4–7 notes, mostly by step from the chord's tones in D minor, ending low and long) on a plucked voice, sometimes over a low bowed line; the pad a little louder; fewer in the dark, none in a stillness. Offline: two phrases peak −14.4 dB; the worst-case pile-up −1.6 dB, nothing clipped. Not listened to: by ear, the user's call
 
+## Detail-bar audit (user pasted the "game detail bar", 3D-scenes and open-world guides, 2026-11-04)
+
+Held against the bar, honestly. ✅ already met · 🔧 done in this round · ⬜ open.
+
+- ✅ Fixed 1/60 step for logic; real-time easing; compileAsync warm-up behind the title; keys released on blur.
+- ✅ Chunked terrain with far grid LOD, instanced vegetation per tile, shadow stand-ins, adaptive resolution (DPR steps).
+- ✅ Contact shadows, one shadowed sun, fog for depth, ACES grade, settings stored apart from the save.
+- 🔧 Saves: a backup of the save before the last; a damaged save loads it and says so; loads are shape-checked (respect gate).
+- 🔧 Errors: a frame that throws shows a card ("The world stumbled": Wake again / Copy details), never a frozen frame; nothing saves after; `?qa=throw` (respect gate).
+- 🔧 Comfort: ground-shake slider, soft lightning; both default from prefers-reduced-motion.
+- 🔧 All sound suspends while the tab is hidden.
+- 🔧 Pause page: "Go on" always in reach (it sat below the fold at 760 px); short-window layout (pause gate checks overflow).
+- 🔧 Nitpicks found by review: the Wader "met" from inside the Husk; the Old Wood's wisp waiting under a Mire pool; grass on pool beds.
+- ⬜ Gamepad (no Gamepad API yet).
+- ⬜ Rebinding: keys are read by code in place; needs one binding table read by actions.
+- ⬜ Hold-to-toggle for the holds (V sight-stone, Q draw, G reel).
+- ⬜ Text-size setting (captions, cards).
+- ⬜ Sound is all synthesised (WebAudio) — the bar asks for recorded SFX (CC0 recordings, AUDIO.md). Big; needs free sources.
+- ⬜ Seeded randomness: a few gameplay picks still use Math.random (awakening, spots, wisps, main).
+- ⬜ A frame-rate proof (same inputs at 30/60/144 Hz give the same walk).
+- ⬜ Colour-blind check of the map/compass/prompts (CDP vision emulation).
+- — Touch/phone play: out of scope (a desktop mouse-look game); the pause and crash cards are checked at phone width only.
+
 ## Known issues
 - [x] The save gate failed once in three (2026-10-31): a crater 1.2 m shallower after reload.
       Cause: a giant resting a minute of real time turns to stone on load (a hill rises under it);
