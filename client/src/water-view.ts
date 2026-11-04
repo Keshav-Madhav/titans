@@ -225,9 +225,13 @@ export class WaterView {
           diffuseColor.a = mix(0.18, 0.95, smoothstep(0.0, 2.4, wDepth));
           // Foam where it laps the shore: a soft line, broken and moving.
           float wFoamN = wNoise(vWaterW.xz * 0.9 + vec2(uTime * 0.15, uTime * 0.1)) * 0.6 + wNoise(vWaterW.xz * 2.7 - uTime * 0.2) * 0.4;
-          float wFoam = (1.0 - smoothstep(0.0, 0.32, wDepth)) * smoothstep(0.35, 0.65, wFoamN + (0.32 - wDepth) * 0.6) * step(-0.05, wDepth);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.92), wFoam * 0.8);
-          diffuseColor.a = max(diffuseColor.a, wFoam * 0.85);`,
+          // (A thin broken line at the very edge: a still lake hardly foams. Over the last 32 cm at up
+          // to 85% it lay round a gently sloping bank as a thick white band — paper, or snow — and
+          // far off it thickened into a white stroke; it fades with distance now.)
+          float wFoamFar = 1.0 - smoothstep(60.0, 220.0, distance(vWaterW, cameraPosition));
+          float wFoam = (1.0 - smoothstep(0.0, 0.08, wDepth)) * smoothstep(0.5, 0.75, wFoamN + (0.08 - wDepth) * 2.0) * step(-0.05, wDepth) * wFoamFar;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.88, 0.86), wFoam * 0.55);
+          diffuseColor.a = max(diffuseColor.a, wFoam * 0.5);`,
         )
         .replace(
           '#include <emissivemap_fragment>',
