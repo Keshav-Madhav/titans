@@ -2314,6 +2314,8 @@ function frame(now: number): void {
   birdSpots.length = 0
   for (const l of lakes.lakes) if (l.basin.sorted.length > 400 && l.level > l.basin.bottom + 0.5) birdSpots.push({ x: l.basin.bx, z: l.basin.bz })
   for (const [, c] of colossi.places) birdSpots.push({ x: c.x, z: c.z })
+  // Seabirds wheeling over the beach.
+  for (const a of SHORE_BIRDS) birdSpots.push({ x: Math.sin(a) * (SHORE.coast - 80), z: Math.cos(a) * (SHORE.coast - 80) })
   birds.step(dt, camera.position, birdSpots)
   birds.render()
   sky.tick(dt)
@@ -2621,6 +2623,7 @@ function frame(now: number): void {
   }
 }
 const birdSpots: Array<{ x: number; z: number }> = []
+const SHORE_BIRDS = [-0.3, -0.18, -0.06, 0.06, 0.24, 0.33]
 const mapGiants: Array<{ x: number; z: number }> = []
 const clothWind = new THREE.Vector3()
 const _head = new THREE.Vector3()
