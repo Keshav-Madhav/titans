@@ -23,6 +23,7 @@ export class MireView {
     /** 0 … 1: how much of the Mire (x, z) is. */
     private readonly mire: (x: number, z: number) => number,
   ) {
+    this.water0 = poolWater(terrain, mire)
     // Black, still, mirroring: barely a ripple.
     const mat = new THREE.MeshStandardMaterial({ color: 0x11160f, roughness: 0.04, metalness: 0.2, envMapIntensity: 2.2, emissive: 0x040705 })
     this.water = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), mat, POOLS)
@@ -51,6 +52,16 @@ export class MireView {
 
   /** The pools laid out near you: where their water stands. */
   private readonly pools: Array<{ x: number; z: number; r: number; level: number }> = []
+
+  private readonly water0: ReturnType<typeof poolWater>
+
+  /**
+   * Under a pool's water at (x, z), whether or not the pool is laid out near you yet (the grass
+   * asks: it grew on the beds of the pools, under the water).
+   */
+  wetAt(x: number, z: number): boolean {
+    return this.water0.wetAt(x, z)
+  }
 
   /** The water surface over (x, z) in a marsh pool near you, or NaN. */
   levelAt(x: number, z: number): number {
@@ -89,9 +100,7 @@ export class MireView {
         const pool = poolInCell(cx, cz)
         const rand = mulberry32((cx * 92821) ^ (cz * 68917) ^ 0x7a1)
         if (pool && nw < POOLS) {
-          // The water stands a little below the rim's average (the ground is nearly level here).
-          let rim = 0
-          for (let k = 0; k < 10; k++) rim += this.terrain.heightAt(pool.x + Math.cos(k * 0.628) * pool.r * 1.3, pool.z + Math.sin(k * 0.628) * pool.r * 1.3) / 10
+          const rim = this.water0.level(cx, cz, pool) + 0.7
           // (Wide enough to reach the wobbled shore everywhere: the ground cuts the real edge.)
           m.compose(p.set(pool.x, rim - 0.7, pool.z), q.identity(), s.set(pool.r * 1.6, 1, pool.r * 1.6))
           this.water.setMatrixAt(nw++, m)
@@ -116,6 +125,36 @@ export class MireView {
     this.water.instanceMatrix.needsUpdate = true
     this.snags.instanceMatrix.needsUpdate = true
   }
+}
+
+/**
+ * The Mire's pools' water, worked out from the ground alone (the same everywhere, before any
+ * pool is laid out): each pool's level (by cell, cached) and whether (x, z) is under one.
+ */
+export function poolWater(terrain: Terrain, mire: (x: number, z: number) => number) {
+  const levels = new Map<number, number>()
+  const level = (cx: number, cz: number, pool: { x: number; z: number; r: number }): number => {
+    const k = cx * 100003 + cz
+    let l = levels.get(k)
+    if (l === undefined) {
+      // The water stands a little below the rim's average (the ground is nearly level here).
+      let rim = 0
+      for (let i = 0; i < 10; i++) rim += terrain.heightAt(pool.x + Math.cos(i * 0.628) * pool.r * 1.3, pool.z + Math.sin(i * 0.628) * pool.r * 1.3) / 10
+      l = rim - 0.7
+      if (levels.size > 6000) levels.clear()
+      levels.set(k, l)
+    }
+    return l
+  }
+  const wetAt = (x: number, z: number): boolean => {
+    if (mire(x, z) < 0.2) return false
+    const cx = Math.floor(x / POOL_CELL)
+    const cz = Math.floor(z / POOL_CELL)
+    const pool = poolInCell(cx, cz)
+    if (!pool || (x - pool.x) ** 2 + (z - pool.z) ** 2 > (pool.r * 1.6) ** 2) return false
+    return terrain.heightAt(x, z) < level(cx, cz, pool) + 0.05
+  }
+  return { level, wetAt }
 }
 
 function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {

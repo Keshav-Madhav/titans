@@ -39,7 +39,12 @@ export class Wisps {
   /** It reached the end of its path: reveal what it leads to at `at`. */
   onSettle: (id: string, at: THREE.Vector3) => void = () => {}
 
-  constructor(defs: WispDef[], terrain: Terrain) {
+  constructor(
+    defs: WispDef[],
+    terrain: Terrain,
+    /** Standing water at (x, z): it never waits over it (you would have to swim to it). */
+    wet: (x: number, z: number) => boolean = () => false,
+  ) {
     const tex = orbTexture()
     for (const def of defs) {
       const rand = mulberry32(def.seed)
@@ -47,6 +52,18 @@ export class Wisps {
       const path: THREE.Vector3[] = []
       let x = def.start.x
       let z = def.start.z
+      // (The Old Wood's started in the middle of a Mire pool, glowing under the water.)
+      for (let r = 6; r <= 120 && wet(x, z); r += 6) {
+        for (let k = 0; k < 12; k++) {
+          const tx = def.start.x + Math.cos(k * 0.5236) * r
+          const tz = def.start.z + Math.sin(k * 0.5236) * r
+          if (!wet(tx, tz)) {
+            x = tx
+            z = tz
+            break
+          }
+        }
+      }
       let a = def.bearing
       for (let k = 0; k < STEPS; k++) {
         path.push(new THREE.Vector3(x, terrain.heightAt(x, z) + 1.8, z))
@@ -58,7 +75,7 @@ export class Wisps {
           const nz = z + Math.cos(ca) * d
           const rise = terrain.heightAt(nx, nz) - terrain.heightAt(x, z)
           // Up is good (it leads you somewhere), a sheer wall is not (you could not follow).
-          const score = Math.min(rise, 18) - Math.max(0, rise - 30) * 3 + rand() * 6
+          const score = Math.min(rise, 18) - Math.max(0, rise - 30) * 3 + rand() * 6 - (wet(nx, nz) ? 1000 : 0)
           if (score > best.score) best = { x: nx, z: nz, score, a: ca }
         }
         x = best.x

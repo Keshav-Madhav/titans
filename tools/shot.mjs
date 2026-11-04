@@ -1685,13 +1685,24 @@ const scenes = {
       }
       return { hops: hops.length, seq: hops.join(","), done: w.done, revealed: !g.spots.spots.find((s) => s.id === 'wisp-green').hidden }
     })
+    // No wisp ever waits over a Mire pool (the Old Wood's started under the water).
+    const wetStops = await page.evaluate(() => window.__g.wisps.wisps.flatMap((w) => w.path.filter((p) => window.__g.mireView.wetAt(p.x, p.z)).map(() => w.def.id)))
+    if (wetStops.length) throw new Error(`wisp stops in the water: ${wetStops.join(',')}`)
     console.log(`followed the wisp: ${r.hops} approaches (${r.seq}); settled: ${r.done}; revealed: ${r.revealed}`)
     // Look at a wisp waiting (the wood's), from a little way off.
     await page.evaluate(() => {
       const g = window.__g
       const w = g.wisps.wisps.find((w) => w.def.id === 'wisp-wood')
-      g.teleport(w.pos.x + 24, w.pos.z + 18)
-      g.lookFrom([w.pos.x + 24, g.heightAt(w.pos.x + 24, w.pos.z + 18) + 1.7, w.pos.z + 18], [w.pos.x, w.pos.y, w.pos.z])
+      // From dry ground (it waits by the Mire's pools: a fixed offset stood the camera in one).
+      let x = w.pos.x + 24
+      let z = w.pos.z + 18
+      for (let a = 0; a < 6.28; a += 0.39) {
+        x = w.pos.x + Math.cos(a) * 30
+        z = w.pos.z + Math.sin(a) * 30
+        if (!g.mireView.wetAt(x, z) && !g.mireView.wetAt((x + w.pos.x) / 2, (z + w.pos.z) / 2)) break
+      }
+      g.teleport(x, z)
+      g.lookFrom([x, g.heightAt(x, z) + 1.7, z], [w.pos.x, w.pos.y, w.pos.z])
     })
     await page.waitForTimeout(800)
     await shot('wisp')

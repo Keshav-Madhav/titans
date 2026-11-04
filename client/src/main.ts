@@ -83,7 +83,7 @@ import { hangingSteps } from './parkour'
 import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
 import { Offerings } from './offerings'
-import { MireView } from './mire'
+import { MireView, poolWater } from './mire'
 import { Dread } from './dread'
 import { Bell } from './bell'
 import { Eerie } from './eerie'
@@ -376,6 +376,7 @@ const wisps = new Wisps(
     { id: 'wisp-dunes', start: { x: 1300, z: 3700 }, bearing: 0.3, seed: 63 },
   ],
   terrain,
+  poolWater(terrain, (x, z) => biome.mire(x, z)).wetAt,
 )
 scene.add(wisps.group)
 
@@ -900,7 +901,8 @@ const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => 
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)
-const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z))
+// (Not on the beds of the Mire's pools, under the water: mireView is made below, and asked only once the game runs.)
+const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z) || mireView.wetAt(x, z))
 scene.add(grass.mesh)
 quality.vegetation = vegetation
 quality.refresh()
