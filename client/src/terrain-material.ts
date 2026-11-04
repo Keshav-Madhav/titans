@@ -371,6 +371,29 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gAlb *= mix(1.0, 0.6, sWet);
           gRough = mix(gRough, 0.45, sWet);
         }
+        // Snow that reads as snow (graphics pass, 2026-11-04: the High Places' field was a flat white
+        // plane with dark crust lines like dirt). Wind-carved ridges (sastrugi) stretched across one
+        // wind, a few metres apart, as relief that catches the sun; bluer in their hollows; the crust
+        // lines lifted toward white. Glitter near you, below (emissive).
+        float gSnowK = gW[7] / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]) * (1.0 - gRockW);
+        if (gSnowK > 0.01) {
+          vec2 sWd = normalize(vec2(0.8, 0.6));
+          vec2 sQ = vec2(dot(gP.xz, sWd), dot(gP.xz, vec2(-sWd.y, sWd.x)));
+          // (Ridges metres long, a couple of metres apart: the noise has many features to a tile, so the
+          // first scale — 0.21 / 0.05 — made fine zebra stripes.)
+          vec2 sU = vec2(sQ.x * 0.035, sQ.y * 0.0085);
+          float sR0 = texture2D(tDetail, sU).r;
+          float sRx = texture2D(tDetail, sU + vec2(0.004, 0.0)).r;
+          float sRy = texture2D(tDetail, sU + vec2(0.0, 0.004)).r;
+          float sNear = 1.0 - smoothstep(80.0, 320.0, gDist);
+          vec2 sG = vec2((sRx - sR0) / 0.004 * 0.035, (sRy - sR0) / 0.004 * 0.0085);
+          vec2 sGw = sWd * sG.x + vec2(-sWd.y, sWd.x) * sG.y;
+          gNorm = normalize(gNorm + vec3(-sGw.x, 0.0, -sGw.y) * 4.0 * gSnowK * sNear);
+          float sCrest = smoothstep(0.4, 0.62, sR0);
+          vec3 sAlb = mix(gAlb, vec3(0.9, 0.92, 0.95) * dot(gAlb, vec3(0.33)) * 1.25, 0.35);
+          sAlb *= mix(vec3(0.84, 0.91, 1.05), vec3(1.04, 1.03, 1.0), sCrest);
+          gAlb = mix(gAlb, sAlb, gSnowK);
+        }
         // Ground a giant churned up, still bare (darkened in the vertex colour).
         gAlb *= vColor.g;
         // Cloud shadows drifting over the land.
@@ -382,6 +405,21 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         diffuseColor.rgb = gAlb;`,
       )
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = gRough;')
+      // Snow glitter: a few grains in a hundred catch the light near you and twinkle as you move.
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          float sp = gSnowK * (1.0 - smoothstep(5.0, 45.0, gDist));
+          if (sp > 0.01) {
+            vec3 cell = floor(gP * 24.0);
+            float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            vec3 V = normalize(cameraPosition - gP);
+            float tw = fract(h * 7.0 + dot(V, vec3(3.1, 1.7, 2.3)) * 5.0);
+            totalEmissiveRadiance += vec3(1.0, 0.98, 0.94) * step(0.988, h) * smoothstep(0.8, 1.0, tw) * sp * 2.5;
+          }
+        }`,
+      )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(gNorm, 0.0)).xyz);')
   }
   return mat
