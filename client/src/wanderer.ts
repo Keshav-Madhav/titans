@@ -623,6 +623,8 @@ export class Wanderer {
   private takeT = -1
   /** The hip's swing either way at this pace (rad). */
   private swingAmp = 0.55
+  /** The fraction of a leg's cycle its foot is on the ground. */
+  private stanceF = 0.5
   /** 0 … 1: how far into the long run (see LONG). */
   lope = 0
   /** Has the wing-cloak (main.ts sets it once found). */
@@ -1154,9 +1156,16 @@ export class Wanderer {
     // sliding"): the foot under you sweeps back at LEG · swing · (dφ/dt), and that must be
     // the ground going by. Past a sprint the stride lengthens rather than quickens.
     const over = THREE.MathUtils.clamp((hs - SPRINT) / (LONG - SPRINT), 0, 1)
-    const swingAmp = 0.55 + 0.2 * Math.max(0, this.gait - 1) / 0.6 + 0.15 * over
+    const swingAmp = 0.7 + 0.15 * Math.max(0, this.gait - 1) / 0.6 + 0.25 * over
     this.swingAmp = swingAmp
-    this.stride += (this.climbing ? this.climbMoving * 2.4 : Math.min(15.5, hs / (LEG * swingAmp * Math.max(0.3, Math.min(1, this.gait))))) * dt
+    // The foot on the ground is down for a fraction of each leg's cycle: half at a walk, a third
+    // at a full run (the rest of the stride is in the air). While down it sweeps back at a steady
+    // rate, so the cadence that keeps it still on the ground is π·f·speed / (LEG · sin amp).
+    // (Timed off a sine, at a run the planted foot slid at half the body's speed.)
+    const runK = Math.max(0, this.gait - 1) / 0.6
+    this.stanceF = 0.5 - 0.17 * runK
+    const ampNow = swingAmp * Math.max(0.3, Math.min(1, this.gait))
+    this.stride += (this.climbing ? this.climbMoving * 2.4 : Math.min(24, (Math.PI * this.stanceF * hs) / (LEG * Math.sin(ampNow)))) * dt
     const s = this.stride
     // A foot comes down each half stride (on the ground, walking).
     const half = Math.floor(s / Math.PI)
@@ -1313,18 +1322,31 @@ export class Wanderer {
       const go = Math.min(1, g)
       let drop = 0
       for (let i = 0; i < 2; i++) {
-        const ph = s + i * Math.PI
-        const swing = Math.sin(ph) * this.swingAmp * go
-        // Forward through the air (cos > 0) the knee folds — high and quick at a run, the
-        // heel kicked up behind; planted (cos < 0) it stays nearly straight, softening a
-        // little as the weight comes onto it.
-        const c = Math.cos(ph)
+        // This leg's place in its cycle, u in [0, 1): planted from 0.5 − f/2 to 0.5 + f/2
+        // (lands forward, sweeps back at a steady rate), in the air the rest of the way round.
+        const f = this.stanceF
+        const u = (((s + i * Math.PI) / (Math.PI * 2)) % 1 + 1) % 1
+        const st0 = 0.5 - f / 2
+        let n: number // the leg's angle, −1 (back) … 1 (forward)
+        let c: number // > 0 in the air (peaking mid-swing), < 0 planted
+        if (u >= st0 && u < st0 + f) {
+          const t = (u - st0) / f
+          n = 1 - 2 * t
+          c = -Math.sin(Math.PI * t)
+        } else {
+          const v = ((u - (st0 + f) + 1) % 1) / (1 - f)
+          n = -Math.cos(Math.PI * v)
+          c = Math.sin(Math.PI * v)
+        }
+        const swing = n * this.swingAmp * go
+        // Forward through the air the knee folds — high and quick at a run, the heel kicked
+        // up behind; planted it stays nearly straight, softening a little as the weight comes on.
         const lift = c > 0 ? Math.sin(Math.min(Math.PI, c * Math.PI * 0.9)) : 0
-        const fold = c > 0 ? c * (0.5 + run * 0.5) + lift * (0.25 + run * 0.75) : Math.max(0, -Math.sin(ph)) * 0.12 * (1 + run)
+        const fold = c > 0 ? c * (0.5 + run * 0.5) + lift * (0.25 + run * 0.75) : Math.max(0, -n) * 0.12 * (1 + run)
         L[i].hip.rotation.x = -swing - (c > 0 ? lift * run * 0.25 : 0)
         // (Running, the leg reaching forward stays bent at the knee — kicked out straight it
         // read as a goose-step.)
-        L[i].knee.rotation.x = (fold + run * 0.45 * Math.max(0, Math.sin(ph))) * go + 0.04
+        L[i].knee.rotation.x = (fold + run * 0.45 * Math.max(0, n)) * go + 0.04
         // The leg on the ground (cos < 0) sets how low the hips ride: it is shorter
         // upright than slanted, so the body rises over it and dips between steps
         // (otherwise the back foot floats off the ground as it trails).

@@ -598,6 +598,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
 - [x] Snow on the High Places: up on the plateau what falls is slow, wandering flakes (a flurry
       even on a fair day, thick in a storm); the Frozen One's ice block widened (its arms came out
       through the sides)
+- [x] The run, re-timed: a foot is down for half its cycle at a walk and a third at a full run (in the
+      air the rest), sweeping back at a steady rate, the cadence set from that (π·f·v / LEG·sin amp);
+      longer walk stride. Planted foot: walk median 0.86 m/s (was 1.22), run ~5 (was 7–8, much of the
+      rest is the airborne phase); walk 3.7 steps/s, full run 6
 
 ## P3 playtest (user, 2026-11-04: "this is all again not priority, continue work, pick these along the way")
 - [x] The icons still look bad — painted (tools/gen-icons.py, Gemini, $0.80 for 16): one painting per shape in one storybook style on a keyed-out ground, toned toward each item's colour where one shape serves several things; in the bag, journal, toolbar and offering shrines; the line drawings remain only as a fallback while they load
