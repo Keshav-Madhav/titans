@@ -299,24 +299,58 @@ function boulder(rx: number, ry: number, rz: number, seed: number, detail: numbe
 }
 
 /** Icosahedron subdivision per level of detail: near, middle, far. */
-const LOD_DETAIL = [4, 3, 2]
+// (Near 7, not 4 — QA cycle 7: up close a giant was big flat facets with straight edges, ~8 m across;
+// triangles proved cheap, ~51k a giant near. Built at load it cost 2.6 s of loading for every giant
+// and mountain, most never approached: so the near level starts as the middle one and the fine one
+// is built once you come near, a lump at a time within a frame budget — nearLods(), below.)
+const LOD_DETAIL = [4, 4, 2]
+const NEAR_DETAIL = 7
+
+/** Fine near meshes waiting to be built: one generator per part, a lump per step. */
+const nearJobs: Array<Generator<void, void, void>> = []
+
+/**
+ * Build waiting fine near meshes for up to `budgetMs` this frame (call once a frame). A lump is a
+ * few milliseconds; the first giant you walk up to is done in well under a second.
+ */
+export function nearLods(budgetMs = 2.5): void {
+  const t0 = performance.now()
+  while (nearJobs.length && performance.now() - t0 < budgetMs) {
+    if (nearJobs[0].next().done) nearJobs.shift()
+  }
+}
 /** Camera distance (×height) beyond which each coarser level is used. */
 const LOD_FAR = [2.2, 5]
 
-function segment(name: string, H: number, seed: number, mossiness: number): { lods: THREE.BufferGeometry[]; lumps: LumpSurface[] } {
+function segment(name: string, H: number, seed: number, mossiness: number): { lods: THREE.BufferGeometry[]; lumps: LumpSurface[]; near: () => Generator<void, void, void> } {
   const shape = SHAPES[name]
   const lumps: LumpSurface[] = shape.lumps.map((l, i) => ({
     c: new THREE.Vector3((l.off?.[0] ?? 0) * H, -l.at * shape.len * H, (l.off?.[1] ?? 0) * H),
     r: new THREE.Vector3(l.r[0] * H, l.r[1] * H, l.r[2] * H),
     bulge: boulderNoise(seed + i * 31).bulge,
   }))
+  // (Levels with the same detail share one geometry.)
+  const built = new Map<number, THREE.BufferGeometry>()
   const lods = LOD_DETAIL.map((detail) => {
+    if (built.has(detail)) return built.get(detail)!
     const parts = lumps.map((L, i) => boulder(L.r.x, L.r.y, L.r.z, seed + i * 31, detail, mossiness).translate(L.c.x, L.c.y, L.c.z))
     const geometry = mergeGeometries(parts)!
     for (const p of parts) p.dispose()
+    built.set(detail, geometry)
     return geometry
   })
-  return { lods, lumps }
+  // The fine near level, built later and a lump at a time (nearLods): sets lods[0] when done.
+  function* near(): Generator<void, void, void> {
+    const parts: THREE.BufferGeometry[] = []
+    for (let i = 0; i < lumps.length; i++) {
+      const L = lumps[i]
+      parts.push(boulder(L.r.x, L.r.y, L.r.z, seed + i * 31, NEAR_DETAIL, mossiness).translate(L.c.x, L.c.y, L.c.z))
+      yield
+    }
+    lods[0] = mergeGeometries(parts)!
+    for (const p of parts) p.dispose()
+  }
+  return { lods, lumps, near }
 }
 
 const _x = new THREE.Vector3()
@@ -400,7 +434,8 @@ export class Titan {
     // crumbling — dressed masonry blocks read as a building that walks).
     addStoneDetail(this.material, LAYER.hide)
     const add = (key: string, shape: string, s: number) => {
-      const { lods, lumps } = segment(shape, height, seed + s, mossiness)
+      const { lods, lumps, near } = segment(shape, height, seed + s, mossiness)
+      this.nearBuilders.push(near)
       const m = new THREE.Mesh(lods[0], this.material)
       m.castShadow = true
       m.receiveShadow = true
@@ -442,10 +477,25 @@ export class Titan {
   setLodFor(camera: THREE.Vector3): void {
     const d = Math.hypot(camera.x - this.gait.x, camera.y - this.pelvis.y, camera.z - this.gait.z) / this.H
     const lod = d > LOD_FAR[1] ? 2 : d > LOD_FAR[0] ? 1 : 0
+    // Coming near: queue the fine meshes (once), each part swapped in as it is done.
+    if (!this.nearQueued && d < LOD_FAR[0] * 1.4) {
+      this.nearQueued = true
+      for (const [i, b] of this.nearBuilders.entries()) {
+        const part = this.parts[i]
+        nearJobs.push(
+          (function* (self: Titan) {
+            yield* b()
+            if (self.lod === 0) part.mesh.geometry = part.lods[0]
+          })(this),
+        )
+      }
+    }
     if (lod === this.lod) return
     this.lod = lod
     for (const p of this.parts) p.mesh.geometry = p.lods[lod]
   }
+  private readonly nearBuilders: Array<() => Generator<void, void, void>> = []
+  private nearQueued = false
 
   /**
    * Roughly how far (metres) a world point is outside the body (negative

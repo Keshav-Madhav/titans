@@ -41,7 +41,7 @@ import { loadTerrainTextures, LAYER, terrainExp } from './terrain-material'
 import { SkySystem } from './sky'
 import { Input, setBindings, watchKeycaps } from './input'
 import { MAX_SLOPE, Wanderer } from './wanderer'
-import { setGiantSkin, Titan } from './titan'
+import { nearLods, setGiantSkin, Titan } from './titan'
 import { WaterView } from './water-view'
 import { Effects } from './effects'
 import { CameraRig, CLIFF_CAM, CLIMB_CAM, RIDE_CAM, WANDERER_CAM } from './camera-rig'
@@ -2404,6 +2404,8 @@ function frameBody(now: number): void {
   sky.tick(dt)
   sky.advance(dt)
   setFogSun(sky.sunDir)
+  // Fine giant meshes for giants you have come near, a little each frame (titan.ts).
+  nearLods()
   weather.part = awakening.reveal
   weather.desert = biome.desert(camera.position.x, camera.position.z)
   weather.high = highSector(camera.position.x, camera.position.z) * THREE.MathUtils.smoothstep(camera.position.y, HIGH.top - 200, HIGH.top - 40)

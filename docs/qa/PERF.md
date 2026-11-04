@@ -217,3 +217,10 @@ also verified by image and by triangle counts), their size is uncertain.
 **Consequence for the game:** the quality governor steers by max(frame interval, gpuMs). With the
 timer reading ~30% high in the Green, it can drop resolution that the frame could afford. Fixing it
 needs a real window to check against (headless has no display backpressure) — Q50.
+- **Giants close up: a finer mesh, built only when you come near.** Near detail 4 → 7 (facets ~8 m
+  → ~2 m: flat planes with straight edges became rounded masses, evidence/c7-giant-mesh.jpg). Built
+  at load for every giant and mountain it added ~2.6 s; instead the near level starts as the middle
+  one and the fine one is built for a giant you come within ~900 m of, a lump at a time within
+  2.5 ms a frame (titan.ts nearLods). Gates climb, grapple, giant, awakening, fps pass.
+- (Load-time lesson: the same build measured 5.9 s at 01:30 and 9.0 s at 02:00 — the machine, not
+  the code. Compare load times only within one run, side by side.)
