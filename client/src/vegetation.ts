@@ -661,6 +661,19 @@ export class Vegetation {
     return h
   }
 
+  /**
+   * A wall within a crown's reach: ground 3 m round that stands well above the trunk's foot (QA cycle
+   * 6: firs at a cliff's foot pushed their branches out through the rock face — black chevrons on a
+   * sunlit wall).
+   */
+  private walled(x: number, z: number, h: number): boolean {
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2
+      for (const r of [2.5, 4.5]) if (this.terrain.heightAt(x + Math.cos(a) * r, z + Math.sin(a) * r) > h + r * 0.9 + 1.2) return true
+    }
+    return false
+  }
+
   private wet(x: number, z: number, margin: number): boolean {
     const ix = Math.round(x)
     const iz = Math.round(z)
@@ -695,7 +708,7 @@ export class Vegetation {
         const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z)) * (1 - this.biome.mire(x, z))
         if (rand() > p) continue
         const h = this.ground(x, z, 400)
-        if (h === null) continue
+        if (h === null || this.walled(x, z, h)) continue
         const conifer = h > 160 || rand() < 0.45
         const sc = 0.75 + rand() * 0.65
         const tint = 0.82 + rand() * 0.3

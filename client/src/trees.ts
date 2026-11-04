@@ -338,14 +338,16 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         int bi = bq.x + bq.y * 4;
         float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
         float dith = (bayer[bi] + 0.5) / 16.0;
-        if (nearCam < 2.2 + 2.6 * dith) discard;
+        // (A narrow band: over 2.6 m of depth the whole near branch was a screen-door — QA cycle 6, a
+        // forest frame half covered in an even dot grid. Over 0.6 m it is a soft edge, not a pattern.)
+        if (nearCam < 3.0 + 0.6 * dith) discard;
         // Between the camera and the wanderer, leaves thin out (the wanderer is
         // never lost behind a tree): within a tube round that line, dithered.
         vec3 sp = (viewMatrix * vec4(uFocus, 1.0)).xyz;
         vec3 fp = -vViewPosition;
         float along = clamp(dot(fp, sp) / dot(sp, sp), 0.0, 1.0);
         float tube = length(fp - sp * along);
-        if (along < 0.97 && tube < (1.4 + 2.2 * along) * (0.55 + 0.45 * dith)) discard;`,
+        if (along < 0.97 && tube < (1.4 + 2.2 * along) * (0.86 + 0.14 * dith)) discard;`,
       )
   }
   return mat
