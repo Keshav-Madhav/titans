@@ -639,7 +639,7 @@ Held against the bar, honestly. ✅ already met · 🔧 done in this round · �
 - 🔧 Holds as toggles (setting): run, draw (Q / right mouse / LT), sight-stone. G stays a hold: a press throws the line, holding reels.
 - 🔧 Text size (As made / Larger / Largest): captions, prompts, cards, bag, journal and pause grow together; panels divide their screen-relative sizes by it; the key strip wraps clear of the minimap (no line starting with a dot); captions lift above it (pause gate checks at the largest size, desktop and phone).
 - ⬜ Sound is all synthesised (WebAudio) — the bar asks for recorded SFX (CC0 recordings, AUDIO.md). Big; needs free sources.
-- ⬜ Seeded randomness: a few gameplay picks still use Math.random (awakening, spots, wisps, main).
+- ✅ Seeded randomness: the world (land, pools, wisps, giants' paths) is seeded (WORLD_SEED, mulberry32). The Math.random left is cosmetic or atmosphere only (narration line picks, trail jitter, shed motes, when a far giant stirs); nothing rewards or rolls on it.
 - ⬜ A frame-rate proof (same inputs at 30/60/144 Hz give the same walk).
 - ⬜ Colour-blind check of the map/compass/prompts (CDP vision emulation).
 - — Touch/phone play: out of scope (a desktop mouse-look game); the pause and crash cards are checked at phone width only.
