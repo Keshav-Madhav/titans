@@ -1,7 +1,9 @@
 // Keys and pads: rebinding on the pause page (press the new key; a key in use swaps),
 // prompts show the player's keys, it is kept across a reload and reset; a pad walks and looks.
 //   npm run preview (4317), then: node tools/keys.mjs [outdir]
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 import { mkdirSync } from 'node:fs'
 
 const OUT = process.argv[2] ?? 'shots'
@@ -11,13 +13,13 @@ const fail = (m) => {
   failed = true
   console.error('KEYS GATE FAILED:', m)
 }
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 const ready = () => page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
 const ev = (f, a) => page.evaluate(f, a)
-const URL = 'http://localhost:4317/?offline'
+const URL = `${BASE}/?offline`
 
 const bindKey = async (label, key) => {
   const btn = page.locator('.pause-key', { hasText: label }).locator('button.pause-bindkey')

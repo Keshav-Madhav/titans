@@ -4,17 +4,23 @@
 //   node tools/shot.mjs <scene> [url]
 //
 // Scenes are small functions over `window.__g`; add one per phase gate.
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
 import { mkdirSync } from 'node:fs'
 
 const scene = process.argv[2] ?? 'ground'
-const url = process.argv[3] ?? 'http://localhost:4317/?offline'
+// TITANS_URL=<origin> points every tool at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
+const url = process.argv[3] ?? `${BASE}/?offline`
+const T = { start: Date.now() }
 // SHOTS=<dir> writes elsewhere (before/after comparisons).
 const OUT = process.env.SHOTS ?? 'shots'
 mkdirSync(OUT, { recursive: true })
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
-const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
+const browser = await launch()
+T.launched = Date.now()
+// A fresh context: nothing carried over from any earlier run (storage, cache, pages).
+const context = await browser.newContext({ viewport: { width: 1280, height: 760 } })
+const page = await context.newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 page.on('console', (m) => {
@@ -28,6 +34,7 @@ const t0 = Date.now()
 // sweep, each passing alone. A real hang still fails.)
 await page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 240000 })
 console.log(`ready in ${Date.now() - t0} ms`)
+T.ready = Date.now()
 await page.waitForTimeout(900) // the loading veil fades for 0.8 s
 
 /** Let the world settle after moving the camera: wait for chunk builds to finish. */
@@ -2725,8 +2732,12 @@ const scenes = {
 
 try {
   if (!scenes[scene]) throw new Error(`unknown scene "${scene}" (have: ${Object.keys(scenes).join(', ')})`)
+  T.sceneStart = Date.now()
   await scenes[scene]()
 } finally {
+  T.end = Date.now()
+  console.log(`timing launch ${T.launched - T.start} load ${T.ready - T.launched} scene ${T.end - (T.sceneStart ?? T.end)} total ${T.end - T.start} ms`)
   if (errors.length) console.log('console errors:\n  ' + errors.slice(0, 12).join('\n  '))
+  await context.close()
   await browser.close()
 }

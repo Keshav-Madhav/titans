@@ -2,12 +2,14 @@
 // thrown nothing, and the wanderer must be somewhere sane (finite, not under the land, not
 // stuck in a page or a mode it cannot leave).
 //   npm run preview (4317), then: node tools/adversary.mjs [outdir]
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 import { mkdirSync } from 'node:fs'
 
 const OUT = process.argv[2] ?? 'shots/adversary'
 mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
@@ -36,7 +38,7 @@ async function check(name) {
 }
 
 // 1. Reload during the title → waking hand-over, three times quickly.
-await page.goto('http://localhost:4317/', { waitUntil: 'domcontentloaded' })
+await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
 await page.evaluate(() => localStorage.clear())
 for (let i = 0; i < 3; i++) {
   await page.reload({ waitUntil: 'domcontentloaded' })
@@ -50,7 +52,7 @@ await wait(4000)
 await check('reload-mid-waking')
 
 // 2. Key mash: every key at once, repeatedly, while running.
-await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
+await page.goto(`${BASE}/?offline`, { waitUntil: 'domcontentloaded' })
 await ready()
 await page.evaluate(() => { const g = window.__g; for (const f of ['bag', 'line', 'bow', 'horn', 'cloak', 'sight']) g.finds.find(f); g.teleport(-600, 400) })
 await wait(2000)

@@ -6,14 +6,16 @@
 //   4. Away for hours: a giant left resting fell asleep, and is a mountain.
 //   5. A new adventure starts fresh.
 //   npm run preview (4317), then: node tools/single.mjs
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 
 let failed = false
 const fail = (m) => {
   failed = true
   console.error('SINGLE GATE FAILED:', m)
 }
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await launch()
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 680 } })
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.error('[pageerror]', e.message))
@@ -21,7 +23,7 @@ const ready = () => page.waitForFunction(() => window.__g && window.__g.ready ==
 const ev = (f, a) => page.evaluate(f, a)
 
 try {
-  await page.goto('http://localhost:4317/', { waitUntil: 'domcontentloaded', timeout: 120000 })
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 120000 })
   await ready()
   const fresh = await ev(() => ({ saving: window.__g.localSave, events: window.__g.savedEvents(), lakes: window.__g.lakes.lakes.length }))
   console.log(`fresh visit: saving ${fresh.saving}; the First Ones' trails laid (${fresh.events} events, ${fresh.lakes} lakes)`)

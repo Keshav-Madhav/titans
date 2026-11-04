@@ -1,20 +1,22 @@
 // Recorded sounds: after the first gesture every group decodes, and a step, a landing and
 // the panels play recordings (not their synthesised stand-ins); no errors.
 //   npm run preview (4317), then: node tools/sfx.mjs
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 
 let failed = false
 const fail = (m) => {
   failed = true
   console.error('SFX GATE FAILED:', m)
 }
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
+const browser = await launch(['--autoplay-policy=no-user-gesture-required'])
 const page = await browser.newPage({ viewport: { width: 1100, height: 680 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 try {
-  await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?offline`, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
   await page.mouse.click(500, 300)
   const groups = ['step-grass', 'step-stone', 'step-snow', 'step-soft', 'land-heavy', 'land-soft', 'page', 'book-place', 'cloth', 'belt', 'leather', 'book-open', 'book-close', 'leather-drop', 'metal-click', 'ui-click', 'ui-toggle', 'ui-hover', 'ui-denied']

@@ -2,7 +2,9 @@
 // writes over the save; a damaged save loads the one before it; the Wader is not "met"
 // from inside the Husk.
 //   npm run preview (4317), then: node tools/respect.mjs [outdir]
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 import { mkdirSync } from 'node:fs'
 
 const OUT = process.argv[2] ?? 'shots'
@@ -12,7 +14,7 @@ const fail = (m) => {
   failed = true
   console.error('RESPECT GATE FAILED:', m)
 }
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 } })
 const page = await ctx.newPage()
 const ready = () => page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
@@ -20,7 +22,7 @@ const ev = (f, a) => page.evaluate(f, a)
 const KEY = 'titans.adventure.v3'
 
 try {
-  await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded', timeout: 120000 })
+  await page.goto(`${BASE}/?offline`, { waitUntil: 'domcontentloaded', timeout: 120000 })
   await ready()
   // 1. The Husk is not the beach: standing inside it, the Wader is not met.
   const husk = await ev(async () => {
@@ -34,7 +36,7 @@ try {
   if (husk.wader) fail('the Wader was met from inside the Husk')
   if (!husk.husk) fail('the Husk itself was not found (the test stood in the wrong place)')
 
-  await page.goto('http://localhost:4317/', { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
   await ready()
   // 2. Two saves at two places: the second is the save, the first its backup.
   const a = await ev(() => {
@@ -52,13 +54,13 @@ try {
 
   // 3. The save damaged: the backup loads, and the game says so.
   // (Damaged from outside the game: leaving the game saves it again on the way out.)
-  await page.goto('http://localhost:4317/icons/bow.png')
+  await page.goto(`${BASE}/icons/bow.png`)
   const good = await ev((k) => {
     const p = JSON.parse(localStorage.getItem(k)).player
     localStorage.setItem(k, '{"v":1,"events":[1,2,')
     return p
   }, KEY)
-  await page.goto('http://localhost:4317/', { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
   await ready()
   await page.waitForTimeout(3500)
   const b = await ev(() => ({ p: window.__g.player(), said: document.body.innerText.includes('The last save was damaged') }))
@@ -68,7 +70,7 @@ try {
   await ev(() => window.__g.saveLocal())
 
   // 4. A frame breaks (QA flag): the card, and the save untouched after it.
-  await page.goto('http://localhost:4317/?qa=throw', { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?qa=throw`, { waitUntil: 'domcontentloaded' })
   await ready()
   await page.waitForSelector('#crash', { timeout: 30000 }).catch(() => fail('no card when a frame broke'))
   const before = await ev((k) => localStorage.getItem(k), KEY)

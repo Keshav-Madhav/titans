@@ -2,9 +2,11 @@
 // 30, 60 and 144 frames a second (requestAnimationFrame paced by a timer) end within a
 // small distance of each other, and the jump reaches the same height.
 //   npm run preview (4317), then: node tools/fps.mjs
-import { chromium } from 'playwright-core'
+import { launch } from './browser.mjs'
+// TITANS_URL=<origin> points the gate at another server (default the preview on 4317).
+const BASE = process.env.TITANS_URL ?? 'http://localhost:4317'
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await launch()
 const out = {}
 for (const hz of [30, 60, 144]) {
   const page = await browser.newPage({ viewport: { width: 800, height: 450 } })
@@ -18,7 +20,7 @@ for (const hz of [30, 60, 144]) {
     }, 1000 / hz)
     window.requestAnimationFrame = (f) => (q.push(f), q.length)
   }, hz)
-  await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?offline`, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
   out[hz] = await page.evaluate(async () => {
     const g = window.__g
