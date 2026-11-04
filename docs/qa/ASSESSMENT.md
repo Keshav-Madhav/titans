@@ -1,6 +1,6 @@
 # Quality assessment (living — updated each cycle)
 
-*As of cycle 5, 2026-11-04.*
+*As of cycle 7, 2026-11-04.*
 
 ## Where it stands
 
@@ -31,18 +31,21 @@ Would someone mistake it for a prototype? Less often — the remaining tells:
    (Q24) wants a look in a real window.
 4. **One GPU hitch at the daylight reveal** (Q23) — once, at a camera cut.
 
+## Cycle 7, in short
+
+- **Performance on the user's M5 Pro**: the terrain's spilled arrays (10 → 4.5 ms), a governor that
+  reads GPU time, near terrain without sub-pixel slivers (−11%), god rays only when seen. Every
+  change compared same-frame; two tried and rejected (PERF.md).
+- **One standard everywhere**: scanned stone, aged statues with rubble at their feet, worn carving,
+  snow, trees, lakes, the horizon mountains' ridgelines (Q48), and no white veil facing a low sun (Q47).
+
 ## Next
 
-1. **View culling** (written, building after the sweep): near trees, scanned boulders, stones,
-   reeds and ferns culled per instance; grass culled per cell. They were drawn all round the camera.
-2. **Everything to one standard** (the user: "having good rocks in a shitty-texture game is off
-   too"): a fresh survey of the common views after the sweep, worst-first — the mid/far grassland
-   (most of every frame), cliffs and ravine walls, the Sentinel's tatters, far trees.
-3. **Compressed ground textures** (KTX2/Basis) to afford 2K ground at today's GPU memory (~190 MB
-   for 34 maps at 1K uncompressed; 2K uncompressed would be ~760 MB). Needs an encoder
-   (`ktx2-encoder`, MIT, WebAssembly) and the terrain's texture arrays loading as compressed
-   arrays — a project, not a tweak.
-4. Q36 (a stray water slab), Q24 (sunset mist), Q23 (one GPU hitch at the reveal).
+1. **What still costs** (PERF.md 7c): the terrain's layered shader (~5 ms headless of ~45), bloom,
+   AO, clouds, grass. Find waste like the spilled arrays, not cuts in quality.
+2. **Compressed ground textures** (KTX2/Basis) to afford 2K ground in today's GPU memory.
+3. Q36 (a stray water slab), Q24 (sunset mist), Q23 (one GPU hitch at the reveal).
+4. Statue cracks and earth heaped against their feet (Q45, the part not yet done).
 
 ## Not verified here (limits)
 
