@@ -405,7 +405,11 @@ export class Titan {
       m.castShadow = true
       m.receiveShadow = true
       // Plating, fur and eyes: what makes it a colossus (armor.ts).
-      if (hideTex) m.add(armorFor(key, shape, lumps, height, seed + s, hideTex, mossiness > 0))
+      if (hideTex) {
+        const armor = armorFor(key, shape, lumps, height, seed + s, hideTex, mossiness > 0)
+        m.add(armor)
+        this.armors.push(armor)
+      }
       this.meshes[key] = m
       this.group.add(m)
       const part = { key, mesh: m, lumps, lods }
@@ -473,6 +477,13 @@ export class Titan {
 
   part(key: string): TitanPart | undefined {
     return this.partIndex.get(key)
+  }
+
+  private readonly armors: THREE.Object3D[] = []
+
+  /** Show or hide the plates, fur and eyes (a few pixels on a far silhouette: dozens of draw calls). */
+  showArmor(on: boolean): void {
+    for (const a of this.armors) a.visible = on
   }
 
   /** Heave the shoulders to throw off climbers. */

@@ -3,6 +3,7 @@
 // blurred by the cracks, very still. Shards of the glacier lie broken round its foot.
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { HIGH, mulberry32, type Terrain } from '@titans/shared'
 import { Titan } from './titan'
 
@@ -56,31 +57,35 @@ export class Frozen {
       return g
     }
     // (Wide enough for its shoulders and arms: at 300 m they came out through its sides.)
-    const ice = new THREE.Mesh(block(480, 620, 380, 6), iceMat)
-    ice.position.set(x, y + 280, z)
-    ice.rotation.y = HIGH.axis + 0.2
-    ice.renderOrder = 4
-    this.group.add(ice)
-    // Broken shards about its foot.
+    // The block and the broken shards about its foot, one mesh (they were ten draw calls).
+    const parts: THREE.BufferGeometry[] = []
+    const m4 = new THREE.Matrix4()
+    const b = block(480, 620, 380, 6)
+    b.applyMatrix4(m4.compose(new THREE.Vector3(x, y + 280, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), HIGH.axis + 0.2), new THREE.Vector3(1, 1, 1)))
+    parts.push(b)
     for (let i = 0; i < 9; i++) {
       const a = rand() * Math.PI * 2
       const r = 260 + rand() * 140
       const s = 18 + rand() * 40
-      const shard = new THREE.Mesh(block(s, s * (1.2 + rand() * 1.4), s * 0.8, 2), iceMat)
+      const g = block(s, s * (1.2 + rand() * 1.4), s * 0.8, 2)
       const sx = x + Math.cos(a) * r
       const sz = z + Math.sin(a) * r
-      shard.position.set(sx, terrain.heightAt(sx, sz) + s * 0.3, sz)
-      shard.rotation.set(rand() * 0.8, rand() * 6.3, rand() * 0.8)
-      shard.renderOrder = 4
-      this.group.add(shard)
+      g.applyMatrix4(m4.compose(new THREE.Vector3(sx, terrain.heightAt(sx, sz) + s * 0.3, sz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * 0.8, rand() * 6.3, rand() * 0.8)), new THREE.Vector3(1, 1, 1)))
+      parts.push(g)
     }
+    const ice = new THREE.Mesh(mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!, iceMat)
+    ice.renderOrder = 4
+    this.group.add(ice)
   }
 
   /** Each frame near it: hold its pose on the ground. */
   update(dt: number, terrain: Terrain, camera: THREE.Vector3): void {
+    // (Its detail by distance always: skipped past 12 km it stayed at full detail, plates and
+    // fur and all, 76 draw calls from the Green.)
+    this.titan.setLodFor(camera)
+    this.titan.showArmor(camera.distanceTo(this.at) < 3000)
     if (camera.distanceTo(this.at) > 12000) return
     this.titan.pose(terrain, dt)
     this.titan.group.updateMatrixWorld(true)
-    this.titan.setLodFor(camera)
   }
 }

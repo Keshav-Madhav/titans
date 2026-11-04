@@ -1117,6 +1117,8 @@ for (const a of [0.45, 2.55, 4.4]) {
   const t = new Titan(9500, Math.cos(a) * r, Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a)), 50 + Math.round(a * 10), 1)
   t.restBlend = 0
   t.silhouette(0.12)
+  // (A dark silhouette 30 km off: its plates and fur add nothing but ~40 draw calls each.)
+  t.showArmor(false)
   scene.add(t.group)
   farGiants.push(t)
 }
@@ -2272,6 +2274,7 @@ function frame(now: number): void {
     for (const t of farGiants) t.group.visible = sk > 0
   }
   if (Math.abs(camera.position.z - SHORE.waderD) < 9000) stepWader(dt)
+  wader.showArmor(Math.hypot(camera.position.x - wader.gait.x, camera.position.z - wader.gait.z) < 3000)
   frozen.update(dt, terrain, camera.position)
   for (const t of [...farGiants, ...herd.giants, wader]) {
     t.pose(terrain, dt)
