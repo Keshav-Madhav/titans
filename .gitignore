@@ -6,3 +6,6 @@ shots/
 server/data/
 tools/.cache/
 .env.local
+
+# QA evidence: raw captures (clips, frames) stay local; contact sheets live in docs/qa/evidence.
+qa/

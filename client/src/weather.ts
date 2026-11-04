@@ -351,6 +351,12 @@ export class Weather {
 
   /** Change the weather (instantly for tools, else eased in over a minute). */
   set(name: WeatherName, instant = false): void {
+    // (An unknown name — ?weather= from the address bar, a tool — is refused, not a broken frame:
+    // `this.target` undefined threw every frame after.)
+    if (!PRESETS[name]) {
+      console.warn(`[weather] no weather called "${name}"`)
+      return
+    }
     this.name = name
     this.target = PRESETS[name]
     if (instant) Object.assign(this.now, this.target)

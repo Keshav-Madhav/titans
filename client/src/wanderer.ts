@@ -281,6 +281,13 @@ const CARRY = 0.82
 class Cloth {
   /** Floating: the floor under it is water, not a wall to be pushed back from. */
   water = false
+  /**
+   * How far above the pins' mean height the cloth may rise (m). A cloak in a gale streams out
+   * level at most: in a storm, running along a steep slope, the cape was pushed up the hill
+   * behind you and stood over your head like a board. Infinity while you fall or glide (then
+   * the rushing air may lift it).
+   */
+  ceil = Infinity
   readonly mesh: THREE.Mesh
   private readonly p: Float32Array
   private readonly q: Float32Array
@@ -465,6 +472,12 @@ class Cloth {
             } else p[k] = this.floor[i]
           }
         }
+      }
+      if (this.ceil < Infinity) {
+        let py = 0
+        for (let c = 0; c < cols; c++) py += pins[c].y
+        const top = py / cols + this.ceil
+        for (let i = cols * 2; i < cols * rows; i++) if (p[i * 3 + 1] > top) p[i * 3 + 1] = top
       }
       // And never further from its pin than the cloth between them reaches (a little
       // give): however hard it is yanked, it cannot stretch out into a streak.
@@ -1549,6 +1562,8 @@ export class Wanderer {
       L.knee.localToWorld(c[i * 2 + 1].b)
     }
     this.cape.water = this.scarf.water = this.swimming
+    // (Falling or gliding, the air may lift it; otherwise no higher than the shoulders.)
+    this.cape.ceil = this.gliding || this.vel.y < -6 ? Infinity : 0.1
     this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
