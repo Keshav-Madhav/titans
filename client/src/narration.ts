@@ -53,6 +53,16 @@ export class Narration {
       this.left.delete(first)
       first.remove()
     }
+    // Not a wall of words: past ~300 characters on screen, the oldest lines go early (fading,
+    // in a second or so) — three found things' paragraphs at once covered a fifth of the view.
+    let chars = 0
+    const live = [...this.log.children].filter((e) => !e.classList.contains('old')) as HTMLElement[]
+    for (const e of live) chars += e.textContent?.length ?? 0
+    for (const e of live) {
+      if (chars <= 300 || e === line) break
+      chars -= e.textContent?.length ?? 0
+      this.left.set(e, Math.min(this.left.get(e) ?? 0, 1200))
+    }
     this.left.set(line, holdMs(line.textContent ?? ''))
   }
 
