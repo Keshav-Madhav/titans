@@ -744,9 +744,20 @@ export class Vegetation {
     if (this.wet(x, z, 0)) return null
     // (Nothing growing on the sea's bed.)
     if (h < SHORE.sea + 0.4 && seaward(x, z)) return null
-    const sx = this.terrain.heightAt(x + 2, z) - h
-    const sz = this.terrain.heightAt(x, z + 2) - h
-    if (sx * sx + sz * sz > 2.2) return null // steeper than ~35°
+    // Steeper than ~35°, measured both ways (one-sided, a slope falling away to −x or −z passed).
+    const hx0 = this.terrain.heightAt(x - 2, z)
+    const hx1 = this.terrain.heightAt(x + 2, z)
+    const hz0 = this.terrain.heightAt(x, z - 2)
+    const hz1 = this.terrain.heightAt(x, z + 2)
+    const sx = Math.max(Math.abs(hx1 - h), Math.abs(h - hx0))
+    const sz = Math.max(Math.abs(hz1 - h), Math.abs(h - hz0))
+    if (sx * sx + sz * sz > 2.2) return null
+    // A ledge on a cliff face, or its lip: the ground drops away sharply close by (Q49: small trees
+    // stood on a sheer wall, on its narrow flat steps).
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2
+      if (this.terrain.heightAt(x + Math.cos(a) * 3, z + Math.sin(a) * 3) < h - 3.5) return null
+    }
     return h
   }
 
