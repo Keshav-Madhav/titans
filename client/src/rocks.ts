@@ -64,9 +64,11 @@ export interface ColossusPlacement {
  * much of the sky a point sees), for built stone whose shape is known — corners where a wall
  * meets the floor go dark as they do in life — and its uniforms.
  */
-export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }): THREE.MeshStandardMaterial {
+export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }, weathered = false): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
-  if (occlusion) mat.customProgramCacheKey = () => 'rock-ao-' + occlusion.key
+  // (Weathered: the formations, which carry each point's height above the land, aAbove.)
+  if (weathered) mat.defines = { ...(mat.defines ?? {}), ROCK_ABOVE: '' }
+  mat.customProgramCacheKey = () => 'rock' + (occlusion ? '-ao-' + occlusion.key : '') + (weathered ? '-w' : '')
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
@@ -86,11 +88,16 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         )
     }
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aLayer;\nvarying vec3 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;')
+      .replace('#include <common>', '#include <common>\nattribute vec3 aLayer;\nvarying vec3 vLayer;\nvarying vec3 vRockPos;\nvarying vec3 vRockN;\n#ifdef ROCK_ABOVE\nattribute vec2 aAbove;\n#endif\nvarying vec2 vAbove;')
       .replace(
         '#include <project_vertex>',
         `#include <project_vertex>
         vLayer = aLayer;
+        #ifdef ROCK_ABOVE
+        vAbove = aAbove;
+        #else
+        vAbove = vec2(1e4, 1.0);
+        #endif
         #ifdef USE_INSTANCING
           vRockPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
           vRockN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
@@ -108,6 +115,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         varying vec3 vLayer;
         varying vec3 vRockPos;
         varying vec3 vRockN;
+        varying vec2 vAbove;
         vec3 rockN;
         vec3 triTex(float L, float s, vec3 p, vec3 N, out vec3 nrm) {
           vec3 w = pow(abs(N), vec3(4.0));
@@ -164,6 +172,30 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           cA = clamp(vec3(bl) + (cA - vec3(bl)) * 1.4 + (bl - 0.66) * 1.6, 0.0, 1.0);
           cA *= vec3(1.02, 0.97, 0.86);
           cA *= mix(1.0, 0.6, smoothstep(0.1, -0.7, rN.y));
+        }
+        // Weathered from the ground up (the user, 2026-11-04: the statues "look like someone placed
+        // them there — something that has existed for a while, the environment would have grown round
+        // it"). A damp band climbing a ragged height off the land — taller on taller things — dark and
+        // mottled, with moss in it in green lands and wind-blown dust where the ground is sand.
+        if (vAbove.x < 1e3) {
+          vec3 nW;
+          float wn = triTex(vLayer.x, 1.0 / 23.0, vRockPos + 91.0, rN, nW).g;
+          // (Taller things gather more: a boulder a metre or two, a 400 m statue tens of metres.)
+          float creep = clamp(vAbove.y * 0.08, 1.5, 34.0) * (0.55 + 0.9 * smoothstep(0.25, 0.75, wn));
+          float band = 1.0 - smoothstep(creep * 0.55, creep, vAbove.x);
+          // Vines and runs of moss climbing higher in narrow ragged streaks (vertical: stretched in y).
+          vec3 nV;
+          float vine = triTex(vLayer.x, 1.0, vec3(vRockPos.x * 0.35, vRockPos.y * 0.02, vRockPos.z * 0.35) + 3.0, vec3(rN.x, 0.0, rN.z) + 1e-3, nV).g;
+          float vines = smoothstep(0.62, 0.72, vine) * (1.0 - smoothstep(creep * 1.2, creep * 2.6, vAbove.x)) * (1.0 - abs(rN.y));
+          band = max(band, vines * 0.9);
+          if (band > 0.001) {
+            bool dusty = abs(vLayer.y - 4.0) < 0.5;
+            vec3 damp = dusty ? vec3(0.93, 0.82, 0.62) : vec3(0.5, 0.56, 0.4);
+            vec3 nM;
+            vec3 mossC = triTex(13.0, 1.0 / 2.5, vRockPos, rN, nM);
+            vec3 grown = dusty ? cA * damp : mix(cA * vec3(0.62, 0.66, 0.55), mossC * vec3(0.85, 0.95, 0.8), smoothstep(0.3, 0.7, wn) * 0.75);
+            cA = mix(cA, grown, band);
+          }
         }
         vec3 cB = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nB);
         // Moss, leaf litter or sand on the faces that look up — in patches, the
@@ -226,7 +258,7 @@ export class Rocks {
     /** Somewhere a formation must not stand (lakes, the start). */
     keepClear: (x: number, z: number, r: number) => boolean,
   ) {
-    this.material = rockMaterial(textures)
+    this.material = rockMaterial(textures, undefined, true)
     this.textures = textures
     const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1))
     for (let i = 0; i < n; i++) {
@@ -438,7 +470,7 @@ export class Rocks {
     const col = new Float32Array(m.ao.length * 3)
     const layer = new Float32Array(m.ao.length * 3)
     const [tr, tg, tb] = f.tint
-    const contact = f.float ? null : this.groundContact(f, m.position)
+    const contact = f.float ? null : this.groundContact(f, m.position, m.normal)
     for (let i = 0; i < m.ao.length; i++) {
       const ao = m.ao[i] * (contact ? contact[i] : 1)
       col.set([ao * tr, ao * tg, ao * tb], i * 3)
@@ -446,6 +478,17 @@ export class Rocks {
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3))
     g.setAttribute('aLayer', new THREE.BufferAttribute(layer, 3))
+    // How high each point stands above the land: weathering climbs from the ground (rocks shader).
+    // [height above ground (m), how tall the formation is (m)]
+    {
+      const above = new Float32Array(m.ao.length * 2)
+      const tall = Math.max(1, f.cy + f.hy)
+      for (let i = 0; i < m.ao.length; i++) {
+        above[i * 2] = contact ? this.lastAbove[i] : 1e4
+        above[i * 2 + 1] = tall
+      }
+      g.setAttribute('aAbove', new THREE.BufferAttribute(above, 2))
+    }
     g.setIndex(new THREE.BufferAttribute(m.index, 1))
     g.computeBoundingSphere()
     const mesh = new THREE.Mesh(g, this.material)
@@ -472,9 +515,13 @@ export class Rocks {
    * line rising to 1 a few metres above it. The ground is sampled on a coarse grid over the
    * formation and read back bilinearly (one lookup per vertex would be a hitch on a colossus).
    */
-  private groundContact(f: Formation, pos: Float32Array): Float32Array {
+  /** Height of each vertex above the land (m), from the last groundContact() call. */
+  private lastAbove: Float32Array = new Float32Array(0)
+
+  private groundContact(f: Formation, pos: Float32Array, nrm?: Float32Array): Float32Array {
     const n = pos.length / 3
     const out = new Float32Array(n)
+    this.lastAbove = new Float32Array(n)
     const c = Math.cos(f.rot)
     const sn = Math.sin(f.rot)
     const wx = new Float32Array(n)
@@ -505,8 +552,38 @@ export class Rocks {
       const a = grid[j * G + k], b = grid[j * G + k + 1], cc = grid[(j + 1) * G + k], d = grid[(j + 1) * G + k + 1]
       const ground = (a + (b - a) * fu) * (1 - fv) + (cc + (d - cc) * fu) * fv
       const above = f.y + pos[i * 3 + 1] - ground
+      this.lastAbove[i] = above
       const t = Math.min(1, Math.max(0, above / reach))
       out[i] = 0.5 + 0.5 * t * t * (3 - 2 * t)
+    }
+    // The ground a statue stands on may be its own: a plinth, a mound of moss and earth it was made
+    // with, tens of metres above the land (the Sentinel's foot is ~20 m up). For the weathering the
+    // height that counts is above the highest flat ground under each point — the land, or the
+    // statue's own upward-facing surfaces in its lower quarter.
+    if (nrm) {
+      const C = 6
+      const cells = new Map<number, number[]>()
+      const tall = Math.max(1, f.cy + f.hy)
+      for (let i = 0; i < n; i++) {
+        if (nrm[i * 3 + 1] < 0.72 || this.lastAbove[i] < -0.5 || this.lastAbove[i] > tall * 0.25) continue
+        const k = Math.floor(wx[i] / C) * 100003 + Math.floor(wz[i] / C)
+        const y = f.y + pos[i * 3 + 1]
+        const list = cells.get(k)
+        if (!list) cells.set(k, [y])
+        else if (list.every((v) => Math.abs(v - y) > 2)) list.push(y)
+      }
+      for (let i = 0; i < n; i++) {
+        const y = f.y + pos[i * 3 + 1]
+        const cx = Math.floor(wx[i] / C)
+        const cz = Math.floor(wz[i] / C)
+        let best = -Infinity
+        for (let dz = -1; dz <= 1; dz++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const list = cells.get((cx + dx) * 100003 + cz + dz)
+            if (list) for (const v of list) if (v <= y + 0.3 && v > best) best = v
+          }
+        if (best > -Infinity) this.lastAbove[i] = Math.min(this.lastAbove[i], Math.max(0, y - best))
+      }
     }
     return out
   }
