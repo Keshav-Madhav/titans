@@ -855,7 +855,7 @@ export class Wanderer {
         coat.castShadow = true
         hip.add(coat)
       }
-      const knee = limb(0.44, 0.07, 0.06, wraps, 'shin')
+      const knee = limb(0.44, 0.078, 0.064, wraps, 'shin')
       knee.position.y = -0.44
       // A boot: a rounded upper over the ankle and a toe, on a darker sole.
       const boot = mergeGeometries([
@@ -876,6 +876,26 @@ export class Wanderer {
       shoulder.position.set(side * 0.22, 0.52, 0)
       const elbow = limb(0.27, 0.056, 0.048, tunic, 'forearm')
       elbow.position.y = -0.29
+      // Sleeves: the upper arm's loose and long enough to cover the elbow, the forearm's widening
+      // to a turned-back cuff (the joint balls showed — a doll's arm).
+      for (const [part, len, r0, r1, y0] of [
+        [shoulder, 0.33, 0.078, 0.075, 0.0],
+        [elbow, 0.22, 0.066, 0.074, 0.0],
+      ] as const) {
+        const sl = new THREE.CylinderGeometry(r1, r0, len, 14, 3, true)
+        const sp = sl.getAttribute('position')
+        for (let k = 0; k < sp.count; k++) {
+          const a = Math.atan2(sp.getZ(k), sp.getX(k))
+          const f = 1 + 0.05 * Math.sin(a * 5 + len * 40)
+          sp.setXYZ(k, sp.getX(k) * f, sp.getY(k), sp.getZ(k) * f * 0.92)
+        }
+        sl.computeVertexNormals()
+        const sleeveMat = (tunic as THREE.MeshStandardMaterial).clone()
+        sleeveMat.side = THREE.DoubleSide
+        const sleeve = new THREE.Mesh(sl.translate(0, y0 - len / 2 + 0.02, 0), sleeveMat)
+        sleeve.castShadow = true
+        part.add(sleeve)
+      }
       // A hand, not a ball: a mitten of palm and fingers, and a thumb.
       const hand = new THREE.Group()
       hand.position.y = -0.3
