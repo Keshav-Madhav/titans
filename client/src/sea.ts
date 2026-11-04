@@ -30,9 +30,12 @@ export class Sea {
     this.bedTex = new THREE.DataTexture(data, NX, NZ, THREE.RedFormat, THREE.HalfFloatType)
     this.bedTex.magFilter = this.bedTex.minFilter = THREE.LinearFilter
     this.bedTex.needsUpdate = true
-    const W = 44000
-    const D = 26000
-    const geo = new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2).translate(0, 0, SHORE.coast - 1400 + D / 2)
+    // Only the Shore's gap: a wedge of ring from just inside the coast out past the Wall. (A
+    // plane over half the world with the rest discarded paid its shader wherever it covered the
+    // screen — a discard turns off the early depth test on many GPUs.)
+    const half = SHORE.half * 1.25
+    // (Ring in XY, turned to face up: its angle −π/2 lands due south, +z.)
+    const geo = new THREE.RingGeometry(SHORE.coast - 1400, 40000, 48, 4, -Math.PI / 2 - half, half * 2).rotateX(-Math.PI / 2)
     const uv = geo.getAttribute('uv') as THREE.BufferAttribute
     const pos = geo.getAttribute('position') as THREE.BufferAttribute
     for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 13, pos.getZ(i) / 13)
@@ -78,12 +81,7 @@ export class Sea {
         .replace(
           '#include <clipping_planes_fragment>',
           `#include <clipping_planes_fragment>
-          // Only in the Shore's gap, and out past the beach.
-          {
-            float a = abs(atan(vSeaW.x, vSeaW.z));
-            float sector = 1.0 - smoothstep(uHalf * 0.75, uHalf * 1.25, a);
-            if (sector < 0.02 || length(vSeaW.xz) < uCoast - 1200.0) discard;
-          }`,
+          // (The mesh is the Shore's gap already: nothing to discard, the mountains close its sides.)`,
         )
         .replace(
           '#include <color_fragment>',
