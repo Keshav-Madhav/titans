@@ -325,6 +325,19 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float gBlade = texture2D(tDetail, gP.xz * 1.7).r * 0.55 + texture2D(tDetail, gP.xz * 0.53 + 0.2).r * 0.45;
           float gFarG = smoothstep(30.0, 70.0, gDist) * (1.0 - smoothstep(260.0, 520.0, gDist));
           gAlb *= mix(1.0, 0.78 + 0.4 * gBlade, gGrass * (1.0 - gRockW) * gFarG);
+          // …and their colour, at a scale that still reads from a crest: the blades are tinted per
+          // clump from green to straw, so past them the slopes were smooth pastel lawn (CHECKLIST
+          // P3, "the edge still shows from a height"). Straw clumps a few metres across, wider
+          // drier swathes, darker gaps between — faded in where the blades thin out, kept far.
+          // (Big enough to survive the mipmaps: at 50–900 m a pattern a few metres across is averaged
+          // to flat grey before it reaches the screen — the first try changed 3/255.)
+          float gClump = texture2D(tDetail, gP.xz * 0.045 + 0.37).r;
+          float gSwath = texture2D(tDetail, gP.xz * 0.009 + 0.71).r;
+          // (The detail texture lives in a narrow mid-grey band: thresholds round its middle, or the
+          // pattern came out all one value — measured: 3/255 of change on the first try.)
+          float gStraw = smoothstep(0.44, 0.58, gClump * 0.5 + gSwath * 0.5);
+          float gFar2 = gGrass * (1.0 - gRockW) * smoothstep(40.0, 95.0, gDist) * (1.0 - smoothstep(900.0, 1600.0, gDist));
+          gAlb = mix(gAlb, gAlb * mix(vec3(0.74, 0.8, 0.78), vec3(1.24, 1.1, 0.66), gStraw), gFar2 * 0.85);
         }
         // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
         {
