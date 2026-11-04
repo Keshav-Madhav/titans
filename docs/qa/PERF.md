@@ -129,3 +129,32 @@ At 1512×945 CSS, ratio 2 (GPU time per frame from timer queries, interleaved to
   larger of that and the frame interval; it starts at ratio 1 and may rise to 1.5.
 - Dead ends, recorded: a cheaper far-terrain material (no change: far chunks cover little screen);
   per-pass timer queries (all read ~0 on this driver — only whole-frame queries work).
+
+## Cycle 7c — where the rest of the frame goes (paired toggles)
+
+Interleaved timing was swamped by other apps' GPU use (baselines drifted 19–48 ms between runs).
+The probe now toggles each part against its own baseline, 8 alternations of ~25 frames each, and
+keeps only fresh GPU readings (`qa/cycle7/pairs.mjs`). Headless at 1512×945, ratio 1.5; absolute
+numbers read ~2.5× slow, differences hold:
+
+| part | cost (headless ms) |
+| --- | ---: |
+| terrain (all of it) | 12.6 |
+| — of which the layered ground shader (vs a plain standard material) | 5.4 |
+| bloom | 3.7 |
+| AO | 2.6 |
+| clouds | 2.3 |
+| grass | 1.9 |
+| god rays | 1.6 |
+| vegetation | 1.4 |
+| soft layers | 1.1 |
+| rocks, statues and their rubble | 0.2 |
+
+- **Terrain density, now that the shader is cheap, does cost.** At 1.76M terrain triangles the
+  far ground, seen at a low angle, was splitting into slivers a pixel or two tall: the GPU shades
+  2×2 pixel quads, so slivers are shaded several times over. (In cycle 7b, a 5× cut showed nothing,
+  because the array-spilling shader hid it.) Split distance 1.35 → 1.0 × chunk size: 1.29M
+  triangles, **49.3 → 43.9 ms headless (−11%)**. Same frame toggled in one session: 1.9% of pixels
+  differ, against 2.8% between two shots of the *same* setting (drifting cloud, the wanderer
+  breathing). The difference cannot be seen; the ground's small relief is in its normal maps.
+- Draw order: terrain last instead of front-to-back sorted: +2 ms. Kept sorted.
