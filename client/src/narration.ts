@@ -11,6 +11,30 @@ function holdMs(text: string): number {
 
 export class Narration {
   private readonly log = document.getElementById('narration')!
+  /** Each line's time left (ms): it only runs while no page is open (`paused`). */
+  private readonly left = new Map<HTMLElement, number>()
+  /** A page (bag, journal, map, pause) is open: lines wait, out of sight, to be read after. */
+  paused = false
+
+  constructor() {
+    let last = performance.now()
+    setInterval(() => {
+      const now = performance.now()
+      const dt = now - last
+      last = now
+      if (this.paused) return
+      for (const [line, ms] of this.left) {
+        if (ms - dt > 0) {
+          this.left.set(line, ms - dt)
+          continue
+        }
+        this.left.delete(line)
+        line.classList.add('old')
+        // Gone from the page once faded (an invisible line still took its room in the column).
+        setTimeout(() => line.remove(), 1800)
+      }
+    }, 200)
+  }
 
   /** A line of narration (`from` names a speaker, if any). */
   say(text: string, from?: string): void {
@@ -24,12 +48,12 @@ export class Narration {
     line.append(document.createTextNode(text))
     this.log.appendChild(line)
     // Three at most: the found things' words are long, and a stack of them hides the land.
-    while (this.log.children.length > 3) this.log.firstChild?.remove()
-    setTimeout(() => {
-      line.classList.add('old')
-      // Gone from the page once faded (an invisible line still took its room in the column).
-      setTimeout(() => line.remove(), 1800)
-    }, holdMs(line.textContent ?? ''))
+    while (this.log.children.length > 3) {
+      const first = this.log.firstChild as HTMLElement
+      this.left.delete(first)
+      first.remove()
+    }
+    this.left.set(line, holdMs(line.textContent ?? ''))
   }
 
   /** Everything said so far (tools). */
