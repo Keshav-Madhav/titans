@@ -245,7 +245,7 @@ const worldMap = new WorldMap(terrain, mapPlaces)
 worldMap.onToggle = (open?: boolean) => {
   input.releaseAll()
   if (open && tipState.high > 150) tipState.mapped = true
-  sound.ui(open === false ? 'close' : 'page')
+  sound.ui(open === false ? 'map-close' : 'map-open')
 }
 worldMap.allowed = () => toolMode || finds.has('bag')
 
@@ -986,14 +986,14 @@ function dreadWorld() {
 }
 journal.onToggle = (open?: boolean) => {
   input.releaseAll()
-  sound.ui(open === false ? 'close' : 'page')
+  sound.ui(open === false ? 'book-close' : 'book-open')
 }
 journal.allowed = () => toolMode || bag.have
 // The bag: found at a camp just ahead of where you wake; everything small goes in it.
 const bag = new Bag(finds)
 bag.onToggle = (open) => {
   input.releaseAll()
-  sound.ui(open ? 'open' : 'close')
+  sound.ui(open ? 'bag-open' : 'bag-close')
   if (open) tipState.looked = true
 }
 bag.onNoBag = () => narration.say('You have nothing to carry things in. Not yet.')
@@ -1965,7 +1965,8 @@ function grappleAim(): { at: THREE.Vector3; follow: { obj: THREE.Object3D; local
 }
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
-  sound.step(surf, pace)
+  const snowy = highSector(wanderer.pos.x, wanderer.pos.z) > 0.5 && wanderer.pos.y > HIGH.top - 60
+  sound.step(snowy && surf === 'sand' ? 'snow' : surf, pace)
   // Wading: each footfall rings the water.
   if (surf === 'water') {
     const wl = waterAt(wanderer.pos.x, wanderer.pos.z)
@@ -2740,6 +2741,7 @@ pause.onToggle = (open) => {
   input.releaseAll()
   sound.ui(open ? 'open' : 'close')
 }
+pause.onUi = (k) => sound.ui(k)
 pause.onResume = () => canvas.requestPointerLock?.()
 pause.onNewAdventure = () => {
   clearWorld()
@@ -2780,9 +2782,20 @@ addEventListener('keydown', (e) => {
 
 watchErrors()
 watchKeycaps()
+// The pad on an open page: the pause moves its focus; the others close on B.
+input.uiOpen = () => anyOpen()
+input.onPadNav = (k) => {
+  if (pause.open) pause.padNav(k)
+  else if (k === 'back') {
+    if (bag.open) bag.toggle()
+    else if (journal.open) journal.toggle()
+    else if (worldMap.open) worldMap.toggle()
+  }
+}
 // Start on the pad: the pause, and again to go on.
 input.onPadStart = () => {
-  if (toolMode || opening === 'title') return
+  // (Not held back in tool mode, as Esc is: a Start press is never the browser's own.)
+  if (opening === 'title') return
   if (pause.open) pause.resume()
   else if (!anyOpen()) {
     if (document.pointerLockElement) document.exitPointerLock()

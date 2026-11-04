@@ -634,14 +634,14 @@ Held against the bar, honestly. ✅ already met · 🔧 done in this round · �
 - 🔧 All sound suspends while the tab is hidden.
 - 🔧 Pause page: "Go on" always in reach (it sat below the fold at 760 px); short-window layout (pause gate checks overflow).
 - 🔧 Nitpicks found by review: the Wader "met" from inside the Husk; the Old Wood's wisp waiting under a Mire pool; grass on pool beds.
-- 🔧 Gamepad: left stick walks (round dead zone, part-way walks slower), right stick looks, A jump, X use, B line, Y horn, RB run, LT/RT bow, LB sight, Back map, d-pad journal/bag, Start pause (keys gate, simulated pad). Pause page buttons are not pad-navigable yet.
+- 🔧 Gamepad: left stick walks (round dead zone, part-way walks slower), right stick looks, A jump, X use, B line, Y horn, RB run, LT/RT bow, LB sight, Back map, d-pad journal/bag, Start pause (keys gate, simulated pad). On an open page the d-pad moves (pause: focus ring, left/right nudge sliders), A presses, B goes back.
 - 🔧 Rebinding: one binding table (input.ts ACTIONS); click a keycap on the pause page, press the new key, Esc keeps it, a key in use swaps, reset; saved with the settings; every prompt's keycaps relabel to the player's keys (keys gate). Mouse buttons are not rebindable.
 - 🔧 Holds as toggles (setting): run, draw (Q / right mouse / LT), sight-stone. G stays a hold: a press throws the line, holding reels.
 - 🔧 Text size (As made / Larger / Largest): captions, prompts, cards, bag, journal and pause grow together; panels divide their screen-relative sizes by it; the key strip wraps clear of the minimap (no line starting with a dot); captions lift above it (pause gate checks at the largest size, desktop and phone).
-- ⬜ Sound is all synthesised (WebAudio) — the bar asks for recorded SFX (CC0 recordings, AUDIO.md). Big; needs free sources.
+- 🔧 Recorded SFX: 57 CC0 takes (Kenney) for footsteps by surface (grass, stone, sand, snow, mud), landings, the bag, journal, map, pause, picking up, the line biting, and the pause page's hover/press/toggle/denied. AUDIO.md lists each (source, bytes, use, processing; tools/build-sfx.sh). Random take never repeated, ±5% pitch, 20-voice cap, 45 ms per-group limit; synthesised stand-ins until loaded (sfx gate). Still synthesised: the score, weather, giants, horn, bell. Mix not yet heard by a person.
 - ✅ Seeded randomness: the world (land, pools, wisps, giants' paths) is seeded (WORLD_SEED, mulberry32). The Math.random left is cosmetic or atmosphere only (narration line picks, trail jitter, shed motes, when a far giant stirs); nothing rewards or rolls on it.
-- ⬜ A frame-rate proof (same inputs at 30/60/144 Hz give the same walk).
-- ⬜ Colour-blind check of the map/compass/prompts (CDP vision emulation).
+- 🔧 Frame-rate proof (fps gate): the same walk + run + jump at 30, 60 and 144 frames a second — distance within 0.07 m over 42 m, jump apex identical (0.825 m).
+- 🔧 Colour vision (tools/vision.mjs, Chrome's emulation): under protanopia/deuteranopia your red map arrow went olive into the paper — now a dark halo and pale rim carry it by brightness. The J/I news glow fades in colour but still pulses.
 - — Touch/phone play: out of scope (a desktop mouse-look game); the pause and crash cards are checked at phone width only.
 
 ## Known issues

@@ -385,3 +385,6 @@ body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
 /* Text size (settings): the captions, prompts, cards and pages grow together; the layout
    rules (wrap, the pause body scrolling) hold at every step. */
 #hint, #tips, #narration, #prompt, #found, #role, #bag-frame, #journal-frame, #pause-frame { zoom: var(--text-zoom, 1); }
+
+/* The pad's place on the pause page. */
+#pause.pad button:focus, #pause.pad input:focus { outline: 2px solid #b8352a; outline-offset: 2px; }

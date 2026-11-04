@@ -170,6 +170,9 @@ export class Input {
   padActive = false
   /** Escape from the pad's Start button (main opens the pause). */
   onPadStart: () => void = () => {}
+  /** A page is open (pause, bag, journal, map): the d-pad, A and B move about it instead. */
+  uiOpen: () => boolean = () => false
+  onPadNav: (k: 'up' | 'down' | 'left' | 'right' | 'ok' | 'back') => void = () => {}
 
   /**
    * Read the pad, once a frame: the left stick walks (a round dead zone, the rest rescaled
@@ -207,6 +210,11 @@ export class Input {
       if (i === 9) {
         if (on && !was) this.onPadStart()
         return
+      }
+      if (this.uiOpen()) {
+        const nav = ({ 12: 'up', 13: 'down', 14: 'left', 15: 'right', 0: 'ok', 1: 'back' } as const)[i as 12]
+        if (nav && on && !was) this.onPadNav(nav)
+        if (nav) return
       }
       const a = PAD_BUTTONS[i]
       if (!a) return

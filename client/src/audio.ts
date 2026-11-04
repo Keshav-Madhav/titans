@@ -12,7 +12,20 @@
 const SPEED_OF_SOUND = 343
 
 /** What you are walking on (for your footsteps). */
-export type Surface = 'grass' | 'stone' | 'sand' | 'mud' | 'water'
+export type Surface = 'grass' | 'stone' | 'sand' | 'snow' | 'mud' | 'water'
+
+/** UI sounds: a panel (bag, journal, map, pause) opening or closing, a page, a tick, a button. */
+export type UiSound = 'open' | 'close' | 'tick' | 'page' | 'bag-open' | 'bag-close' | 'book-open' | 'book-close' | 'map-open' | 'map-close' | 'hover' | 'press' | 'toggle' | 'denied'
+
+// The recorded sounds (public/sfx, AUDIO.md): group → how many takes.
+const SAMPLES: Record<string, number> = {
+  'step-grass': 5, 'step-stone': 5, 'step-snow': 5, 'step-soft': 5,
+  'land-heavy': 3, 'land-soft': 3, page: 3, 'book-place': 3, cloth: 4, belt: 2, leather: 2,
+  'book-open': 1, 'book-close': 1, 'leather-drop': 1, 'metal-click': 1,
+  'ui-click': 5, 'ui-toggle': 4, 'ui-hover': 2, 'ui-denied': 2,
+}
+/** At most this many recorded sounds at once (and one group no faster than every 45 ms). */
+const MAX_VOICES = 20
 
 /** The pad's chords (Hz, low to high): D minor, B♭, F over A, G minor, A sus4 — slow and sad. */
 const CHORDS: number[][] = [
@@ -47,6 +60,11 @@ export class Sound {
   private nextChord = 0
   private nextNote = 6
   private nextHorn = 25
+  /** Recorded takes by group, once decoded (until then the synthesised sound stands in). */
+  private bank = new Map<string, AudioBuffer[]>()
+  private lastTake = new Map<string, number>()
+  private lastAt = new Map<string, number>()
+  private voices = 0
 
   constructor(enabled: boolean) {
     this.on = enabled
@@ -91,6 +109,7 @@ export class Sound {
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
     const d = this.noise.getChannelData(0)
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    void this.loadBank(ctx)
     this.hall()
     this.wind()
     this.pad()
@@ -677,8 +696,10 @@ export class Sound {
     if (!this.ctx || !this.on || !this.noise) return
     const ctx = this.ctx
     const t = ctx.currentTime
-    // The rustle: two soft swishes of band-passed noise (kneeling, reaching).
-    for (const [at, f, amp] of [[0.05, 900, 0.09], [0.38, 1400, 0.06]] as const) {
+    // The rustle: cloth as you kneel and leather as it goes in (recorded), or two soft swishes
+    // of band-passed noise.
+    const recorded = this.sample('cloth', 0.3, 0.95, 0.05) && (this.sample('leather', 0.28, 1.05, 0.38), true)
+    for (const [at, f, amp] of recorded ? [] : ([[0.05, 900, 0.09], [0.38, 1400, 0.06]] as const)) {
       const src = ctx.createBufferSource()
       src.buffer = this.noise
       const bp = ctx.createBiquadFilter()
@@ -1087,6 +1108,21 @@ export class Sound {
     if (!this.ctx || !this.on) return
     const t = this.ctx.currentTime
     const v = (0.05 + 0.07 * pace) * (0.8 + Math.random() * 0.4)
+    // Recorded footsteps where there are some (a run lands harder, and a little higher).
+    const rec: Partial<Record<Surface, [string, number, number]>> = {
+      grass: ['step-grass', 0.3, 1],
+      stone: ['step-stone', 0.26, 1],
+      sand: ['step-soft', 0.34, 0.85],
+      snow: ['step-snow', 0.3, 1],
+      mud: ['step-soft', 0.3, 0.72],
+    }
+    const r = rec[surface]
+    if (r && this.sample(r[0], r[1] * (0.55 + 0.6 * pace) * (0.85 + Math.random() * 0.3), r[2] * (0.96 + 0.08 * pace))) {
+      // (Mud keeps its wet suck under the step; sand its hiss.)
+      if (surface === 'mud') this.hit(t + 0.05, v * 0.35, 'bandpass', 1400, 3, 0.01, 0.07)
+      if (surface === 'sand') this.hit(t + 0.01, v * 0.4, 'lowpass', 1700, 0.6, 0.014, 0.13)
+      return
+    }
     switch (surface) {
       case 'grass':
         this.hit(t, v * 0.9, 'bandpass', 3200, 0.7, 0.008, 0.09 + pace * 0.03)
@@ -1099,6 +1135,7 @@ export class Sound {
         this.thump(t, v * 0.8, 170, 0.07)
         break
       case 'sand':
+      case 'snow':
         this.hit(t, v * 0.9, 'lowpass', 1700, 0.6, 0.014, 0.13)
         this.thump(t, v * 0.35, 90, 0.07)
         break
@@ -1119,6 +1156,12 @@ export class Sound {
     if (!this.ctx || !this.on) return
     const t = this.ctx.currentTime
     const v = 0.08 + 0.22 * hard
+    if (surface !== 'water') {
+      // The body coming down (recorded), the feet a beat ahead of it.
+      this.sample(hard > 0.45 ? 'land-heavy' : 'land-soft', 0.25 + 0.45 * hard, surface === 'stone' ? 1.08 : 0.95)
+      this.sample(surface === 'stone' ? 'step-stone' : surface === 'snow' ? 'step-snow' : surface === 'grass' ? 'step-grass' : 'step-soft', 0.3 + 0.2 * hard, 0.9, 0)
+      this.sample('cloth', 0.12 + 0.1 * hard, 1, 0.08)
+    }
     this.thump(t, v, surface === 'stone' ? 140 : 95, 0.12 + hard * 0.12)
     this.hit(t, v * 0.8, surface === 'water' ? 'bandpass' : 'lowpass', surface === 'water' ? 900 : surface === 'stone' ? 2600 : 1500, 0.8, 0.006, 0.12 + hard * 0.15)
     // …and the cloak settling after you.
@@ -1137,17 +1180,95 @@ export class Sound {
   }
 
   /** The interface: a soft paper/leather sound for opening and closing things, a tick for choosing. */
-  ui(kind: 'open' | 'close' | 'tick' | 'page'): void {
+  ui(kind: UiSound): void {
     if (!this.ctx || !this.on) return
     const t = this.ctx.currentTime
-    if (kind === 'tick') this.hit(t, 0.035, 'bandpass', 3400, 3, 0.002, 0.03)
-    else if (kind === 'page') {
+    // Recorded where it fits: leather for the bag, the notebook's cover and pages, paper for the
+    // map, soft clicks for the pause page's buttons.
+    const rec: Partial<Record<UiSound, () => boolean>> = {
+      'bag-open': () => this.sample('leather', 0.5) && (this.sample('belt', 0.18, 1, 0.07), true),
+      'bag-close': () => this.sample('leather-drop', 0.38),
+      'book-open': () => this.sample('book-open', 0.45),
+      'book-close': () => this.sample('book-close', 0.45),
+      'map-open': () => this.sample('page', 0.5, 0.82) && (this.sample('cloth', 0.12, 1.1, 0.05), true),
+      'map-close': () => this.sample('page', 0.38, 0.9),
+      page: () => this.sample('page', 0.42),
+      open: () => this.sample('book-place', 0.4),
+      close: () => this.sample('cloth', 0.22, 1.1),
+      tick: () => this.sample('metal-click', 0.32),
+      hover: () => this.sample('ui-hover', 0.08, 1.15),
+      press: () => this.sample('ui-click', 0.24),
+      toggle: () => this.sample('ui-toggle', 0.26),
+      denied: () => this.sample('ui-denied', 0.22),
+    }
+    if (rec[kind]?.()) return
+    if (kind === 'hover' || kind === 'press' || kind === 'toggle' || kind === 'denied') {
+      this.hit(t, kind === 'hover' ? 0.012 : 0.03, 'bandpass', kind === 'denied' ? 900 : 3400, 3, 0.002, 0.03)
+      return
+    }
+    const k = kind.endsWith('open') ? 'open' : kind.endsWith('close') ? 'close' : kind
+    if (k === 'tick') this.hit(t, 0.035, 'bandpass', 3400, 3, 0.002, 0.03)
+    else if (k === 'page') {
       this.hit(t, 0.05, 'bandpass', 2600, 0.6, 0.03, 0.16)
       this.hit(t + 0.09, 0.03, 'highpass', 5000, 0.6, 0.01, 0.08)
     } else {
-      this.hit(t, 0.06, 'bandpass', kind === 'open' ? 1500 : 1200, 0.7, 0.02, 0.2)
-      this.thump(t + 0.02, 0.05, kind === 'open' ? 160 : 120, 0.09)
+      this.hit(t, 0.06, 'bandpass', k === 'open' ? 1500 : 1200, 0.7, 0.02, 0.2)
+      this.thump(t + 0.02, 0.05, k === 'open' ? 160 : 120, 0.09)
     }
+  }
+
+  private async loadBank(ctx: AudioContext): Promise<void> {
+    const base = import.meta.env.BASE_URL ?? '/'
+    await Promise.all(
+      Object.entries(SAMPLES).map(async ([g, n]) => {
+        const takes: AudioBuffer[] = []
+        for (let k = 0; k < n; k++) {
+          const name = n === 1 ? g : `${g}-${k}`
+          try {
+            const r = await fetch(`${base}sfx/${name}.mp3`)
+            if (r.ok) takes.push(await ctx.decodeAudioData(await r.arrayBuffer()))
+          } catch {
+            // (a take that will not load: the others, or the synthesised sound, stand in)
+          }
+        }
+        if (takes.length) this.bank.set(g, takes)
+      }),
+    )
+  }
+
+  /** Whether a group's recordings are in (tools). */
+  hasSample(g: string): boolean {
+    return this.bank.has(g)
+  }
+
+  /**
+   * One take of a recorded sound: never the same take twice running, a little pitch
+   * jitter, a voice limit and a per-group rate limit. False if it is not loaded (or held
+   * back): the caller's synthesised sound plays instead.
+   */
+  private sample(g: string, vol: number, rate = 1, delay = 0): boolean {
+    const takes = this.bank.get(g)
+    if (!takes || !this.ctx || !this.master) return false
+    const t = this.ctx.currentTime + delay
+    if (this.voices >= MAX_VOICES || t - (this.lastAt.get(g) ?? -1) < 0.045) return true
+    this.lastAt.set(g, t)
+    let k = Math.floor(Math.random() * takes.length)
+    if (takes.length > 1 && k === this.lastTake.get(g)) k = (k + 1) % takes.length
+    this.lastTake.set(g, k)
+    const src = this.ctx.createBufferSource()
+    src.buffer = takes[k]
+    src.playbackRate.value = rate * (0.95 + Math.random() * 0.1)
+    const gn = this.ctx.createGain()
+    gn.gain.value = vol
+    src.connect(gn).connect(this.master)
+    this.voices++
+    src.onended = () => {
+      this.voices--
+      src.disconnect()
+      gn.disconnect()
+    }
+    src.start(t)
+    return true
   }
 
   /** Has the context started (a gesture happened)? */

@@ -565,16 +565,25 @@ export class WorldMap {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
     ctx.shadowBlur = 3
     ctx.fillStyle = '#b3311f'
-    ctx.strokeStyle = '#2a1c10'
-    ctx.lineWidth = 1.4
     ctx.beginPath()
     ctx.moveTo(0, -9)
     ctx.lineTo(6, 7)
     ctx.lineTo(0, 3.5)
     ctx.lineTo(-6, 7)
     ctx.closePath()
-    ctx.fill()
+    // Told by its brightness, not its red alone (under red-green colour blindness the red went
+    // olive and sank into the paper): a dark halo, a pale rim, then the red and its ink edge.
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(24, 16, 8, 0.72)'
+    ctx.lineWidth = 5.2
+    ctx.stroke()
     ctx.shadowBlur = 0
+    ctx.strokeStyle = '#f7eed6'
+    ctx.lineWidth = 2.6
+    ctx.stroke()
+    ctx.fill()
+    ctx.strokeStyle = '#2a1c10'
+    ctx.lineWidth = 0.9
     ctx.stroke()
     ctx.restore()
   }

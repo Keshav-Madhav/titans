@@ -109,12 +109,28 @@ try {
     await new Promise((r) => setTimeout(r, 120))
     const up = g.wanderer.vel.y
     fake.buttons[0] = { pressed: false, value: 0 }
-    return { full: +full.toFixed(1), part: +part.toFixed(1), turned: +turned.toFixed(2), jumpVel: +up.toFixed(1) }
+    await new Promise((r) => setTimeout(r, 1200))
+    // Start opens the pause; the d-pad moves the focus; B goes on.
+    const tap = async (i) => {
+      fake.buttons[i] = { pressed: true, value: 1 }
+      await new Promise((r) => setTimeout(r, 80))
+      fake.buttons[i] = { pressed: false, value: 0 }
+      await new Promise((r) => setTimeout(r, 80))
+    }
+    await tap(9)
+    const opened = g.pause.open || `no (opening ${g.opening}, tool ${g.toolMode})`
+    await tap(13)
+    await tap(13)
+    const focused = document.activeElement?.className || document.activeElement?.tagName
+    await tap(1)
+    const closed = !g.pause.open
+    return { full: +full.toFixed(1), part: +part.toFixed(1), turned: +turned.toFixed(2), jumpVel: +up.toFixed(1), opened, focused, closed }
   })
   console.log('pad:', JSON.stringify(pad))
   if (!(pad.full > 3) || !(pad.part > 0.5 && pad.part < pad.full * 0.8)) fail('the pad stick does not walk, or part-way is not slower')
   if (!(Math.abs(pad.turned) > 0.2)) fail('the right stick does not look')
   if (!(pad.jumpVel > 1)) fail('A does not jump')
+  if (pad.opened !== true || !pad.closed || !/pause-bindkey/.test(pad.focused ?? '')) fail('the pad cannot open, move about and leave the pause page')
   if (errors.length) fail('page errors: ' + errors.join(' | '))
 } catch (e) {
   fail(e.message)

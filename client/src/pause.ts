@@ -45,8 +45,30 @@ export class Pause {
   onNewAdventure: () => void = () => {}
   /** Opened or closed. */
   onToggle: (open: boolean) => void = () => {}
+  /** A button hovered, pressed, toggled, or refused (its sound). */
+  onUi: (k: 'hover' | 'press' | 'toggle' | 'denied' | 'tick') => void = () => {}
 
   constructor(private settings: Settings) {
+    // Every button and slider on the page answers with a sound (one listener for them all).
+    let over: Element | null = null
+    this.panel.addEventListener('pointerover', (e) => {
+      const b = (e.target as Element).closest('button, input')
+      if (b && b !== over) this.onUi('hover')
+      over = b
+    })
+    this.panel.addEventListener('pointermove', () => this.panel.classList.remove('pad'))
+    this.panel.addEventListener('pointerdown', (e) => {
+      const b = (e.target as Element).closest('button') as HTMLButtonElement | null
+      if (b?.disabled) this.onUi('denied')
+    })
+    this.panel.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest('button') as HTMLButtonElement | null
+      if (!b || b.disabled) return
+      this.onUi(b.classList.contains('pause-toggle') || b.closest('.pause-choice') ? 'toggle' : 'press')
+    })
+    this.panel.addEventListener('change', (e) => {
+      if ((e.target as HTMLInputElement).type === 'range') this.onUi('tick')
+    })
     document.getElementById('pause-resume')!.addEventListener('click', () => this.resume())
     const again = document.getElementById('pause-new')!
     const sure = document.getElementById('pause-sure')!
@@ -92,6 +114,33 @@ export class Pause {
   private set<K extends keyof Settings>(k: K, v: Settings[K]): void {
     this.settings = { ...this.settings, [k]: v }
     this.onChange(this.settings)
+  }
+
+  /** The pad on this page: up and down move between the controls, left and right nudge a
+   *  slider or a choice, A presses, B goes on. */
+  padNav(k: 'up' | 'down' | 'left' | 'right' | 'ok' | 'back'): void {
+    if (k === 'back') return this.resume()
+    // (A ring on what the pad has in hand: a programmatic focus shows none after the mouse.)
+    this.panel.classList.add('pad')
+    const items = [...this.panel.querySelectorAll<HTMLElement>('button, input[type=range]')].filter((e) => e.offsetParent !== null && !(e as HTMLButtonElement).disabled)
+    const at = items.indexOf(document.activeElement as HTMLElement)
+    const el = items[at]
+    if (k === 'ok') {
+      el?.click()
+      return
+    }
+    if ((k === 'left' || k === 'right') && el instanceof HTMLInputElement) {
+      const step = Number(el.step) || 0.05
+      el.value = String(Number(el.value) + (k === 'right' ? step * 2 : -step * 2))
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+      return
+    }
+    const d = k === 'up' || k === 'left' ? -1 : 1
+    const next = items[at < 0 ? (d > 0 ? 0 : items.length - 1) : (at + d + items.length) % items.length]
+    next?.focus({ preventScroll: false })
+    next?.scrollIntoView({ block: 'nearest' })
+    this.onUi('hover')
   }
 
   private setKeys(keys: Record<string, string>): void {
