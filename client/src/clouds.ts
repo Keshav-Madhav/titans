@@ -121,17 +121,21 @@ export class Clouds {
   }
 
   /** Under the weather's cloud deck the puffs go grey too (0 clear … 1 storm); at night, moonlit and dim. */
-  tint(dark: number, night = 0, dusk = night): void {
+  tint(dark: number, night = 0, dusk = night, sunLow = 0): void {
     const u = (this.mesh.material as THREE.ShaderMaterial).uniforms
     // (At dusk they take the sunset's colour, rose and dim underneath, before the moon's
     // grey-blue: white puffs on a darkening sky read as cut-outs.)
-    const glow = dusk * (1 - night)
-    u.lit.value.setRGB(1, 1, 1).lerp(new THREE.Color(0.5, 0.53, 0.55), dark).lerp(this.warmLit, glow * 0.85).lerp(new THREE.Color(0.2, 0.23, 0.3), night)
-    u.dark.value.set(0xa9b7c9).lerp(new THREE.Color(0.26, 0.29, 0.31), dark).lerp(this.warmDark, glow * 0.85).lerp(new THREE.Color(0.04, 0.05, 0.08), night)
+    // (And before it sets: with the sun a few degrees up the puffs stayed noon-white against a
+    // darkening sky — QA cycle 4, the dusk clip.)
+    const glow = Math.max(dusk, sunLow * 0.85) * (1 - night)
+    // (Strong enough to survive the tone curve: the first warm tint, 0.85 of a pale peach, still
+    // came out white. Gold-rose tops, violet-grey bellies, and a little dimmer as the light goes.)
+    u.lit.value.setRGB(1, 1, 1).lerp(new THREE.Color(0.5, 0.53, 0.55), dark).lerp(this.warmLit, glow).multiplyScalar(1 - 0.3 * glow).lerp(new THREE.Color(0.2, 0.23, 0.3), night)
+    u.dark.value.set(0xa9b7c9).lerp(new THREE.Color(0.26, 0.29, 0.31), dark).lerp(this.warmDark, glow).lerp(new THREE.Color(0.04, 0.05, 0.08), night)
   }
 
-  private readonly warmLit = new THREE.Color(0.85, 0.52, 0.42)
-  private readonly warmDark = new THREE.Color(0.22, 0.17, 0.24)
+  private readonly warmLit = new THREE.Color(1.0, 0.6, 0.38)
+  private readonly warmDark = new THREE.Color(0.3, 0.22, 0.3)
 
   update(dt: number, camera: THREE.Vector3): void {
     let i = 0

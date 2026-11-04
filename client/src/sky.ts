@@ -36,6 +36,8 @@ export class SkySystem {
   running = true
   /** 0 day … 1 full night (deep: the sun far below). */
   night = 0
+  /** 0 … 1: how low the sun stands before it sets (1 at the horizon) — the hour clouds turn gold. */
+  sunLow = 0
   /** 0 day … 1 twilight and after (the sun at or under the horizon). */
   dusk = 0
   /**
@@ -179,6 +181,7 @@ export class SkySystem {
     const daylight = THREE.MathUtils.smoothstep(elev, -5, 10)
     // Key light: whichever of the two is brighter.
     const low = THREE.MathUtils.smoothstep(elev, 2, 30)
+    this.sunLow = 1 - THREE.MathUtils.smoothstep(elev, 1, 14)
     const sunI = (0.8 + 3.5 * low) * THREE.MathUtils.smoothstep(elev, -3, 6)
     // (The moon takes over only once the sun's light is all gone — under the horizon by
     // 3° — and grows from nothing: the key light hands over with no jump in direction or colour.)

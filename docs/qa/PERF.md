@@ -55,5 +55,15 @@ resumes it (16 ms).
 
 - The storm is the busiest view (~510 draw calls, 1.1 M triangles) — fine on this GPU (no long
   frames), unmeasured on a weak one.
-- The opening's 83 ms frame comes at the title → waking hand-over (a camera cut and the hall's
-  first frames); not yet traced.
+- The opening's one long frame (83–167 ms) comes ~16 s after waking, stepping out into the
+  daylight reveal. A CPU profile of that frame is mostly idle (44.6 of 83 ms): it is GPU-side (the
+  land's resources used for the first time at the camera cut), not game code. Deferred (Q23).
+- The 15 s and 60 s re-warms of shaders cost ~10 ms each (40 ms the first) on the main thread.
+
+## Cycle 4 — new scenes
+
+| Scene | 1% low | worst ms | > 33 ms | draw calls | triangles |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| grove (walking among the giant trees) | 53.0 | 33.4 | 0 | 316 | 1,511,101 |
+| dusk (sunset into night, walking) | 59.5 | 16.8 | 0 | 424 | 957,082 |
+| mire at night | 59.5 | 16.8 | 0 | 236 | 889,385 |

@@ -118,6 +118,46 @@ const CLIPS = {
   },
 }
 
+// (Not in the default set: run by name.)
+const EXTRA = {
+  // Into the Grove: the giant trees, walking among them.
+  async grove(page) {
+    await ready(page)
+    await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); const p = { x: -0.866 * 4300, z: -0.5 * 4300 }; g.teleport(p.x + 260, p.z + 120); g.setCam(Math.atan2(260, 120), 0.04, 7) })
+    await wait(page, 4000)
+    await mark(page)
+    await hold(page, ['KeyW'], 7000)
+    await look(page, 500, -60, 30)
+    await hold(page, ['KeyW', 'ShiftLeft'], 5000)
+  },
+  // Dusk to night on the Green, walking: the light going, the lantern coming up.
+  async dusk(page) {
+    await ready(page)
+    await page.evaluate(() => { const g = window.__g; g.weather.set('clear', true); g.sky.setTime(0.88); g.teleport(-600, 400); g.setCam(-1.2, 0.06, 7) })
+    await wait(page, 3000)
+    await mark(page)
+    await page.keyboard.down('KeyW')
+    for (let i = 0; i < 12; i++) {
+      await page.evaluate((t) => window.__g.sky.setTime(t), 0.88 + i * 0.008)
+      await wait(page, 800)
+    }
+    await page.keyboard.up('KeyW')
+    await look(page, 600, -80, 30)
+    await wait(page, 1500)
+  },
+  // The Mire at night: black pools, drowned trees, the Drowned One.
+  async mire(page) {
+    await ready(page)
+    await page.evaluate(() => { const g = window.__g; g.weather.set('overcast', true); g.sky.setTime(0.95); const d = g.colossi.places.get('drowned'); g.teleport(d.x + 380, d.z + 120); g.setCam(Math.atan2(380, 120), 0.05, 7) })
+    await wait(page, 4000)
+    await mark(page)
+    await hold(page, ['KeyW'], 8000)
+    await look(page, -500, -40, 30)
+    await hold(page, ['KeyW'], 4000)
+  },
+}
+Object.assign(CLIPS, Object.fromEntries(Object.entries(EXTRA).map(([k, f]) => [k, Object.assign(f, { extra: true })])))
+
 async function ready(page) {
   await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 240000 })
@@ -126,7 +166,7 @@ async function ready(page) {
 
 const perf = {}
 for (const [name, play] of Object.entries(CLIPS)) {
-  if (only.length && !only.includes(name)) continue
+  if (only.length ? !only.includes(name) : play.extra) continue
   const dir = `${OUT}/.v-${name}`
   mkdirSync(dir, { recursive: true })
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, recordVideo: { dir, size: { width: W, height: H } } })
