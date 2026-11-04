@@ -919,7 +919,7 @@ void loadRockScans().then((s) => {
   // which lie in sand that drifts over them instead.)
   const STATUES = new Set(['sentinel', 'sword', 'monolith', 'reclining', 'husk', 'mourner'])
   const standing = rocks.formations.filter((f) => STATUES.has(f.kind as string) && !f.float)
-  skirts = new StatueSkirts(standing, terrain, (x, y, z) => rocks.sdfAt(x, y, z), s.near, s.far)
+  skirts = new StatueSkirts(standing, terrain, (x, y, z) => rocks.sdfAt(x, y, z), s.near, s.far, [vegetation.asset('fern'), vegetation.asset('fern'), vegetation.asset('shrub')], (x, z) => 1 - biome.desert(x, z))
   scene.add(skirts.group)
 })
 scene.add(vegetation.group)

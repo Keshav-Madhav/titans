@@ -351,6 +351,12 @@ export class Vegetation {
    * to ~4k triangles near with its baked colour, normal and AO maps, ~600 far). `near` gives the three
    * near shapes their own scan; the far ones take the first scan's far mesh and its material.
    */
+  /** A plant kind's shape and look, to grow elsewhere with the same wind (statue-skirts.ts). */
+  asset(k: 'bush' | 'shrub' | 'fern' | 'reed'): { geo: THREE.BufferGeometry; mat: THREE.Material } {
+    const m = this.meshes[k]
+    return { geo: m.geometry, mat: m.material as THREE.Material }
+  }
+
   useScannedRocks(near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>, far: THREE.BufferGeometry, pebble?: { geo: THREE.BufferGeometry; mat: THREE.Material }): void {
     if (pebble) {
       this.meshes.pebble.geometry = pebble.geo

@@ -10,11 +10,20 @@
 import * as THREE from 'three'
 import { mulberry32, type Terrain } from '@titans/shared'
 
-const NEAR_R = 160
+const NEAR_R = 90
 const CAP = 4000
 /** Far off only the big pieces, and not past this (a 600-triangle piece × thousands adds up). */
 const FAR_R = 1400
 const FAR_MIN = 3
+
+/** A plant kind among the rubble (ferns, bushes): its own list and mesh. */
+interface Plant {
+  geo: THREE.BufferGeometry
+  mat: THREE.Material
+  list: THREE.Matrix4[]
+  xz: number[]
+  mesh?: THREE.InstancedMesh
+}
 
 interface Piece {
   m: THREE.Matrix4
@@ -22,6 +31,9 @@ interface Piece {
   z: number
   s: number
   shadow: boolean
+  /** Its tint: broken off the statue, so the statue's grey where the land is green (the scans are
+   *  orange granite and read as foreign stone heaped there); warm where it is sand. */
+  c: THREE.Color
 }
 
 export interface SkirtFormation {
@@ -41,8 +53,11 @@ export class StatueSkirts {
   private readonly near: THREE.InstancedMesh[] = []
   private readonly far: THREE.InstancedMesh
   private readonly last = new THREE.Vector3(Infinity, 0, 0)
+  private readonly green: (x: number, z: number) => number
   /** Tools: how many pieces in all, and near you now. */
   stats = { pieces: 0, near: 0, far: 0 }
+
+  private readonly plants: Plant[] = []
 
   constructor(
     formations: SkirtFormation[],
@@ -50,12 +65,34 @@ export class StatueSkirts {
     sdfAt: (x: number, y: number, z: number) => number,
     near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>,
     farGeo: THREE.BufferGeometry,
+    /** Plants that grow in the rubble where it is green (none in sand), and how green (x, z) is. */
+    plants: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }> = [],
+    green: (x: number, z: number) => number = () => 1,
   ) {
+    for (const p of plants) this.plants.push({ ...p, list: [], xz: [] })
+    this.green = green
     for (const f of formations) this.place(f, terrain, sdfAt)
     this.stats.pieces = this.pieces.length
     // One instanced mesh per scanned shape near you; one for every piece far off.
+    // The scans' own material, greyed: broken off a statue, the pieces are its stone, not the
+    // scans' orange granite (a tint alone left them brown). The per-piece colour warms them again
+    // in sand.
+    const grey = (src: THREE.Material): THREE.Material => {
+      const m = src.clone() as THREE.MeshStandardMaterial
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          { float l = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l) * 1.18, 0.82); }`,
+        )
+      }
+      m.customProgramCacheKey = () => 'skirt-grey'
+      return m
+    }
+    near = near.map((n) => ({ geo: n.geo, mat: grey(n.mat) }))
     for (const n of near) {
       const m = new THREE.InstancedMesh(n.geo, n.mat, CAP)
+      m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
       m.count = 0
       m.castShadow = true
       m.receiveShadow = true
@@ -63,7 +100,18 @@ export class StatueSkirts {
       this.near.push(m)
       this.group.add(m)
     }
+    for (const p of this.plants) {
+      p.mesh = new THREE.InstancedMesh(p.geo, p.mat, Math.max(1, p.list.length))
+      p.mesh.count = 0
+      p.mesh.frustumCulled = false
+      p.mesh.receiveShadow = true
+      const col = new Float32Array(Math.max(1, p.list.length) * 3)
+      for (let i = 0; i < col.length; i += 3) col.set([0.85 + ((i * 37) % 9) * 0.03, 0.95, 0.8], i)
+      p.mesh.instanceColor = new THREE.InstancedBufferAttribute(col, 3)
+      this.group.add(p.mesh)
+    }
     this.far = new THREE.InstancedMesh(farGeo, near[0].mat, CAP)
+    this.far.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
     this.far.count = 0
     this.far.receiveShadow = true
     this.far.frustumCulled = false
@@ -94,6 +142,27 @@ export class StatueSkirts {
         }
       }
       if (edge < 0) continue
+      // Things growing in the heap, where the land is green: ferns tucked against the stone and
+      // between the blocks, a bush or two (in sand, nothing).
+      {
+        const ex = f.x + dx * edge
+        const ez = f.z + dz * edge
+        const gr = this.green(ex, ez)
+        for (const p of this.plants) {
+          const tries = 3
+          for (let t = 0; t < tries; t++) {
+            if (rand() > 0.55 * gr) continue
+            const out = edge + rand() * 10
+            const side = (rand() - 0.5) * 7
+            const x = f.x + dx * out - dz * side
+            const z = f.z + dz * out + dx * side
+            const sc = 0.8 + rand() * 0.9
+            const mm = new THREE.Matrix4().compose(new THREE.Vector3(x, terrain.heightAt(x, z) - 0.1, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28), new THREE.Vector3(sc, sc * (0.8 + rand() * 0.4), sc))
+            p.list.push(mm)
+            p.xz.push(x, z)
+          }
+        }
+      }
       // Rubble against the foot: a few pieces, the larger nearer the stone.
       const n = 2 + Math.floor(rand() * (2 + 3 * size))
       for (let i = 0; i < n; i++) {
@@ -124,7 +193,10 @@ export class StatueSkirts {
     q.setFromEuler(e)
     const sy = s * (0.55 + rand() * 0.6)
     const m = new THREE.Matrix4().compose(new THREE.Vector3(x, h - sy * sink, z), q, new THREE.Vector3(s * (0.8 + rand() * 0.4), sy, s * (0.8 + rand() * 0.4)))
-    this.pieces.push({ m, x, z, s, shadow })
+    const g = this.green(x, z)
+    const v = 0.9 + rand() * 0.2
+    const c = new THREE.Color(1.0 * v, 0.96 * v, 0.88 * v).lerp(new THREE.Color(0.66 * v, 0.76 * v, 0.74 * v), g)
+    this.pieces.push({ m, x, z, s, shadow, c })
   }
 
   /** Near pieces as the detailed scans, far ones as the light shape (re-split every ~15 m moved). */
@@ -138,15 +210,31 @@ export class StatueSkirts {
       const d2 = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2
       if (d2 < NEAR_R * NEAR_R) {
         const k = i++ % this.near.length
+        this.near[k].setColorAt(counts[k], p.c)
         this.near[k].setMatrixAt(counts[k]++, p.m)
-      } else if (d2 < FAR_R * FAR_R && p.s > FAR_MIN) this.far.setMatrixAt(farN++, p.m)
+      } else if (d2 < FAR_R * FAR_R && p.s > FAR_MIN) {
+        this.far.setColorAt(farN, p.c)
+        this.far.setMatrixAt(farN++, p.m)
+      }
     }
     this.near.forEach((m, k) => {
       m.count = counts[k]
       m.instanceMatrix.needsUpdate = true
+      m.instanceColor!.needsUpdate = true
     })
     this.far.count = farN
     this.far.instanceMatrix.needsUpdate = true
+    this.far.instanceColor!.needsUpdate = true
+    // The plants: only near (they are small).
+    for (const p of this.plants) {
+      let n = 0
+      for (let j = 0; j < p.list.length; j++) {
+        const d2 = (p.xz[j * 2] - cam.x) ** 2 + (p.xz[j * 2 + 1] - cam.z) ** 2
+        if (d2 < 220 * 220) p.mesh!.setMatrixAt(n++, p.list[j])
+      }
+      p.mesh!.count = n
+      p.mesh!.instanceMatrix.needsUpdate = true
+    }
     this.stats.near = counts.reduce((a, b) => a + b, 0)
     this.stats.far = farN
   }
