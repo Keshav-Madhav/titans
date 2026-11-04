@@ -36,6 +36,9 @@ interface Flock {
   retarget: number
 }
 
+const CROW = new THREE.Color(0x2f2b28)
+const GULL = new THREE.Color(0xd9dcdf)
+
 export class Birds {
   readonly mesh: THREE.InstancedMesh
   private readonly flocks: Flock[] = []
@@ -51,7 +54,7 @@ export class Birds {
     const phase = new Float32Array(FLOCKS * PER_FLOCK)
     for (let i = 0; i < phase.length; i++) phase[i] = this.rand() * 6.28
     g.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1))
-    const mat = new THREE.MeshBasicMaterial({ color: 0x2f2b28, side: THREE.DoubleSide })
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide })
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.time
       sh.vertexShader = sh.vertexShader
@@ -60,6 +63,7 @@ export class Birds {
     }
     this.mesh = new THREE.InstancedMesh(g, mat, FLOCKS * PER_FLOCK)
     this.mesh.frustumCulled = false
+    for (let i = 0; i < FLOCKS * PER_FLOCK; i++) this.mesh.setColorAt(i, CROW)
     for (let f = 0; f < FLOCKS; f++) {
       const birds: Bird[] = []
       for (let i = 0; i < PER_FLOCK; i++) birds.push({ x: 0, y: 1e5, z: 0, vx: 0, vy: 0, vz: 0 })
@@ -68,7 +72,7 @@ export class Birds {
   }
 
   /** `spots`: places worth circling near the camera (lakes, towns). */
-  step(dt: number, camera: THREE.Vector3, spots: ReadonlyArray<{ x: number; z: number }>): void {
+  step(dt: number, camera: THREE.Vector3, spots: ReadonlyArray<{ x: number; z: number; pale?: boolean }>): void {
     this.time.value += dt
     for (const f of this.flocks) {
       f.retarget -= dt
@@ -82,6 +86,11 @@ export class Birds {
         f.cy = this.terrain.heightAt(f.cx, f.cz) + 35 + this.rand() * 70
         f.radius = 40 + this.rand() * 80
         f.retarget = 40 + this.rand() * 60
+        // Seabirds are pale (gulls over the beach); the rest dark against the sky.
+        const fi = this.flocks.indexOf(f)
+        const col = s.pale ? GULL : CROW
+        for (let i = 0; i < f.birds.length; i++) this.mesh.setColorAt(fi * PER_FLOCK + i, col)
+        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
         if (far) for (const b of f.birds) Object.assign(b, { x: f.cx + (this.rand() - 0.5) * 30, y: f.cy, z: f.cz + (this.rand() - 0.5) * 30 })
       }
       // Each bird circles the spot, loosely, and keeps a little apart from the next.
