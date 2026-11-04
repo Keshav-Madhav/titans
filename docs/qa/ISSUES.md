@@ -1,0 +1,30 @@
+# Issue tracker
+
+P0 critical (crash, blocker, data loss) · P1 high (major gameplay/visual/UX) · P2 medium (polish,
+feedback, accessibility) · P3 low. Status: **fixed** (verified as stated) · **open** · **deferred**
+(with why) · **not a bug** (checked, and why).
+
+Older findings, from before this tracker, live in CHECKLIST.md (the user's P2/P3 playtests and the
+detail-bar audit); they are not repeated here.
+
+| ID | P | Issue | Repro | Evidence | Root cause | Fix | Status | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Q1 | P0 | A frame that threw left a frozen screen; the save could be written from the broken state | `?qa=throw` | respect gate | No error boundary round the frame | `crash.ts`: a card ("The world stumbled", Wake again / Copy details); saving stops | fixed | respect gate: card shows, save byte-identical after |
+| Q2 | P0 | A damaged save started the adventure over | corrupt `titans.adventure.v3` | respect gate | One slot, parse failure = no save | Backup of the save before the last; shape-checked loads; the fallback is told | fixed | respect gate |
+| Q3 | P0 | `?weather=<wrong name>` broke every frame | `/?weather=sandstorm` | clips cycle 1 (storm: the crash card) | `weather.set` took any name; `PRESETS[name]` undefined | Unknown names refused (warned) | fixed | storm clip re-recorded, 0 errors |
+| Q4 | P0 | A swimmer at a sheer bank (a lake in a giant's footprint) could not find a way out: 17 min stuck | first-hour run fh5, 19-second-camp | fh5/19-second-camp.png | "E Climb" prompt only when standing (E itself worked) | Prompt shows while swimming | fixed | probe on a 5 m bank: prompt, E, out; first hour fh6 reached the camp (2 m off, 0 stuck) |
+| Q5 | P1 | The Old Wood's wisp waited under a Mire pool's water (you swam to a light underwater); grass grew on pool beds | wisp gate, sweep 30 | sweep30/wisp.png (all teal) | Wisp path ignored the pools; grass skipped lakes, not the Mire | `poolWater().wetAt`; wisps keep off it; no grass under it | fixed | wisp gate asserts no wet stop; frame shows the wisp on the bank |
+| Q6 | P1 | The cape stood above the head like a board in a storm on a steep slope | clips cycle 1, storm @13 s | evidence/c1-cape-before-after.jpg | Gale + running breeze pushed the cloth up the hill behind; nothing capped its height | Cloth may rise ≤ 0.1 m over its pins unless falling/gliding | fixed | hem 1.57 → 1.15 m in the same scene; run/fall/glide gates pass |
+| Q7 | P1 | "Go on" below the fold on the pause page at 760 px | open pause at 1280×760 | pause gate | The whole frame scrolled | Body scrolls between title and pinned actions; short-window layout | fixed | pause gate (Go on in sight at 760 and 390 px, largest text) |
+| Q8 | P2 | Three long captions stacked into a wall of words (~20% of the view) | find three things close together | clips cycle 1 shore @15 s | Captions kept by count (3), not by size | Past ~300 characters the oldest fade early | fixed | probe: 3 long → 2 visible; + a short → 2 |
+| Q9 | P2 | Captions ran under the bag/journal panels, cut mid-sentence | open the bag at the first camp | fh6/12-bag-open.png | Captions above the dim, below the panel | Hidden behind an open page; their clocks stop | fixed | probe: kept 9 s while open, gone 5 s after |
+| Q10 | P2 | The "found" card showed through above the bag's title | take the line, open the bag | fh5/12-bag-open.png | Card above the panel's layer | Hidden while a page is open | fixed | bag gate frame |
+| Q11 | P2 | "Watching… ●●●○○" never said what was being watched | stand still near the Walker | fh5/16, 17 | Prompt text | "Watching the Walker…" etc. | fixed | typecheck + build; seen in fh6 |
+| Q12 | P2 | The map arrow vanished into the paper under red-green colour blindness | `tools/vision.mjs` | vision/tile.png | Red on beige, same brightness | Dark halo + pale rim | fixed | vision2 tile: reads in all four |
+| Q13 | P2 | The Wader was "met" from inside the Husk, 5 km inland | sweep 30 frames | — | Site radius 5.6 km | Met only from the beach | fixed | respect gate (Husk) |
+| Q14 | P2 | The climbing camera presses against the giant: no sense of scale or where you are on it | clips cycle 1 climb | evidence/c1-climb-sheet.jpg | Climb camera distance/aim | — | open | — |
+| Q15 | P1 | The first click or key stalled the game ~200 ms (every player, on "click to wake") | any clip's first input; `audiostart` probe | PERF.md cycle 2 | `new AudioContext()` on the first gesture: 187 ms opening the device | Context made at load (suspended); the gesture resumes it | fixed | first keydown 198 → 16 ms; green/storm 1% low → 59.5 fps, 0 frames > 33 ms |
+| Q16 | P3 | Loading screen holds ~5 s on a bare gradient with one line | clips opening | evidence/c1-opening-sheet.jpg | — | — | open | — |
+| Q17 | — | Gemini: "stray broken geometry in the sky" | green @13 s | qa/cycle1/green-13.png | It is a flying giant (a leviathan) far off | — | not a bug | frame checked |
+| Q18 | — | Gemini: "the line is a straight rigid segment" | grapple @12 s | qa/cycle1/grapple-12.png | Under tension, reeling: a taut line is straight; it sags when slack (grapple.ts) | — | not a bug | — |
+| Q19 | — | Gemini: "no footprints in sand", "cape has no cloth sim" | — | — | Both exist (prints.ts; the cape is a verlet cloth) | — | not a bug | sand prints gate; cloth traced in Q6 |
