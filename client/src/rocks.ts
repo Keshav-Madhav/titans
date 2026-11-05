@@ -407,12 +407,26 @@ export class Rocks {
       const c = Math.cos(p.rot)
       const sn = Math.sin(p.rot)
       const above = new Float32Array(n * 2)
+      // The land's height on a 1 m grid under the work, each corner sampled once and eased between
+      // (per vertex it was ~85k samples for the lantern paths' posts alone: 90 ms of the start).
+      const corner = new Map<number, number>()
+      const H = (ix: number, iz: number): number => {
+        const k = (ix + 32768) * 65536 + (iz + 32768)
+        let h = corner.get(k)
+        if (h === undefined) corner.set(k, (h = this.terrain.heightAt(ix, iz)))
+        return h
+      }
       for (let i = 0; i < n; i++) {
         const lx = pos.getX(i)
         const lz = pos.getZ(i)
         const wx = p.x + lx * c + lz * sn
         const wz = p.z - lx * sn + lz * c
-        above[i * 2] = p.y + pos.getY(i) - this.terrain.heightAt(wx, wz)
+        const ix = Math.floor(wx)
+        const iz = Math.floor(wz)
+        const fx = wx - ix
+        const fz = wz - iz
+        const land = (H(ix, iz) * (1 - fx) + H(ix + 1, iz) * fx) * (1 - fz) + (H(ix, iz + 1) * (1 - fx) + H(ix + 1, iz + 1) * fx) * fz
+        above[i * 2] = p.y + pos.getY(i) - land
         above[i * 2 + 1] = tall
       }
       geometry.setAttribute('aAbove', new THREE.BufferAttribute(above, 2))
@@ -657,9 +671,13 @@ export class Rocks {
    * top, a cave floor.
    */
   floorAt(x: number, y: number, z: number, reach = 0.6, drop = 3): number | null {
+    // The highest floor of any of them (it returned the first found: a giant tree's bark bulging
+    // 1.5 m under a stone slab set against it was "the floor", and you fell through the slab).
+    let best: number | null = null
     for (const f of this.near(x, z, 2)) {
       if (this.sdf(f, x, y + reach, z) < 0) continue // our head is in rock: not a floor
       for (let t = reach; t >= -drop; t -= 0.2) {
+        if (best !== null && y + t + 0.2 <= best) break // (nothing higher to find in this one)
         if (this.sdf(f, x, y + t, z) < 0) {
           // Refine to the surface between this step and the one above.
           let lo = y + t
@@ -669,11 +687,12 @@ export class Rocks {
             if (this.sdf(f, x, m, z) < 0) lo = m
             else hi = m
           }
-          return hi
+          if (best === null || hi > best) best = hi
+          break
         }
       }
     }
-    return null
+    return best
   }
 
   /**
