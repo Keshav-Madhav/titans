@@ -64,6 +64,7 @@ import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Motes } from './motes'
 import { Seeds } from './seeds'
+import { Thermals } from './thermals'
 import { Lanterns, type LanternDef } from './lanterns'
 import { SunkenBells, StoneDescent, BREATH, type SunkBellDef } from './sunken-bells'
 import { TreeStair } from './tree-stair'
@@ -1308,6 +1309,10 @@ _bt = performance.now()
 const seeds = new Seeds(WORLD_SEED, (x, z) => terrain.heightAt(x, z), (x, z) => biome.open(x, z))
 scene.add(seeds.points)
 bootCost.seeds = performance.now() - _bt
+// Thermals over the Dune Sea by day (user: "thermals i like"): a devil at the foot, birds circling high.
+const thermals = new Thermals(WORLD_SEED, (x, z) => terrain.heightAt(x, z), (x, z) => biome.desert(x, z), (x, z) => rocks.occupies(x, z))
+scene.add(thermals.points)
+let thermalSaid = false
 let seedSaid = false
 
 // Waystones: the lit cairns, and the first camp (waystones.ts).
@@ -2561,6 +2566,7 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
 wanderer.isSnow = (x, z) => highSector(x, z) > 0.5 && terrain.heightAt(x, z) > HIGH.top - 60
 let sledSaid = false
 wanderer.seedLift = (p, dir) => (seeds.lastK = seeds.liftAt(p, dir))
+wanderer.thermalLift = (p) => thermals.liftAt(p)
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   if (surf === 'grass' || surf === 'mud' || surf === 'sand') trail.step(wanderer.pos.x, wanderer.pos.z, pace)
@@ -3016,7 +3022,11 @@ function frameBody(now: number): void {
   sky.advance(dt)
   setFogSun(sky.sunDir)
   trail.update(dt, wanderer.pos)
-  if (!wanderer.gliding) seeds.lastK = 0
+  if (!wanderer.gliding) seeds.lastK = thermals.lastK = 0
+  if (thermals.lastK > 0.5 && !thermalSaid) {
+    thermalSaid = true
+    narration.say('Warm air off the sand pushes up under the cloak. Circle in it, and it takes you up.')
+  }
   if (seeds.lastK > 0.5 && !seedSaid) {
     seedSaid = true
     narration.say('The seeds’ air fills the cloak and lifts you. Go with it.')
@@ -3059,9 +3069,10 @@ function frameBody(now: number): void {
     })
     // (Seeds fly on dry days; rain beats them down.)
     seeds.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, 1 - weather.now.rain)
+    thermals.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, weather.now.rain)
   }
   // (At a long drop the wind rises: vertigo is heard as much as seen; and in a seed river's air.)
-  sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * seeds.lastK), awe())
+  sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); sysCost.veg = Math.max(sysCost.veg, performance.now() - _t) }
   skirts?.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); sysCost.grass = Math.max(sysCost.grass, performance.now() - _t) }
@@ -3565,6 +3576,7 @@ const g = {
   mist,
   motes,
   seeds,
+  thermals,
   lanterns,
   sunkBells,
   bootCost,

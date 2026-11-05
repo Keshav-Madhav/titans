@@ -782,6 +782,8 @@ export class Wanderer {
   updraft = 0
   /** A seed river's lift at a point (0 … 1), and its way there into `dir` (set by the game). */
   seedLift: (p: THREE.Vector3, dir: THREE.Vector2) => number = () => 0
+  /** A thermal's lift at a point, m/s (set by the game). */
+  thermalLift: (p: THREE.Vector3) => number = () => 0
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
@@ -1297,6 +1299,8 @@ export class Wanderer {
         dh = Math.atan2(Math.sin(dh), Math.cos(dh))
         this.heading += dh * Math.min(1, 0.5 * seed * dt)
       }
+      // A thermal (sun-heated ground, by day): rising air you circle up in.
+      this.updraft = Math.max(this.updraft, this.thermalLift(this.pos))
       this.vel.y += this.updraft
       this.yaw = this.heading
     } else this.updraft = 0
