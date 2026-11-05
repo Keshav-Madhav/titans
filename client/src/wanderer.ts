@@ -822,7 +822,9 @@ export class Wanderer {
   /** Where the old chest and pelvis would be on the rigged body (what hung from them hangs here). */
   private readonly chestAnchor = new THREE.Group()
   private readonly pelvisAnchor = new THREE.Group()
-  private readonly anchorOff = { chest: new THREE.Matrix4(), pelvis: new THREE.Matrix4() }
+  private readonly anchorOff = { chest: new THREE.Matrix4(), pelvis: new THREE.Matrix4(), neck: new THREE.Matrix4() }
+  /** The shoulder mantle's place on the rigged body (the neck's base, turning with the upper spine). */
+  private readonly neckAnchor = new THREE.Group()
   /** The wing-cloak spread behind the shoulders (only while gliding). */
   private readonly wing: THREE.Mesh
   private readonly head = new THREE.Group()
@@ -1386,7 +1388,9 @@ export class Wanderer {
     if (Math.abs(this.bodyRoll) > 0.002) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bodyRoll))
     if (Math.abs(this.bodyPitch) > 0.002) this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, this.bodyPitch))
     // Swimming: the body lies forward in the water (more as you go), lifted so the head stays up.
-    if (this.swimLean > 0.01) {
+    // (The rigged body's swim clip lies flat in the water itself: tipped again here it went head down
+    // under the surface, only its arms and boots showing.)
+    if (this.swimLean > 0.01 && !this.avatar) {
       this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, this.swimLean))
       this.obj.position.y += Math.sin(this.swimLean) * 0.78
     }
@@ -1492,6 +1496,16 @@ export class Wanderer {
         const p = new THREE.Vector3(-Math.cos(a) * half * 0.95, y - 0.03 * Math.sin(a), S.z - 0.06 - Math.sin(a) * 0.12).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine)
         this.capeSpine.push(p)
       }
+      // The mantle (the hood's red skirt over the shoulders, over the top of the cape: without it the
+      // cape was a flat red board pinned on behind — user, 2026-11-05).
+      const neckObj = new THREE.Matrix4().makeTranslation(neck.x, neck.y + 0.02, neck.z - 0.025)
+      const spRest = objInv.clone().multiply(sp.matrixWorld)
+      this.anchorOff.neck.copy(spRest.invert()).multiply(neckObj)
+      this.neckAnchor.matrixAutoUpdate = false
+      this.obj.add(this.neckAnchor)
+      const mantle = new THREE.Mesh(mantleGeometry().scale(0.95, 1.05, 1.05), this.redCloth)
+      mantle.castShadow = true
+      this.neckAnchor.add(mantle)
       this.scarfSpine.length = 0
       for (const sx of [-0.05, 0.05]) this.scarfSpine.push(new THREE.Vector3(sx, neck.y - 0.02, neck.z + 0.06).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
     }
@@ -1526,6 +1540,7 @@ export class Wanderer {
   /** Foot IK's eased state: each foot's height offset to the ground, and the hips' drop. */
   private readonly footOff = [0, 0]
   private hipDrop = 0
+  private swimLift = 0
 
   /**
    * Feet on the ground (the clips are made on the flat): each ankle is moved by how far the ground
@@ -1550,7 +1565,18 @@ export class Wanderer {
     const k = Math.min(1, dt * 14)
     for (let i = 0; i < 2; i++) this.footOff[i] += (want[i] - this.footOff[i]) * k
     this.hipDrop += (Math.max(0, -Math.min(this.footOff[0], this.footOff[1])) - this.hipDrop) * k
-    av.root.position.y = -this.hipDrop
+    // Swimming: the upper back held just under the surface (the head and shoulders above it).
+    if (this.swimming) {
+      av.root.position.y = 0
+      av.root.updateMatrixWorld(true)
+      // (Head and shoulders out: with the back held at the surface the whole body was under the
+      // water — it is not clear — and only the cape showed, floating.)
+      const head = av.bone('Head')!.getWorldPosition(_p0).y
+      const back = av.bone('spine_03')!.getWorldPosition(_p1).y
+      const lift = Math.max(this.waterLevel + 0.3 - head, this.waterLevel - 0.02 - back)
+      this.swimLift += (lift - this.swimLift) * Math.min(1, dt * 6)
+    } else this.swimLift += (0 - this.swimLift) * Math.min(1, dt * 6)
+    av.root.position.y = -this.hipDrop + this.swimLift
     av.root.updateMatrixWorld(true)
     if (on < 1 && Math.abs(this.footOff[0]) + Math.abs(this.footOff[1]) < 0.002) return
     for (let i = 0; i < 2; i++) {
@@ -1617,6 +1643,46 @@ export class Wanderer {
       const foot = _p1.copy(hip).addScaledVector(up, -0.78 + 0.34 * step).addScaledVector(right, side * (0.16 + 0.06 * step)).addScaledVector(fwd, 0.2 + 0.05 * step)
       const kpole = _p2.copy(fwd).addScaledVector(right, side * 0.8)
       this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, kpole, w)
+    }
+  }
+
+  private glideW = 0
+  private hangW = 0
+
+  /**
+   * Flying and hanging on the rig. Flying: the arms spread wide holding the wing's leading edge out,
+   * a little forward, the one on the low side of a bank dipping; the legs trailing together behind.
+   * On the line: both hands up on the rope above the head, the legs hanging a little bent.
+   */
+  private airRig(dt: number): void {
+    this.glideW += ((this.gliding ? 1 : 0) - this.glideW) * Math.min(1, dt * 8)
+    this.hangW += ((this.hanging && !this.gliding ? 1 : 0) - this.hangW) * Math.min(1, dt * 8)
+    if (this.glideW < 0.01 && this.hangW < 0.01) return
+    const av = this.avatar!
+    const q = this.obj.quaternion
+    const fwd = _cf.set(0, 0, 1).applyQuaternion(q)
+    const right = _cr.set(-1, 0, 0).applyQuaternion(q)
+    const up = _cu.set(0, 1, 0).applyQuaternion(q)
+    for (let i = 0; i < 2; i++) {
+      const sd = i === 0 ? 'r' : 'l'
+      const side = i === 0 ? 1 : -1
+      if (this.glideW >= 0.01) {
+        const sh = av.bone(`upperarm_${sd}`)!.getWorldPosition(_p0)
+        const dip = -side * this.bank * 0.25
+        const hand = _p1.copy(sh).addScaledVector(right, side * 0.6).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04 + dip)
+        this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, _p2.copy(up).addScaledVector(fwd, -0.5), this.glideW)
+        const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
+        const foot = _p1.copy(hip).addScaledVector(up, -0.8).addScaledVector(fwd, -0.22).addScaledVector(right, -side * 0.03)
+        this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, _p2.copy(fwd), this.glideW)
+      }
+      if (this.hangW >= 0.01) {
+        const head = av.bone('Head')!.getWorldPosition(_p0)
+        const hand = _p1.copy(head).addScaledVector(up, 0.42 + i * 0.12).addScaledVector(right, side * 0.04).addScaledVector(fwd, 0.08)
+        this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, _p2.copy(right).multiplyScalar(side).addScaledVector(fwd, 0.3), this.hangW)
+        const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
+        const foot = _p1.copy(hip).addScaledVector(up, -0.8).addScaledVector(fwd, i ? 0.12 : -0.05)
+        this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, _p2.copy(fwd), this.hangW)
+      }
     }
   }
 
@@ -1734,6 +1800,7 @@ export class Wanderer {
     }
     set(this.chestAnchor, 'spine_03', this.anchorOff.chest)
     set(this.pelvisAnchor, 'pelvis', this.anchorOff.pelvis)
+    set(this.neckAnchor, 'spine_03', this.anchorOff.neck)
     // The hands: at the rig's hand, turned as the old hand is.
     for (let i = 0; i < 2; i++) {
       const hb = av.bone(i === 0 ? 'hand_r' : 'hand_l')!
@@ -2235,6 +2302,7 @@ export class Wanderer {
       this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
       this.retarget(dt)
       this.climbRig(dt)
+      this.airRig(dt)
       this.footIK(dt, ground)
       this.followAvatar()
     }
@@ -2319,7 +2387,9 @@ export class Wanderer {
     }
     this.cape.water = this.scarf.water = this.swimming
     // (Falling or gliding, the air may lift it; otherwise no higher than the shoulders.)
-    this.cape.ceil = this.gliding || this.vel.y < -6 ? Infinity : 0.1
+    // (Never up through the hood: falling fast it stood straight up out of the head, a red spike
+    // — user, 2026-11-05. Gliding the wing carries it; otherwise at most a little over the shoulders.)
+    this.cape.ceil = this.gliding ? Infinity : this.vel.y < -6 ? 0.15 : 0.1
     this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)

@@ -33,6 +33,8 @@ export interface AvatarState {
   climbRate: number
 }
 
+const ease = (x: number): number => x * x * (3 - 2 * x)
+
 export class Avatar {
   readonly root = new THREE.Group()
   readonly bones = new Map<string, THREE.Bone>()
@@ -162,8 +164,12 @@ export class Avatar {
     const swimGo = THREE.MathUtils.smoothstep(s.speed, 0.3, 1.6)
     this.w('Swim_Fwd_Loop', this.swim * swimGo)
     this.w('Swim_Idle_Loop', this.swim * (1 - swimGo))
-    const take = s.take >= 0 ? Math.sin(Math.PI * Math.min(1, s.take)) : 0
-    this.w('PickUp_Table', take)
+    // Taking something from the ground: down on one knee (the kneeling clip, held), over everything
+    // else, eased in and out (it was the pick-up-from-a-table clip, standing, mixed half with idle).
+    const t = s.take
+    const take = t < 0 ? 0 : t < 0.3 ? ease(t / 0.3) : t < 0.62 ? 1 : 1 - ease((t - 0.62) / 0.38)
+    for (const a of this.act.values()) a.setEffectiveWeight(a.getEffectiveWeight() * (1 - take))
+    this.w('Fixing_Kneeling', take)
     // Everything above scaled down while another mode takes the body, and that mode's clip in.
     for (const a of this.act.values()) a.setEffectiveWeight(a.getEffectiveWeight() * (1 - this.posedW))
     // Climbing: hand over hand (the push, its arms reaching ahead — on a wall, they reach up);
@@ -174,7 +180,7 @@ export class Avatar {
     for (const n of ['Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop']) this.at(n, this.phase)
     this.at('Jump_Start', Math.min(0.99, 0.25 + this.startT / 1.33))
     this.at('Jump_Land', Math.min(0.99, this.landT / 0.6 * 0.55 + 0.1))
-    if (s.take >= 0) this.at('PickUp_Table', Math.min(0.99, s.take))
+    this.at('Fixing_Kneeling', 0.3)
     // Idle, the jump's hold and swimming run on their own clocks.
     this.mixer.update(0)
     for (const n of ['Idle_Loop', 'Jump_Loop', 'Swim_Fwd_Loop', 'Swim_Idle_Loop', 'Push_Loop', 'Crouch_Idle_Loop']) {
