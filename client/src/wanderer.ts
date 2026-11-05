@@ -1496,12 +1496,15 @@ export class Wanderer {
       const half = Math.abs(L.x - R.x) / 2
       const y = (L.y + R.y) / 2 + 0.07 // on top of the shoulder, not at the joint
       this.capeSpine.length = 0
+      this.capeObj.length = 0
       for (let i = 0; i < 9; i++) {
         const a = Math.PI * (0.06 + (0.88 * i) / 8)
+        const local = new THREE.Vector3(-Math.cos(a) * half * 0.95, y - 0.03 * Math.sin(a), S.z - 0.06 - Math.sin(a) * 0.12)
+        this.capeObj.push(local.clone())
         // (Body space → world → the spine bone's space.)
-        const p = new THREE.Vector3(-Math.cos(a) * half * 0.95, y - 0.03 * Math.sin(a), S.z - 0.06 - Math.sin(a) * 0.12).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine)
-        this.capeSpine.push(p)
+        this.capeSpine.push(local.applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
       }
+      this.spineRestObj.copy(S)
       // The mantle (the hood's red skirt over the shoulders, over the top of the cape: without it the
       // cape was a flat red board pinned on behind — user, 2026-11-05).
       const neckObj = new THREE.Matrix4().makeTranslation(neck.x, neck.y + 0.02, neck.z - 0.025)
@@ -1754,6 +1757,9 @@ export class Wanderer {
   /** The cape's and scarf's pins in the rigged body's upper spine space. */
   private readonly capeSpine: THREE.Vector3[] = []
   private readonly scarfSpine: THREE.Vector3[] = []
+  /** The cape's pins in the body's own frame at rest, and the upper spine's place then. */
+  private readonly capeObj: THREE.Vector3[] = []
+  private readonly spineRestObj = new THREE.Vector3()
 
   /** The tools' hands on the rigged body, right [0] and left [1]. */
   private readonly handAnchor = [new THREE.Group(), new THREE.Group()]
@@ -2336,8 +2342,18 @@ export class Wanderer {
     const m = this.obj.matrixWorld
     const cm = (this.avatar ? this.chestAnchor : this.chest).matrixWorld
     if (this.avatar && this.capeSpine.length) {
-      const sm = this.avatar.bone('spine_03')!.matrixWorld
-      this.capeSpine.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(sm))
+      // The pins follow the upper spine's place and lean, but only a quarter of its twist: the run
+      // clip twists the spine hard each stride, and pinned to it the cape's top swung and the long
+      // cloth whipped from side to side, bunching over the shoulders (seen from the game's camera).
+      const spB = this.avatar.bone('spine_03')!
+      const sm = spB.matrixWorld
+      const objM = this.obj.matrixWorld
+      spB.getWorldPosition(_p3).applyMatrix4(_m4.copy(objM).invert()).sub(this.spineRestObj)
+      this.capeSpine.forEach((a, i) => {
+        const full = _p4.copy(a).applyMatrix4(sm)
+        const calm = _p5.copy(this.capeObj[i]).add(_p3).applyMatrix4(objM)
+        this.capePins[i].copy(calm).lerp(full, 0.3)
+      })
       this.scarfSpine.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(sm))
     } else {
       this.capeChest.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(cm))
