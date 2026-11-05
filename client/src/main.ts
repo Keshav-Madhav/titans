@@ -66,6 +66,7 @@ import { Motes } from './motes'
 import { Seeds } from './seeds'
 import { Lanterns, type LanternDef } from './lanterns'
 import { SunkenBells, StoneDescent, BREATH, type SunkBellDef } from './sunken-bells'
+import { TreeStair } from './tree-stair'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -457,6 +458,8 @@ let glyphs: Glyphs
 // Lantern paths (user's pick #8): a line of cold lamps in each of three lands, lit only at night,
 // the fire running lamp to lamp to a ring and a slab. Each path is found by search (deterministic):
 // its start and its whole run must lie well inside its land, on open ground.
+const bootCost: Record<string, number> = {}
+let _bt = performance.now()
 const lanterns = (() => {
   const blocked = (x: number, z: number) => rocks.occupies(x, z) || rocks.sdfAt(x, terrain.heightAt(x, z) + 1, z) < 2
   const pick = (id: string, seed: number, land: (x: number, z: number) => number): LanternDef | null => {
@@ -467,8 +470,10 @@ const lanterns = (() => {
       const x = Math.sin(a) * d
       const z = Math.cos(a) * d
       const bearing = rand() * Math.PI * 2
-      let ok = !blocked(x, z) && !inHall(x, z, 200)
+      // (The cheap test first: the land along the whole run; then is its start clear of rock.)
+      let ok = !inHall(x, z, 200)
       for (let t = 0; ok && t <= 700; t += 100) ok = land(x + Math.sin(bearing) * t, z + Math.cos(bearing) * t) > 0.8
+      ok &&= !blocked(x, z)
       if (ok) return { id, start: { x, z }, bearing, seed }
     }
     return null
@@ -486,6 +491,8 @@ const lanterns = (() => {
   )
 })()
 scene.add(lanterns.group)
+bootCost.lanterns = performance.now() - _bt
+_bt = performance.now()
 
 // The sunken bells (user's pick #7, PLAN §4b). The Green's: rung, the stone hanging over the Green
 // comes down and plants itself in the grass, climbable; what was kept on top of it is there.
@@ -502,6 +509,9 @@ const bellDescent = (() => {
   while (top > y1 && rocks.sdf({ ...f, y: y1 }, f.x, top, f.z) > 0) top -= 0.5
   return { y1, top: new THREE.Vector3(f.x, top + 0.05, f.z), run: null as StoneDescent | null }
 })()
+let woodTree: { f: (typeof colossi.giantTrees)[number]['f']; h: number } | null = null
+/** The stair round the Wood's tree: worked out when first needed (its bell rung, or a save). */
+let woodStair: TreeStair | null = null
 const sunkBells = (() => {
   const blocked = (x: number, z: number) => rocks.occupies(x, z) || rocks.sdfAt(x, terrain.heightAt(x, z) + 1, z) < 3
   // Within sight of the stone (it must be watched coming down), on open level grass.
@@ -517,13 +527,30 @@ const sunkBells = (() => {
     // The yoke faces the stone: you stand on the far side and look past the bell to it.
     def = { id: 'bell-green', x, z, rot: Math.atan2(Math.sin(a), Math.cos(a)), seed: 911 }
   }
+  // The Old Wood's: in a clearing within sight of a giant tree (the one with the most open ground
+  // near it), facing it.
+  let woodDef: SunkBellDef | null = null
+  for (const t of colossi.giantTrees) {
+    if (woodDef) break
+    for (let i = 0; i < 120 && !woodDef; i++) {
+      const a = (i * 2.399) % 6.283
+      const r = t.f.hx * 0.45 + 40 + (i % 5) * 12
+      const x = t.f.x + Math.sin(a) * r
+      const z = t.f.z + Math.cos(a) * r
+      const sl = Math.hypot(terrain.heightAt(x + 5, z) - terrain.heightAt(x - 5, z), terrain.heightAt(x, z + 5) - terrain.heightAt(x, z - 5)) / 10
+      if (sl > 0.1 || blocked(x, z) || blocked(x + Math.sin(a) * 6, z + Math.cos(a) * 6) || blocked(x - Math.cos(a) * 4, z + Math.sin(a) * 4) || blocked(x + Math.cos(a) * 4, z - Math.sin(a) * 4)) continue
+      woodDef = { id: 'bell-wood', x, z, rot: Math.atan2(Math.sin(a), Math.cos(a)), seed: 912 }
+      woodTree = t
+    }
+  }
   return new SunkenBells(
-    def ? [def] : [],
+    [def, woodDef].filter((d): d is SunkBellDef => !!d),
     terrain,
     (shape, geo, at) => rocks.addBuilt(shape, geo, { ...at, rot: 0, layers: [LAYER.carved, LAYER.moss], scale: 6, tint: [0.86, 0.85, 0.82] }),
   )
 })()
 scene.add(sunkBells.group)
+bootCost.bells = performance.now() - _bt
 
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
@@ -882,6 +909,8 @@ const spots = (() => {
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   // On top of the stone the Green's bell calls down (revealed when it lands).
   placed.push({ id: 'sky-green', kind: 'trinket', at: bellDescent.top.clone(), hidden: true })
+  // At the top of the stair round the Wood's tree (placed there when the stair is made).
+  placed.push({ id: 'stair-wood', kind: 'trinket', at: new THREE.Vector3(0, -1000, 0), hidden: true })
   // On each lantern path's slab, when the fire reaches it.
   for (const p of lanterns.paths) placed.push({ id: p.def.id, kind: 'trinket', at: p.end.clone().add(new THREE.Vector3(0, 0.36, 0)), hidden: true })
   return new Spots(placed)
@@ -976,7 +1005,26 @@ sunkBells.onStrike = (b, good) => {
   sound.sunkBell(b.count, good, BREATH, wanderer.pos.distanceTo(b.at))
   wanderer.reachDown()
 }
+const makeWoodStair = (): TreeStair | null => {
+  if (woodStair || !woodTree) return woodStair
+  const b = sunkBells.bells.find((x) => x.def.id === 'bell-wood')!
+  const d = new THREE.Vector2(b.def.x - woodTree.f.x, b.def.z - woodTree.f.z).normalize()
+  woodStair = new TreeStair(woodTree.f, woodTree.h, rocks, 913, d, (x, z) => terrain.heightAt(x, z))
+  scene.add(woodStair.mesh)
+  spots.place('stair-wood', woodStair.top)
+  woodStair.onSlab = (_i, at) => sound.rubble(wanderer.pos.distanceTo(at))
+  return woodStair
+}
 const wakeBell = (id: string, instant: boolean) => {
+  if (id === 'bell-wood') {
+    const st = makeWoodStair()
+    if (!st) return
+    if (instant) {
+      st.finish()
+      if (!finds.has('stair-wood')) spots.reveal('stair-wood')
+    } else st.wake()
+    return
+  }
   if (id !== 'bell-green' || bellDescent.run) return
   const run = new StoneDescent(skyStone, bellDescent.y1, 64)
   bellDescent.run = run
@@ -991,7 +1039,7 @@ const wakeBell = (id: string, instant: boolean) => {
   }
 }
 sunkBells.onWake = (b) => {
-  sound.waking(64)
+  sound.waking(b.def.id === 'bell-wood' ? 50 : 64)
   wakeBell(b.def.id, false)
   // Every giant within a long way stops, and turns to the sound.
   noticeNear(b.at.x, b.at.z, 2500, 40, b.at)
@@ -1053,7 +1101,10 @@ let watchProgress = 0
 const CAIRN_LINES = ['The land below opens to you.', 'From here you can see a long way.', 'The flame catches. The wind takes the smoke.', 'Someone stood here once, and looked out as you do.']
 /** Keep a clearing round each cairn (they are placed further down; plants grow later, lazily). */
 const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x - x) < 9 && Math.abs(c.z - z) < 9)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z), rockMaterial(terrainTex))
+// A clearing round each bell: nothing grows within 16 m (a pine beside the Wood's had the camera
+// in its branches as you struck the bell).
+const nearBell = (x: number, z: number) => sunkBells.bells.some((b) => Math.hypot(b.def.x - x, b.def.z - z) < 16)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z) || nearBell(x, z), rockMaterial(terrainTex))
 // Scanned boulders replace the made ones when they arrive (rock-scans.ts).
 // …and round the statues' feet, rubble and fallen fragments made from them (statue-skirts.ts).
 let skirts: StatueSkirts | null = null
@@ -1179,9 +1230,11 @@ const camp = new Camp(terrain)
 
 // Your trail: pressed grass that springs back, a path worn in where you walk often (trail.ts).
 const trail = new Trail()
+_bt = performance.now()
 // Seed rivers on the Green's wind (user's pick #5): glide into one and it lifts you.
 const seeds = new Seeds(WORLD_SEED, (x, z) => terrain.heightAt(x, z), (x, z) => biome.open(x, z))
 scene.add(seeds.points)
+bootCost.seeds = performance.now() - _bt
 let seedSaid = false
 
 // Waystones: the lit cairns, and the first camp (waystones.ts).
@@ -2698,8 +2751,10 @@ function frame(now: number): void {
   }
 }
 
-// QA (?qa=throw): a frame breaks on purpose 8 s in, to prove the card and that the save survives.
-let qaThrowAt = params.get('qa') === 'throw' ? 8000 : 0
+// QA (?qa=throw): a frame breaks on purpose 8 s into play (from ready: from the page's start, a
+// slow start under load broke the title's frame before the game was ever ready), to prove the card
+// and that the save survives.
+let qaThrowAt = 0
 let padAt = 0
 
 function frameBody(now: number): void {
@@ -2942,6 +2997,10 @@ function frameBody(now: number): void {
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
   sunkBells.update(dt)
   bellDescent.run?.update(dt)
+  if (woodStair?.running) {
+    woodStair.update(dt)
+    if (!woodStair.running && !finds.has('stair-wood')) spots.reveal('stair-wood')
+  }
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
@@ -3183,6 +3242,7 @@ function frameBody(now: number): void {
 
   if (!ready && terrainView.settled()) {
     ready = true
+    if (params.get('qa') === 'throw') qaThrowAt = performance.now() + 8000
     // Compile every shader now, behind the title (user: "game hitches" — the first sight of
     // the water, a colossus, the bow, the fireflies at dusk each stalled a frame compiling
     // its program). Again a little later, for what is still being built then.
@@ -3433,7 +3493,10 @@ const g = {
   seeds,
   lanterns,
   sunkBells,
+  bootCost,
   bellDescent,
+  get woodStair() { return woodStair },
+  makeWoodStair,
   skyStone,
   /** The first-steps progress (tools). */
   tipState,

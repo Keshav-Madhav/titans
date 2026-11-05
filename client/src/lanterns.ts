@@ -127,6 +127,8 @@ function lampGeometry(seed: number): { geo: THREE.BufferGeometry; flameY: number
   add(new THREE.BoxGeometry(0.78, 0.12, 0.78).translate(0, 1.31, 0))
   for (const [x, z] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) add(new THREE.BoxGeometry(0.11, 0.4, 0.11).translate(x, 1.57, z))
   add(new THREE.ConeGeometry(0.58, 0.34, 4, 1).rotateY(Math.PI / 4).translate(0, 1.94, 0))
+  // The wick's bowl in the house (empty-looking by day without it).
+  add(new THREE.CylinderGeometry(0.17, 0.11, 0.14, 8, 1).translate(0, 1.44, 0))
   for (const p of parts) {
     p.deleteAttribute('uv')
     if (!p.getAttribute('normal')) p.computeVertexNormals()

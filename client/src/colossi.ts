@@ -84,6 +84,8 @@ export class Colossi {
   readonly places = new Map<string, THREE.Vector3>()
   /** The free stones hanging in the sky, by place name (a sunken bell can call one down). */
   readonly skyStones = new Map<string, Formation>()
+  /** The Old Wood's giant trees (a sunken bell raises a stair round one). */
+  readonly giantTrees: Array<{ f: Formation; h: number }> = []
 
   constructor(
     private readonly terrain: Terrain,
@@ -192,6 +194,7 @@ export class Colossi {
       const sn = Math.sin(rot)
       const tips = (f.tips ?? []).map(([tx, ty, tz]) => new THREE.Vector3(x + tx * c + tz * sn, lo - 2 + ty, z - tx * sn + tz * c))
       trees.push({ x, y: lo - 2, z, h: f.cy + f.hy, tips })
+      this.giantTrees.push({ f, h: (f.hy * 2 - 12) / 1.32 })
       place(`tree-${trees.length}`, x, z, lo)
     }
     // Their crowns: billows of leaf cards at every limb's end — and a smaller
