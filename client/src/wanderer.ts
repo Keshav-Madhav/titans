@@ -7,6 +7,7 @@
 // ground. A small lantern at the hip glows warm in dark places.
 
 import * as THREE from 'three'
+import type { Avatar } from './avatar'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { type Terrain } from '@titans/shared'
@@ -50,6 +51,7 @@ export const SCRAMBLE_SLOPE = 1.85
 const SLIDE = 14
 
 const _seedDir = new THREE.Vector2()
+const _m4 = new THREE.Matrix4()
 const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
@@ -791,6 +793,12 @@ export class Wanderer {
   private climbMoving = 0
   private readonly pelvis = new THREE.Group()
   private readonly chest = new THREE.Group()
+  /** The rigged body (avatar.ts), once loaded: shown instead of the old jointed one. */
+  private avatar: Avatar | null = null
+  /** Where the old chest and pelvis would be on the rigged body (what hung from them hangs here). */
+  private readonly chestAnchor = new THREE.Group()
+  private readonly pelvisAnchor = new THREE.Group()
+  private readonly anchorOff = { chest: new THREE.Matrix4(), pelvis: new THREE.Matrix4() }
   /** The wing-cloak spread behind the shoulders (only while gliding). */
   private readonly wing: THREE.Mesh
   private readonly head = new THREE.Group()
@@ -899,8 +907,10 @@ export class Wanderer {
       mergeGeometries([
         new THREE.CylinderGeometry(0.17, 0.145, 0.5, 12, 2).translate(0, 0.28, 0).scale(1.15, 1, 0.82).toNonIndexed(),
         new THREE.SphereGeometry(0.18, 12, 8).translate(0, 0.5, 0).scale(1.18, 0.75, 0.82).toNonIndexed(),
-        // The tunic's skirt, flaring to the knee.
-        new THREE.CylinderGeometry(0.15, 0.25, 0.52, 14, 2, true).translate(0, -0.18, 0).scale(1.1, 1, 0.92).toNonIndexed(),
+        // The tunic over the hips — only so far: the coat below it hangs in two halves from the
+        // thighs (it flared on down to the knee here too, rigid on the chest, and every stride drove
+        // a thigh out through it: the user, 2026-11-05, "legs through the coat").
+        new THREE.CylinderGeometry(0.15, 0.19, 0.16, 14, 1, true).translate(0, -0.0, 0).scale(1.1, 1, 0.92).toNonIndexed(),
       ])!,
       tunic,
     )
@@ -1409,7 +1419,61 @@ export class Wanderer {
 
   /** Where the right hand is (world). */
   handWorld(out: THREE.Vector3): THREE.Vector3 {
+    const h = this.avatar?.bone('hand_r')
+    if (h) return h.getWorldPosition(out)
     return this.arms[0].elbow.localToWorld(out.set(0, -0.34, 0))
+  }
+
+  /**
+   * Wear the rigged body (avatar.ts): it is shown and the old jointed one hidden; the cloth, the
+   * glide wing, the lantern and the satchel move onto anchors that follow its bones.
+   */
+  /** The cloak's red (the rigged body's hood wears it too). */
+  get cloakMaterial(): THREE.Material {
+    return this.redCloth
+  }
+
+  setAvatar(av: Avatar): void {
+    this.avatar = av
+    this.obj.add(av.root)
+    // (The whole body's matrices from the top: the bones' worlds were worked out from a stale
+    // wanderer transform — its yaw at load — and every anchor came out turned round, the cape
+    // hanging down the chest.)
+    this.obj.updateMatrixWorld(true)
+    // Each anchor: where the old part stood at rest, held relative to its bone at rest.
+    const objInv = this.obj.matrixWorld.clone().invert()
+    const restOf = (bone: string, y: number, out: THREE.Matrix4) => {
+      const b = av.bone(bone)!
+      const boneObj = objInv.clone().multiply(b.matrixWorld)
+      out.copy(boneObj.invert()).multiply(new THREE.Matrix4().makeTranslation(0, y, 0))
+    }
+    restOf('spine_03', 0.92, this.anchorOff.chest)
+    // (The rigged body is deeper than the old one, its back 0.21 m behind the middle where the old
+    // was 0.12: the pins move back with it, or they sat inside the back.)
+    this.anchorOff.chest.multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.09))
+    restOf('pelvis', 0.92, this.anchorOff.pelvis)
+    for (const a of [this.chestAnchor, this.pelvisAnchor]) {
+      a.matrixAutoUpdate = false
+      this.obj.add(a)
+    }
+    this.chestAnchor.add(this.wing)
+    this.pelvisAnchor.add(this.lanternHook)
+    for (const o of this.bagParts) this.pelvisAnchor.add(o)
+    this.pelvis.visible = false
+    this.followAvatar()
+  }
+
+  private followAvatar(): void {
+    const av = this.avatar!
+    av.root.updateMatrixWorld(true)
+    const objInv = _m4.copy(this.obj.matrixWorld).invert()
+    const set = (a: THREE.Group, bone: string, off: THREE.Matrix4) => {
+      a.matrix.copy(objInv).multiply(av.bone(bone)!.matrixWorld).multiply(off)
+      a.matrixWorldNeedsUpdate = true
+    }
+    set(this.chestAnchor, 'spine_03', this.anchorOff.chest)
+    set(this.pelvisAnchor, 'pelvis', this.anchorOff.pelvis)
+    this.obj.updateMatrixWorld(true)
   }
 
   /**
@@ -1891,17 +1955,29 @@ export class Wanderer {
     }
 
     this.smoothPose(dt)
+    if (this.avatar) {
+      this.obj.updateMatrixWorld(true)
+      const mode = this.climbing ? 'climb' : this.gliding ? 'glide' : this.sliding || this.sledding ? 'slide' : this.hanging ? 'hang' : 'ground'
+      this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
+      this.followAvatar()
+    }
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
     this.obj.updateMatrixWorld(true)
     const m = this.obj.matrixWorld
-    const cm = this.chest.matrixWorld
+    const cm = (this.avatar ? this.chestAnchor : this.chest).matrixWorld
     this.capeChest.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(cm))
     this.scarfChest.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(cm))
     this.hangDir.set(0, -1, -0.15).transformDirection(m)
     // The body's capsule, pelvis to chest, a little fatter than the body. (It must end below
     // the pins: a cap above them pushed the scarf's first links upward and it stood on end.)
-    this.axisA.set(0, 0.55, 0).applyMatrix4(m)
-    this.axisB.set(0, 1.26, -0.02).applyMatrix4(m)
+    if (this.avatar) {
+      // The rigged body's own trunk: pelvis to upper spine (it leans and twists with the clips).
+      this.avatar.bone('pelvis')!.getWorldPosition(this.axisA)
+      this.avatar.bone('spine_03')!.getWorldPosition(this.axisB)
+    } else {
+      this.axisA.set(0, 0.55, 0).applyMatrix4(m)
+      this.axisB.set(0, 1.26, -0.02).applyMatrix4(m)
+    }
     // Moving makes wind of its own: the cloth streams behind; the weather's wind gusts.
     const gust = wind.length()
     this.windV.copy(wind).multiplyScalar(0.5 + 0.5 * Math.max(0, Math.sin(this.t * 0.7) * Math.sin(this.t * 1.9)))
@@ -1943,6 +2019,15 @@ export class Wanderer {
     for (let i = 0; i < 2; i++) {
       const L = this.legs[i]
       const c = this.legCaps
+      const av = this.avatar
+      if (av) {
+        const side = i ? 'l' : 'r'
+        av.bone(`thigh_${side}`)!.getWorldPosition(c[i * 2].a)
+        av.bone(`calf_${side}`)!.getWorldPosition(c[i * 2].b)
+        c[i * 2 + 1].a.copy(c[i * 2].b)
+        av.bone(`foot_${side}`)!.getWorldPosition(c[i * 2 + 1].b)
+        continue
+      }
       L.hip.getWorldPosition(c[i * 2].a)
       L.knee.getWorldPosition(c[i * 2].b)
       c[i * 2 + 1].a.copy(c[i * 2].b)
@@ -1952,7 +2037,7 @@ export class Wanderer {
     this.cape.water = this.scarf.water = this.swimming
     // (Falling or gliding, the air may lift it; otherwise no higher than the shoulders.)
     this.cape.ceil = this.gliding || this.vel.y < -6 ? Infinity : 0.1
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, 0.23, ground, this.legCaps)
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
 

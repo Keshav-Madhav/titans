@@ -64,6 +64,7 @@ import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Motes } from './motes'
 import { Seeds } from './seeds'
+import { Avatar } from './avatar'
 import { Thermals } from './thermals'
 import { Lanterns, type LanternDef } from './lanterns'
 import { SunkenBells, StoneDescent, BREATH, type SunkBellDef } from './sunken-bells'
@@ -1412,6 +1413,12 @@ const sites: Site[] = [
 let visitClock = 0
 
 const wanderer = new Wanderer(0xa8291f)
+// The rigged body (avatar.ts; the user, 2026-11-05: a free rigged character, heavily customised).
+// ?oldbody keeps the old jointed one (to compare).
+if (!params.has('oldbody'))
+  Avatar.load(wanderer.cloakMaterial)
+    .then((av) => wanderer.setAvatar(av))
+    .catch((e) => console.warn('[avatar] not loaded, keeping the old body:', e))
 /**
  * The opening (the new-player pass): a new adventure does not begin on the
  * Green facing a giant. It begins at the title; a click and you wake on the
