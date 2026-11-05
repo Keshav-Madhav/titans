@@ -21,6 +21,11 @@ export class Frozen {
     this.titan = new Titan(520, x, z, HIGH.axis + Math.PI + 0.35, 6161, 1)
     this.titan.restBlend = 0
     this.titan.silhouette(0.5)
+    // Posed now, once, where it stands. (Its pose was set only within 12 km of it: from farther —
+    // the whole of the Green — its body had never been posed and lay in a heap at the world's
+    // middle, where the Green begins.)
+    this.titan.pose(terrain, 0)
+    this.titan.group.updateMatrixWorld(true)
     this.group.add(this.titan.group)
     const rand = mulberry32(6161)
     // The block: a craggy box of ice round it, sunk into the snow.
