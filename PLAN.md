@@ -213,6 +213,37 @@ giant must break; watching the giants; offering shrines; cairns (and their ember
 awakening of the Ones Beyond. Tools found in the world open new kinds of these: the bag, the horn,
 the bow, the wing-cloak, the sight-stone.
 
+## 4b. The sunken bells (user's pick #7, 2026-11-05: "must be done very well, so carefully")
+
+One bell per land, half sunk in the ground and green with age, tilted where it fell, a stone yoke
+over it and a striking-beam hung from the yoke on old ropes. **Ringing it is slow and physical:**
+E puts your shoulder to the beam and lets it swing in; the bell answers with a long hum that swells
+and fades on its own breath (~2.6 s). Strike again *as the hum swells* and it grows; strike against
+it and it chokes and sinks back. Five strokes in time, and the land answers. No words at any point
+after the first prompt: the change is the answer.
+
+**What each bell wakes** — one slow change (40–70 s) you watch from where you stand (the camera
+never takes over: §user 2026-11-05, climbing), each opening a place you could not reach before,
+with something left there (trinket + a stone with words: §2f):
+1. **The Green — the stone comes down.** A free-floating monolith hangs 520 m over the Green, out of
+   reach of any glide. Rung, it stops turning, and sinks — a mountain coming down out of the sky
+   toward you — and settles low over the grass (~30 m up), close enough to grapple and climb. On top:
+   what was kept up there.
+2. **The Old Wood — the stair round the tree.** Slabs of stone rise out of the ground one after
+   another and stand in a spiral up a giant tree's trunk to its crown.
+3. **The Dune Sea — the head in the sand.** The sand round the bell shivers; a buried stone head
+   rises out of it, sand pouring off, and its open mouth is a door.
+
+**Mechanism (one for all three):** the change is a built/colossus formation whose `y` eases from
+its sleeping height to its woken one (collision follows `f.y`); dust where it meets the ground;
+a long low rumble; giants within ~2 km stop and turn to the bell (`noticeNear`). Saved: a rung
+bell's change is done on load. Safety: standing where stone rises lifts you (the rocks push-out),
+never traps you — probed.
+
+**Phases:** B7.1 the Green bell end to end (model, the swing, the timing, sound, the stone coming
+down, save, probe, gates, shots) · B7.2 the Wood and the Dunes on the same mechanism · B7.3 polish
+(distant hum heard across the land, the map, dust, giants).
+
 ## 5. Systems
 
 | System | Module |
