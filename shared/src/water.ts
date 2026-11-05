@@ -645,6 +645,7 @@ export class LakeSystem {
       for (let i = fresh.length - 1; i >= 0; i--) if (inBasin(b, fresh[i].bx, fresh[i].bz)) fresh.splice(i, 1)
       fresh.push(b)
     }
+    const changed: Basin[] = [...fresh]
     for (const basin of fresh) {
       const lake: Lake = { id: 0, basin, volume: 0, level: basin.bottom, carry: 0, version: 0 }
       let biggest = -1
@@ -659,6 +660,7 @@ export class LakeSystem {
           lake.id = old.id
         }
         lake.version = Math.max(lake.version, old.version)
+        changed.push(old.basin)
         this.lakes.splice(i, 1)
       }
       if (lake.id === 0) lake.id = this.nextId++
@@ -671,8 +673,46 @@ export class LakeSystem {
       lake.version++
       this.lakes.push(lake)
     }
-    for (const l of this.lakes) l.down = undefined
+    this.forgetRoutesNear(changed)
     return true
+  }
+
+  /**
+   * Forget the overflow route of each lake that water appearing or going in `basins` could change:
+   * one whose route into another lake passes near them, or (running off onto the plain) any within
+   * a long walk of them. (Every route was forgotten on any change: the next look at the streams then
+   * re-traced every full lake's overflow — 34 ms in one frame, a giant's footfall at a time.)
+   */
+  private forgetRoutesNear(basins: Basin[]): void {
+    if (!basins.length) return
+    for (const l of this.lakes) {
+      if (l.down === undefined) continue
+      const b = l.basin
+      let x0 = b.x0
+      let z0 = b.z0
+      let x1 = b.x0 + b.w
+      let z1 = b.z0 + b.h
+      if (l.down && l.path?.length) {
+        for (const k of l.path) {
+          const x = Math.floor(k / 65536) - 32768
+          const z = (k % 65536) - 32768
+          if (x < x0) x0 = x
+          if (x > x1) x1 = x
+          if (z < z0) z0 = z
+          if (z > z1) z1 = z
+        }
+      } else {
+        x0 -= 400
+        z0 -= 400
+        x1 += 400
+        z1 += 400
+      }
+      for (const c of basins)
+        if (c.x0 - 4 <= x1 && c.x0 + c.w + 4 >= x0 && c.z0 - 4 <= z1 && c.z0 + c.h + 4 >= z0) {
+          l.down = undefined
+          break
+        }
+    }
   }
 
   /** The water surface over (x, z) — world metres — or NaN where it is dry. */
@@ -1007,7 +1047,7 @@ export class LakeSystem {
     }
     // Water that no longer fits spills on from the last lake.
     if (left > 0) this.lakes[this.lakes.length - 1].carry += left
-    for (const k of this.lakes) k.down = undefined
+    this.forgetRoutesNear([l.basin, d.basin, ...basins])
     return true
   }
 
