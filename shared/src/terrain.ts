@@ -347,7 +347,19 @@ export class BaseTerrain {
       // sides, and a narrow band: where the noise only just reaches the top, a
       // wide band raised a smooth stepped cone (pale pyramids on the skyline).
       const top = smoothstep(0.4, 0.405, m)
-      if (top > 0) h += stone * strata(top, 4) * (70 + 80 * (0.5 + 0.5 * this.rock(wx * 0.0006 + 3.1, wz * 0.0006 - 5.3)))
+      if (top > 0) {
+        // Only where the mesa is broad (Q57: where the noise only just peaked over the line, a
+        // 70–150 m column stood on a footprint of a few metres and meshed as a smooth cone). Look
+        // 30 m round: a real mesa's edge has stone on its inward side; a needle has none.
+        let inside = 0
+        for (let k = 0; k < 6; k++) {
+          const ax = wx + Math.cos(k * 1.047) * 30
+          const az = wz + Math.sin(k * 1.047) * 30
+          if (fbm(this.rock, ax * 0.00085 + 4.4, az * 0.00085 - 9.9, 3) > 0.4) inside++
+        }
+        const broad = smoothstep(0.5, 2.5, inside)
+        if (broad > 0) h += stone * strata(top, 4) * broad * (70 + 80 * (0.5 + 0.5 * this.rock(wx * 0.0006 + 3.1, wz * 0.0006 - 5.3)))
+      }
     }
 
     // Canyons: where a warped, slow noise crosses zero — wide flat floors,
