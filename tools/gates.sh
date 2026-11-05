@@ -51,5 +51,10 @@ run adversary node tools/adversary.mjs "$out/adversary"
 for s in walk run climb fall undercroft eerie bell dread rocks cairns map discover bag spots raid wisp resonance bow aim sight horn glide flight steps uncover offer mire herd awakening hands daynight lands_weather life weather wall vistas colossi forest giant carved shore high grapple pause; do
   run "$s" env SHOTS="$out" node tools/shot.mjs "$s"
 done
+# The features of 2026-11-05, driven like a player (each exits non-zero if what it tests stops holding).
+for s in sled seeds lanterns bells woodbell dunebell bellsave thermals; do
+  mkdir -p "$out/$s"
+  run "$s" node "tools/features/$s.mjs" "$out/$s"
+done
 echo "--- $pass passed, $fail failed${failed:+: ${failed[*]}}"
 [ "$fail" -eq 0 ]
