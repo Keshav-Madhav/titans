@@ -59,6 +59,15 @@
       }
       #aim::after { content: ''; position: absolute; left: 6px; top: 6px; width: 2px; height: 2px; background: #f4efe6; border-radius: 1px; }
       #aim.on { opacity: 1; }
+      /* The line can catch what you are looking at (the grapple's reticle): a small hook-ring,
+         faint, only then — so you know before you throw. */
+      #hook {
+        position: fixed; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+        border: 1.5px solid rgba(232, 196, 140, 0.9); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 6px rgba(232, 196, 140, 0.35);
+        opacity: 0; transform: scale(0.7); transition: opacity 0.15s, transform 0.15s; pointer-events: none;
+      }
+      #hook::after { content: ''; position: absolute; left: 4px; top: 4px; width: 3px; height: 3px; background: rgba(232, 196, 140, 0.95); border-radius: 50%; }
+      #hook.on { opacity: 0.85; transform: scale(1); }
       #bars::before, #bars::after {
         content: ''; position: fixed; left: 0; right: 0; height: 0; background: #050505;
         transition: height 2.2s ease-in-out; z-index: 5; pointer-events: none;
@@ -132,8 +141,17 @@
     <div id="prompt"></div>
     <div id="found"></div>
     <div id="aim"></div>
+    <div id="hook"></div>
     <div id="tools"></div>
     <div id="sight"></div>
+    <div id="travel">
+      <div id="travel-frame">
+        <h1>The fires you have lit</h1>
+        <p class="travel-sub">Go to one. The way between them is yours now.</p>
+        <div id="travel-list"></div>
+        <p class="travel-keys"><kbd>1</kbd>–<kbd>9</kbd> go · <kbd>E</kbd> stay</p>
+      </div>
+    </div>
     <div id="bag">
       <div id="bag-frame">
         <h1><span>The Traveller's Bag</span><small id="bag-count"></small></h1>

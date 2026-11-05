@@ -69,6 +69,7 @@ import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
 import { Journal } from './journal'
 import { Bag, loadIcons } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
+import { Waystones } from './waystones'
 import { soft, softScene, softSwitch } from './soft'
 import { aoSwitch } from './ao'
 import { Prints } from './prints'
@@ -251,6 +252,7 @@ const worldMap = new WorldMap(terrain, mapPlaces)
  *  the map all open over each other, found by mashing their keys; QA adversary). */
 function onlyPage(keep: { open: boolean }): void {
   for (const p of [bag, journal, worldMap]) if (p !== keep && p.open) p.toggle()
+  if (keep !== travel) travel.close()
 }
 worldMap.onToggle = (open?: boolean) => {
   if (open) onlyPage(worldMap)
@@ -1058,6 +1060,31 @@ bag.onToggle = (open) => {
 }
 bag.onNoBag = () => narration.say('You have nothing to carry things in. Not yet.')
 const camp = new Camp(terrain)
+
+// Waystones: the lit cairns, and the first camp (waystones.ts).
+const travel = new Waystones()
+travel.onToggle = (open) => {
+  if (open) onlyPage(travel)
+  input.releaseAll()
+  sound.ui(open ? 'map-open' : 'map-close')
+}
+travel.onGo = (d) => {
+  // Dark, moved, light: you arrive standing beside that fire (or at the camp).
+  fadeEl.classList.add('on')
+  sound.chime()
+  setTimeout(() => {
+    const a = d.name === CAMP_NAME ? { x: d.x + 2.5, z: d.z + 1 } : { x: d.x + 2.2, z: d.z + 1.4 }
+    const top = Math.max(terrain.heightAt(a.x, a.z), rocks.topAt(a.x, a.z) ?? -Infinity)
+    wanderer.place(a.x, top + 0.05, a.z)
+    wanderer.vel.set(0, 0, 0)
+    fallTop = NaN
+    lastSafe.set(a.x, top, a.z)
+    onRock()
+    narration.say(d.name === CAMP_NAME ? 'Back at the first camp. The ashes are cold.' : `${d.name}. The fire is still burning.`)
+  }, 520)
+  setTimeout(() => fadeEl.classList.remove('on'), 1250)
+}
+const CAMP_NAME = 'The first camp'
 scene.add(camp.group)
 finds.onFind = (f) => {
   journal.announce(f)
@@ -1564,7 +1591,32 @@ const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darknes
 const hornOrders = new Map<string, { kind: 'come' | 'ride' | 'look'; until: number; x?: number; z?: number }>()
 /** The horn stays at your mouth this long after a blow (for the pose). */
 let hornHeldUntil = 0
+/**
+ * Giants that notice you (user, 2026-11-05): who is watching what, until when. `at` null: you.
+ * A horn makes them look for you; a lit fire turns them to its beam; and now and then, close by,
+ * one simply looks at you a while — "it notices you the way you notice a bird".
+ */
+const notice = new Map<string, { until: number; at: THREE.Vector3 | null }>()
+let noticeClock = 20
+function noticeNear(x: number, z: number, r: number, secs: number, at: THREE.Vector3 | null): void {
+  const until = performance.now() + secs * 1000
+  for (const [id, a] of titans) if (Math.hypot(a.titan.gait.x - x, a.titan.gait.z - z) < r) notice.set(id, { until: until + Math.random() * 1500, at })
+}
+function noticeIdle(dt: number): void {
+  noticeClock -= dt
+  if (noticeClock > 0 || climber.active) return
+  noticeClock = 35 + Math.random() * 50
+  for (const [id, a] of titans) {
+    const d = Math.hypot(a.titan.gait.x - wanderer.pos.x, a.titan.gait.z - wanderer.pos.z)
+    if (d < 320 && d > 25) {
+      notice.set(id, { until: performance.now() + (4 + Math.random() * 4) * 1000, at: null })
+      break
+    }
+  }
+}
+
 function blowHorn(): void {
+  noticeNear(wanderer.pos.x, wanderer.pos.z, 2500, 10, null)
   sound.horn()
   hornHeldUntil = performance.now() + 2600
   const now = performance.now()
@@ -1682,6 +1734,18 @@ function simulate(dt: number): void {
       sound.loose()
     }
   }
+  // The hook reticle: shown when the line would catch what you look at (checked a few times a
+  // second — the full aim is a few hundred field samples).
+  {
+    const ready = bag.have && !grapple.busy && !climber.active && !cliff.active && !wanderer.swimming && opening === 'done' && !pause.open
+    hookCheck -= dt
+    if (!ready) hookOn = false
+    else if (hookCheck <= 0) {
+      hookCheck = 0.12
+      hookOn = !!grappleAim()
+    }
+    hookEl.classList.toggle('on', hookOn)
+  }
   if (grapple.attached && wanderer.grounded && !input.held('KeyG')) {
     slackFor += dt
     if (slackFor > 1.2) grapple.release()
@@ -1775,11 +1839,16 @@ function simulate(dt: number): void {
         sound.pickUp()
         finds.find(spot.id)
       }
+    } else if (!cairn && cairns.nearLit(wanderer.pos) && input.pressed('KeyE')) {
+      // A lit cairn is a waystone: the other fires, and the first camp.
+      const here = cairns.nearLit(wanderer.pos)!
+      travel.show(here.name, wanderer.pos, [...cairns.litPlaces(), { name: CAMP_NAME, x: CAMP.x, y: terrain.heightAt(CAMP.x, CAMP.z), z: CAMP.z }])
     } else if (cairn && input.pressed('KeyE')) {
       // Light the cairn: the beam rises, the land round it is uncovered. (You kneel to the
       // tinder at its foot: an action, not just a light coming on.)
       wanderer.reachDown()
       cairns.light(cairn)
+      noticeNear(cairn.x, cairn.z, 3000, 12, new THREE.Vector3(cairn.x, cairn.y + 40, cairn.z))
       worldMap.revealAround(cairn.x, cairn.z, 1400)
       sound.chime()
       narration.say(`${cairn.name}. ${CAIRN_LINES[cairns.litCount % CAIRN_LINES.length]}`)
@@ -1826,6 +1895,46 @@ function simulate(dt: number): void {
             if (climber.tryGrab(chest)) {
               grapple.release()
               tipState.climbed = true
+            }
+          }
+          // Reeled in to a ledge or a rock's top (user, 2026-11-05: "better grapple, it's hard to use"):
+          // up and over onto it, as a climb ends — not left dangling under the lip.
+          if (grapple.attached && !grapple.anchor?.follow && input.held('KeyG') && wanderer.pos.distanceTo(grapple.anchor!.at) < 2.6) {
+            const a = grapple.anchor!.at
+            // Over the lip the way you face (hanging right under the hook, the line's own horizontal
+            // run is next to nothing and pointed anywhere — sometimes back off the wall).
+            camera.getWorldDirection(_gTop)
+            _gTop.y = 0
+            if (_gTop.lengthSq() < 1e-6) _gTop.set(a.x - wanderer.pos.x, 0, a.z - wanderer.pos.z)
+            _gTop.normalize()
+            // In from the lip to the first flat footing (a terrace's riser runs on past its edge:
+            // set down 0.9 m in, you stood on the slope and slid all the way back down).
+            const standAt = (x: number, z: number) => Math.max(terrain.heightAt(x, z), rocks.topAt(x, z) ?? -Infinity)
+            let tx = NaN
+            let tz = NaN
+            let top = -Infinity
+            for (let s2 = 0.9; s2 <= 7; s2 += 0.5) {
+              const x = a.x + _gTop.x * s2
+              const z = a.z + _gTop.z * s2
+              const h = standAt(x, z)
+              const h2 = standAt(x + _gTop.x * 1.2, z + _gTop.z * 1.2)
+              if (h - a.y > 3.5) break
+              if (Math.abs(h2 - h) < 0.55 && h - a.y > -0.6) {
+                tx = x
+                tz = z
+                top = h
+                break
+              }
+            }
+            if (!Number.isNaN(tx) && top > wanderer.pos.y - 0.3 && rocks.sdfAt(tx, top + 1.0, tz) > 0.4) {
+              grapple.release()
+              mantle.t = 0
+              mantle.len = 0.32 + Math.max(0, top - wanderer.pos.y) * 0.24
+              mantle.push = 0
+              mantle.from.copy(wanderer.pos)
+              mantle.to.set(tx, top, tz)
+              mantle.dir.copy(_gTop)
+              sound.scramble(Math.max(0, top - wanderer.pos.y))
             }
           }
           if (grapple.attached && wanderer.pos.y > terrain.heightAt(wanderer.pos.x, wanderer.pos.z) + 0.4) wanderer.grounded = false
@@ -1999,8 +2108,50 @@ const _gDir = new THREE.Vector3()
 const _gHand = new THREE.Vector3()
 let slackFor = 0
 /** Where the line would catch along the view: rock, the ground, or a giant (and which part). */
-function grappleAim(): { at: THREE.Vector3; follow: { obj: THREE.Object3D; local: THREE.Vector3 } | null } | null {
-  camera.getWorldDirection(_gDir)
+type GrappleHit = { at: THREE.Vector3; follow: { obj: THREE.Object3D; local: THREE.Vector3 } | null }
+
+/**
+ * Where the line would catch (user, 2026-11-05: the grapple is "hard to use"): the centre of the
+ * view first; if that misses, a few rays round it (3° and 6° out), the nearest to the centre that
+ * catches — so throwing at a ledge's edge, a limb or a pillar's side does not fall short by a hair.
+ */
+let hookCheck = 0
+const _gTop = new THREE.Vector3()
+let hookOn = false
+const hookEl = document.getElementById('hook')!
+
+function grappleAim(): GrappleHit | null {
+  camera.getWorldDirection(_gAimC)
+  const c = grappleRay(_gAimC)
+  if (c) return c
+  // A frame round the view direction.
+  const right = _gAimR.crossVectors(_gAimC, camera.up).normalize()
+  const up = _gAimU.crossVectors(right, _gAimC).normalize()
+  for (const deg of [3, 6]) {
+    const t = Math.tan((deg * Math.PI) / 180)
+    let best: GrappleHit | null = null
+    let bestUp = -Infinity
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2
+      const d = _gAimD.copy(_gAimC).addScaledVector(right, Math.cos(a) * t).addScaledVector(up, Math.sin(a) * t).normalize()
+      const h = grappleRay(d)
+      // (Of those that catch, the highest: a line is for going up.)
+      if (h && h.at.y > bestUp) {
+        best = h
+        bestUp = h.at.y
+      }
+    }
+    if (best) return best
+  }
+  return null
+}
+const _gAimC = new THREE.Vector3()
+const _gAimR = new THREE.Vector3()
+const _gAimU = new THREE.Vector3()
+const _gAimD = new THREE.Vector3()
+
+function grappleRay(dir: THREE.Vector3): GrappleHit | null {
+  _gDir.copy(dir)
   _gFrom.copy(camera.position)
   const p = new THREE.Vector3()
   // (From the camera, out to the line's range measured from you.)
@@ -2323,11 +2474,16 @@ function frameBody(now: number): void {
 
   // Render between the last two simulation states: on a 120 Hz display the
   // 60 Hz simulation would otherwise move the wanderer every other frame.
-  for (const a of titans.values()) {
+  for (const [id, a] of titans) {
+    // What it is watching, if anything (giants that notice you; not the one you are on).
+    const n = notice.get(id)
+    const nowMs = performance.now()
+    a.titan.look = n && n.until > nowMs && climber.target?.id !== id ? (n.at ?? wanderer.pos) : null
     a.titan.pose(terrain, dt)
     a.titan.group.updateMatrixWorld(true)
     a.titan.setLodFor(camera.position)
   }
+  noticeIdle(dt)
   mountains.update(terrain, camera)
   shedRubble(dt)
   // The Ones Beyond stay lost in the haze while you are down in the dell you wake in (at
@@ -2552,6 +2708,8 @@ function frameBody(now: number): void {
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
           ? `<kbd>E</kbd>Light the cairn`
+          : free && cairns.nearLit(wanderer.pos)
+            ? `<kbd>E</kbd>Travel`
           : free && giantToHold()
             ? `<kbd>E</kbd>Take hold`
           : free && wallToClimb()
@@ -2880,7 +3038,7 @@ pause.onNewAdventure = () => {
   localSave = false
   location.reload()
 }
-const anyOpen = () => bag.open || journal.open || worldMap.open || pause.open
+const anyOpen = () => bag.open || journal.open || worldMap.open || pause.open || travel.open
 // Letting go of the view (Esc) with nothing else open: the pause.
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement || toolMode || !ready || opening === 'title') return
@@ -2983,6 +3141,8 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  travel,
+  noticeNear,
   foliageMipLift,
   rockTools,
   fogSun,
