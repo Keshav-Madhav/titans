@@ -278,10 +278,26 @@ function plateMaterial(tex: TerrainTextures, tint: THREE.Color): THREE.MeshStand
         {
           vec3 w = pow(abs(normalize(vPlateN)), vec3(4.0));
           w /= (w.x + w.y + w.z);
+          // Weathered rock, carved in patches (QA cycle 7: the 'carved' layer is rows of masonry
+          // blocks — the plates read as a wall walking about, which the concept warns against).
           float s = 1.0 / 7.0;
-          float L = ${LAYER.carved}.0;
-          vec3 c = texture(tLayerColor, vec3(vPlatePos.zy * s, L)).rgb * w.x + texture(tLayerColor, vec3(vPlatePos.xz * s, L)).rgb * w.y + texture(tLayerColor, vec3(vPlatePos.xy * s, L)).rgb * w.z;
-          plateNrm = (texture(tLayerNormal, vec3(vPlatePos.zy * s, L)).rg * w.x + texture(tLayerNormal, vec3(vPlatePos.xz * s, L)).rg * w.y + texture(tLayerNormal, vec3(vPlatePos.xy * s, L)).rg * w.z) * 2.0 - 1.0;
+          float LR = ${LAYER.rock}.0;
+          float LC = ${LAYER.relief}.0;
+          vec3 c = texture(tLayerColor, vec3(vPlatePos.zy * s, LR)).rgb * w.x + texture(tLayerColor, vec3(vPlatePos.xz * s, LR)).rgb * w.y + texture(tLayerColor, vec3(vPlatePos.xy * s, LR)).rgb * w.z;
+          // (The terrain's own tints: raw, the rock texture is khaki — the plates came out leather-brown.)
+          c *= vec3(1.12, 1.38, 1.65);
+          plateNrm = (texture(tLayerNormal, vec3(vPlatePos.zy * s, LR)).rg * w.x + texture(tLayerNormal, vec3(vPlatePos.xz * s, LR)).rg * w.y + texture(tLayerNormal, vec3(vPlatePos.xy * s, LR)).rg * w.z) * 2.0 - 1.0;
+          // Where a slow pattern rises, the old carving shows through (worn to nothing elsewhere).
+          float patchK = smoothstep(0.15, 0.55, sin(vPlatePos.x * 0.045 + 1.3) * sin(vPlatePos.y * 0.038) * sin(vPlatePos.z * 0.041 + 0.7) + 0.2);
+          if (patchK > 0.01) {
+            float s2 = 1.0 / 9.0;
+            vec3 cc = texture(tLayerColor, vec3(vPlatePos.zy * s2, LC)).rgb * w.x + texture(tLayerColor, vec3(vPlatePos.xz * s2, LC)).rgb * w.y + texture(tLayerColor, vec3(vPlatePos.xy * s2, LC)).rgb * w.z;
+            vec2 cn = (texture(tLayerNormal, vec3(vPlatePos.zy * s2, LC)).rg * w.x + texture(tLayerNormal, vec3(vPlatePos.xz * s2, LC)).rg * w.y + texture(tLayerNormal, vec3(vPlatePos.xy * s2, LC)).rg * w.z) * 2.0 - 1.0;
+            c = mix(c, cc * vec3(0.92, 0.86, 0.74) * 1.25, patchK * 0.85);
+            plateNrm = mix(plateNrm, cn, patchK * 0.85);
+          }
+          // (Toward the body's grey-green: warm plates stood out as tan patches on a grey giant.)
+          c = mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))) * vec3(0.92, 1.0, 0.96), 0.75);
           diffuseColor.rgb *= c * 1.35;
         }`,
       )
