@@ -2843,9 +2843,12 @@ function shedRubble(dt: number): void {
 
 /** The main thread's work per frame, the last 1200 (ms; tools read it to find hitches). */
 const work: number[] = []
+/** Tools: frames driven by hand (g.frames), each a fixed time apart — for frame-by-frame strips. */
+const manual = { on: false, now: 0 }
 function frame(now: number): void {
   if (isBroken()) return
   requestAnimationFrame(frame)
+  if (manual.on) return
   try {
     frameBody(now)
   } catch (err) {
@@ -3812,6 +3815,22 @@ const g = {
     return false
   },
   /** Put the camera at `from`, looking at `at` (tools); `lookFrom(null)` hands it back to the rig. */
+  /** Tools: take over the clock; run `n` frames `ms` apart (the real loop stands still meanwhile). */
+  frames(n: number, ms = 1000 / 60) {
+    if (!manual.on) {
+      manual.on = true
+      manual.now = performance.now()
+    }
+    for (let i = 0; i < n; i++) {
+      manual.now += ms
+      frameBody(manual.now)
+    }
+  },
+  /** Tools: give the clock back to the real loop. */
+  realtime() {
+    manual.on = false
+    last = performance.now()
+  },
   lookFrom(from: [number, number, number] | null, at?: [number, number, number]) {
     freeCam = from && at ? { from: new THREE.Vector3(...from), at: new THREE.Vector3(...at) } : null
   },

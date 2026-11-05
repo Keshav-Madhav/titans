@@ -1466,12 +1466,46 @@ export class Wanderer {
       const knee = Math.PI - Math.acos(THREE.MathUtils.clamp((l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2), -1, 1))
       const off = Math.acos(THREE.MathUtils.clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1))
       // In at the landing, out before the lift.
-      const w = Math.min(1, Math.min(t, 1 - t) * 10)
+      // (Eased over the first and last fifth of the stance: over a tenth, linear, the leg was thrown
+      // between its swing and its pin in two or three frames.)
+      const w = THREE.MathUtils.smoothstep(t, 0, 0.18) * (1 - THREE.MathUtils.smoothstep(t, 0.82, 1))
       leg.hip.rotation.x += (aim - off - leg.hip.rotation.x) * w
       leg.hip.rotation.z += (roll - leg.hip.rotation.z) * w
       leg.knee.rotation.x += (knee - leg.knee.rotation.x) * w
     }
   }
+
+  /**
+   * The pose as worked out this frame, eased toward from last frame's (~30 ms): whatever the pose
+   * code does — a state changing, a blend starting — no joint jumps in a single frame. (User,
+   * 2026-11-05: "its not smooth in animations"; measured, the limbs snapped in a third of the
+   * frames of a run.) Big state changes (a teleport, taking hold) settle within ~0.1 s.
+   */
+  private smoothPose(dt: number): void {
+    const k = 1 - Math.exp(-Math.max(dt, 0) / 0.03)
+    const js = this.poseJoints
+    const prev = this.posePrev
+    if (prev.length !== js.length * 3) {
+      prev.length = 0
+      for (const o of js) prev.push(o.rotation.x, o.rotation.y, o.rotation.z)
+      this.posePelvisY = this.pelvis.position.y
+      return
+    }
+    js.forEach((o, i) => {
+      const r = o.rotation
+      r.x = prev[i * 3] += (r.x - prev[i * 3]) * k
+      r.y = prev[i * 3 + 1] += (r.y - prev[i * 3 + 1]) * k
+      r.z = prev[i * 3 + 2] += (r.z - prev[i * 3 + 2]) * k
+    })
+    this.pelvis.position.y = this.posePelvisY += (this.pelvis.position.y - this.posePelvisY) * k
+  }
+  private readonly posePrev: number[] = []
+  private posePelvisY = 0.92
+  private get poseJoints(): THREE.Object3D[] {
+    if (!this._poseJoints) this._poseJoints = [this.pelvis, this.chest, this.head, ...this.legs.flatMap((l) => [l.hip, l.knee]), ...this.arms.flatMap((a) => [a.shoulder, a.elbow])]
+    return this._poseJoints
+  }
+  private _poseJoints: THREE.Object3D[] | null = null
 
   animate(dt: number, ground: (x: number, z: number) => number, wind: THREE.Vector3, dark: number): void {
     this.t += dt
@@ -1674,6 +1708,7 @@ export class Wanderer {
         const st0 = 0.5 - f / 2
         let n: number // the leg's angle, −1 (back) … 1 (forward)
         let c: number // > 0 in the air (peaking mid-swing), < 0 planted
+        let kneeCarry = 0
         if (u >= st0 && u < st0 + f) {
           const t = (u - st0) / f
           n = 1 - 2 * t
@@ -1682,14 +1717,24 @@ export class Wanderer {
         } else {
           this.stance[i] = -1
           const v = ((u - (st0 + f) + 1) % 1) / (1 - f)
-          n = -Math.cos(Math.PI * v)
+          // Back to front through the air on a curve that leaves and meets the ground's sweep at its
+          // own rate (it was a cosine, still at both ends: the leg stopped dead at lift-off and set off
+          // at full sweep on landing — twice a step a jolt, the snap you saw in every stride).
+          // Cubic Hermite from −1 to 1, both ends at the stance's rate (−2/f per cycle, here per v).
+          const m = (-2 * (1 - f)) / f
+          const v2 = v * v
+          const v3 = v2 * v
+          n = (2 * v3 - 3 * v2 + 1) * -1 + (v3 - 2 * v2 + v) * m + (-2 * v3 + 3 * v2) * 1 + (v3 - v2) * m
           c = Math.sin(Math.PI * v)
+          // (The knee planted carries its little bend on into the lift — it was dropped to straight
+          // in one frame.)
+          kneeCarry = (1 - THREE.MathUtils.smoothstep(v, 0, 0.35)) * 0.12 * (1 + run)
         }
         const swing = n * this.swingAmp * go
         // Forward through the air the knee folds — high and quick at a run, the heel kicked
         // up behind; planted it stays nearly straight, softening a little as the weight comes on.
         const lift = c > 0 ? Math.sin(Math.min(Math.PI, c * Math.PI * 0.9)) : 0
-        const fold = c > 0 ? c * (0.5 + run * 0.5) + lift * (0.25 + run * 0.75) : Math.max(0, -n) * 0.12 * (1 + run)
+        const fold = c > 0 ? c * (0.5 + run * 0.5) + lift * (0.25 + run * 0.75) + kneeCarry : Math.max(0, -n) * 0.12 * (1 + run)
         L[i].hip.rotation.x = -swing - (c > 0 ? lift * run * 0.25 : 0)
         // (Running, the leg reaching forward stays bent at the knee — kicked out straight it
         // read as a goose-step.)
@@ -1818,7 +1863,8 @@ export class Wanderer {
       // The satchel bumps against the hip with each step.
       const bag = this.bagParts[1]
       if (bag) {
-        bag.position.y = -0.12 + Math.abs(Math.sin(this.stride)) * 0.018 * go * (1 + run)
+        // (sin², not |sin|: its sharp bottom snapped the bag twice a stride.)
+        bag.position.y = -0.12 + Math.sin(this.stride) ** 2 * 0.018 * go * (1 + run)
         bag.rotation.z = 0.1 + Math.sin(this.stride + 0.5) * 0.08 * go
       }
     }
@@ -1844,6 +1890,7 @@ export class Wanderer {
       if (t >= 1.3) this.takeT = -1
     }
 
+    this.smoothPose(dt)
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
     this.obj.updateMatrixWorld(true)
     const m = this.obj.matrixWorld
