@@ -384,7 +384,7 @@ export class WorldMap {
    * only where seen, its edge soft. Tiles not ready yet are asked for, and a
    * coarser one stands in.
    */
-  private drawLand(ctx: CanvasRenderingContext2D, x0: number, z0: number, span: number, S: number): void {
+  private drawLand(ctx: CanvasRenderingContext2D, x0: number, z0: number, span: number, S: number): number {
     const sc = this.scratch
     if (sc.width !== S) sc.width = sc.height = S
     const g = sc.getContext('2d')!
@@ -429,6 +429,7 @@ export class WorldMap {
     }
     // The newest wants go first (what you are looking at now), the coarse world tile always.
     this.wanted = [...fresh, ...this.wanted.filter((k) => !fresh.includes(k))].slice(0, 48)
+    this.missing = fresh.length
     if (!this.tiles.has('0/0/0') && !this.wanted.includes('0/0/0')) this.wanted.push('0/0/0')
     // Only where you have seen: the mask, softened at its edge.
     g.globalCompositeOperation = 'destination-in'
@@ -445,7 +446,13 @@ export class WorldMap {
     g.filter = 'none'
     g.globalCompositeOperation = 'source-over'
     ctx.drawImage(sc, 0, 0)
+    return this.missing
   }
+
+  /** Tiles the last drawing wanted and did not have yet. */
+  private missing = 0
+  /** The minimap's land is not all painted yet: paint faster and redraw it sooner. */
+  private miniMissing = 0
 
   private anySeen(x: number, z: number, w: number): boolean {
     const cell = SPAN / FOG
@@ -462,7 +469,7 @@ export class WorldMap {
   /** Each frame: paint relief, uncover land, redraw the minimap now and then. */
   update(dt: number, player: THREE.Vector3, yaw: number, giants: Array<{ x: number; z: number }>, lakes: readonly Lake[]): void {
     this.watchLakes(lakes)
-    this.build(this.open ? 6 : 2.5)
+    this.build(this.open ? 6 : this.miniMissing ? 5 : 2.5)
     if (player.distanceTo(this.lastReveal) > 25) {
       this.lastReveal.copy(player)
       this.reveal(player)
@@ -491,14 +498,16 @@ export class WorldMap {
     // or every few seconds (new tiles, new ground seen), otherwise only slid under you. Drawn
     // fresh ten times a second (two blurred passes each) it was the minimap's lag and its chunks.
     const now = performance.now()
-    if (!this.miniCache || Math.hypot(p.x - this.miniAt.x, p.z - this.miniAt.z) > MINI_R * 0.5 || now - this.miniWhen > 3000) {
+    // (Sooner while some of its land is still being painted — the user, 2026-11-05: a fresh place
+    // showed as blank parchment for a long while.)
+    if (!this.miniCache || Math.hypot(p.x - this.miniAt.x, p.z - this.miniAt.z) > MINI_R * 0.5 || now - this.miniWhen > (this.miniMissing ? 500 : 3000)) {
       if (!this.miniCache) {
         this.miniCache = document.createElement('canvas')
         this.miniCache.width = this.miniCache.height = S * 2
       }
       const cc = this.miniCache.getContext('2d')!
       cc.clearRect(0, 0, S * 2, S * 2)
-      this.drawLand(cc, p.x - MINI_R * 2, p.z - MINI_R * 2, MINI_R * 4, S * 2)
+      this.miniMissing = this.drawLand(cc, p.x - MINI_R * 2, p.z - MINI_R * 2, MINI_R * 4, S * 2)
       this.miniAt.set(p.x, 0, p.z)
       this.miniWhen = now
     }
