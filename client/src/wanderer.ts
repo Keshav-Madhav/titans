@@ -52,6 +52,16 @@ const SLIDE = 14
 
 const _seedDir = new THREE.Vector2()
 const _m4 = new THREE.Matrix4()
+const _ra = new THREE.Vector3()
+const _rb = new THREE.Vector3()
+const _p0 = new THREE.Vector3()
+const _p1 = new THREE.Vector3()
+const _p2 = new THREE.Vector3()
+const _rq = new THREE.Quaternion()
+const _rq2 = new THREE.Quaternion()
+const _rq3 = new THREE.Quaternion()
+const _rqI = new THREE.Quaternion()
+const _one = new THREE.Vector3(1, 1, 1)
 const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
@@ -1459,8 +1469,78 @@ export class Wanderer {
     this.chestAnchor.add(this.wing)
     this.pelvisAnchor.add(this.lanternHook)
     for (const o of this.bagParts) this.pelvisAnchor.add(o)
-    this.pelvis.visible = false
+    // The tools ride the rig's hands (with the old hands' turn: the poses were made for them).
+    for (const i of [0, 1]) {
+      this.handAnchor[i].matrixAutoUpdate = false
+      this.obj.add(this.handAnchor[i])
+    }
+    this.handAnchor[1].add(this.props.bow)
+    this.handAnchor[0].add(this.props.horn, this.props.sight)
+    // (The old body stays hidden but still posed every frame: its limbs are the pose the rig's are
+    // aimed along when a tool is held or a wall is climbed — retarget().)
+    for (const o of this.pelvis.children) if ((o as THREE.Mesh).isMesh) o.visible = false
+    this.pelvis.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) o.visible = false
+    })
+    this.pelvis.visible = true
     this.followAvatar()
+  }
+
+  /** The tools' hands on the rigged body, right [0] and left [1]. */
+  private readonly handAnchor = [new THREE.Group(), new THREE.Group()]
+  /** How much the old limbs' pose is put on the rig's (eased): arms, legs. */
+  private retargetW = { arms: 0, legs: 0 }
+
+  /**
+   * Aim the rig's limbs along the old (hidden, still posed) body's: each bone turned so it points from
+   * its joint to the next as the old limb does, weighted. Used where the clips have nothing fitting:
+   * a tool in hand (arms), climbing (all four).
+   */
+  private retarget(dt: number): void {
+    const av = this.avatar!
+    const wantArms = this.holding || this.climbing ? 1 : 0
+    const wantLegs = this.climbing ? 1 : 0
+    this.retargetW.arms += (wantArms - this.retargetW.arms) * Math.min(1, dt * 10)
+    this.retargetW.legs += (wantLegs - this.retargetW.legs) * Math.min(1, dt * 10)
+    const aim = (bone: string, child: string, from: THREE.Vector3, to: THREE.Vector3, w: number) => {
+      if (w < 0.01) return
+      const b = av.bone(bone)!
+      const c = av.bone(child)!
+      b.updateWorldMatrix(true, true)
+      b.getWorldPosition(_ra)
+      c.getWorldPosition(_rb)
+      const cur = _rb.sub(_ra).normalize()
+      const want = _ra.subVectors(to, from).normalize()
+      _rq.setFromUnitVectors(cur, want)
+      if (w < 0.999) _rq.slerp(_rqI, 1 - w)
+      // World turn → the bone's local: q_local' = parent⁻¹ · turn · world.
+      b.getWorldQuaternion(_rq2)
+      _rq2.premultiply(_rq)
+      b.parent!.getWorldQuaternion(_rq3).invert()
+      b.quaternion.copy(_rq3.multiply(_rq2))
+      b.updateWorldMatrix(false, true)
+    }
+    const A = this.arms
+    const L = this.legs
+    for (let i = 0; i < 2; i++) {
+      const sd = i === 0 ? 'r' : 'l'
+      if (this.retargetW.arms > 0.01) {
+        A[i].shoulder.getWorldPosition(_p0)
+        A[i].elbow.getWorldPosition(_p1)
+        A[i].elbow.localToWorld(_p2.set(0, -0.3, 0))
+        aim(`upperarm_${sd}`, `lowerarm_${sd}`, _p0, _p1, this.retargetW.arms)
+        aim(`lowerarm_${sd}`, `hand_${sd}`, _p1, _p2, this.retargetW.arms)
+      }
+      if (this.retargetW.legs > 0.01) {
+        const sl = i === 0 ? 'r' : 'l'
+        // (Old legs: [0] is the −x side, the body's right.)
+        L[i].hip.getWorldPosition(_p0)
+        L[i].knee.getWorldPosition(_p1)
+        L[i].knee.localToWorld(_p2.set(0, -0.44, 0))
+        aim(`thigh_${sl}`, `calf_${sl}`, _p0, _p1, this.retargetW.legs)
+        aim(`calf_${sl}`, `foot_${sl}`, _p1, _p2, this.retargetW.legs)
+      }
+    }
   }
 
   private followAvatar(): void {
@@ -1473,6 +1553,16 @@ export class Wanderer {
     }
     set(this.chestAnchor, 'spine_03', this.anchorOff.chest)
     set(this.pelvisAnchor, 'pelvis', this.anchorOff.pelvis)
+    // The hands: at the rig's hand, turned as the old hand is.
+    for (let i = 0; i < 2; i++) {
+      const hb = av.bone(i === 0 ? 'hand_r' : 'hand_l')!
+      hb.getWorldPosition(_p0)
+      const oldHand = this.arms[i].elbow.children[0]
+      oldHand.getWorldQuaternion(_rq)
+      const a = this.handAnchor[i]
+      a.matrix.compose(_p0, _rq, _one).premultiply(objInv)
+      a.matrixWorldNeedsUpdate = true
+    }
     this.obj.updateMatrixWorld(true)
   }
 
@@ -1959,6 +2049,7 @@ export class Wanderer {
       this.obj.updateMatrixWorld(true)
       const mode = this.climbing ? 'climb' : this.gliding ? 'glide' : this.sliding || this.sledding ? 'slide' : this.hanging ? 'hang' : 'ground'
       this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
+      this.retarget(dt)
       this.followAvatar()
     }
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
