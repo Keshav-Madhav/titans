@@ -231,3 +231,7 @@ needs a real window to check against (headless has no display backpressure) — 
   0.9 → 0.5 ms; the frame unchanged (1.85 mean difference, against 7.18 between two shots of the
   old build). A first idea, shrinking the ring 16 → 12 m, saved nothing — the draw count had
   never followed the ring, which is what found this. walk, run, sfx, adversary pass.
+- **Tried and dropped: the cliff grain on rock formations and statues.** Same-frame on/off at a
+  colonnade pillar and the Sentinel from climbing distance: their own layer shrunk stamped tiny
+  copies of the carving everywhere; plain rock's grain instead was barely visible — their textures
+  (3–12 m tiles, higher-detail art) were not the smear the terrain cliffs were. Not worth the cost.
