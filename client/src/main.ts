@@ -64,6 +64,7 @@ import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Motes } from './motes'
 import { Seeds } from './seeds'
+import { Lanterns, type LanternDef } from './lanterns'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -452,6 +453,39 @@ const travellerCamps: Camp[] = []
 // Glyph trails, seen through the Sight-stone (made with the spots: the Grove's starts at the stone).
 let glyphs: Glyphs
 
+// Lantern paths (user's pick #8): a line of cold lamps in each of three lands, lit only at night,
+// the fire running lamp to lamp to a ring and a slab. Each path is found by search (deterministic):
+// its start and its whole run must lie well inside its land, on open ground.
+const lanterns = (() => {
+  const blocked = (x: number, z: number) => rocks.occupies(x, z) || rocks.sdfAt(x, terrain.heightAt(x, z) + 1, z) < 2
+  const pick = (id: string, seed: number, land: (x: number, z: number) => number): LanternDef | null => {
+    const rand = mulberry32(seed)
+    for (let i = 0; i < 2000; i++) {
+      const a = rand() * Math.PI * 2
+      const d = 1200 + rand() * 9000
+      const x = Math.sin(a) * d
+      const z = Math.cos(a) * d
+      const bearing = rand() * Math.PI * 2
+      let ok = !blocked(x, z) && !inHall(x, z, 200)
+      for (let t = 0; ok && t <= 700; t += 100) ok = land(x + Math.sin(bearing) * t, z + Math.cos(bearing) * t) > 0.8
+      if (ok) return { id, start: { x, z }, bearing, seed }
+    }
+    return null
+  }
+  const defs = [
+    pick('lamp-green', 81, (x, z) => biome.open(x, z)),
+    pick('lamp-wood', 82, (x, z) => biome.forest(x, z)),
+    pick('lamp-dunes', 83, (x, z) => biome.desert(x, z)),
+  ].filter((d): d is LanternDef => !!d)
+  return new Lanterns(
+    defs,
+    terrain,
+    (shape, geo, at) => rocks.addBuilt(shape, geo, { ...at, rot: 0, layers: [LAYER.carved, LAYER.moss], scale: 6, tint: [0.88, 0.87, 0.84] }),
+    blocked,
+  )
+})()
+scene.add(lanterns.group)
+
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
@@ -807,6 +841,8 @@ const spots = (() => {
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
+  // On each lantern path's slab, when the fire reaches it.
+  for (const p of lanterns.paths) placed.push({ id: p.def.id, kind: 'trinket', at: p.end.clone().add(new THREE.Vector3(0, 0.36, 0)), hidden: true })
   return new Spots(placed)
 })()
 // The Great Bell, by the Colonnade: ring it with an arrow and every giant turns to it.
@@ -894,6 +930,12 @@ resonance.onSolve = (id, pitches) => {
   sound.resolve(pitches)
   narration.say('The stones answer each other. The slab sinks slowly into the earth.')
   setTimeout(() => spots.reveal(id), 6000)
+}
+lanterns.onCatch = (i, at) => sound.lamp(i, i >= 14, Math.max(0.15, 1 - wanderer.pos.distanceTo(at) / 700))
+lanterns.onArrive = (id) => {
+  if (finds.has(id)) return
+  spots.reveal(id)
+  narration.say('The fire reaches the ring, and the five low lamps catch together. The white slab is lit from within.')
 }
 wisps.onSettle = (id) => {
   spots.reveal(id)
@@ -1464,6 +1506,7 @@ function saveLocal(): void {
     lakes: lakes.save(),
     seen: worldMap.save(),
     cairns: cairns.save(),
+    lanterns: lanterns.save(),
     found: finds.save(),
     opened: opening === 'done' || opening === 'reveal'
   }
@@ -1494,6 +1537,11 @@ function loadLocal(): boolean {
   // brim-full (and settle whatever was still merging when you left).
   if (d.seen) worldMap.load(d.seen)
   if (d.cairns) cairns.load(d.cairns)
+  if (d.lanterns) {
+    lanterns.load(d.lanterns)
+    // (Kindled, but what was on the slab not yet taken: it is still there.)
+    for (const id of d.lanterns) if (!finds.has(id)) spots.reveal(id)
+  }
   if (d.found) finds.load(d.found)
   // Mid-opening when last saved (still in the hall): pick up from there; otherwise it is over.
   opening = d.opened === false ? 'hall' : 'done'
@@ -1928,6 +1976,12 @@ function simulate(dt: number): void {
         narration.say(`You hold ${want?.name.toLowerCase() ?? 'it'} over the bowl. The carving above it warms.`)
         setTimeout(() => finds.find(s.def.id), 1800)
       } else narration.say('Carved above the worn bowl: one small thing. You have nothing like it. Not yet.')
+    } else if (lanterns.near(wanderer.pos) && input.pressed('KeyE')) {
+      const path = lanterns.near(wanderer.pos)!
+      if (lanterns.dark) {
+        lanterns.kindle(path)
+        narration.say(path.kindled && finds.has(path.def.id) ? 'The lamps come up again, one by one, away into the dark.' : 'The wick takes: a pale, cold fire. Then the next lamp along catches from it, and the next.')
+      } else narration.say('An old stone lamp, its wick dry and cold. It will not take in daylight.')
     } else if (resonance.near(wanderer.pos) && input.pressed('KeyE')) {
       const r = resonance.near(wanderer.pos)!
       resonance.strike(r.ring, r.stone)
@@ -2811,6 +2865,7 @@ function frameBody(now: number): void {
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); sysCost.grass = Math.max(sysCost.grass, performance.now() - _t) }
   rocks.update(camera.position)
   cairns.update(dt)
+  lanterns.update(dt, sky.night, camera, renderer.domElement.height)
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
@@ -2874,6 +2929,8 @@ function frameBody(now: number): void {
         ? `<kbd>E</kbd>${offerings.near(wanderer.pos)!.answered ? 'Listen' : finds.has(offerings.near(wanderer.pos)!.def.wants) ? 'Hold it over the bowl' : 'Look at the carving'}`
         : free && resonance.near(wanderer.pos)
         ? `<kbd>E</kbd>Strike the stone`
+        : free && lanterns.near(wanderer.pos)
+        ? `<kbd>E</kbd>${lanterns.dark ? 'Light the lamp' : 'Look at the lamp'}`
         : spotNear
           ? `<kbd>E</kbd>${spotNear.kind === 'stone' ? 'Read the stone' : spotNear.kind === 'page' ? 'Read the page' : 'Pick it up'}`
         : free && cairns.near(wanderer.pos)
@@ -3296,6 +3353,7 @@ const g = {
   mist,
   motes,
   seeds,
+  lanterns,
   /** The first-steps progress (tools). */
   tipState,
   grapple,

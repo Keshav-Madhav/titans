@@ -704,6 +704,54 @@ export class Sound {
     }
   }
 
+  /**
+   * A lamp on a lantern path catches (`i` along the line): a soft breath of flame and one glass
+   * note, climbing a pentatonic up the path, so the fire running away from you is heard going.
+   * The ring at the end (i = last) answers with the chord.
+   */
+  lamp(i: number, last: boolean, gain = 1): void {
+    if (!this.ctx || !this.on) return
+    if (last) {
+      this.chime()
+      return
+    }
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    const steps = [0, 2, 4, 7, 9]
+    const f = 392 * Math.pow(2, (steps[i % 5] + 12 * Math.floor(i / 5)) / 12) * 0.5
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.03 * gain, t + 0.04)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.5)
+    g.connect(this.musicBus())
+    for (const [type, mul, amp] of [['sine', 1, 1], ['sine', 2.76, 0.12]] as const) {
+      const o = ctx.createOscillator()
+      o.type = type
+      o.frequency.value = f * mul
+      const og = ctx.createGain()
+      og.gain.value = amp
+      o.connect(og).connect(g)
+      o.start(t)
+      o.stop(t + 3.6)
+    }
+    // The flame taking: a short soft hiss.
+    if (this.noise) {
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = 1800
+      bp.Q.value = 0.7
+      const ng = ctx.createGain()
+      ng.gain.setValueAtTime(0.0001, t)
+      ng.gain.exponentialRampToValueAtTime(0.02 * gain, t + 0.05)
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
+      src.connect(bp).connect(ng).connect(this.master!)
+      src.start(t, Math.random() * 0.5)
+      src.stop(t + 0.7)
+    }
+  }
+
   /** A cairn catches: three glass notes rising from the chord, into the hall. */
   /** Taking something up: cloth and leather as you kneel, then a small bright note as it is in hand. */
   pickUp(): void {

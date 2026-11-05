@@ -37,6 +37,8 @@ export interface SaveData {
   seen?: string
   /** The cairns you have lit, by name. */
   cairns?: string[]
+  /** The lantern paths you have kindled (they burn every night). */
+  lanterns?: string[]
   /** What you have found (discovery.ts ids). */
   found?: string[]
   /** Whether the opening is over (woken, climbed out, shown the land). Missing: an older save — yes. */
