@@ -39,6 +39,8 @@ export interface SaveData {
   cairns?: string[]
   /** The lantern paths you have kindled (they burn every night). */
   lanterns?: string[]
+  /** The sunken bells rung awake (what they woke is done on load). */
+  bells?: string[]
   /** What you have found (discovery.ts ids). */
   found?: string[]
   /** Whether the opening is over (woken, climbed out, shown the land). Missing: an older save — yes. */

@@ -65,6 +65,7 @@ import { Mist } from './mist'
 import { Motes } from './motes'
 import { Seeds } from './seeds'
 import { Lanterns, type LanternDef } from './lanterns'
+import { SunkenBells, StoneDescent, BREATH, type SunkBellDef } from './sunken-bells'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -486,6 +487,44 @@ const lanterns = (() => {
 })()
 scene.add(lanterns.group)
 
+// The sunken bells (user's pick #7, PLAN §4b). The Green's: rung, the stone hanging over the Green
+// comes down and plants itself in the grass, climbable; what was kept on top of it is there.
+const skyStone = colossi.skyStones.get('stone-9')!
+const bellDescent = (() => {
+  const f = skyStone
+  const h = f.hy - 8
+  // Its foot sinks a few metres into the ground (the lowest ground under its footprint).
+  let ground = Infinity
+  for (let a = 0; a < 6.28; a += 0.5) for (const r of [0, f.hx * 0.5, f.hx * 0.9]) ground = Math.min(ground, terrain.heightAt(f.x + Math.cos(a) * r, f.z + Math.sin(a) * r))
+  const y1 = ground + h - 6
+  // Its top, there: down the field from above its middle.
+  let top = y1 + h + 10
+  while (top > y1 && rocks.sdf({ ...f, y: y1 }, f.x, top, f.z) > 0) top -= 0.5
+  return { y1, top: new THREE.Vector3(f.x, top + 0.05, f.z), run: null as StoneDescent | null }
+})()
+const sunkBells = (() => {
+  const blocked = (x: number, z: number) => rocks.occupies(x, z) || rocks.sdfAt(x, terrain.heightAt(x, z) + 1, z) < 3
+  // Within sight of the stone (it must be watched coming down), on open level grass.
+  const f = skyStone
+  let def: SunkBellDef | null = null
+  for (let i = 0; i < 400 && !def; i++) {
+    const a = (i * 2.399) % 6.283
+    const r = 360 + (i % 7) * 25
+    const x = f.x + Math.sin(a) * r
+    const z = f.z + Math.cos(a) * r
+    const sl = Math.hypot(terrain.heightAt(x + 5, z) - terrain.heightAt(x - 5, z), terrain.heightAt(x, z + 5) - terrain.heightAt(x, z - 5)) / 10
+    if (sl > 0.08 || biome.open(x, z) < 0.85 || blocked(x, z) || blocked(x + Math.sin(a) * 5, z + Math.cos(a) * 5)) continue
+    // The yoke faces the stone: you stand on the far side and look past the bell to it.
+    def = { id: 'bell-green', x, z, rot: Math.atan2(Math.sin(a), Math.cos(a)), seed: 911 }
+  }
+  return new SunkenBells(
+    def ? [def] : [],
+    terrain,
+    (shape, geo, at) => rocks.addBuilt(shape, geo, { ...at, rot: 0, layers: [LAYER.carved, LAYER.moss], scale: 6, tint: [0.86, 0.85, 0.82] }),
+  )
+})()
+scene.add(sunkBells.group)
+
 // Words on stone, and trinkets on the high places (spots.ts; the words themselves are in discovery.ts).
 const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
@@ -841,6 +880,8 @@ const spots = (() => {
   placed.push({ id: 'horn', kind: 'trinket', at: ground(trail[0].x - 0.9, trail[0].z + 1.6).add(new THREE.Vector3(0, 0.12, 0)), model: hornModel })
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) placed.push({ id, kind: 'trinket', at: wisps.endOf(id)!, hidden: true })
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
+  // On top of the stone the Green's bell calls down (revealed when it lands).
+  placed.push({ id: 'sky-green', kind: 'trinket', at: bellDescent.top.clone(), hidden: true })
   // On each lantern path's slab, when the fire reaches it.
   for (const p of lanterns.paths) placed.push({ id: p.def.id, kind: 'trinket', at: p.end.clone().add(new THREE.Vector3(0, 0.36, 0)), hidden: true })
   return new Spots(placed)
@@ -930,6 +971,30 @@ resonance.onSolve = (id, pitches) => {
   sound.resolve(pitches)
   narration.say('The stones answer each other. The slab sinks slowly into the earth.')
   setTimeout(() => spots.reveal(id), 6000)
+}
+sunkBells.onStrike = (b, good) => {
+  sound.sunkBell(b.count, good, BREATH, wanderer.pos.distanceTo(b.at))
+  wanderer.reachDown()
+}
+const wakeBell = (id: string, instant: boolean) => {
+  if (id !== 'bell-green' || bellDescent.run) return
+  const run = new StoneDescent(skyStone, bellDescent.y1, 64)
+  bellDescent.run = run
+  run.onLand = () => {
+    effects.impact(skyStone.x, bellDescent.y1 - (skyStone.hy - 8), skyStone.z, 6)
+    sound.colossal()
+    if (!finds.has('sky-green')) spots.reveal('sky-green')
+  }
+  if (instant) {
+    run.finish()
+    if (!finds.has('sky-green')) spots.reveal('sky-green')
+  }
+}
+sunkBells.onWake = (b) => {
+  sound.waking(64)
+  wakeBell(b.def.id, false)
+  // Every giant within a long way stops, and turns to the sound.
+  noticeNear(b.at.x, b.at.z, 2500, 40, b.at)
 }
 lanterns.onCatch = (i, at) => sound.lamp(i, i >= 14, Math.max(0.15, 1 - wanderer.pos.distanceTo(at) / 700))
 lanterns.onArrive = (id) => {
@@ -1507,6 +1572,7 @@ function saveLocal(): void {
     seen: worldMap.save(),
     cairns: cairns.save(),
     lanterns: lanterns.save(),
+    bells: sunkBells.save(),
     found: finds.save(),
     opened: opening === 'done' || opening === 'reveal'
   }
@@ -1537,6 +1603,12 @@ function loadLocal(): boolean {
   // brim-full (and settle whatever was still merging when you left).
   if (d.seen) worldMap.load(d.seen)
   if (d.cairns) cairns.load(d.cairns)
+  if (d.bells)
+    for (const b of sunkBells.bells)
+      if (d.bells.includes(b.def.id)) {
+        b.woken = true
+        wakeBell(b.def.id, true)
+      }
   if (d.lanterns) {
     lanterns.load(d.lanterns)
     // (Kindled, but what was on the slab not yet taken: it is still there.)
@@ -1976,6 +2048,8 @@ function simulate(dt: number): void {
         narration.say(`You hold ${want?.name.toLowerCase() ?? 'it'} over the bowl. The carving above it warms.`)
         setTimeout(() => finds.find(s.def.id), 1800)
       } else narration.say('Carved above the worn bowl: one small thing. You have nothing like it. Not yet.')
+    } else if (sunkBells.near(wanderer.pos) && input.pressed('KeyE')) {
+      sunkBells.strike(sunkBells.near(wanderer.pos)!)
     } else if (lanterns.near(wanderer.pos) && input.pressed('KeyE')) {
       const path = lanterns.near(wanderer.pos)!
       if (lanterns.dark) {
@@ -2866,6 +2940,8 @@ function frameBody(now: number): void {
   rocks.update(camera.position)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
+  sunkBells.update(dt)
+  bellDescent.run?.update(dt)
   camp.update(dt, weather.now.wind)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
@@ -2929,6 +3005,8 @@ function frameBody(now: number): void {
         ? `<kbd>E</kbd>${offerings.near(wanderer.pos)!.answered ? 'Listen' : finds.has(offerings.near(wanderer.pos)!.def.wants) ? 'Hold it over the bowl' : 'Look at the carving'}`
         : free && resonance.near(wanderer.pos)
         ? `<kbd>E</kbd>Strike the stone`
+        : free && sunkBells.near(wanderer.pos)
+        ? `<kbd>E</kbd>Strike the bell`
         : free && lanterns.near(wanderer.pos)
         ? `<kbd>E</kbd>${lanterns.dark ? 'Light the lamp' : 'Look at the lamp'}`
         : spotNear
@@ -3354,6 +3432,9 @@ const g = {
   motes,
   seeds,
   lanterns,
+  sunkBells,
+  bellDescent,
+  skyStone,
   /** The first-steps progress (tools). */
   tipState,
   grapple,

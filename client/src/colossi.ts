@@ -18,7 +18,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { DROWNED_AT, mulberry32, SHORE, SPREAD, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
-import type { Rocks } from './rocks'
+import type { Formation, Rocks } from './rocks'
 import type { Shape } from './rock-fields'
 import { canopyGeometry, foliageMaterial, foliageTexture } from './trees'
 import { splitByTile } from './instancing'
@@ -82,6 +82,8 @@ export class Colossi {
   readonly group = new THREE.Group()
   /** Where each colossus is, for tools and the guide (name → position). */
   readonly places = new Map<string, THREE.Vector3>()
+  /** The free stones hanging in the sky, by place name (a sunken bell can call one down). */
+  readonly skyStones = new Map<string, Formation>()
 
   constructor(
     private readonly terrain: Terrain,
@@ -304,6 +306,7 @@ export class Colossi {
         }
       }
       place(`stone-${i + 1}`, x, z, y)
+      if (!chained) this.skyStones.set(`stone-${i + 1}`, f)
     })
     this.group.add(splitByTile(this.chainMesh(chains), 400))
   }

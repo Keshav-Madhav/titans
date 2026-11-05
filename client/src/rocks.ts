@@ -10,7 +10,7 @@ import { mulberry32, SPREAD, type RegionName, type Terrain } from '@titans/share
 import { LAYER, type TerrainTextures } from './terrain-material'
 import { make, PLAN, type RockMesh, type Shape, type ShapeKind } from './rock-fields'
 
-interface Formation extends Shape {
+export interface Formation extends Shape {
   id: number
   /** 'built': architecture with its own geometry (see `addBuilt`). */
   kind: ShapeKind | 'built'

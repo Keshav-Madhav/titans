@@ -133,6 +133,8 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'wisp-green', 'A seed of light', 'Follow the light that drifts on the western Green.', 'A smooth seed, pale as bone. In the dark of the bag it still glows, faintly, like the thing that led you to it.', 'stone', '#e8eec8'),
   f('trinket', 'wisp-wood', 'A charm of root', 'Follow the light that drifts among the giant trees.', 'A charm woven from fine root, knotted in a pattern you keep almost recognising.', 'figure', '#7a6044'),
   f('trinket', 'wisp-dunes', 'A bead of glass', 'Follow the light that drifts among the hoodoos of the Dune Sea.', 'A bead of clear glass with a single grain of sand inside it that never settles.', 'beads', '#cfe6e4'),
+  // What the sunken bells wake (PLAN §4b).
+  f('trinket', 'sky-green', 'A feather of stone', 'On top of the stone that hung in the sky over the Green.', 'A flat grey stone the shape of a feather, lighter than it should be. Set it down and it does not quite touch the ground.', 'stone', '#9a9ea4'),
   // What the lantern paths lead to (light the first lamp at night; the fire runs to the ring).
   f('trinket', 'lamp-green', 'A moon of white clay', 'Light the cold lamps on the Green, at night, and follow the fire.', 'A disc of white clay, a moon pressed into it with a thumb. By day it is chalk; in the dark of the bag it is the brightest thing there.', 'stone', '#e6ecf2'),
   f('trinket', 'lamp-wood', 'A wick of moss', 'Light the cold lamps in the Old Wood, at night, and follow the fire.', 'A twist of dried moss, the kind the lamps were trimmed with. It smells of the wood after rain, and of something burning a long way off.', 'figure', '#8a9a6a'),

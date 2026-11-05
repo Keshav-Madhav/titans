@@ -853,6 +853,93 @@ export class Sound {
     }
   }
 
+  /**
+   * A sunken bell struck (PLAN §4b): bronze partials over a low fundamental, louder and longer for
+   * each stroke in time (`count`), and breathing — the whole hum swells and fades every `breath`
+   * seconds, peaking on the strike and every breath after (so the swell is heard: strike on it).
+   * Out of time (`good` false): a dull, choked clank, the hum cut short.
+   */
+  sunkBell(count: number, good: boolean, breath: number, d = 0): void {
+    if (!this.ctx || !this.on) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + Math.min(3, d / 343)
+    const far = Math.max(0.15, 1 - d / 4000)
+    if (!good) {
+      this.burst(t, 0.12 * far, 500, 0.25)
+      const o = ctx.createOscillator()
+      o.frequency.value = 104
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(0.12 * far, t + 0.01)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7)
+      o.connect(g).connect(this.master!)
+      o.start(t)
+      o.stop(t + 0.8)
+      return
+    }
+    const k = Math.min(1, count / 5)
+    // The breath: a cosine (peaks at the strike and every breath after) on the hum's gain.
+    const lfo = ctx.createOscillator()
+    lfo.setPeriodicWave(ctx.createPeriodicWave(new Float32Array([0, 1]), new Float32Array([0, 0])))
+    lfo.frequency.value = 1 / breath
+    const depth = ctx.createGain()
+    depth.gain.value = 0.45
+    const hum = ctx.createGain()
+    hum.gain.value = 0.55
+    lfo.connect(depth).connect(hum.gain)
+    hum.connect(this.master!)
+    hum.connect(this.space!)
+    const len = 7 + 9 * k
+    const base = 98
+    for (const [mul, amp] of [
+      [0.5, 0.16],
+      [1, 0.22],
+      [1.004, 0.12],
+      [1.19, 0.08],
+      [2.0, 0.07],
+      [2.66, 0.05],
+      [4.1, 0.025],
+    ] as const) {
+      const o = ctx.createOscillator()
+      o.frequency.value = base * mul
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(amp * (0.55 + 0.6 * k) * far, t + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len * (mul > 2 ? 0.4 : 1))
+      o.connect(g).connect(hum)
+      o.start(t)
+      o.stop(t + len + 0.2)
+    }
+    lfo.start(t)
+    lfo.stop(t + len + 0.2)
+    // The wood on the bronze.
+    this.burst(t, 0.05 * far, 900, 0.06)
+  }
+
+  /** The land answering: a long, slow grinding rumble, rising and settling over `secs`. */
+  waking(secs: number): void {
+    if (!this.ctx || !this.on || !this.noise) return
+    const ctx = this.ctx
+    const t = ctx.currentTime
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(90, t)
+    lp.frequency.linearRampToValueAtTime(220, t + secs * 0.5)
+    lp.frequency.linearRampToValueAtTime(80, t + secs)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.22, t + 4)
+    g.gain.setValueAtTime(0.22, t + secs - 6)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + secs)
+    src.connect(lp).connect(g).connect(this.master!)
+    g.connect(this.space!)
+    src.start(t)
+    src.stop(t + secs + 0.2)
+  }
+
   /** The traveller's horn: a low, hoarse note that swells and falls, ringing off the land. */
   horn(): void {
     if (!this.ctx || !this.on) return
