@@ -48,6 +48,8 @@ interface Chunk {
   mesh: THREE.Mesh | null
   dirty: boolean
   lastSeen: number
+  /** Its base heights (the noise: the expensive part), kept — a giant's step changes only the delta. */
+  base?: Float32Array
 }
 
 function nodeKey(level: number, ix: number, iz: number): number {
@@ -360,13 +362,19 @@ export class TerrainView {
     const H = this.heights
     const D = this.deltas
     const useDelta = t.delta.touches(c.x0 - step, c.z0 - step, c.size + 2 * step)
+    // (Rebuilt after a footfall: the base is as it was; only the delta is read again.)
+    let B = c.base
+    const fresh = !B || B.length !== H_ROW * H_ROW
+    if (fresh) B = c.base = new Float32Array(H_ROW * H_ROW)
     for (let j = 0; j < H_ROW; j++) {
       const z = c.z0 + (j - 1) * step
       for (let i = 0; i < H_ROW; i++) {
         const x = c.x0 + (i - 1) * step
         const d = useDelta ? t.delta.sample(x, z) : 0
-        D[j * H_ROW + i] = d
-        H[j * H_ROW + i] = t.base.height(x, z) + d
+        const k = j * H_ROW + i
+        if (fresh) B![k] = t.base.height(x, z)
+        D[k] = d
+        H[k] = B![k] + d
       }
     }
 
