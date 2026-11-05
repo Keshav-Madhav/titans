@@ -3649,6 +3649,7 @@ const g = {
   frozen,
   HIGH,
   softSwitch,
+  softScene,
   aoSwitch,
   warmTiles,
   perchSeats,

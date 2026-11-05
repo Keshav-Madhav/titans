@@ -120,17 +120,23 @@ export class Ambience {
       this.group.add(l)
     }
 
-    // Butterflies: two wings that flap, pale and warm colours.
-    const wing = new THREE.PlaneGeometry(0.11, 0.08).translate(0.055, 0, 0)
+    // Butterflies: two wings that flap, pale and warm colours. (The wings were two plain rectangles
+    // standing upright: one flying past near the camera was a flat pale square hanging in the air —
+    // the user's "blue box", 2026-11-06. Now they lie flat, hinged along the body, in a wing's shape.)
     const wings = new THREE.BufferGeometry()
-    const w1 = wing.clone()
-    const w2 = wing.clone().scale(-1, 1, 1)
-    const pos = new Float32Array([...(w1.getAttribute('position').array as Float32Array), ...(w2.getAttribute('position').array as Float32Array)])
-    wings.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    const idx = [...(w1.index!.array as Uint16Array)]
-    wings.setIndex([...idx, ...idx.map((i) => i + 4)])
+    // Each wing a quad in the xz plane from the body (x 0) out to x ±0.06, z −0.04 … 0.05; uv over a
+    // texture of one forewing and hindwing.
+    const P: number[] = []
+    const U: number[] = []
+    for (const sx of [1, -1]) {
+      P.push(0, 0, -0.04, 0.06 * sx, 0, -0.04, 0.06 * sx, 0, 0.05, 0, 0, 0.05)
+      U.push(0, 0, 1, 0, 1, 1, 0, 1)
+    }
+    wings.setAttribute('position', new THREE.Float32BufferAttribute(P, 3))
+    wings.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2))
+    wings.setIndex([0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6])
     wings.computeVertexNormals()
-    this.butter = new THREE.InstancedMesh(wings, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, vertexColors: false }), BUTTERFLIES)
+    this.butter = new THREE.InstancedMesh(wings, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, map: wingTexture(), alphaTest: 0.5 }), BUTTERFLIES)
     this.butter.frustumCulled = false
     const col = new THREE.Color()
     for (let i = 0; i < BUTTERFLIES; i++) {
@@ -283,9 +289,11 @@ export class Ambience {
         const y = live ? this.terrain.heightAt(b.x, b.z) + 0.6 + 0.5 * Math.abs(Math.sin(this.time * 1.3 + b.ph)) : -1e4
         const flap = Math.sin(this.time * 18 + b.ph * 7) * 1.1
         _q.setFromAxisAngle(_up, b.a)
-        // Two wings fold together: squash x by the flap (cheap: one matrix per butterfly).
-        _s.set(Math.max(0.15, Math.abs(Math.cos(flap))), 1, 1)
-        _m.compose(_p.set(b.x, y, b.z), _q, _s)
+        // The wings fold up together over the back: seen from the side they close to a line (the x
+        // squash) and rise (a little y, from the hinge). One matrix per butterfly.
+        const open = Math.max(0.12, Math.abs(Math.cos(flap)))
+        _s.set(open, 1, 1)
+                _m.compose(_p.set(b.x, y + (1 - open) * 0.04, b.z), _q, _s)
         this.butter.setMatrixAt(i, _m)
       })
       this.butter.instanceMatrix.needsUpdate = true
@@ -344,4 +352,43 @@ function mergeHare(): THREE.BufferGeometry {
   out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
   out.setAttribute('color', new THREE.BufferAttribute(col, 3))
   return out
+}
+
+/** One butterfly's wing pair seen from above, as an alpha shape: a broad forewing, a rounder hindwing,
+ * darker toward the body and along the edge (white: the instance colour tints it). */
+function wingTexture(): THREE.CanvasTexture {
+  const S = 64
+  const c = document.createElement('canvas')
+  c.width = c.height = S
+  const g = c.getContext('2d')!
+  g.clearRect(0, 0, S, S)
+  // Forewing: from the body (left edge) up and out to a rounded tip.
+  g.fillStyle = '#fff'
+  g.beginPath()
+  g.moveTo(2, S * 0.5)
+  g.bezierCurveTo(S * 0.25, S * 0.02, S * 0.95, S * 0.02, S * 0.95, S * 0.3)
+  g.bezierCurveTo(S * 0.9, S * 0.5, S * 0.5, S * 0.55, 2, S * 0.55)
+  g.fill()
+  // Hindwing: smaller, rounder, behind it.
+  g.beginPath()
+  g.moveTo(2, S * 0.55)
+  g.bezierCurveTo(S * 0.6, S * 0.55, S * 0.75, S * 0.95, S * 0.4, S * 0.97)
+  g.bezierCurveTo(S * 0.2, S * 0.97, S * 0.05, S * 0.8, 2, S * 0.6)
+  g.fill()
+  // Darker at the root and a dark rim.
+  g.globalCompositeOperation = 'source-atop'
+  const root = g.createLinearGradient(0, 0, S * 0.5, 0)
+  root.addColorStop(0, 'rgba(40,30,25,0.9)')
+  root.addColorStop(1, 'rgba(40,30,25,0)')
+  g.fillStyle = root
+  g.fillRect(0, 0, S, S)
+  g.strokeStyle = 'rgba(30,25,20,0.8)'
+  g.lineWidth = 3
+  g.beginPath()
+  g.moveTo(2, S * 0.5)
+  g.bezierCurveTo(S * 0.25, S * 0.02, S * 0.95, S * 0.02, S * 0.95, S * 0.3)
+  g.stroke()
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
 }

@@ -105,7 +105,7 @@ export class Eerie {
   }
 }
 
-function softDot(): THREE.CanvasTexture {
+export function softDot(): THREE.CanvasTexture {
   const c = document.createElement('canvas')
   c.width = c.height = 32
   const g = c.getContext('2d')!

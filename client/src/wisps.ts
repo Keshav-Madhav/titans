@@ -6,6 +6,7 @@
 
 import * as THREE from 'three'
 import { mulberry32, type Terrain } from '@titans/shared'
+import { softDot } from './eerie'
 
 export interface WispDef {
   /** The trinket it leads to (discovery.ts id). */
@@ -82,12 +83,15 @@ export class Wisps {
         z = best.z
         a = best.a * 0.6 + def.bearing * 0.4
       }
+      const dot = softDot()
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color(5, 5.5, 3.6), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
       sprite.scale.setScalar(1.6)
       const trail = new Float32Array(24 * 3)
       const mg = new THREE.BufferGeometry()
       mg.setAttribute('position', new THREE.BufferAttribute(trail, 3))
-      const motes = new THREE.Points(mg, new THREE.PointsMaterial({ color: new THREE.Color(3, 3.3, 2), size: 0.22, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
+      // (A soft round dot: without one each mote was drawn as a flat square — up close, a pale box
+      // hanging in the air beside you; the user, 2026-11-06.)
+      const motes = new THREE.Points(mg, new THREE.PointsMaterial({ color: new THREE.Color(3, 3.3, 2), map: dot, size: 0.22, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
       motes.frustumCulled = false
       const pos = path[0].clone()
       for (let k = 0; k < 24; k++) trail.set([pos.x, pos.y, pos.z], k * 3)
