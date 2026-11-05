@@ -57,6 +57,9 @@ const _rb = new THREE.Vector3()
 const _p0 = new THREE.Vector3()
 const _p1 = new THREE.Vector3()
 const _p2 = new THREE.Vector3()
+const _p3 = new THREE.Vector3()
+const _p4 = new THREE.Vector3()
+const _p5 = new THREE.Vector3()
 const _rq = new THREE.Quaternion()
 const _rq2 = new THREE.Quaternion()
 const _rq3 = new THREE.Quaternion()
@@ -1487,6 +1490,79 @@ export class Wanderer {
     this.followAvatar()
   }
 
+  /** Foot IK's eased state: each foot's height offset to the ground, and the hips' drop. */
+  private readonly footOff = [0, 0]
+  private hipDrop = 0
+
+  /**
+   * Feet on the ground (the clips are made on the flat): each ankle is moved by how far the ground
+   * under it is from the ground under the body; the hips drop as far as the lower foot needs; each
+   * leg solved as two bones toward its ankle (the knee kept on the side the clip bent it). On a
+   * 0.36 slope, before: a foot 15 cm up, the other's toe 5 cm into the ground; walking across it
+   * the lower foot floated up to 33 cm.
+   */
+  private footIK(dt: number, ground: (x: number, z: number) => number): void {
+    const av = this.avatar!
+    const on = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.onBody && !this.hanging ? 1 : 0
+    const base = ground(this.obj.position.x, this.obj.position.z)
+    const want = [0, 0]
+    for (let i = 0; i < 2; i++) {
+      const sd = i === 0 ? 'r' : 'l'
+      av.bone(`foot_${sd}`)!.getWorldPosition(_p0)
+      av.bone(`ball_${sd}`)!.getWorldPosition(_p1)
+      // (The higher of heel and toe's ground: a toe must not go in going uphill.)
+      const g = Math.max(ground(_p0.x, _p0.z), ground(_p1.x, _p1.z) - 0.04)
+      want[i] = THREE.MathUtils.clamp(g - base, -0.45, 0.45) * on
+    }
+    const k = Math.min(1, dt * 14)
+    for (let i = 0; i < 2; i++) this.footOff[i] += (want[i] - this.footOff[i]) * k
+    this.hipDrop += (Math.max(0, -Math.min(this.footOff[0], this.footOff[1])) - this.hipDrop) * k
+    av.root.position.y = -this.hipDrop
+    av.root.updateMatrixWorld(true)
+    if (on < 1 && Math.abs(this.footOff[0]) + Math.abs(this.footOff[1]) < 0.002) return
+    for (let i = 0; i < 2; i++) {
+      const sd = i === 0 ? 'r' : 'l'
+      const thigh = av.bone(`thigh_${sd}`)!
+      const calf = av.bone(`calf_${sd}`)!
+      const foot = av.bone(`foot_${sd}`)!
+      thigh.getWorldPosition(_p0) // hip
+      calf.getWorldPosition(_p1) // knee
+      foot.getWorldPosition(_p2) // ankle (as the clip has it, with the hips dropped)
+      const l1 = _p0.distanceTo(_p1)
+      const l2 = _p1.distanceTo(_p2)
+      // The ankle's target: up by the ground's offset and back up by the hips' drop.
+      _ra.copy(_p2)
+      _ra.y += this.footOff[i] + this.hipDrop
+      const d = Math.min(_p0.distanceTo(_ra), (l1 + l2) * 0.999)
+      _rb.subVectors(_ra, _p0).normalize() // hip → ankle
+      _ra.copy(_p0).addScaledVector(_rb, d) // (reachable)
+      // The knee: in the plane of hip, ankle and the clip's knee, at the right distance from each.
+      const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d)
+      const h = Math.sqrt(Math.max(0, l1 * l1 - a * a))
+      const pole = _p1.clone().sub(_p0)
+      pole.addScaledVector(_rb, -pole.dot(_rb))
+      if (pole.lengthSq() < 1e-6) pole.set(0, 0, 1).applyQuaternion(this.obj.quaternion)
+      pole.normalize()
+      const kneeT = _p0.clone().addScaledVector(_rb, a).addScaledVector(pole, h)
+      this.aimBone(thigh, calf, _p0, kneeT, 1)
+      this.aimBone(calf, foot, kneeT, _ra, 1)
+    }
+  }
+
+  /** Turn `bone` so the direction to `child` lies along from → to, by `w`. */
+  private aimBone(b: THREE.Bone, c: THREE.Bone, from: THREE.Vector3, to: THREE.Vector3, w: number): void {
+    b.updateWorldMatrix(true, true)
+    const cur = _p3.copy(c.getWorldPosition(_p4)).sub(b.getWorldPosition(_p5)).normalize()
+    const want = _p4.subVectors(to, from).normalize()
+    _rq.setFromUnitVectors(cur, want)
+    if (w < 0.999) _rq.slerp(_rqI, 1 - w)
+    b.getWorldQuaternion(_rq2)
+    _rq2.premultiply(_rq)
+    b.parent!.getWorldQuaternion(_rq3).invert()
+    b.quaternion.copy(_rq3.multiply(_rq2))
+    b.updateWorldMatrix(false, true)
+  }
+
   /** The tools' hands on the rigged body, right [0] and left [1]. */
   private readonly handAnchor = [new THREE.Group(), new THREE.Group()]
   /** How much the old limbs' pose is put on the rig's (eased): arms, legs. */
@@ -2054,6 +2130,7 @@ export class Wanderer {
       const mode = this.climbing ? 'climb' : this.gliding ? 'glide' : this.sliding || this.sledding ? 'slide' : this.hanging ? 'hang' : 'ground'
       this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
       this.retarget(dt)
+      this.footIK(dt, ground)
       this.followAvatar()
     }
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
