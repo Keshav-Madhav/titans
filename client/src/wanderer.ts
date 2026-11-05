@@ -707,6 +707,10 @@ export class Wanderer {
   grounded = true
   /** On ground too steep to stand on. */
   sliding = false
+  /** On the cloak down a snowfield (ice slides). */
+  sledding = false
+  /** Is (x, z) snow you can slide on? (main sets it: the High Ice.) */
+  isSnow: (x: number, z: number) => boolean = () => false
   /** Standing on rock (set by the world each step): the land's slope under it is no matter. */
   onStone = false
   /** The water's surface where you stand (main.ts sets it each step; NaN: dry). */
@@ -1140,63 +1144,110 @@ export class Wanderer {
     }
     if (this.swimming && this.waterLevel - bed <= SWIM_DEPTH) this.grounded = true
     this.swimming = false
-    // The long run builds over ~5 s of a steady sprint on ground that isn't
-    // climbing, and falls away when you turn hard, climb, or stop.
-    const vlen = Math.hypot(this.vel.x, this.vel.z)
-    const steady = len > 0 && vlen > SPRINT * 0.8 && (this.vel.x * wx + this.vel.z * wz) / vlen > 0.92
-    const rise = len > 0 ? (terrain.heightAt(this.pos.x + wx * 2, this.pos.z + wz * 2) - terrain.heightAt(this.pos.x, this.pos.z)) / 2 : 0
-    if (sprint && this.grounded && steady && rise < 0.18) this.lope = Math.min(1, this.lope + dt / 5)
-    else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
-    const speed = sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
-    const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
-    // Letting go at speed, the body brakes over a few strides, not on the spot (QA cycle 5: from a
-    // long run it stopped in a quarter of a second — ~200 m/s² at first, a snap no one could
-    // make). At most BRAKE; a walk still stops in under 0.2 s.
-    let bx = (wx * speed - this.vel.x) * k
-    let bz = (wz * speed - this.vel.z) * k
-    if (len === 0 && this.grounded) {
-      const b = Math.hypot(bx, bz)
-      if (b > BRAKE * dt) {
-        bx *= (BRAKE * dt) / b
-        bz *= (BRAKE * dt) / b
-      }
-    }
-    this.vel.x += bx
-    this.vel.z += bz
-
-    // Too steep to stand on: no walking up it, and you slide down.
-    const gx = terrain.heightAt(this.pos.x + 0.5, this.pos.z) - terrain.heightAt(this.pos.x - 0.5, this.pos.z)
-    const gz = terrain.heightAt(this.pos.x, this.pos.z + 0.5) - terrain.heightAt(this.pos.x, this.pos.z - 0.5)
-    const steep = Math.hypot(gx, gz)
-    // (Only on the land itself: standing on rock above it — a ledge, the hall's stair — the slope under the rock is no matter.)
-    const onLand = this.grounded && !this.onStone && this.pos.y < terrain.heightAt(this.pos.x, this.pos.z) + 0.8
-    // Steep but not sheer, and you are pushing up it: you scramble up, slowly, hands to the ground.
-    const upHill = steep > 1e-4 && len > 0 ? (wx * gx + wz * gz) / steep : 0
-    this.scrambling = onLand && steep > MAX_SLOPE && steep < SCRAMBLE_SLOPE && upHill > 0.35
-    if (this.scrambling) {
-      // (A plain cap on speed, not a damping: the same pace at any frame rate.)
-      const cap = (sprint ? 2.3 : 1.6) * (1 - 0.5 * THREE.MathUtils.smoothstep(steep, MAX_SLOPE, SCRAMBLE_SLOPE))
+    // Ice slides (user's pick #4): on the High Ice's snow, heading down a real slope, you sit on
+    // your cloak and go — gravity takes you down the fall line, A/D carves, S digs in to brake,
+    // Space hops (keeping the speed); it ends where the slope runs out and you have slowed, or on
+    // anything that isn't snow.
+    {
+      const sx = terrain.heightAt(this.pos.x + 0.6, this.pos.z) - terrain.heightAt(this.pos.x - 0.6, this.pos.z)
+      const sz = terrain.heightAt(this.pos.x, this.pos.z + 0.6) - terrain.heightAt(this.pos.x, this.pos.z - 0.6)
+      const grade = Math.hypot(sx, sz) / 1.2
+      const snowy = this.isSnow(this.pos.x, this.pos.z) && !this.onStone
       const hv = Math.hypot(this.vel.x, this.vel.z)
-      if (hv > cap) {
-        this.vel.x *= cap / hv
-        this.vel.z *= cap / hv
+      if (!this.sledding && this.grounded && snowy && grade > 0.28 && len > 0) {
+        // Pushing downhill (within ~50° of the fall line).
+        const down = -(wx * sx + wz * sz) / (Math.hypot(sx, sz) * len)
+        if (down > 0.64) {
+          this.sledding = true
+          this.lope = 0
+        }
       }
-      this.lope = 0
-    }
-    this.sliding = onLand && steep > MAX_SLOPE && !this.scrambling
-    if (this.sliding) {
-      const ux = gx / steep
-      const uz = gz / steep
-      const up = this.vel.x * ux + this.vel.z * uz
-      if (up > 0) {
-        this.vel.x -= up * ux
-        this.vel.z -= up * uz
+      if (this.sledding && (!snowy || (grade < 0.12 && hv < 1.6))) this.sledding = false
+      if (this.sledding && this.grounded) {
+        const gl = Math.hypot(sx, sz) || 1
+        // Gravity along the fall line (≈ g·sin θ), a little friction, air drag at speed.
+        const a = 9.8 * (grade / Math.sqrt(1 + grade * grade))
+        this.vel.x -= (sx / gl) * a * dt
+        this.vel.z -= (sz / gl) * a * dt
+        // Carving: A/D turn the run (faster turns slower); S brakes.
+        const turn = -move.x * Math.min(1.8, 14 / Math.max(4, hv)) * dt
+        const c = Math.cos(turn)
+        const sn = Math.sin(turn)
+        const vx = this.vel.x * c - this.vel.z * sn
+        this.vel.z = this.vel.x * sn + this.vel.z * c
+        this.vel.x = vx
+        const fric = 0.04 + (move.y < -0.3 ? 2.2 : 0) + hv * 0.004
+        this.vel.x *= Math.max(0, 1 - fric * dt)
+        this.vel.z *= Math.max(0, 1 - fric * dt)
+        // (No faster than a long glide: past that the snow's bumps would launch you.)
+        const cap = 32
+        if (hv > cap) {
+          this.vel.x *= cap / hv
+          this.vel.z *= cap / hv
+        }
+        if (hv > 0.5) this.yaw = Math.atan2(this.vel.x, this.vel.z)
+        this.sliding = false
+        this.scrambling = false
       }
-      this.vel.x -= ux * SLIDE * dt
-      this.vel.z -= uz * SLIDE * dt
-      jump = false
     }
+    if (!this.sledding) {
+      // The long run builds over ~5 s of a steady sprint on ground that isn't
+      // climbing, and falls away when you turn hard, climb, or stop.
+      const vlen = Math.hypot(this.vel.x, this.vel.z)
+      const steady = len > 0 && vlen > SPRINT * 0.8 && (this.vel.x * wx + this.vel.z * wz) / vlen > 0.92
+      const rise = len > 0 ? (terrain.heightAt(this.pos.x + wx * 2, this.pos.z + wz * 2) - terrain.heightAt(this.pos.x, this.pos.z)) / 2 : 0
+      if (sprint && this.grounded && steady && rise < 0.18) this.lope = Math.min(1, this.lope + dt / 5)
+      else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
+      const speed = sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
+      const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
+      // Letting go at speed, the body brakes over a few strides, not on the spot (QA cycle 5: from a
+      // long run it stopped in a quarter of a second — ~200 m/s² at first, a snap no one could
+      // make). At most BRAKE; a walk still stops in under 0.2 s.
+      let bx = (wx * speed - this.vel.x) * k
+      let bz = (wz * speed - this.vel.z) * k
+      if (len === 0 && this.grounded) {
+        const b = Math.hypot(bx, bz)
+        if (b > BRAKE * dt) {
+          bx *= (BRAKE * dt) / b
+          bz *= (BRAKE * dt) / b
+        }
+      }
+      this.vel.x += bx
+      this.vel.z += bz
 
+      // Too steep to stand on: no walking up it, and you slide down.
+      const gx = terrain.heightAt(this.pos.x + 0.5, this.pos.z) - terrain.heightAt(this.pos.x - 0.5, this.pos.z)
+      const gz = terrain.heightAt(this.pos.x, this.pos.z + 0.5) - terrain.heightAt(this.pos.x, this.pos.z - 0.5)
+      const steep = Math.hypot(gx, gz)
+      // (Only on the land itself: standing on rock above it — a ledge, the hall's stair — the slope under the rock is no matter.)
+      const onLand = this.grounded && !this.onStone && this.pos.y < terrain.heightAt(this.pos.x, this.pos.z) + 0.8
+      // Steep but not sheer, and you are pushing up it: you scramble up, slowly, hands to the ground.
+      const upHill = steep > 1e-4 && len > 0 ? (wx * gx + wz * gz) / steep : 0
+      this.scrambling = onLand && steep > MAX_SLOPE && steep < SCRAMBLE_SLOPE && upHill > 0.35
+      if (this.scrambling) {
+        // (A plain cap on speed, not a damping: the same pace at any frame rate.)
+        const cap = (sprint ? 2.3 : 1.6) * (1 - 0.5 * THREE.MathUtils.smoothstep(steep, MAX_SLOPE, SCRAMBLE_SLOPE))
+        const hv = Math.hypot(this.vel.x, this.vel.z)
+        if (hv > cap) {
+          this.vel.x *= cap / hv
+          this.vel.z *= cap / hv
+        }
+        this.lope = 0
+      }
+      this.sliding = onLand && steep > MAX_SLOPE && !this.scrambling
+      if (this.sliding) {
+        const ux = gx / steep
+        const uz = gz / steep
+        const up = this.vel.x * ux + this.vel.z * uz
+        if (up > 0) {
+          this.vel.x -= up * ux
+          this.vel.z -= up * uz
+        }
+        this.vel.x -= ux * SLIDE * dt
+        this.vel.z -= uz * SLIDE * dt
+        jump = false
+      }
+    }
     if (jump && this.grounded) {
       this.vel.y = JUMP
       this.grounded = false
@@ -1359,7 +1410,7 @@ export class Wanderer {
    * without a pop. Only walking and running on open ground.
    */
   private plantFeet(ground: (x: number, z: number) => number): void {
-    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding && !this.onBody
+    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding && !this.sledding && !this.onBody
     if (!onFoot || this.speed < 0.4 || this.stunned > 0 || this.landK > 0.05) {
       this.footLock[0] = this.footLock[1] = null
       return
@@ -1461,7 +1512,7 @@ export class Wanderer {
     for (const l of this.legs) l.hip.rotation.z = 0
     // How the body is carried, from how it moves (user: "focus on the wanderer animations
     // alot more… 99% of the time a player would be looking at a frame with the wanderer").
-    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding
+    const onFoot = this.grounded && !this.climbing && !this.swimming && !this.gliding && !this.sliding && !this.sledding
     let yr = this.yaw - this.lastYawA
     yr = Math.atan2(Math.sin(yr), Math.cos(yr)) / Math.max(dt, 1e-3)
     this.lastYawA = this.yaw
@@ -1640,7 +1691,7 @@ export class Wanderer {
       this.chest.rotation.y = -Math.sin(s) * (0.16 + run * 0.08) * go
       // …and dip a little on the side of the leg swinging through.
       this.pelvis.rotation.z = Math.cos(s) * 0.035 * go * (1 - run * 0.5)
-      if (this.sliding) {
+      if (this.sliding || this.sledding) {
         // Down the scree: crouched, weight back into the slope, knees bent and feet braced
         // ahead, one hand trailing on the ground behind, the other out for balance (it was
         // an upright half-step, arms out like a scarecrow).
@@ -1666,7 +1717,7 @@ export class Wanderer {
       const breathe = Math.sin(this.t * 1.6) * 0.008 * (1 - Math.min(1, g))
       // Running, both feet leave the ground mid-stride: a bound up between footfalls.
       const bound = run * Math.max(0, Math.cos(s * 2)) * 0.045
-      this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe - (this.sliding ? 0.24 : 0)
+      this.pelvis.position.y = 0.92 - drop * 0.85 + bound + breathe - (this.sliding ? 0.24 : this.sledding ? 0.5 : 0)
       // The lean also answers the change of speed: into it as you set off, back against it as you
       // brake (QA cycle 6 — it hung off the speed alone, so a hard stop and a steady run looked alike).
       if (dt > 0) {
@@ -1675,7 +1726,7 @@ export class Wanderer {
         this.leanAcc += (THREE.MathUtils.clamp(acc, -25, 25) - this.leanAcc) * Math.min(1, dt * 6)
       }
       const surge = this.grounded ? THREE.MathUtils.clamp(this.leanAcc * 0.012, -0.22, 0.12) : 0
-      this.chest.rotation.x = this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + surge + 0.55 * this.scrambleLean
+      this.chest.rotation.x = this.sledding ? -0.42 : this.sliding ? -0.25 : 0.07 * Math.min(1, g) + run * 0.2 + over * 0.06 + surge + 0.55 * this.scrambleLean
       // The head stays level and looking ahead whatever the body does.
       this.head.rotation.x = -this.chest.rotation.x * 0.75
       this.head.rotation.y = -this.chest.rotation.y - this.pelvis.rotation.y

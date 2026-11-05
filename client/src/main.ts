@@ -2298,6 +2298,9 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
   }
   return null
 }
+// Ice slides: the High Ice's snow (as the footsteps tell snow from sand).
+wanderer.isSnow = (x, z) => highSector(x, z) > 0.5 && terrain.heightAt(x, z) > HIGH.top - 60
+let sledSaid = false
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   if (surf === 'grass' || surf === 'mud' || surf === 'sand') trail.step(wanderer.pos.x, wanderer.pos.z, pace)
@@ -2600,6 +2603,11 @@ function frameBody(now: number): void {
     a.titan.setLodFor(camera.position)
   }
   noticeIdle(dt)
+  // The first slide: say how it goes, once.
+  if (wanderer.sledding && !sledSaid) {
+    sledSaid = true
+    narration.say('You sit back on the cloak and the snow takes you. Lean with A and D; S to dig in.')
+  }
   // One queued lake a frame (a footfall's wider reach).
   {
     const first = lakeQueue.entries().next()
