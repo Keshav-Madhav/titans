@@ -36,6 +36,8 @@ export interface Hold {
 }
 
 const UPPER = /^(torso|head|upperArm|forearm|hand)/
+/** Heights up the body (m from the feet) kept out of a giant when on foot. */
+const PUSH_H = [0.35, 0.95, 1.6]
 
 /** Project part-local point q radially onto lump L. Returns |q|/surface (< 1 means q was inside). */
 function onLump(L: LumpSurface, q: THREE.Vector3, out: THREE.Vector3): number {
@@ -331,25 +333,41 @@ export class Climber {
   }
 
   /**
-   * Keep a walking Wanderer out of the Titan's feet and legs: if their chest
-   * is inside any boulder, push them (sideways) out to its surface.
+   * Keep a walking Wanderer out of the giants (user, 2026-11-05: "certain parts you go through").
+   * Three points up the body — shins, waist, head — against every block of every giant within
+   * reach; the deepest one inside sets the push, out along that block's surface (sideways only:
+   * a top you come down on is a footing, landOn). Each part's inverse is worked out once a call.
    */
   pushOut(pos: THREE.Vector3): void {
-    _w.set(pos.x, pos.y + 0.9, pos.z)
-    for (const p of this.targets().flatMap((t) => t.titan.parts)) {
-      const inv = _inv.copy(p.mesh.matrixWorld).invert()
-      _q.copy(_w).applyMatrix4(inv)
-      for (const L of p.lumps) {
-        if (onLump(L, _q, _s) >= 1) continue
-        _s.applyMatrix4(p.mesh.matrixWorld)
-        const dx = _s.x - _w.x
-        const dz = _s.z - _w.z
-        const len = Math.hypot(dx, dz) || 1
-        pos.x += dx + (dx / len) * 0.3
-        pos.z += dz + (dz / len) * 0.3
-        return
+    let bestD = 0
+    let bx = 0
+    let bz = 0
+    for (const target of this.targets()) {
+      const t = target.titan
+      if (Math.hypot(t.gait.x - pos.x, t.gait.z - pos.z) > t.H * 1.2) continue
+      for (const p of t.parts) {
+        const inv = _inv.copy(p.mesh.matrixWorld).invert()
+        for (const h of PUSH_H) {
+          _w.set(pos.x, pos.y + h, pos.z)
+          _q.copy(_w).applyMatrix4(inv)
+          for (const L of p.lumps) {
+            if (onLump(L, _q, _s) >= 1) continue
+            _s.applyMatrix4(p.mesh.matrixWorld)
+            const dx = _s.x - _w.x
+            const dz = _s.z - _w.z
+            const d = Math.hypot(dx, dz)
+            if (d > bestD) {
+              bestD = d
+              bx = dx
+              bz = dz
+            }
+          }
+        }
       }
     }
+    if (bestD <= 0) return
+    pos.x += bx + (bx / bestD) * 0.15
+    pos.z += bz + (bz / bestD) * 0.15
   }
 }
 
