@@ -28,6 +28,10 @@ export const RIDE_CAM: CameraProfile = { minDist: 6, maxDist: 60, dist: 26, focu
 /** The most a shake moves the camera (metres), at trauma 1. */
 const SHAKE_MAX = 0.5
 
+/** The camera's clearance (m): its near plane's half-width at this field of view, and a margin. */
+const CAM_R = 0.32
+const RING: Array<[number, number]> = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
+
 export class CameraRig {
   yaw = 0
   pitch = 0.22
@@ -155,7 +159,17 @@ export class CameraRig {
       }
     }
     this.held = clear < this.held ? clear : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
-    const d = Math.min(want, this.held)
+    let d = Math.min(want, this.held)
+    // The camera is a ball, not a point (QA, the user: "camera through things"): on the line it
+    // stopped short of rock, but sat a hand's width from a wall or a slope beside it and the near
+    // plane cut into them. Pulled in until there is room all round it.
+    const room = (cx: number, cy: number, cz: number): boolean => {
+      if (this.occluder && this.occluder(cx, cy, cz) < CAM_R) return false
+      for (const [ox, oz] of RING) if (cy < terrain.heightAt(cx + ox * CAM_R, cz + oz * CAM_R) + CAM_R) return false
+      return true
+    }
+    for (let i = 0; i < 12 && d > 0.6 && !room(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d); i++) d = Math.max(0.6, d - 0.3)
+    if (d < this.held) this.held = d
     cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
     const floor = terrain.heightAt(cam.x, cam.z) + 0.45
     if (cam.y < floor) cam.y = floor

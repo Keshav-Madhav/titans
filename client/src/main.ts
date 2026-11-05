@@ -1210,7 +1210,15 @@ const rig = new CameraRig(camera)
 // (And the giant you hold: riding pulls the camera back, and it must not end up inside a leg.)
 rig.occluder = (x, y, z) => {
   const held = climber.active ? heldAwake() : undefined
-  return Math.min(rocks.sdfAt(x, y, z), held ? held.roughSdf(x, y, z) : Infinity)
+  let d = Math.min(rocks.sdfAt(x, y, z), held ? held.roughSdf(x, y, z) : Infinity)
+  // (Walking giants too: the camera went into their legs as they passed by you.)
+  if (!held)
+    for (const a of titans.values()) {
+      const g = a.titan.gait
+      if (Math.abs(g.x - x) > a.titan.H * 0.8 || Math.abs(g.z - z) > a.titan.H * 0.8) continue
+      d = Math.min(d, a.titan.roughSdf(x, y, z))
+    }
+  return d
 }
 rig.setProfile(WANDERER_CAM)
 sky.setShadowRadius(260)
