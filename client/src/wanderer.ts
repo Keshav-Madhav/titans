@@ -1644,6 +1644,45 @@ export class Wanderer {
       calf.getWorldPosition(_p1)
       this.aimBone(calf, foot, _p1, _ra, wIK)
     }
+    // The soles laid on the ground's slope (they stayed flat: on a hillside the toe dug in or the heel
+    // floated). Each foot turned by the turn from straight up to the ground's normal under it, as much
+    // as it is down (low over the ground) and the ground asks.
+    if (on > 0)
+      for (let i = 0; i < 2; i++) {
+        const foot = av.bone(`foot_${i === 0 ? 'r' : 'l'}`)!
+        foot.getWorldPosition(_p0)
+        const gy = ground(_p0.x, _p0.z)
+        const low = 1 - THREE.MathUtils.smoothstep(_p0.y - gy, 0.12, 0.3)
+        if (low < 0.01) continue
+        const e = 0.4
+        _p1.set(ground(_p0.x - e, _p0.z) - ground(_p0.x + e, _p0.z), 2 * e, ground(_p0.x, _p0.z - e) - ground(_p0.x, _p0.z + e)).normalize()
+        if (_p1.y > 0.995) continue
+        _rq.setFromUnitVectors(_cu.set(0, 1, 0), _p1)
+        _rq.slerp(_rqI, 1 - low * 0.85)
+        foot.getWorldQuaternion(_rq2)
+        _rq2.premultiply(_rq)
+        foot.parent!.getWorldQuaternion(_rq3).invert()
+        foot.quaternion.copy(_rq3.multiply(_rq2))
+        foot.updateWorldMatrix(false, true)
+        // Then the toe: pitched about the ankle until the ball of the foot sits at its height on the
+        // flat (3 cm) over the ground under it — never into it.
+        const ball = av.bone(`ball_${i === 0 ? 'r' : 'l'}`)!
+        ball.getWorldPosition(_p2)
+        const want = ground(_p2.x, _p2.z) + 0.03
+        const dy = (want - _p2.y) * low
+        if (Math.abs(dy) < 0.003) continue
+        const toe = _p3.subVectors(_p2, _p0)
+        const len = toe.length()
+        if (len < 0.05) continue
+        const axis = _p4.crossVectors(toe, _cu.set(0, 1, 0)).normalize()
+        const ang = Math.asin(THREE.MathUtils.clamp(dy / len, -0.6, 0.6))
+        _rq.setFromAxisAngle(axis, ang)
+        foot.getWorldQuaternion(_rq2)
+        _rq2.premultiply(_rq)
+        foot.parent!.getWorldQuaternion(_rq3).invert()
+        foot.quaternion.copy(_rq3.multiply(_rq2))
+        foot.updateWorldMatrix(false, true)
+      }
   }
 
   /** Climbing on the rig: weight eased in and out. */
