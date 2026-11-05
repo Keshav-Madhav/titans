@@ -60,6 +60,16 @@ const _p2 = new THREE.Vector3()
 const _p3 = new THREE.Vector3()
 const _p4 = new THREE.Vector3()
 const _p5 = new THREE.Vector3()
+const _cf = new THREE.Vector3()
+const _cr = new THREE.Vector3()
+const _cu = new THREE.Vector3()
+const _t0 = new THREE.Vector3()
+const _t1 = new THREE.Vector3()
+const _t2 = new THREE.Vector3()
+const _t3 = new THREE.Vector3()
+const _t4 = new THREE.Vector3()
+const _t5 = new THREE.Vector3()
+const _t6 = new THREE.Vector3()
 const _rq = new THREE.Quaternion()
 const _rq2 = new THREE.Quaternion()
 const _rq3 = new THREE.Quaternion()
@@ -1462,6 +1472,29 @@ export class Wanderer {
       out.copy(boneObj.invert()).multiply(new THREE.Matrix4().makeTranslation(0, y, 0))
     }
     restOf('spine_03', 0.92, this.anchorOff.chest)
+    // The cape's pins and the scarf's, on the rigged body itself (user, 2026-11-05: "cape looks
+    // disconnected… starting from the head instead of shoulders" — the pins were the old body's,
+    // at 1.44 m; this body's shoulders are at ~1.29): an arc across the top of the shoulders and round
+    // the upper back, from one shoulder joint to the other, in the upper spine's own space.
+    {
+      const sp = av.bone('spine_03')!
+      const toSpine = sp.matrixWorld.clone().invert()
+      const L = av.bone('upperarm_l')!.getWorldPosition(new THREE.Vector3()).applyMatrix4(objInv)
+      const R = av.bone('upperarm_r')!.getWorldPosition(new THREE.Vector3()).applyMatrix4(objInv)
+      const S = sp.getWorldPosition(new THREE.Vector3()).applyMatrix4(objInv)
+      const neck = av.bone('neck_01')!.getWorldPosition(new THREE.Vector3()).applyMatrix4(objInv)
+      const half = Math.abs(L.x - R.x) / 2
+      const y = (L.y + R.y) / 2 + 0.07 // on top of the shoulder, not at the joint
+      this.capeSpine.length = 0
+      for (let i = 0; i < 9; i++) {
+        const a = Math.PI * (0.06 + (0.88 * i) / 8)
+        // (Body space → world → the spine bone's space.)
+        const p = new THREE.Vector3(-Math.cos(a) * half * 0.95, y - 0.03 * Math.sin(a), S.z - 0.06 - Math.sin(a) * 0.12).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine)
+        this.capeSpine.push(p)
+      }
+      this.scarfSpine.length = 0
+      for (const sx of [-0.05, 0.05]) this.scarfSpine.push(new THREE.Vector3(sx, neck.y - 0.02, neck.z + 0.06).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
+    }
     // (The rigged body is deeper than the old one, its back 0.21 m behind the middle where the old
     // was 0.12: the pins move back with it, or they sat inside the back.)
     this.anchorOff.chest.multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.09))
@@ -1549,6 +1582,71 @@ export class Wanderer {
     }
   }
 
+  /** Climbing on the rig: weight eased in and out. */
+  private climbW = 0
+
+  /**
+   * A climbing pose for the rigged body (the wall's frame is the body's: forward into the wall, up
+   * the wall): hand over hand — one hand reaching high above the head while the other, lower,
+   * pulls; the feet stepping up on the diagonal (the right foot with the left hand), knees out; the
+   * hips swaying under the hands. Its phase runs only while you climb; holding still holds the reach.
+   */
+  private climbRig(dt: number): void {
+    const av = this.avatar!
+    this.climbW += ((this.climbing ? 1 : 0) - this.climbW) * Math.min(1, dt * 10)
+    if (this.climbW < 0.01) return
+    const w = this.climbW
+    const q = this.obj.quaternion
+    const fwd = _cf.set(0, 0, 1).applyQuaternion(q)
+    const right = _cr.set(-1, 0, 0).applyQuaternion(q)
+    const up = _cu.set(0, 1, 0).applyQuaternion(q)
+    const ph = this.stride * 1.1
+    for (let i = 0; i < 2; i++) {
+      const sd = i === 0 ? 'r' : 'l'
+      const side = i === 0 ? 1 : -1 // +right
+      // Arm: from the shoulder joint, up the wall and a little in toward it.
+      const reach = 0.5 + 0.5 * Math.sin(ph + i * Math.PI)
+      const sh = av.bone(`upperarm_${sd}`)!.getWorldPosition(_p0)
+      const hand = _p1.copy(sh).addScaledVector(up, 0.2 + 0.42 * reach).addScaledVector(right, side * (0.2 - 0.06 * reach)).addScaledVector(fwd, 0.24)
+      // (Elbow out to the side and down.)
+      const pole = _p2.copy(right).multiplyScalar(side).addScaledVector(up, -0.6)
+      this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, pole, w)
+      // Leg: on the diagonal with the other arm — up as that hand reaches.
+      const step = 0.5 + 0.5 * Math.sin(ph + (1 - i) * Math.PI)
+      const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
+      const foot = _p1.copy(hip).addScaledVector(up, -0.78 + 0.34 * step).addScaledVector(right, side * (0.16 + 0.06 * step)).addScaledVector(fwd, 0.2 + 0.05 * step)
+      const kpole = _p2.copy(fwd).addScaledVector(right, side * 0.8)
+      this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, kpole, w)
+    }
+  }
+
+  /** Two-bone IK on the rig: `a`→`b`→`c` reaching `target`, the middle joint toward `pole`. */
+  private twoBone(a: string, b: string, c: string, target: THREE.Vector3, pole: THREE.Vector3, w: number): void {
+    const av = this.avatar!
+    const A = av.bone(a)!
+    const B = av.bone(b)!
+    const C = av.bone(c)!
+    A.updateWorldMatrix(true, true)
+    const pa = A.getWorldPosition(_t0)
+    const pb = B.getWorldPosition(_t1)
+    const pc = C.getWorldPosition(_t2)
+    const l1 = pa.distanceTo(pb)
+    const l2 = pb.distanceTo(pc)
+    const dir = _t3.subVectors(target, pa)
+    const d = THREE.MathUtils.clamp(dir.length(), Math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.999)
+    dir.normalize()
+    const end = _t4.copy(pa).addScaledVector(dir, d)
+    const x = (l1 * l1 - l2 * l2 + d * d) / (2 * d)
+    const h = Math.sqrt(Math.max(0, l1 * l1 - x * x))
+    const bend = _t5.copy(pole).addScaledVector(dir, -pole.dot(dir))
+    if (bend.lengthSq() < 1e-6) bend.set(0, 1, 0)
+    bend.normalize()
+    const mid = _t6.copy(pa).addScaledVector(dir, x).addScaledVector(bend, h)
+    this.aimBone(A, B, pa, mid, w)
+    B.getWorldPosition(_t1)
+    this.aimBone(B, C, _t1, end, w)
+  }
+
   /** Turn `bone` so the direction to `child` lies along from → to, by `w`. */
   private aimBone(b: THREE.Bone, c: THREE.Bone, from: THREE.Vector3, to: THREE.Vector3, w: number): void {
     b.updateWorldMatrix(true, true)
@@ -1563,6 +1661,10 @@ export class Wanderer {
     b.updateWorldMatrix(false, true)
   }
 
+  /** The cape's and scarf's pins in the rigged body's upper spine space. */
+  private readonly capeSpine: THREE.Vector3[] = []
+  private readonly scarfSpine: THREE.Vector3[] = []
+
   /** The tools' hands on the rigged body, right [0] and left [1]. */
   private readonly handAnchor = [new THREE.Group(), new THREE.Group()]
   /** How much the old limbs' pose is put on the rig's (eased): arms, legs. */
@@ -1575,8 +1677,10 @@ export class Wanderer {
    */
   private retarget(dt: number): void {
     const av = this.avatar!
-    const wantArms = this.holding || this.climbing ? 1 : 0
-    const wantLegs = this.climbing ? 1 : 0
+    // (Climbing has its own pose on the rig now — climbRig(); the old one reached forward into the
+    // wall at shoulder height, arms splayed: from behind, a T. User: "no climbing pose".)
+    const wantArms = this.holding && !this.climbing ? 1 : 0
+    const wantLegs = 0
     this.retargetW.arms += (wantArms - this.retargetW.arms) * Math.min(1, dt * 10)
     this.retargetW.legs += (wantLegs - this.retargetW.legs) * Math.min(1, dt * 10)
     const aim = (bone: string, child: string, from: THREE.Vector3, to: THREE.Vector3, w: number) => {
@@ -2130,6 +2234,7 @@ export class Wanderer {
       const mode = this.climbing ? 'climb' : this.gliding ? 'glide' : this.sliding || this.sledding ? 'slide' : this.hanging ? 'hang' : 'ground'
       this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
       this.retarget(dt)
+      this.climbRig(dt)
       this.footIK(dt, ground)
       this.followAvatar()
     }
@@ -2137,8 +2242,14 @@ export class Wanderer {
     this.obj.updateMatrixWorld(true)
     const m = this.obj.matrixWorld
     const cm = (this.avatar ? this.chestAnchor : this.chest).matrixWorld
-    this.capeChest.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(cm))
-    this.scarfChest.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(cm))
+    if (this.avatar && this.capeSpine.length) {
+      const sm = this.avatar.bone('spine_03')!.matrixWorld
+      this.capeSpine.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(sm))
+      this.scarfSpine.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(sm))
+    } else {
+      this.capeChest.forEach((a, i) => this.capePins[i].copy(a).applyMatrix4(cm))
+      this.scarfChest.forEach((a, i) => this.scarfPins[i].copy(a).applyMatrix4(cm))
+    }
     this.hangDir.set(0, -1, -0.15).transformDirection(m)
     // The body's capsule, pelvis to chest, a little fatter than the body. (It must end below
     // the pins: a cap above them pushed the scarf's first links upward and it stood on end.)
