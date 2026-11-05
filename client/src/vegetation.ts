@@ -556,10 +556,60 @@ export class Vegetation {
     }
     const k = key(Math.floor(cam.x / GCELL), Math.floor(cam.z / GCELL))
     if (k === this.lastKey && !this.dirty && this.since < 1.5) return
+    // The cells it will need, made a few milliseconds a frame first (a giant's footfall unmakes
+    // several: made all at once, with the repack, they were 34 ms of a 117 ms hitch — the user,
+    // 2026-11-05, "whenever giants take a step, there is big frame lag"). The old trees stay up
+    // until every new cell is ready.
+    // (After a jump — loading, a waystone, a teleport — all of it at once, as before: nothing to
+    // show meanwhile.)
+    const jumped = Math.hypot(cam.x - this.prepAt.x, cam.z - this.prepAt.z) > 150
+    if (!this.prepare(cam, jumped ? 60 : 2.5)) return
+    this.prepAt.copy(cam)
     this.lastKey = k
     this.since = 0
     this.dirty = false
     this.rebuild(cam)
+  }
+
+  private readonly prepAt = new THREE.Vector3(1e9, 0, 1e9)
+
+  /** Make missing cells round `cam` (nearest first) for up to `budgetMs`; true when none is missing. */
+  private prepare(cam: THREE.Vector3, budgetMs: number): boolean {
+    const t0 = performance.now()
+    const r = Math.ceil(this.midR / CELL)
+    const ccx = Math.floor(cam.x / CELL)
+    const ccz = Math.floor(cam.z / CELL)
+    let done = true
+    for (let ring = 0; ring <= r; ring++) {
+      for (let dz = -ring; dz <= ring; dz++)
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue
+          const cx = ccx + dx
+          const cz = ccz + dz
+          if (Math.hypot((cx + 0.5) * CELL - cam.x, (cz + 0.5) * CELL - cam.z) >= this.midR + CELL) continue
+          const kk = key(cx, cz)
+          if (this.cells.has(kk)) continue
+          if (performance.now() - t0 > budgetMs) return false
+          this.cells.set(kk, this.genCell(cx, cz))
+          done = false
+        }
+    }
+    const gr = Math.ceil(this.grassR / GCELL)
+    const gcx = Math.floor(cam.x / GCELL)
+    const gcz = Math.floor(cam.z / GCELL)
+    for (let dz = -gr; dz <= gr; dz++)
+      for (let dx = -gr; dx <= gr; dx++) {
+        const cx = gcx + dx
+        const cz = gcz + dz
+        if (Math.hypot((cx + 0.5) * GCELL - cam.x, (cz + 0.5) * GCELL - cam.z) > this.grassR + GCELL) continue
+        const kk = key(cx, cz)
+        if (this.grassCells.has(kk)) continue
+        if (performance.now() - t0 > budgetMs) return false
+        this.grassCells.set(kk, this.genGrass(cx, cz))
+        done = false
+      }
+    // (Made some this frame: the repack waits for the next, so both are not in one frame.)
+    return done || performance.now() - t0 < budgetMs * 0.3
   }
 
   private rebuild(cam: THREE.Vector3): void {
