@@ -472,6 +472,12 @@ export class Titan {
   }
 
   private lod = 0
+  /** Something it has noticed and turns its head to (world); null: nothing. */
+  look: THREE.Vector3 | null = null
+  private lookK = 0
+  private readonly lookAt = new THREE.Vector3()
+  private readonly headFwd = new THREE.Vector3()
+  private readonly tmp3 = new THREE.Vector3()
 
   /** Pick boulder detail by distance from the camera (2.2 H and 5 H thresholds). */
   setLodFor(camera: THREE.Vector3): void {
@@ -677,9 +683,31 @@ export class Titan {
     // forward: the face looked at the ground and the mask was never seen.)
     this.tmp.copy(this.head)
     this.tmp.y += SHAPES.head.len * H * 0.6
-    this.tmp2.copy(this.tmp).addScaledVector(this.fwd, -0.18 + this.bow * 1.1)
+    // Something it has noticed (user, 2026-11-05: "giants that notice you"): the head turns toward
+    // it — no further than ~75° from where the body faces — and bows if it is below; eased in and
+    // out over a couple of seconds, so it reads as attention, not a snap.
+    const lk = dt > 0 ? Math.min(1, dt * 0.7) : 1
+    this.lookK += ((this.look ? 1 : 0) - this.lookK) * lk
+    if (this.look) this.lookAt.copy(this.look)
+    const headFwd = this.headFwd.copy(this.fwd)
+    let headBow = 0
+    if (this.lookK > 0.01) {
+      const d = this.tmp3.set(this.lookAt.x - this.tmp.x, 0, this.lookAt.z - this.tmp.z)
+      const dist = d.length()
+      if (dist > 1) {
+        d.divideScalar(dist)
+        const cross = this.fwd.x * d.z - this.fwd.z * d.x
+        const ang = Math.atan2(cross, this.fwd.x * d.x + this.fwd.z * d.z)
+        const lim = Math.max(-1.3, Math.min(1.3, ang)) * this.lookK
+        const c = Math.cos(lim)
+        const sn = Math.sin(lim)
+        headFwd.set(this.fwd.x * c - this.fwd.z * sn, 0, this.fwd.x * sn + this.fwd.z * c).normalize()
+        headBow = Math.max(0, Math.min(0.5, (this.tmp.y - this.lookAt.y) / Math.max(dist, 1))) * this.lookK
+      }
+    }
+    this.tmp2.copy(this.tmp).addScaledVector(headFwd, -0.18 + this.bow * 1.1 + headBow * 0.9)
     this.tmp2.y -= 1
-    place(M.head, this.tmp, this.tmp2, this.fwd)
+    place(M.head, this.tmp, this.tmp2, headFwd)
     for (const f of [0, 1] as const) {
       const s = f === 0 ? 'L' : 'R'
       place(M['upperArm' + s], J.shoulder[f], J.elbow[f], this.fwd)
