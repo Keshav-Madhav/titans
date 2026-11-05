@@ -1528,9 +1528,9 @@ export class Wanderer {
       this.scarfSpine.length = 0
       for (const sx of [-0.05, 0.05]) this.scarfSpine.push(new THREE.Vector3(sx, neck.y - 0.02, neck.z + 0.06).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
     }
-    // (The rigged body is deeper than the old one, its back 0.21 m behind the middle where the old
-    // was 0.12: the pins move back with it, or they sat inside the back.)
-    this.anchorOff.chest.multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.09))
+    // (The wing rides this anchor: in to the back of the shoulders — it hovered a hand's breadth
+    // off the back in flight, a red sheet floating over the body.)
+    this.anchorOff.chest.multiply(new THREE.Matrix4().makeTranslation(0, -0.05, 0.1))
     restOf('pelvis', 0.92, this.anchorOff.pelvis)
     for (const a of [this.chestAnchor, this.pelvisAnchor]) {
       a.matrixAutoUpdate = false
@@ -1553,6 +1553,9 @@ export class Wanderer {
       if ((o as THREE.Mesh).isMesh) o.visible = false
     })
     this.pelvis.visible = true
+    // (No scarf on this body: the mantle covers the neck, and the scarf read as a red tie down the
+    // front, a stalk standing out of the water and a streak in a fall.)
+    this.scarf.mesh.visible = false
     this.followAvatar()
   }
 
@@ -1688,7 +1691,9 @@ export class Wanderer {
       if (this.glideW >= 0.01) {
         const sh = av.bone(`upperarm_${sd}`)!.getWorldPosition(_p0)
         const dip = -side * this.bank * 0.25
-        const hand = _p1.copy(sh).addScaledVector(right, side * 0.6).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04 + dip)
+        // (Holding the wing's leading edge: out to the side, level with the back — in flight that is
+        // a little "behind", above the arms' line.)
+        const hand = _p1.copy(sh).addScaledVector(right, side * 0.6).addScaledVector(fwd, -0.04).addScaledVector(up, 0.04 + dip)
         this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, _p2.copy(up).addScaledVector(fwd, -0.5), this.glideW)
         const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
         const foot = _p1.copy(hip).addScaledVector(up, -0.8).addScaledVector(fwd, -0.22).addScaledVector(right, -side * 0.03)
@@ -2412,6 +2417,8 @@ export class Wanderer {
     this.cape.ceil = this.gliding ? Infinity : this.vel.y < -6 ? 0.15 : 0.1
     this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
+    // (The scarf too: falling, and in the water, it stood up over the hood like a red stalk.)
+    this.scarf.ceil = this.gliding ? Infinity : 0.05
     this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
 
     // The lantern: brighter in the dark, a slow flicker.
