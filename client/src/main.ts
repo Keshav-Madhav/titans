@@ -1596,6 +1596,13 @@ const stepCost = { n: 0, carve: 0, lakes: 0, trample: 0, worstDeform: null as nu
 const warmTiles = { on: true }
 /** Tools: the most each system's per-frame update has cost (ms) since reset. */
 const sysCost = { water: 0, streams: 0, map: 0, veg: 0, grass: 0, terrain: 0, lakeQueue: 0 }
+/** This frame's cost per system, and frames that ran long (> 40 ms) with what each part took in them. */
+const sysNow: Record<string, number> = {}
+const spikes: Array<Record<string, number>> = []
+function costNote(name: keyof typeof sysCost | 'render', ms: number): void {
+  if (name !== 'render') sysCost[name] = Math.max(sysCost[name], ms)
+  sysNow[name] = (sysNow[name] ?? 0) + ms
+}
 
 function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): void {
   replaying = replay
@@ -2899,7 +2906,7 @@ function frameBody(now: number): void {
       lakeQueue.delete(first.value[0])
       const t = performance.now()
       lakes.onDeform(first.value[1])
-      sysCost.lakeQueue = Math.max(sysCost.lakeQueue, performance.now() - t)
+      costNote('lakeQueue', performance.now() - t)
     }
   }
   // The ground a walking giant is about to step on: its height tiles filled ahead of the foot, a
@@ -3016,8 +3023,8 @@ function frameBody(now: number): void {
     wanderer.backlit = THREE.MathUtils.smoothstep(_bl.x * sky.sunDir.x + _bl.z * sky.sunDir.z, 0.15, 0.75) * (1 - sky.night)
   }
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
-  { const _t = performance.now(); water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z)); sysCost.water = Math.max(sysCost.water, performance.now() - _t) }
-  { const _t = performance.now(); water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z)); sysCost.streams = Math.max(sysCost.streams, performance.now() - _t) }
+  { const _t = performance.now(); water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z)); costNote('water', performance.now() - _t) }
+  { const _t = performance.now(); water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z)); costNote('streams', performance.now() - _t) }
   water.update(dt)
   water.weather(weather.now.dark, weather.now.rain, [sea.mesh.material as THREE.MeshStandardMaterial])
   sea.update(dt, camera.position)
@@ -3062,7 +3069,7 @@ function frameBody(now: number): void {
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
-  { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); sysCost.map = Math.max(sysCost.map, performance.now() - _t) }
+  { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); costNote('map', performance.now() - _t) }
   clouds.tint(weather.now.dark, sky.night, sky.dusk, sky.sunLow)
   // Mist lies thickest in the hollows at dawn and at dusk.
   const t = sky.time
@@ -3089,9 +3096,9 @@ function frameBody(now: number): void {
   }
   // (At a long drop the wind rises: vertigo is heard as much as seen; and in a seed river's air.)
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
-  { const _t = performance.now(); vegetation.update(dt, camera.position); sysCost.veg = Math.max(sysCost.veg, performance.now() - _t) }
+  { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
   skirts?.update(camera.position)
-  { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); sysCost.grass = Math.max(sysCost.grass, performance.now() - _t) }
+  { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
   rocks.update(camera.position)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
@@ -3329,16 +3336,26 @@ function frameBody(now: number): void {
   foliageFocus.value.copy(_head)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
-  { const _t = performance.now(); terrainView.update(camera.position, ready ? 5 : 40); sysCost.terrain = Math.max(sysCost.terrain, performance.now() - _t) }
+  { const _t = performance.now(); terrainView.update(camera.position, ready ? 5 : 40); costNote('terrain', performance.now() - _t) }
   sky.follow(focus, camera)
   renderer.info.reset()
   // Near plants and stones: only those in view (the camera is final for this frame now).
   camera.updateMatrixWorld()
   vegetation.cull(camera)
   quality.gpuBegin()
-  post.render(dt, sky.sunDir)
+  { const _t = performance.now(); post.render(dt, sky.sunDir); costNote('render', performance.now() - _t) }
   quality.gpuEnd()
   work.push(performance.now() - t0)
+  {
+    const total = performance.now() - t0
+    if (ready && total > 40) {
+      let sum = 0
+      for (const k in sysNow) sum += sysNow[k]
+      spikes.push({ total: +total.toFixed(1), other: +(total - sum).toFixed(1), ...Object.fromEntries(Object.entries(sysNow).map(([k, v]) => [k, +v.toFixed(1)])) })
+      if (spikes.length > 40) spikes.shift()
+    }
+    for (const k in sysNow) sysNow[k] = 0
+  }
   if (work.length > 1200) work.shift()
 
   if (!ready && terrainView.settled()) {
@@ -3615,6 +3632,7 @@ const g = {
   perchSeats,
   stepCost,
   sysCost,
+  spikes,
   trail,
   travel,
   noticeNear,
