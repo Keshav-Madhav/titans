@@ -1499,7 +1499,8 @@ export class Wanderer {
       this.capeObj.length = 0
       for (let i = 0; i < 9; i++) {
         const a = Math.PI * (0.06 + (0.88 * i) / 8)
-        const local = new THREE.Vector3(-Math.cos(a) * half * 0.95, y - 0.03 * Math.sin(a), S.z - 0.06 - Math.sin(a) * 0.12)
+        // (Past the shoulders, wrapping them: at their width it hung as a strip down the back.)
+        const local = new THREE.Vector3(-Math.cos(a) * half * 1.35, y - 0.05 * Math.sin(a) - 0.03 * (1 - Math.sin(a)), S.z - 0.02 - Math.sin(a) * 0.16)
         this.capeObj.push(local.clone())
         // (Body space → world → the spine bone's space.)
         this.capeSpine.push(local.applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
@@ -1559,6 +1560,8 @@ export class Wanderer {
     // (No scarf on this body: the mantle covers the neck, and the scarf read as a red tie down the
     // front, a stalk standing out of the water and a streak in a fall.)
     this.scarf.mesh.visible = false
+    // (Deeper folds: standing, it hung as a flat red rectangle.)
+    this.cape.pleats = 0.13
     this.followAvatar()
   }
 
