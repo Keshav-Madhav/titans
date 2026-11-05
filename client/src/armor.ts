@@ -307,6 +307,39 @@ function plateMaterial(tex: TerrainTextures, tint: THREE.Color): THREE.MeshStand
   return mat
 }
 
+/**
+ * A living eye: a hot pale core going to cold blue toward its rim (by how squarely it faces you), a
+ * light in a deep socket — not a flat white disc.
+ */
+function eyeMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `varying vec3 vN; varying vec3 vV;
+      void main() {
+        float f = clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0);
+        vec3 c = mix(vec3(0.18, 0.42, 0.85), vec3(1.25, 1.45, 1.6), pow(f, 2.2));
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  })
+}
+
+/** The glow round a living eye: a soft additive blur, cold blue. */
+function eyeHaloMaterial(): THREE.SpriteMaterial {
+  const S = 64
+  const cv = document.createElement('canvas')
+  cv.width = cv.height = S
+  const g = cv.getContext('2d')!
+  const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
+  grad.addColorStop(0, 'rgba(190,220,255,0.55)')
+  grad.addColorStop(0.35, 'rgba(120,170,255,0.22)')
+  grad.addColorStop(1, 'rgba(80,130,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, S, S)
+  const t = new THREE.CanvasTexture(cv)
+  return new THREE.SpriteMaterial({ map: t, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })
+}
+
 const materials = new Map<string, THREE.Material>()
 
 /**
@@ -401,7 +434,8 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
   if (shape === 'head' && lumps[0]) {
     const L = lumps[0]
     const ek = petrified ? 'eye-dead' : 'eye'
-    if (!materials.has(ek)) materials.set(ek, new THREE.MeshBasicMaterial({ color: petrified ? new THREE.Color(0.05, 0.05, 0.05) : new THREE.Color(1.15, 1.4, 1.65), fog: false }))
+    if (!materials.has(ek)) materials.set(ek, petrified ? new THREE.MeshBasicMaterial({ color: new THREE.Color(0.05, 0.05, 0.05), fog: false }) : eyeMaterial())
+    if (!petrified && !materials.has('eye-halo')) materials.set('eye-halo', eyeHaloMaterial())
     if (!materials.has('socket')) materials.set('socket', new THREE.MeshBasicMaterial({ color: 0x050505 }))
     for (const sx of [-1, 1]) {
       _d.set(sx * 0.36, 0.12, 1).normalize()
@@ -413,6 +447,13 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
       const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.44, 14, 10).scale(1.3, 0.6, 0.5), materials.get(ek))
       eye.position.copy(at).addScaledVector(_d, 0.0125 * H)
       group.add(socket, eye)
+      // A soft glow round it (QA cycle 7: two flat paper-white ovals read as cartoon eyes).
+      if (!petrified) {
+        const halo = new THREE.Sprite(materials.get('eye-halo') as THREE.SpriteMaterial)
+        halo.scale.set(r * 2.6, r * 1.7, 1)
+        halo.position.copy(at).addScaledVector(_d, 0.016 * H)
+        group.add(halo)
+      }
     }
     // Horns of stone swept far back from the brow: uneven, some broken off short.
     const crown: THREE.BufferGeometry[] = []
