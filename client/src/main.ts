@@ -1307,6 +1307,8 @@ const cliff = new CliffClimb()
 
 // Everything one stride did to the ground, so lakes re-flood once per footfall.
 const strideBox: Box = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }
+/** Lakes a footfall reached, waiting to be re-solved — one a frame (onGait). */
+const lakeQueue = new Map<number, Box>()
 function grow(b: Box): void {
   strideBox.x0 = Math.min(strideBox.x0, b.x0)
   strideBox.z0 = Math.min(strideBox.z0, b.z0)
@@ -1334,9 +1336,11 @@ const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
  * `from` is the giant whose step it is (its footfalls jolt whoever holds on to it).
  */
 /** Tools: the most a footstep's parts have cost (ms) since reset, and how many steps. */
-const stepCost = { n: 0, carve: 0, lakes: 0, trample: 0 }
+const stepCost = { n: 0, carve: 0, lakes: 0, trample: 0, worstDeform: null as null | { wetMs: number; refloodMs: number; touched: number; cells: number } }
+/** Tools: false stops filling the ground's tiles ahead of walking giants (to compare). */
+const warmTiles = { on: true }
 /** Tools: the most each system's per-frame update has cost (ms) since reset. */
-const sysCost = { water: 0, streams: 0, map: 0, veg: 0, grass: 0, terrain: 0 }
+const sysCost = { water: 0, streams: 0, map: 0, veg: 0, grass: 0, terrain: 0, lakeQueue: 0 }
 
 function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): void {
   replaying = replay
@@ -1358,14 +1362,28 @@ function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): vo
   // (Timed, for tools: the user, 2026-11-05, "whenever giants take a step, there is big frame lag".)
   const t0 = performance.now()
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
-  grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
+  const footBox = applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp))
+  grow(footBox)
   const t1 = performance.now()
-  lakes.onDeform(strideBox, ev.x, ev.z)
+  if (replay) lakes.onDeform(strideBox, ev.x, ev.z)
+  else {
+    // The print itself now (a pond may form in it); every other lake within the impact's reach —
+    // a step on the Green's old trails reached 16 small ponds at once, 34 ms re-solving them all in
+    // the step's frame — queued, one a frame (a pond settling a few frames later is not seen).
+    lakes.onDeform(footBox, ev.x, ev.z)
+    for (const l of lakes.lakes) {
+      const b = l.basin
+      if (b.x0 > strideBox.x1 || b.x0 + b.w < strideBox.x0 || b.z0 > strideBox.z1 || b.z0 + b.h < strideBox.z0) continue
+      if (!(b.x0 > footBox.x1 || b.x0 + b.w < footBox.x0 || b.z0 > footBox.z1 || b.z0 + b.h < footBox.z0)) continue
+      lakeQueue.set(l.id, { x0: b.x0, z0: b.z0, x1: b.x0 + b.w, z1: b.z0 + b.h })
+    }
+  }
   const t2 = performance.now()
   if (!replay) {
     stepCost.n++
     stepCost.carve = Math.max(stepCost.carve, t1 - t0)
     stepCost.lakes = Math.max(stepCost.lakes, t2 - t1)
+    if (t2 - t1 >= stepCost.lakes) stepCost.worstDeform = { ...lakes.lastDeform }
   }
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
@@ -2582,6 +2600,29 @@ function frameBody(now: number): void {
     a.titan.setLodFor(camera.position)
   }
   noticeIdle(dt)
+  // One queued lake a frame (a footfall's wider reach).
+  {
+    const first = lakeQueue.entries().next()
+    if (!first.done) {
+      lakeQueue.delete(first.value[0])
+      const t = performance.now()
+      lakes.onDeform(first.value[1])
+      sysCost.lakeQueue = Math.max(sysCost.lakeQueue, performance.now() - t)
+    }
+  }
+  // The ground a walking giant is about to step on: its height tiles filled ahead of the foot, a
+  // little each frame, so the footfall's lake work finds them ready (7–20 ms a step on fresh ground
+  // before; ~0.5 after — the user, 2026-11-05: "whenever giants take a step, there is big frame lag").
+  {
+    const t0 = performance.now()
+    for (const a of warmTiles.on ? titans.values() : []) {
+      const g = a.titan.gait
+      if (g.resting || g.speed < 0.3) continue
+      const ax = g.x + Math.sin(g.heading) * 45
+      const az = g.z + Math.cos(g.heading) * 45
+      if (!terrain.warmCells(ax, az, 70, Math.max(0, 1.5 - (performance.now() - t0)))) break
+    }
+  }
   mountains.update(terrain, camera)
   shedRubble(dt)
   // The Ones Beyond stay lost in the haze while you are down in the dell you wake in (at
@@ -3243,6 +3284,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  warmTiles,
   perchSeats,
   stepCost,
   sysCost,

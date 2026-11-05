@@ -63,6 +63,7 @@ export class WaterView {
   private readonly entries = new Map<number, Entry>()
   private readonly streams = new Map<number, { mesh: THREE.Mesh; sig: string }>()
   private streamCheck = 0
+  private streamSig = ''
   private readonly ripples = rippleNormals()
   private readonly material = new THREE.MeshStandardMaterial({
     // The reel's water: a deep, sky-mirroring blue, not a pale film.
@@ -94,6 +95,11 @@ export class WaterView {
     this.streamCheck -= dt
     if (this.streamCheck > 0) return
     this.streamCheck = 0.3
+    // (Only when some lake changed: working out every overflow's path three times a second, with
+    // nothing different, was up to 48 ms while a giant's footfalls re-solved lakes one by one.)
+    const sig = lakes.lakes.map((l) => `${l.id}.${l.version}.${Math.round(l.level * 10)}`).join(",")
+    if (sig === this.streamSig) return
+    this.streamSig = sig
     const live = new Set<number>()
     for (const s of lakes.streams()) {
       // (Q36: a run of a few metres that soaks into the first hollow is no stream — drawn, it is a

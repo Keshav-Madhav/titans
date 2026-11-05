@@ -44,7 +44,11 @@ export interface Basin {
  * counts as running off (the river phase will route it). This world is dry
  * until Titans bring water; its natural hollows are not lakes.
  */
+/** A millisecond clock for browser and Node. */
+const nowMs = (): number => (globalThis as { performance?: { now(): number } }).performance?.now() ?? Date.now()
 const MAX_CELLS = 90000
+/** The most cells a footprint's own pond may flood (a print is ~30 × 20 m). */
+const FOOT_CELLS = 2500
 /** Largest natural hollow that spill may turn into a new pool (≈ 1.6 ha). */
 const POOL_MAX = 16000
 /** Smaller hollows fill at once; water runs on past them. */
@@ -174,12 +178,16 @@ const key = (x: number, z: number) => (x + 32768) * 65536 + (z + 32768)
  * flood: a diagonal step would slip through one-cell-thin rims that the
  * flood treats as walls.
  */
-export function descend(H: CellHeight, sx: number, sz: number, path?: number[]): [number, number] {
+/** Did the last descend() reach a low point (not run out of steps)? */
+let descendDone = false
+
+export function descend(H: CellHeight, sx: number, sz: number, path?: number[], maxIt = 4000): [number, number] {
   let x = sx
   let z = sz
   let h = H(x, z)
   path?.push(key(x, z))
-  for (let it = 0; it < 4000; it++) {
+  descendDone = false
+  for (let it = 0; it < maxIt; it++) {
     let bx = x
     let bz = z
     let bh = h
@@ -193,7 +201,10 @@ export function descend(H: CellHeight, sx: number, sz: number, path?: number[]):
         bz = nz
       }
     }
-    if (bx === x && bz === z) break
+    if (bx === x && bz === z) {
+      descendDone = true
+      break
+    }
     x = bx
     z = bz
     h = bh
@@ -207,8 +218,10 @@ export function descend(H: CellHeight, sx: number, sz: number, path?: number[]):
  * surface `E` and measuring the bed with real terrain `H`. Null if it holds
  * no water.
  */
-export function floodBasin(H: CellHeight, E: CellHeight, sx: number, sz: number, minBed = 4): Basin | null {
-  const [mx, mz] = descend(E, sx, sz)
+export function floodBasin(H: CellHeight, E: CellHeight, sx: number, sz: number, minBed = 4, maxCells = MAX_CELLS, maxDescend = 4000): Basin | null {
+  const [mx, mz] = descend(E, sx, sz, undefined, maxDescend)
+  // (A short walk that did not bottom out: the water runs off, no basin here.)
+  if (maxDescend < 4000 && !descendDone) return null
   const heap = new Heap()
   const seen = new Set<number>()
   const cx: number[] = []
@@ -228,7 +241,7 @@ export function floodBasin(H: CellHeight, E: CellHeight, sx: number, sz: number,
       ez = top[2]
       break
     }
-    if (cx.length >= MAX_CELLS) {
+    if (cx.length >= maxCells) {
       capped = true
       break
     }
@@ -582,19 +595,32 @@ export class LakeSystem {
       const b = l.basin
       return b.x0 - pad <= box.x1 && b.x0 + b.w + pad >= box.x0 && b.z0 - pad <= box.z1 && b.z0 + b.h + pad >= box.z0
     })
-    const seeds: Array<[number, number]> = touched.map((l) => [l.basin.bx, l.basin.bz])
-    if (sx !== undefined && sz !== undefined) seeds.push([Math.round(sx), Math.round(sz)])
+    const seeds: Array<[number, number] | [number, number, number]> = touched.map((l) => [l.basin.bx, l.basin.bz])
+    // The footprint itself may hold water (a pond in the print) — but only its own hollow: the
+    // flood from it is capped small. Uncapped, a print on a hillside ran downhill and re-solved the
+    // whole valley below: 7 ms a step on open ground, 20 at worst (the user, 2026-11-05: "whenever
+    // giants take a step, there is big frame lag"). Its walk downhill is short too (40 m): a pond in
+    // a print bottoms out inside it, or the water runs away.
+    if (sx !== undefined && sz !== undefined) seeds.push([Math.round(sx), Math.round(sz), FOOT_CELLS])
+    const t0 = nowMs()
     const wet = new Map<Lake, Region>()
     for (const l of touched) {
       const r = this.wetRegion(l)
       if (r) wet.set(l, r)
     }
+    const t1 = nowMs()
     this.reflood(seeds, wet)
+    const t2 = nowMs()
+    // (Tools: what the last deformation cost, and over what.)
+    this.lastDeform = { wetMs: t1 - t0, refloodMs: t2 - t1, touched: touched.length, cells: touched.reduce((n, l) => n + l.basin.sorted.length, 0) }
   }
+
+  /** Tools: the last onDeform's cost — re-measuring the touched lakes, re-flooding — and their size. */
+  lastDeform = { wetMs: 0, refloodMs: 0, touched: 0, cells: 0 }
 
   /** Returns false (changing nothing) if `refuseCapped` and a flood ran into lowland. */
   private reflood(
-    seeds: Array<[number, number]>,
+    seeds: Array<[number, number] | [number, number, number]>,
     wet?: Map<Lake, Region>,
     lift?: (x: number, z: number, h: number) => number,
     refuseCapped = false,
@@ -603,10 +629,12 @@ export class LakeSystem {
     const S = this.surface(wet, exclude)
     const E: CellHeight = lift ? (x, z) => lift(x, z, S(x, z)) : S
     const fresh: Basin[] = []
-    for (const [x, z] of seeds) {
+    for (const [x, z, cap] of seeds) {
       if (fresh.some((b) => inBasin(b, x, z))) continue
-      const b = floodBasin(this.H, E, x, z)
+      const b = floodBasin(this.H, E, x, z, 4, cap ?? MAX_CELLS, cap !== undefined ? 40 : 4000)
       if (!b) continue
+      // (A footprint's own seed, capped small: past that it drained into a valley, not a pond.)
+      if (cap !== undefined && b.capped) continue
       if (b.capped) {
         // Water here would run off into lowland. Merges refuse outright;
         // otherwise skip it and leave whatever lake was there as it was.

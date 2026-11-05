@@ -589,6 +589,9 @@ export class DeltaField {
 }
 
 /** The terrain everyone walks on: base + delta. */
+/** A millisecond clock that works in the browser and in Node (shared code). */
+const nowMs = (): number => (globalThis as { performance?: { now(): number } }).performance?.now() ?? Date.now()
+
 export class Terrain {
   readonly base: BaseTerrain
   readonly delta = new DeltaField()
@@ -604,6 +607,27 @@ export class Terrain {
   // Base heights at integer cells, cached per tile: lake floods touch
   // hundreds of thousands of cells and the noise is the expensive part.
   private readonly baseTiles = new Map<number, Float32Array>()
+
+  /**
+   * Fill the base-height tiles round (x, z) out to `r` metres ahead of need, for at most `budgetMs`
+   * (true when all are filled). A walking giant's next footfalls land on fresh ground, and filling
+   * their tiles then (4096 noise samples each) was most of a footstep's lake work — 7 ms a step, 20
+   * at worst (the user, 2026-11-05: "whenever giants take a step, there is big frame lag").
+   */
+  warmCells(x: number, z: number, r: number, budgetMs: number): boolean {
+    const t0 = nowMs()
+    const tx0 = Math.floor((x - r) / DELTA_TILE)
+    const tx1 = Math.floor((x + r) / DELTA_TILE)
+    const tz0 = Math.floor((z - r) / DELTA_TILE)
+    const tz1 = Math.floor((z + r) / DELTA_TILE)
+    for (let tz = tz0; tz <= tz1; tz++)
+      for (let tx = tx0; tx <= tx1; tx++) {
+        if (this.baseTiles.has(DeltaField.key(tx, tz))) continue
+        if (nowMs() - t0 > budgetMs) return false
+        this.cellHeight(tx * DELTA_TILE, tz * DELTA_TILE)
+      }
+    return true
+  }
 
   /** Height at integer coordinates (no interpolation) — the lake grid. */
   readonly cellHeight = (ix: number, iz: number): number => {
