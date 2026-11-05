@@ -11,6 +11,7 @@
 // frame and ride on its mesh.
 
 import * as THREE from 'three'
+import { weatheredStone } from './weathered-stone'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '@titans/shared'
 import { LAYER, type TerrainTextures } from './terrain-material'
@@ -366,12 +367,14 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     const parts: THREE.BufferGeometry[] = []
     const rand = mulberry32(seed + 31)
     const S = H / 300
-    parts.push(new THREE.BoxGeometry(46 * S, 4 * S, 34 * S, 4, 1, 3).translate(top.x, top.y + 1.5 * S, top.z))
+    // (Weathered — QA cycle 7: hard boxes on a worn stone giant; the slab's top stays flat, the
+    // column stumps stand on it.)
+    parts.push(weatheredStone(46 * S, 4 * S, 34 * S, rand, false, 0, true).translate(top.x, top.y + 1.5 * S, top.z))
     for (const [cx, cz] of [[-17, -12], [17, -12], [-17, 12], [17, 12], [0, -14]]) {
       const h = (5 + rand() * 13) * S
       const g = new THREE.CylinderGeometry(2.6 * S, 3 * S, h, 14, 2).translate(top.x + cx * S, top.y + 3.5 * S + h / 2, top.z + cz * S)
       parts.push(g.toNonIndexed())
-      if (rand() < 0.5) parts.push(new THREE.BoxGeometry(7 * S, 2.4 * S, 5 * S).rotateY(rand() * 3).translate(top.x + (cx + (rand() - 0.5) * 12) * S, top.y + 4.7 * S, top.z + (cz + (rand() - 0.5) * 8) * S))
+      if (rand() < 0.5) parts.push(weatheredStone(7 * S, 2.4 * S, 5 * S, rand, true, 0.1).rotateY(rand() * 3).translate(top.x + (cx + (rand() - 0.5) * 12) * S, top.y + 4.7 * S, top.z + (cz + (rand() - 0.5) * 8) * S))
     }
     const shrine = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))!
     shrine.deleteAttribute('uv')
