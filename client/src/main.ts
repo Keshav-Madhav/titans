@@ -1552,7 +1552,10 @@ const cliff = new CliffClimb()
 const strideBox: Box = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }
 /** Lakes a footfall reached, waiting to be re-solved — one a frame (onGait). */
 const lakeQueue = new Map<number, Box>()
+/** Each change this stride made (the union above also covers the ground between them). */
+const strideBoxes: Box[] = []
 function grow(b: Box): void {
+  strideBoxes.push({ ...b })
   strideBox.x0 = Math.min(strideBox.x0, b.x0)
   strideBox.z0 = Math.min(strideBox.z0, b.z0)
   strideBox.x1 = Math.max(strideBox.x1, b.x1)
@@ -1565,6 +1568,15 @@ function grow(b: Box): void {
   else vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
   if (!replaying) stepCost.trample = Math.max(stepCost.trample, performance.now() - tt)
   grass.markDirty(b.x0, b.z0, b.x1, b.z1)
+}
+/** Does the box `c` (grown a little) hold any cell of the basin's bed? */
+function bedUnder(b: { x0: number; z0: number; w: number; h: number; mask: Uint8Array }, c: Box): boolean {
+  const x0 = Math.max(b.x0, Math.floor(c.x0) - 2)
+  const z0 = Math.max(b.z0, Math.floor(c.z0) - 2)
+  const x1 = Math.min(b.x0 + b.w - 1, Math.ceil(c.x1) + 2)
+  const z1 = Math.min(b.z0 + b.h - 1, Math.ceil(c.z1) + 2)
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (b.mask[(z - b.z0) * b.w + (x - b.x0)]) return true
+  return false
 }
 /** True while applying events that are not happening now (loading, ancient trails). */
 let replaying = false
@@ -1618,6 +1630,9 @@ function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): vo
       const b = l.basin
       if (b.x0 > strideBox.x1 || b.x0 + b.w < strideBox.x0 || b.z0 > strideBox.z1 || b.z0 + b.h < strideBox.z0) continue
       if (!(b.x0 > footBox.x1 || b.x0 + b.w < footBox.x0 || b.z0 > footBox.z1 || b.z0 + b.h < footBox.z0)) continue
+      // Only if some change this stride lies on its bed (a lake whose box the stride's box crossed,
+      // its bed untouched, was re-solved for nothing: 27 ms for a big one).
+      if (!strideBoxes.some((c) => bedUnder(b, c))) continue
       lakeQueue.set(l.id, { x0: b.x0, z0: b.z0, x1: b.x0 + b.w, z1: b.z0 + b.h })
     }
   }
@@ -1629,6 +1644,7 @@ function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): vo
     if (t2 - t1 >= stepCost.lakes) stepCost.worstDeform = { ...lakes.lastDeform }
   }
   strideBox.x0 = strideBox.z0 = Infinity
+  strideBoxes.length = 0
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
   sound.footfall(Math.hypot(camera.position.x - ev.x, camera.position.y - terrain.heightAt(ev.x, ev.z), camera.position.z - ev.z), !!ev.stomp)
