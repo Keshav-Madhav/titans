@@ -18,6 +18,12 @@ time (render + 1-px readback, interleaved) [2fe1a57]. A Green frame: ~12 ms head
   worn round, broken, carved at true scale [3d9e97d, e870f1f, 36b902f].
 - **The wanderer**: the cloak's weave catches the light [578ac22]; the cape drawn as a smooth
   surface through its particles [7dda198].
+- **Close up, where you climb**: terrain cliffs crisp rock, not a smear (Q55) [f209046]; tree bark
+  in relief [1c08a64, 2e1860d]; the giants' plates weathered stone, not a brick wall [9605b88], and
+  the shrine on their backs worn round [2a40862]. Tried and dropped: the cliff grain on formations
+  (their textures were already sharp; recorded in PERF.md).
+- **A giant's climber can no longer be carried underground** (Q56, intermittent; found by the
+  adversary gate) [5d4a467].
 - **Fixed on the way, by the sweep**: the mesa's bow targets placed where a player can shoot them
   [4794e4e]; a NaN at a weathered block's face centre [36b902f].
 
