@@ -7,6 +7,7 @@
 // so nothing pops.
 
 import * as THREE from 'three'
+import { TRAIL_GLSL, trailU } from './trail'
 import { cullSwitch } from './vegetation'
 import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import type { Biome } from './biome'
@@ -194,9 +195,9 @@ export class Grass {
     const mat = new THREE.MeshStandardMaterial({ map: bladesTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95 })
     mat.alphaToCoverage = true
     const hook = (blades: boolean) => (sh: THREE.WebGLProgramParametersWithUniforms) => {
-      Object.assign(sh.uniforms, this.uniforms)
+      Object.assign(sh.uniforms, this.uniforms, trailU)
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime, uGust, uRadius, uBladeR;\nuniform vec3 uPlayer;\nuniform vec2 uWind;\nvarying float vTip;')
+        .replace('#include <common>', '#include <common>\nuniform float uTime, uGust, uRadius, uBladeR;\nuniform vec3 uPlayer;\nuniform vec2 uWind;\nvarying float vTip;\n' + TRAIL_GLSL)
         .replace(
           '#include <project_vertex>',
           `vec3 root = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -220,12 +221,23 @@ export class Grass {
           float push = (1.0 - smoothstep(0.3, 1.5, pd)) * tip;
           wp.xz += normalize(away + 1e-4) * push * 0.45;
           wp.y -= push * 0.3;
+          // Your trail (trail.ts): pressed flat where you walked (springing back), shorter and
+          // thinner on a path worn in by walking it often.
+          vec2 trl = trailAt(root.xz);
+          bool trailHide = false;
+          if (trl.x + trl.y > 0.004) {
+            float hgt = wp.y - root.y;
+            float pr = trl.x * 0.85;
+            wp.xz += wd * tip * tip * pr * 0.35 + normalize(away + 1e-4) * tip * pr * 0.2;
+            wp.y = root.y + hgt * mix(1.0, 0.22, pr) * mix(1.0, 0.45, trl.y);
+            trailHide = fract(sin(dot(root.xz, vec2(41.3, 17.9))) * 7531.1) < trl.y * 0.7;
+          }
           // Sinking into the ground at the edge of its range.
           float edge = 1.0 - smoothstep(uRadius - 30.0, uRadius, distance(root.xz, cameraPosition.xz));
           wp.y = mix(root.y - 0.02, wp.y, edge);
           vec4 mvPosition = viewMatrix * wp;
           gl_Position = projectionMatrix * mvPosition;
-          if (bladeHide) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`,
+          if (bladeHide || trailHide) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`,
         )
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying float vTip;')

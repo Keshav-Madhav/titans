@@ -12,6 +12,7 @@
 //   only drawn out to the vegetation's middle range).
 
 import * as THREE from 'three'
+import { TRAIL_GLSL, trailU } from './trail'
 import { SHORE } from '@titans/shared'
 
 /**
@@ -114,6 +115,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
     shader.uniforms.tLayerNormal = { value: tex.normal }
     shader.uniforms.tDetail = { value: detail }
     shader.uniforms.uTerrainExp = terrainExp.u
+    Object.assign(shader.uniforms, trailU)
     shader.uniforms.groundShade = groundShade
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -157,6 +159,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // 4 no normal maps, 8 fetch even the layers that cannot show (to measure the cut), 16 no close-up
         // grain on cliffs.
         uniform int uTerrainExp;
+        ${TRAIL_GLSL}
         vec3 unpackN(vec4 t) {
           vec2 xy = t.rg * 2.0 - 1.0;
           xy.y = -xy.y;
@@ -367,6 +370,13 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gd3 = texture2D(tDetail, gP.xz * 0.0047).r;
         gAlb *= (0.84 + 0.32 * gd2) * (0.86 + 0.28 * gd3);
 
+        // Your trail (trail.ts): a path worn in where you often walk — trodden earth through the
+        // grass, paler and warmer; not on rock.
+        {
+          float tw = trailAt(gP.xz).y * (1.0 - gRockW);
+          // (Toward trodden earth itself, mottled: a tint of the grass read as nothing at all.)
+          if (tw > 0.004) gAlb = mix(gAlb, vec3(0.30, 0.25, 0.17) * (0.8 + 0.4 * texture2D(tDetail, gP.xz * 0.6).r), smoothstep(0.05, 0.85, tw) * 0.75);
+        }
         // The Old Wood from afar: a mottled canopy where the trees stop being drawn.
         // Cliffs differ by land: mossy and dark in the Old Wood, pale grey elsewhere (red in the dunes).
         gAlb = mix(gAlb, gAlb * vec3(0.66, 0.78, 0.62), gRockW * max(vColor.r, 0.0) * (1.0 - vColor.b));

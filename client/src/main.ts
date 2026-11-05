@@ -70,6 +70,7 @@ import { Journal } from './journal'
 import { Bag, loadIcons } from './bag'
 import { Camp, CAMP, CAMP_BARE } from './camp'
 import { Waystones } from './waystones'
+import { Trail } from './trail'
 import { soft, softScene, softSwitch } from './soft'
 import { aoSwitch } from './ao'
 import { Prints } from './prints'
@@ -1060,6 +1061,9 @@ bag.onToggle = (open) => {
 }
 bag.onNoBag = () => narration.say('You have nothing to carry things in. Not yet.')
 const camp = new Camp(terrain)
+
+// Your trail: pressed grass that springs back, a path worn in where you walk often (trail.ts).
+const trail = new Trail()
 
 // Waystones: the lit cairns, and the first camp (waystones.ts).
 const travel = new Waystones()
@@ -2184,6 +2188,7 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
 }
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
+  if (surf === 'grass' || surf === 'mud' || surf === 'sand') trail.step(wanderer.pos.x, wanderer.pos.z, pace)
   const snowy = highSector(wanderer.pos.x, wanderer.pos.z) > 0.5 && wanderer.pos.y > HIGH.top - 60
   sound.step(snowy && surf === 'sand' ? 'snow' : surf, pace)
   // Wading: each footfall rings the water.
@@ -2597,6 +2602,7 @@ function frameBody(now: number): void {
   sky.tick(dt)
   sky.advance(dt)
   setFogSun(sky.sunDir)
+  trail.update(dt, wanderer.pos)
   // Fine giant meshes for giants you have come near, a little each frame (titan.ts).
   nearLods()
   weather.part = awakening.reveal
@@ -3141,6 +3147,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  trail,
   travel,
   noticeNear,
   foliageMipLift,
