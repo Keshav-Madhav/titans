@@ -63,6 +63,7 @@ import { Striders } from './striders'
 import { Watchers } from './watchers'
 import { Mist } from './mist'
 import { Motes } from './motes'
+import { Seeds } from './seeds'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -1071,6 +1072,10 @@ const camp = new Camp(terrain)
 
 // Your trail: pressed grass that springs back, a path worn in where you walk often (trail.ts).
 const trail = new Trail()
+// Seed rivers on the Green's wind (user's pick #5): glide into one and it lifts you.
+const seeds = new Seeds(WORLD_SEED, (x, z) => terrain.heightAt(x, z), (x, z) => biome.open(x, z))
+scene.add(seeds.points)
+let seedSaid = false
 
 // Waystones: the lit cairns, and the first camp (waystones.ts).
 const travel = new Waystones()
@@ -2301,6 +2306,7 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
 // Ice slides: the High Ice's snow (as the footsteps tell snow from sand).
 wanderer.isSnow = (x, z) => highSector(x, z) > 0.5 && terrain.heightAt(x, z) > HIGH.top - 60
 let sledSaid = false
+wanderer.seedLift = (p, dir) => (seeds.lastK = seeds.liftAt(p, dir))
 wanderer.onStep = (pace) => {
   const surf = surfaceAt(wanderer.pos)
   if (surf === 'grass' || surf === 'mud' || surf === 'sand') trail.step(wanderer.pos.x, wanderer.pos.z, pace)
@@ -2754,6 +2760,11 @@ function frameBody(now: number): void {
   sky.advance(dt)
   setFogSun(sky.sunDir)
   trail.update(dt, wanderer.pos)
+  if (!wanderer.gliding) seeds.lastK = 0
+  if (seeds.lastK > 0.5 && !seedSaid) {
+    seedSaid = true
+    narration.say('The seeds’ air fills the cloak and lifts you. Go with it.')
+  }
   // Fine giant meshes for giants you have come near, a little each frame (titan.ts).
   nearLods()
   weather.part = awakening.reveal
@@ -2790,9 +2801,11 @@ function frameBody(now: number): void {
       night: sky.night,
       indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
     })
+    // (Seeds fly on dry days; rain beats them down.)
+    seeds.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, 1 - weather.now.rain)
   }
-  // (At a long drop the wind rises: vertigo is heard as much as seen.)
-  sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo), awe())
+  // (At a long drop the wind rises: vertigo is heard as much as seen; and in a seed river's air.)
+  sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * seeds.lastK), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); sysCost.veg = Math.max(sysCost.veg, performance.now() - _t) }
   skirts?.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); sysCost.grass = Math.max(sysCost.grass, performance.now() - _t) }
@@ -3282,6 +3295,7 @@ const g = {
   watchers,
   mist,
   motes,
+  seeds,
   /** The first-steps progress (tools). */
   tipState,
   grapple,

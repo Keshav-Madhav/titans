@@ -49,6 +49,7 @@ export const MAX_SLOPE = 1.2
 export const SCRAMBLE_SLOPE = 1.85
 const SLIDE = 14
 
+const _seedDir = new THREE.Vector2()
 const _up = new THREE.Vector3(0, 1, 0)
 const _side = new THREE.Vector3(1, 0, 0)
 const _tq = new THREE.Quaternion()
@@ -779,6 +780,8 @@ export class Wanderer {
   bank = 0
   /** Rising air under you this step (m/s): for the tools and the HUD. */
   updraft = 0
+  /** A seed river's lift at a point (0 … 1), and its way there into `dir` (set by the game). */
+  seedLift: (p: THREE.Vector3, dir: THREE.Vector2) => number = () => 0
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
@@ -1285,6 +1288,15 @@ export class Wanderer {
       const rise = (terrain.heightAt(ax, az) - below) / 40
       const agl = this.pos.y - below
       this.updraft = rise > 0.25 && agl < 160 ? Math.min(7, (rise - 0.25) * 16) * (1 - agl / 160) : 0
+      // A river of seeds on the wind (user's pick #5): its air lifts you, and carries you its way.
+      const seed = this.seedLift(this.pos, _seedDir)
+      if (seed > 0) {
+        this.updraft = Math.max(this.updraft, 8.5 * seed)
+        // The heading eases round to the river's way (it is a current: you go with it or leave it).
+        let dh = Math.atan2(_seedDir.x, _seedDir.y) - this.heading
+        dh = Math.atan2(Math.sin(dh), Math.cos(dh))
+        this.heading += dh * Math.min(1, 0.5 * seed * dt)
+      }
       this.vel.y += this.updraft
       this.yaw = this.heading
     } else this.updraft = 0
