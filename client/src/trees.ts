@@ -373,11 +373,16 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
       if (vMapUv.x < ${BARK_U.toFixed(4)}) {
         float ba = vMapUv.x / ${BARK_U.toFixed(4)};
         float bh = vMapUv.y;
-        float wob = sin(bh * 41.0 + ba * 9.0) * 0.35 + sin(bh * 113.0) * 0.12;
-        float ridge = abs(sin((ba * 9.0 + wob) * 3.14159));
-        float furrow = smoothstep(0.0, 0.55, ridge);
-        float crack = step(0.93, fract(sin(floor(bh * 70.0) * 12.9898 + floor(ba * 9.0) * 78.233) * 43758.5)) * (1.0 - smoothstep(0.0, 0.25, ridge));
-        diffuseColor.rgb *= (0.42 + 0.68 * furrow) * (1.0 - 0.35 * crack) * (0.9 + 0.2 * fract(sin(floor(bh * 23.0) * 7.31) * 913.7));
+        // (Denser, finer, broken — QA cycle 7: up close nine furrows round a trunk read as a few
+        // wavy lines painted on a smooth post.)
+        float wob = sin(bh * 41.0 + ba * 17.0) * 0.35 + sin(bh * 113.0 + ba * 5.0) * 0.14 + sin(bh * 271.0) * 0.05;
+        float ridge = abs(sin((ba * 17.0 + wob) * 3.14159));
+        float furrow = smoothstep(0.0, 0.5, ridge);
+        // Fine ridges between the furrows, and short broken plates across them.
+        float fine = abs(sin((ba * 53.0 + wob * 2.3 + sin(bh * 190.0) * 0.2) * 3.14159));
+        float plate = fract(sin(floor(bh * 140.0 + ba * 9.0) * 12.9898 + floor(ba * 17.0 + wob) * 78.233) * 43758.5);
+        float crack = step(0.86, plate) * (1.0 - smoothstep(0.0, 0.3, ridge));
+        diffuseColor.rgb *= (0.36 + 0.74 * furrow) * (0.86 + 0.14 * smoothstep(0.1, 0.8, fine)) * (1.0 - 0.4 * crack) * (0.88 + 0.24 * plate * smoothstep(0.4, 0.9, ridge));
       }`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
