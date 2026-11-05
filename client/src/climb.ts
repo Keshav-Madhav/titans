@@ -55,7 +55,7 @@ function onLump(L: LumpSurface, q: THREE.Vector3, out: THREE.Vector3): number {
 
 /** Outward normal (part-local) of lump L at surface point p — the block's (superellipsoid's), ignoring weathering. */
 export function lumpNormal(L: LumpSurface, p: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
-  const P = BLOCK_P
+  const P = L.p ?? BLOCK_P
   const ux = (p.x - L.c.x) / L.r.x
   const uy = (p.y - L.c.y) / L.r.y
   const uz = (p.z - L.c.z) / L.r.z

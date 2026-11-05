@@ -78,6 +78,37 @@ function surface(L: LumpSurface, d: THREE.Vector3, out: THREE.Vector3): THREE.Ve
   return out.set(L.c.x + L.r.x * d.x * k, L.c.y + L.r.y * d.y * k, L.c.z + L.r.z * d.z * k)
 }
 
+/** A cut block's surface (no weathering): a superellipsoid of exponent p. */
+function boxBulge(p: number): (x: number, y: number, z: number) => number {
+  return (x, y, z) => 1 / Math.pow(Math.abs(x) ** p + Math.abs(y) ** p + Math.abs(z) ** p, 1 / p)
+}
+
+/**
+ * Raise lump L's surface where plate `spec` lies on it, by the plate's thickness (as plate() raises its
+ * mesh): within its rounded rectangle of directions, eased up over its rim.
+ */
+function raiseLump(L: LumpSurface, spec: PlateSpec, H: number, mirror: number): void {
+  const d0 = new THREE.Vector3(spec.dir[0] * (spec.side ? mirror : 1), spec.dir[1], spec.dir[2]).normalize()
+  const t1 = new THREE.Vector3()
+  const t2 = new THREE.Vector3()
+  frame(d0, t1, t2)
+  const thick = (spec.t ?? 0.009) * H
+  const base = L.bulge
+  L.bulge = (x, y, z) => {
+    const k = base(x, y, z)
+    const sd = x * d0.x + y * d0.y + z * d0.z
+    if (sd <= 0.05) return k
+    const v = (x * t1.x + y * t1.y + z * t1.z) / (sd * spec.b)
+    const u = (x * t2.x + y * t2.y + z * t2.z) / (sd * spec.a)
+    const e = Math.pow(Math.abs(u) ** 6 + Math.abs(v) ** 6, 1 / 6)
+    if (e >= 1) return k
+    const h = Math.min(1, (1 - e) / 0.12)
+    // Out by `thick` along the radial (the surface's own normal, near enough): in units of k.
+    const rl = Math.hypot(L.r.x * x, L.r.y * y, L.r.z * z)
+    return k + (h * thick) / Math.max(1e-3, rl)
+  }
+}
+
 /** A tangent frame round unit vector n. */
 function frame(n: THREE.Vector3, t1: THREE.Vector3, t2: THREE.Vector3): void {
   t1.set(0, 1, 0)
@@ -400,15 +431,28 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     const parts: THREE.BufferGeometry[] = []
     const rand = mulberry32(seed + 31)
     const S = H / 300
+    const stumps: Array<{ c: THREE.Vector3; r: THREE.Vector3 }> = []
     // (Weathered — QA cycle 7: hard boxes on a worn stone giant; the slab's top stays flat, the
     // column stumps stand on it.)
     parts.push(weatheredStone(46 * S, 4 * S, 34 * S, rand, false, 0, true).translate(top.x, top.y + 1.5 * S, top.z))
     for (const [cx, cz] of [[-17, -12], [17, -12], [-17, 12], [17, 12], [0, -14]]) {
       const h = (5 + rand() * 13) * S
       const g = new THREE.CylinderGeometry(2.6 * S, 3 * S, h, 14, 2).translate(top.x + cx * S, top.y + 3.5 * S + h / 2, top.z + cz * S)
+      stumps.push({ c: new THREE.Vector3(top.x + cx * S, top.y + 3.5 * S + h / 2, top.z + cz * S), r: new THREE.Vector3(2.9 * S, h / 2, 2.9 * S) })
       parts.push(g.toNonIndexed())
-      if (rand() < 0.5) parts.push(weatheredStone(7 * S, 2.4 * S, 5 * S, rand, true, 0.1).rotateY(rand() * 3).translate(top.x + (cx + (rand() - 0.5) * 12) * S, top.y + 4.7 * S, top.z + (cz + (rand() - 0.5) * 8) * S))
+      if (rand() < 0.5) {
+        const ry = rand() * 3
+        const bx = top.x + (cx + (rand() - 0.5) * 12) * S
+        const bz = top.z + (cz + (rand() - 0.5) * 8) * S
+        parts.push(weatheredStone(7 * S, 2.4 * S, 5 * S, rand, true, 0.1).rotateY(ry).translate(bx, top.y + 4.7 * S, bz))
+        // (A fallen block: solid as well — round enough on its own axes, the box's larger half-size.)
+        stumps.push({ c: new THREE.Vector3(bx, top.y + 4.7 * S, bz), r: new THREE.Vector3(3.3 * S, 1.2 * S, 3.3 * S) })
+      }
     }
+    // Solid too (user, 2026-11-05: "this stone thing on giants is not collideable"): the slab and each
+    // stump become blocks of the torso — climbed onto, stood on, kept out of — squarer than the body's.
+    lumps.push({ c: new THREE.Vector3(top.x, top.y + 1.5 * S, top.z), r: new THREE.Vector3(23 * S, 2 * S, 17 * S), bulge: boxBulge(8), p: 8 })
+    for (const st of stumps) lumps.push({ c: st.c, r: st.r, bulge: boxBulge(5), p: 5 })
     const shrine = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))!
     shrine.deleteAttribute('uv')
     shrine.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(shrine.getAttribute('position').count * 3).fill(0.9), 3))
@@ -479,5 +523,9 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     cm.castShadow = true
     group.add(cm)
   }
+  // The plates are solid (user, 2026-11-05: "the armor rocks… no collisions"): the surface you climb,
+  // stand on and are kept out of — the lump's — is raised by each plate where it lies, as its mesh is.
+  // (Last: everything above is placed on the surface as it was.)
+  specs.filter((s) => lumps[s.lump]).forEach((s) => raiseLump(lumps[s.lump], s, H, mirror))
   return group
 }

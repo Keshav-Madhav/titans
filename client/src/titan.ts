@@ -250,6 +250,8 @@ export interface LumpSurface {
   c: THREE.Vector3
   r: THREE.Vector3
   bulge: Bulge
+  /** Its superellipsoid exponent, if not the body's (a built thing on it: squarer). */
+  p?: number
 }
 
 export interface TitanPart {
@@ -340,9 +342,12 @@ function segment(name: string, H: number, seed: number, mossiness: number): { lo
     return geometry
   })
   // The fine near level, built later and a lump at a time (nearLods): sets lods[0] when done.
+  // (Only the body's own lumps: armour.ts adds the shrine's blocks to the torso's afterwards, for
+  // climbing — they have their own mesh.)
+  const bodyLumps = lumps.length
   function* near(): Generator<void, void, void> {
     const parts: THREE.BufferGeometry[] = []
-    for (let i = 0; i < lumps.length; i++) {
+    for (let i = 0; i < bodyLumps; i++) {
       const L = lumps[i]
       parts.push(boulder(L.r.x, L.r.y, L.r.z, seed + i * 31, NEAR_DETAIL, mossiness).translate(L.c.x, L.c.y, L.c.z))
       yield
