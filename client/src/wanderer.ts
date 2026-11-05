@@ -822,9 +822,11 @@ export class Wanderer {
   /** Where the old chest and pelvis would be on the rigged body (what hung from them hangs here). */
   private readonly chestAnchor = new THREE.Group()
   private readonly pelvisAnchor = new THREE.Group()
-  private readonly anchorOff = { chest: new THREE.Matrix4(), pelvis: new THREE.Matrix4(), neck: new THREE.Matrix4() }
+  private readonly anchorOff: { chest: THREE.Matrix4; pelvis: THREE.Matrix4; neck: THREE.Matrix4; face?: THREE.Matrix4 } = { chest: new THREE.Matrix4(), pelvis: new THREE.Matrix4(), neck: new THREE.Matrix4() }
   /** The shoulder mantle's place on the rigged body (the neck's base, turning with the upper spine). */
   private readonly neckAnchor = new THREE.Group()
+  /** The hollow of the face's place (in the head, in the body's frame: forward is +z). */
+  private readonly faceAnchor = new THREE.Group()
   /** The wing-cloak spread behind the shoulders (only while gliding). */
   private readonly wing: THREE.Mesh
   private readonly head = new THREE.Group()
@@ -1464,6 +1466,10 @@ export class Wanderer {
   setAvatar(av: Avatar): void {
     this.avatar = av
     this.obj.add(av.root)
+    // (Rests taken standing — the idle clip's first pose — not in the rig's bind pose, a T with the
+    // spine tilted half a radian from standing: everything anchored to it came out tipped.)
+    av.update(1 / 60, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0 })
+    av.update(1, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0 })
     // (The whole body's matrices from the top: the bones' worlds were worked out from a stale
     // wanderer transform — its yaw at load — and every anchor came out turned round, the cape
     // hanging down the chest.)
@@ -1503,9 +1509,22 @@ export class Wanderer {
       this.anchorOff.neck.copy(spRest.invert()).multiply(neckObj)
       this.neckAnchor.matrixAutoUpdate = false
       this.obj.add(this.neckAnchor)
-      const mantle = new THREE.Mesh(mantleGeometry().scale(0.95, 1.05, 1.05), this.redCloth)
+      // (Sized to this body: its shoulders are 0.34 m apart — the old mantle, 0.88 m across, was a bell.)
+      const mantle = new THREE.Mesh(mantleGeometry().scale(0.66, 0.72, 0.78), this.redCloth)
       mantle.castShadow = true
       this.neckAnchor.add(mantle)
+      // The face's hollow: in the hood's opening, a little in front of the head bone, its bowl open forward.
+      if (av.faceMesh) {
+        const headB = av.bone('Head')!
+        const hp = headB.getWorldPosition(new THREE.Vector3()).applyMatrix4(objInv)
+        const headRest = objInv.clone().multiply(headB.matrixWorld)
+        this.anchorOff.face = headRest.invert().multiply(new THREE.Matrix4().makeTranslation(hp.x, hp.y + 0.07, hp.z + 0.11))
+        this.faceAnchor.matrixAutoUpdate = false
+        this.obj.add(this.faceAnchor)
+        av.faceMesh.removeFromParent()
+        av.faceMesh.scale.set(1.0, 1.25, 1.1)
+        this.faceAnchor.add(av.faceMesh)
+      }
       this.scarfSpine.length = 0
       for (const sx of [-0.05, 0.05]) this.scarfSpine.push(new THREE.Vector3(sx, neck.y - 0.02, neck.z + 0.06).applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
     }
@@ -1801,6 +1820,7 @@ export class Wanderer {
     set(this.chestAnchor, 'spine_03', this.anchorOff.chest)
     set(this.pelvisAnchor, 'pelvis', this.anchorOff.pelvis)
     set(this.neckAnchor, 'spine_03', this.anchorOff.neck)
+    if (this.anchorOff.face) set(this.faceAnchor, 'Head', this.anchorOff.face)
     // The hands: at the rig's hand, turned as the old hand is.
     for (let i = 0; i < 2; i++) {
       const hb = av.bone(i === 0 ? 'hand_r' : 'hand_l')!

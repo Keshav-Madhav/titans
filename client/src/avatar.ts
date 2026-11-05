@@ -51,6 +51,8 @@ export class Avatar {
   private readonly modeW = { climb: 0, glide: 0, slide: 0, hang: 0 }
   /** The hood's red (the wanderer's cloak material, shared). */
   readonly meshes: THREE.SkinnedMesh[] = []
+  /** The hollow in the hood (placed by the wanderer, in its own frame). */
+  faceMesh: THREE.Mesh | null = null
 
   private constructor(scene: THREE.Group, clips: THREE.AnimationClip[], red: THREE.Material) {
     this.root.add(scene)
@@ -79,11 +81,22 @@ export class Avatar {
     // Where a face would be: a dark hollow, deep in the hood.
     const head = this.bones.get('Head')
     if (head) {
-      const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), new THREE.MeshStandardMaterial({ color: 0x0b0908, roughness: 1 }))
-      // (Bone space is the rig's, at its own scale: undo ours.)
-      face.scale.setScalar(1 / AVATAR_SCALE)
-      face.position.set(0, 0.1 / AVATAR_SCALE, 0.02 / AVATAR_SCALE)
+      // A hollow, not a ball: the inside of a bowl facing out of the hood, black at its depth and a
+      // shade lighter toward its rim (where the hood's lining would catch a little light). A flat
+      // black sphere read as a black ball stuck in the hood.
+      const g = new THREE.SphereGeometry(0.1, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55)
+      g.rotateX(-Math.PI / 2) // (a sphere's top cap, turned so its open side faces +z, out of the hood)
+      const pos = g.getAttribute('position')
+      const col = new Float32Array(pos.count * 3)
+      for (let i = 0; i < pos.count; i++) {
+        const depth = THREE.MathUtils.clamp(-pos.getZ(i) / 0.1, 0, 1) // 0 at the rim … 1 deepest
+        const c = 0.05 + 0.13 * (1 - depth) ** 2
+        col.set([c * 1.1, c * 0.82, c * 0.7], i * 3)
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+      const face = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: true }))
       head.add(face)
+      this.faceMesh = face
     }
     this.mixer = new THREE.AnimationMixer(scene)
     for (const c of clips) {
