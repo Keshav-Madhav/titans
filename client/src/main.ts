@@ -100,7 +100,7 @@ import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation, cullSwitch } from './vegetation'
-import { foliageFocus } from './trees'
+import { foliageFocus, foliageMipLift } from './trees'
 import { Grass, grassQuality } from './grass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
@@ -2983,6 +2983,7 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  foliageMipLift,
   rockTools,
   fogSun,
   fogSunHold,

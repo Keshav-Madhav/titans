@@ -342,13 +342,17 @@ export const foliageFocus = { value: new THREE.Vector3() }
  * soft under multisampling), both faces lit alike (the cards' crown normals
  * are not flipped on their backs), whole trees swaying and leaves fluttering.
  */
+/** Tools: alpha lift per mip level for foliage cut-outs (0 = off, to compare). */
+export const foliageMipLift = { value: 0.3 }
+
 export function foliageMaterial(map: THREE.Texture, time: { value: number }, sway: number): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.85, alphaTest: 0.42, side: THREE.DoubleSide })
   mat.alphaToCoverage = true
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = time
     sh.uniforms.uFocus = foliageFocus
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;')
+    sh.uniforms.uMipLift = foliageMipLift
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;\nuniform float uMipLift;')
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
@@ -413,7 +417,16 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
       )
       .replace(
         '#include <alphatest_fragment>',
-        `#include <alphatest_fragment>
+        `// Far off the mipmaps average thin needles and leaf edges into faint alpha, the cut takes most
+        // of it, and a fir became a bare dark skeleton (QA cycle 7, the Green's edge): lift alpha
+        // by how far down the mip chain this pixel reads (alpha-test mip compensation).
+        {
+          vec2 tdx = dFdx(vMapUv) * ${SIZE}.0;
+          vec2 tdy = dFdy(vMapUv) * ${SIZE}.0;
+          float tlod = max(0.0, 0.5 * log2(max(dot(tdx, tdx), dot(tdy, tdy))));
+          diffuseColor.a *= 1.0 + tlod * uMipLift;
+        }
+        #include <alphatest_fragment>
         float nearCam = length(vViewPosition);
         // An ordered 4×4 (Bayer) threshold: an even screen-door, not white noise (which read as
         // crawling grey static across a fir branch passing close to the camera).
