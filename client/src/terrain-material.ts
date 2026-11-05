@@ -154,7 +154,8 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // uploaded top row first, so the image's "up" is -v).
         #define T_NRM_R 650.0
         // Experiments (tools): bit 1 only the two strongest layers, 2 no anti-tiling second sample,
-        // 4 no normal maps, 8 fetch even the layers that cannot show (to measure the cut).
+        // 4 no normal maps, 8 fetch even the layers that cannot show (to measure the cut), 16 no close-up
+        // grain on cliffs.
         uniform int uTerrainExp;
         vec3 unpackN(vec4 t) {
           vec2 xy = t.rg * 2.0 - 1.0;
@@ -239,6 +240,29 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
             } else nz = n2;
           }
           col = base ? mix(c1, c2, k2) : c2;
+          // Close up, a fine grain on the main face (QA cycle 7: a red cliff's 24 m tile is ~43 texels
+          // a metre, and a climber's camera 8 m off it shows ~150 pixels a metre — the rock round you
+          // was a soft smear). The same layer 8× smaller, only its fine detail (minus a blurred copy
+          // of itself, so the colour does not shift), and its relief; fading out by 45 m.
+          if (dist < 45.0 && (uTerrainExp & 16) == 0) {
+            float fk = 1.0 - smoothstep(18.0, 45.0, dist);
+            float sF = s * 8.0;
+            vec2 uf; vec2 gx; vec2 gy;
+            if (w.x >= w.y && w.x >= w.z) { uf = p.zy * sF; gx = dpx.zy * sF; gy = dpy.zy * sF; }
+            else if (w.y >= w.z) { uf = p.xz * sF; gx = dpx.xz * sF; gy = dpy.xz * sF; }
+            else { uf = p.xy * sF; gx = dpx.xy * sF; gy = dpy.xy * sF; }
+            uf += 0.53;
+            vec3 fc = textureGrad(tLayerColor, vec3(uf, L), gx, gy).rgb;
+            vec3 fb = textureGrad(tLayerColor, vec3(uf, L), gx * 8.0, gy * 8.0).rgb;
+            col = max(col + (fc - fb) * fk * 0.9, vec3(0.0));
+            if (wantN) {
+              vec4 fn = textureGrad(tLayerNormal, vec3(uf, L), gx, gy);
+              float nk = fk * 0.55;
+              if (w.x >= w.y && w.x >= w.z) nx = mix(nx, fn, nk);
+              else if (w.y >= w.z) ny = mix(ny, fn, nk);
+              else nz = mix(nz, fn, nk);
+            }
+          }
           vec3 tx = unpackN(nx);
           vec3 ty = unpackN(ny);
           vec3 tz = unpackN(nz);
