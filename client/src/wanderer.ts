@@ -106,12 +106,21 @@ function hoodShell(radius: number, openingAngle: number): THREE.BufferGeometry {
   const out = new THREE.BufferGeometry()
   const pos = new Float32Array(keep.length * 3)
   const nrm = new Float32Array(keep.length * 3)
+  // (Texture coordinates — QA cycle 7: without them the cloth's weave and folds never reached the
+  // hood, a smooth red egg on a woven cloak.) Round the head, and from the crown down; the weave is
+  // ~4× finer here than on the cape's strip, so it is laid round the hood a few times.
+  const uvs = new Float32Array(keep.length * 2)
   keep.forEach((i, j) => {
     pos.set([p.getX(i), p.getY(i), p.getZ(i)], j * 3)
     nrm.set([n.getX(i), n.getY(i), n.getZ(i)], j * 3)
+    const x = p.getX(i)
+    const y = p.getY(i)
+    const z = p.getZ(i)
+    uvs.set([(Math.atan2(x, -z) / (Math.PI * 2) + 0.5) * 3, 0.95 - (Math.acos(Math.max(-1, Math.min(1, y / radius))) / Math.PI) * 0.75], j * 2)
   })
   out.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   out.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
+  out.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   g.dispose()
   return out
 }
