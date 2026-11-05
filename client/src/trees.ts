@@ -370,6 +370,7 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
     sh.fragmentShader = sh.fragmentShader.replace(
       '#include <map_fragment>',
       `#include <map_fragment>
+      float barkH = -1.0;
       if (vMapUv.x < ${BARK_U.toFixed(4)}) {
         float ba = vMapUv.x / ${BARK_U.toFixed(4)};
         float bh = vMapUv.y;
@@ -383,6 +384,8 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         float plate = fract(sin(floor(bh * 140.0 + ba * 9.0) * 12.9898 + floor(ba * 17.0 + wob) * 78.233) * 43758.5);
         float crack = step(0.86, plate) * (1.0 - smoothstep(0.0, 0.3, ridge));
         diffuseColor.rgb *= (0.36 + 0.74 * furrow) * (0.86 + 0.14 * smoothstep(0.1, 0.8, fine)) * (1.0 - 0.4 * crack) * (0.88 + 0.24 * plate * smoothstep(0.4, 0.9, ridge));
+        // The same pattern as relief (bumped below): ridges stand, furrows and cracks sink.
+        barkH = furrow * 0.7 + smoothstep(0.1, 0.8, fine) * 0.2 - crack * 0.3;
       }`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
@@ -394,7 +397,19 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         `#include <normal_fragment_begin>
       #ifdef DOUBLE_SIDED
         normal *= faceDirection;
-      #endif`,
+      #endif
+      // Bark in relief, bumped from the pattern's screen derivatives (three's perturbNormalArb):
+      // the furrows catch the light and shade (QA cycle 7: colour alone read as painted).
+      if (barkH > -0.5) {
+        vec3 bSx = dFdx(-vViewPosition);
+        vec3 bSy = dFdy(-vViewPosition);
+        vec3 bR1 = cross(bSy, normal);
+        vec3 bR2 = cross(normal, bSx);
+        float bDet = dot(bSx, bR1);
+        vec2 bdH = vec2(dFdx(barkH), dFdy(barkH)) * 0.035;
+        vec3 bGrad = sign(bDet) * (bdH.x * bR1 + bdH.y * bR2);
+        normal = normalize(abs(bDet) * normal - bGrad);
+      }`,
       )
       .replace(
         '#include <alphatest_fragment>',
