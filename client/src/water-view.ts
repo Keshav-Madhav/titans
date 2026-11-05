@@ -149,18 +149,16 @@ export class WaterView {
     for (const lake of lakes) {
       live.add(lake.id)
       let e = this.entries.get(lake.id)
-      if (!e || e.version !== lake.version) {
-        if (e) {
-          this.group.remove(e.mesh)
-          e.mesh.geometry.dispose()
-          disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
-        }
-        const mesh = new THREE.Mesh(surface(lake), this.lakeMaterial(lake, heightAt))
-        mesh.receiveShadow = true
-        mesh.renderOrder = 1
-        this.group.add(mesh)
-        e = { mesh, version: lake.version }
+      if (!e) {
+        // A new lake: built at once (there is nothing to show meanwhile).
+        e = { mesh: this.makeLake(lake, heightAt), version: lake.version }
         this.entries.set(lake.id, e)
+      } else if (e.version !== lake.version && !this.jobs.has(lake.id)) {
+        // A lake changed (a giant's footfall, mostly): the new water is built a few milliseconds a
+        // frame while the old one stays — the user, 2026-11-05: "whenever giants take a step, there
+        // is big frame lag" (a whole lake rebuilt in one frame was 36 ms of a 117 ms hitch). Steps
+        // in quick succession are taken together: the job reads the lake as it is when it starts.
+        this.jobs.set(lake.id, { lake, version: lake.version, data: null, row: 0 })
       }
       e.mesh.position.y = lake.level
       e.mesh.visible = lake.level > lake.basin.bottom + 0.05
@@ -171,7 +169,58 @@ export class WaterView {
       e.mesh.geometry.dispose()
       disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
       this.entries.delete(id)
+      this.jobs.delete(id)
     }
+    this.work(heightAt, live)
+  }
+
+  /** Lakes being rebuilt in the background: the bed's rows filled a few ms a frame, then swapped. */
+  private readonly jobs = new Map<number, { lake: Lake; version: number; data: Uint16Array | null; row: number }>()
+
+  private work(heightAt: (x: number, z: number) => number, live: Set<number>, budgetMs = 2.5): void {
+    const t0 = performance.now()
+    for (const [id, j] of this.jobs) {
+      if (!live.has(id)) {
+        this.jobs.delete(id)
+        continue
+      }
+      const b = j.lake.basin
+      const W = b.w + 2
+      const H = b.h + 2
+      if (!j.data) j.data = new Uint16Array(W * H * 2)
+      while (j.row < H) {
+        const r = j.row++
+        for (let i = 0; i < W; i++) {
+          const k = (r * W + i) * 2
+          j.data[k] = THREE.DataUtils.toHalfFloat(heightAt(b.x0 + i - 1, b.z0 + r - 1) - b.bottom)
+          const bi = i - 1
+          const bj = r - 1
+          j.data[k + 1] = THREE.DataUtils.toHalfFloat(bi >= 0 && bj >= 0 && bi < b.w && bj < b.h && b.mask[bj * b.w + bi] ? 1 : 0)
+        }
+        if (performance.now() - t0 > budgetMs) return
+      }
+      // Done: swap the new water in for the old.
+      const e = this.entries.get(id)
+      if (e) {
+        this.group.remove(e.mesh)
+        e.mesh.geometry.dispose()
+        disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
+        e.mesh = this.makeLake(j.lake, heightAt, j.data)
+        e.version = j.version
+        e.mesh.position.y = j.lake.level
+        e.mesh.visible = j.lake.level > j.lake.basin.bottom + 0.05
+      }
+      this.jobs.delete(id)
+      if (performance.now() - t0 > budgetMs) return
+    }
+  }
+
+  private makeLake(lake: Lake, heightAt: (x: number, z: number) => number, pre?: Uint16Array): THREE.Mesh {
+    const mesh = new THREE.Mesh(surface(lake), this.lakeMaterial(lake, heightAt, pre))
+    mesh.receiveShadow = true
+    mesh.renderOrder = 1
+    this.group.add(mesh)
+    return mesh
   }
 
   /**
@@ -181,7 +230,7 @@ export class WaterView {
    * (the bed showing through), deep blue further out, and a soft broken line of
    * foam where it laps the shore.
    */
-  private lakeMaterial(lake: Lake, heightAt: (x: number, z: number) => number): THREE.MeshStandardMaterial {
+  private lakeMaterial(lake: Lake, heightAt: (x: number, z: number) => number, pre?: Uint16Array): THREE.MeshStandardMaterial {
     const b = lake.basin
     const W = b.w + 2
     const H = b.h + 2
@@ -189,7 +238,8 @@ export class WaterView {
     // (And whether each cell is the lake's at all, in G: the mesh runs a cell past the shore for the
     // ground to cut, but where the land just past the rim dips below the water that border cell stood
     // as a floating blue slab over the grass — QA Q36. The water fades out where G does.)
-    const data = new Uint16Array(W * H * 2)
+    const data = pre ?? new Uint16Array(W * H * 2)
+    if (!pre)
     for (let j = 0; j < H; j++)
       for (let i = 0; i < W; i++) {
         const k = (j * W + i) * 2
@@ -236,12 +286,16 @@ export class WaterView {
           `#include <color_fragment>
           vec2 wBed = texture2D(uBed, (vWaterW.xz - uBedO) / uBedS).rg;
           float wDepth = vWaterW.y - (wBed.r + uBottom);
-          // Outside the lake's own cells (the border the mesh runs over): gone.
-          if (wBed.g < 0.35) discard;
+          // The shore is where the water runs out, not where the lake's 1 m cells end (the user,
+          // 2026-11-05: over a flat bank the water lay on the grass and stopped in a staircase of
+          // cells). Outside the cells it fades over the mask's soft edge; at the waterline it fades
+          // to nothing over the last few centimetres of depth.
+          float wMask = smoothstep(0.15, 0.6, wBed.g);
+          if (wMask < 0.01 || wDepth < -0.02) discard;
           float wDeep = smoothstep(0.15, 4.0, wDepth);
           // Shallows: clear, green over the bed; further out the deep blue.
           diffuseColor.rgb = mix(vec3(0.24, 0.42, 0.36), diffuseColor.rgb, wDeep);
-          diffuseColor.a = mix(0.18, 0.95, smoothstep(0.0, 2.4, wDepth));
+          diffuseColor.a = smoothstep(-0.02, 0.22, wDepth) * mix(0.28, 0.95, smoothstep(0.22, 2.4, wDepth)) * wMask;
           // Foam where it laps the shore: a soft line, broken and moving.
           float wFoamN = wNoise(vWaterW.xz * 0.9 + vec2(uTime * 0.15, uTime * 0.1)) * 0.6 + wNoise(vWaterW.xz * 2.7 - uTime * 0.2) * 0.4;
           // (A thin broken line at the very edge: a still lake hardly foams. Over the last 32 cm at up
@@ -250,7 +304,7 @@ export class WaterView {
           float wFoamFar = 1.0 - smoothstep(60.0, 220.0, distance(vWaterW, cameraPosition));
           float wFoam = (1.0 - smoothstep(0.0, 0.08, wDepth)) * smoothstep(0.5, 0.75, wFoamN + (0.08 - wDepth) * 2.0) * step(-0.05, wDepth) * wFoamFar;
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.88, 0.86), wFoam * 0.55);
-          diffuseColor.a = max(diffuseColor.a, wFoam * 0.5);`,
+          diffuseColor.a = max(diffuseColor.a, wFoam * 0.5 * wMask);`,
         )
         .replace(
           '#include <emissivemap_fragment>',
