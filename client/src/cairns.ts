@@ -139,6 +139,17 @@ export class Cairns {
     }
   }
 
+  /** The lit cairn within `r` of `p`, if any (a waystone). */
+  nearLit(p: THREE.Vector3, r = 3.5): Cairn | null {
+    for (const c of this.cairns) if (c.lit && Math.hypot(c.x - p.x, c.z - p.z) < r && Math.abs(c.y - p.y) < 3) return c
+    return null
+  }
+
+  /** The lit cairns: where you can travel. */
+  litPlaces(): CairnPlace[] {
+    return this.cairns.filter((c) => c.lit).map((c) => ({ name: c.name, x: c.x, y: c.y, z: c.z }))
+  }
+
   /** Names of the lit cairns (the save). */
   save(): string[] {
     return this.cairns.filter((c) => c.lit).map((c) => c.name)

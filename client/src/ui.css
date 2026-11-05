@@ -143,7 +143,7 @@ kbd {
 
 /* ── The bag, the journal, the map ────────────────────────────────── */
 
-#bag, #journal, #map {
+#bag, #journal, #map, #travel {
   position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 6;
   background: radial-gradient(ellipse at center, rgba(14, 12, 10, 0.45), rgba(6, 5, 4, 0.78));
   backdrop-filter: blur(5px) saturate(0.75); -webkit-backdrop-filter: blur(5px) saturate(0.75);
@@ -393,3 +393,23 @@ body:has(#crash) > :not(#crash):not(canvas) { visibility: hidden; }
    (the captions' clocks stop too: narration.ts), out of
    sight — they showed through above the bag ("The grappling line" over its title). */
 body:has(#bag[style*="flex"], #journal[style*="flex"], #map[style*="flex"], #pause[style*="flex"]) :is(#found, #prompt, #narration) { opacity: 0 !important; transition: opacity 0.2s; }
+
+/* Waystones: a small card of the fires you have lit (waystones.ts). */
+#travel { cursor: pointer; }
+#travel-frame {
+  cursor: default; animation: open 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  width: min(420px, calc(100vw - 32px)); padding: 26px 28px 20px; border-radius: 14px; color: #efe3c8;
+  background: linear-gradient(180deg, rgba(40, 31, 24, 0.96), rgba(26, 20, 16, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.1), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+#travel-frame h1 { margin: 0; font: italic 28px/1.1 var(--serif-title); color: #f2dcae; }
+#travel-frame .travel-sub, #travel-frame .travel-none { margin: 6px 0 16px; font: italic 15px/1.4 var(--serif-body, serif); color: rgba(239, 227, 200, 0.7); }
+#travel-list { display: flex; flex-direction: column; gap: 6px; }
+#travel-list button {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px;
+  border: 0; border-radius: 8px; background: rgba(255, 230, 190, 0.06); color: inherit; text-align: left; cursor: pointer;
+  font: 17px/1.2 var(--serif-body, serif);
+}
+#travel-list button:hover { background: rgba(255, 210, 150, 0.16); }
+#travel-list button small { color: rgba(239, 227, 200, 0.55); font-size: 13px; }
+#travel-frame .travel-keys { margin: 14px 0 0; font-size: 13px; color: rgba(239, 227, 200, 0.5); text-align: right; }
