@@ -1749,13 +1749,16 @@ function saveLocal(): void {
   saveDirty = false
 }
 
+let backupNote = false
 /** Back where you left off. False if there was nothing to load. */
 function loadLocal(): boolean {
   const got = loadWorld()
   if (!got) return false
   const d = got.data
   // (The last save would not read: this is the one before it, a few seconds older.)
-  if (got.fromBackup) setTimeout(() => narration.say('The last save was damaged. You wake from the one before it.'), 2500)
+  // (Said once the world is up and in view: said 2.5 s after loading, a slow start had the line come
+  // and go behind the loading screen — the respect gate, 2026-11-05.)
+  if (got.fromBackup) backupNote = true
   for (const e of d.events) {
     localEvents.push(e)
     onGait(unpackEvent(e), true)
@@ -3378,6 +3381,7 @@ function frameBody(now: number): void {
 
   if (!ready && terrainView.settled()) {
     ready = true
+    if (backupNote) setTimeout(() => narration.say('The last save was damaged. You wake from the one before it.'), 2500)
     if (params.get('qa') === 'throw') qaThrowAt = performance.now() + 8000
     // Compile every shader now, behind the title (user: "game hitches" — the first sight of
     // the water, a colossus, the bow, the fireflies at dusk each stalled a frame compiling
