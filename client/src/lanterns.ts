@@ -122,7 +122,8 @@ function lampGeometry(seed: number): { geo: THREE.BufferGeometry; flameY: number
   const add = (g: THREE.BufferGeometry): void => {
     parts.push(g.index ? g.toNonIndexed() : g)
   }
-  add(weatheredStone(0.5, 1.25, 0.5, rand, false, 0.12).translate(0, 0, 0))
+  // (weatheredStone is centred on its origin: stand it on the ground.)
+  add(weatheredStone(0.5, 1.25, 0.5, rand, false, 0.12).translate(0, 1.25 / 2, 0))
   add(new THREE.BoxGeometry(0.78, 0.12, 0.78).translate(0, 1.31, 0))
   for (const [x, z] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) add(new THREE.BoxGeometry(0.11, 0.4, 0.11).translate(x, 1.57, z))
   add(new THREE.ConeGeometry(0.58, 0.34, 4, 1).rotateY(Math.PI / 4).translate(0, 1.94, 0))
