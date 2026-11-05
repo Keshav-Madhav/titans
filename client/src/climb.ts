@@ -136,6 +136,60 @@ export class Climber {
     return this.active
   }
 
+  /**
+   * Coming down onto a giant (user, 2026-11-05: "standing is impossible, jumping throws you off"):
+   * if `feet` are on or just inside a part of it that faces up enough to stand on, take that as a
+   * footing — you are standing on it (the climb's top mode), carried as it moves. Only while
+   * falling (`vy` ≤ 0.5), so a jump or a let-go is not caught on the way up. The highest such
+   * surface under you wins (the shoulder, not the arm beneath it).
+   */
+  landOn(feet: THREE.Vector3, vy: number): boolean {
+    if (vy > 0.5) return false
+    let best: { target: ClimbTarget; part: TitanPart; lump: number; local: THREE.Vector3; y: number } | null = null
+    for (const target of this.targets()) {
+      const t = target.titan
+      if (Math.hypot(t.gait.x - feet.x, t.gait.z - feet.z) > t.H * 1.2) continue
+      for (const part of t.parts) {
+        const inv = _inv.copy(part.mesh.matrixWorld).invert()
+        _q.copy(feet).applyMatrix4(inv)
+        part.lumps.forEach((L, j) => {
+          // On it, or within a hand's breadth above it (a fast fall crosses the skin in a step).
+          const r = onLump(L, _q, _s)
+          if (r > 1.0) {
+            _w.copy(_s).applyMatrix4(part.mesh.matrixWorld)
+            if (feet.y - _w.y > 0.35 || _w.distanceTo(feet) > 0.6) return
+          } else _w.copy(_s).applyMatrix4(part.mesh.matrixWorld)
+          // (Not from far inside: a point deep in a lump is not landing on it.)
+          if (_w.distanceTo(feet) > 3) return
+          lumpNormal(L, _s, _m).transformDirection(part.mesh.matrixWorld)
+          if (_m.y < 0.45) return
+          if (!best || _w.y > best.y) best = { target, part, lump: j, local: _s.clone(), y: _w.y }
+        })
+      }
+    }
+    if (!best) return false
+    const b = best as { target: ClimbTarget; part: TitanPart; lump: number; local: THREE.Vector3; y: number }
+    this.attach(b.target, b.part, b.lump, b.local)
+    this.refresh(true)
+    return true
+  }
+
+  /** How deep (m) world point `p` is inside the giant held (0 outside) — for keeping the body out. */
+  depth(p: THREE.Vector3): number {
+    if (!this.target) return 0
+    let d = 0
+    for (const part of this.target.titan.parts) {
+      const inv = _inv.copy(part.mesh.matrixWorld).invert()
+      _q.copy(p).applyMatrix4(inv)
+      for (const L of part.lumps) {
+        if (onLump(L, _q, _s) >= 1) continue
+        _w.copy(_s).applyMatrix4(part.mesh.matrixWorld)
+        d = Math.max(d, _w.distanceTo(p))
+      }
+    }
+    return d
+  }
+
   attach(target: ClimbTarget, part: TitanPart, lump: number, local: THREE.Vector3): void {
     this.active = true
     this.target = target

@@ -97,7 +97,7 @@ import { ScaleDirector, type BigThing } from './scale'
 import { Reveal } from './reveal'
 import { isColossus } from './rock-fields'
 import { carvedStone } from './spots'
-import { Birds } from './life'
+import { Birds, type Perch } from './life'
 import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
@@ -987,6 +987,13 @@ const narration = new Narration()
 const finds = new Discoveries()
 const handAt = new THREE.Vector3()
 const _focus = new THREE.Vector3()
+const _focusN = new THREE.Vector3(0, 0, 1)
+/** Points on the body (its local frame) kept out of a giant while climbing; and the push now. */
+const CLIP_PTS = [
+  [0, 1.75, 0.08], [0, 1.3, 0.16], [0, 0.95, 0.12], [0.13, 0.5, 0.2], [-0.13, 0.5, 0.2], [0.12, 0.05, 0.16], [-0.12, 0.05, 0.16], [0.28, 1.6, 0.25], [-0.28, 1.6, 0.25],
+].map(([x, y, z]) => new THREE.Vector3(x, y, z))
+const _clipW = new THREE.Vector3()
+let clipPush = 0
 const journal = new Journal(finds)
 journal.haveBag = () => bag.have
 const toolbar = new Toolbar(finds)
@@ -1308,8 +1315,10 @@ function grow(b: Box): void {
   terrainView.markDirty(b.x0, b.z0, b.x1, b.z1)
   // A giant's foot flattens whatever grew there; it greens over again later.
   // (Replays and the First Ones' trails are old ground already.)
+  const tt = performance.now()
   if (!replaying) vegetation.trample(b.x0, b.z0, b.x1, b.z1)
   else vegetation.markDirty(b.x0, b.z0, b.x1, b.z1)
+  if (!replaying) stepCost.trample = Math.max(stepCost.trample, performance.now() - tt)
   grass.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
 /** True while applying events that are not happening now (loading, ancient trails). */
@@ -1324,6 +1333,11 @@ const falls: Array<{ foot: 0 | 1; x: number; z: number; stomp: boolean }> = []
  * Apply one terrain event. `replay` = catching up on load: no dust, no shake.
  * `from` is the giant whose step it is (its footfalls jolt whoever holds on to it).
  */
+/** Tools: the most a footstep's parts have cost (ms) since reset, and how many steps. */
+const stepCost = { n: 0, carve: 0, lakes: 0, trample: 0 }
+/** Tools: the most each system's per-frame update has cost (ms) since reset. */
+const sysCost = { water: 0, streams: 0, map: 0, veg: 0, grass: 0, terrain: 0 }
+
 function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): void {
   replaying = replay
   const H = TITAN_HEIGHT
@@ -1341,9 +1355,18 @@ function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): vo
     return
   }
   if (!ancient) falls.push({ foot: ev.foot, x: ev.x, z: ev.z, stomp: !!ev.stomp })
+  // (Timed, for tools: the user, 2026-11-05, "whenever giants take a step, there is big frame lag".)
+  const t0 = performance.now()
   grow(applyImpact(terrain.delta, impactFor(H, ev.x, ev.z, ev.stomp)))
   grow(applyFootprint(terrain.delta, footprintFor(H, ev.x, ev.z, ev.hx ?? Math.sin(ev.heading), ev.hz ?? Math.cos(ev.heading), ev.stomp)))
+  const t1 = performance.now()
   lakes.onDeform(strideBox, ev.x, ev.z)
+  const t2 = performance.now()
+  if (!replay) {
+    stepCost.n++
+    stepCost.carve = Math.max(stepCost.carve, t1 - t0)
+    stepCost.lakes = Math.max(stepCost.lakes, t2 - t1)
+  }
   strideBox.x0 = strideBox.z0 = Infinity
   strideBox.x1 = strideBox.z1 = -Infinity
   if (replay) return
@@ -1606,6 +1629,60 @@ function noticeNear(x: number, z: number, r: number, secs: number, at: THREE.Vec
   const until = performance.now() + secs * 1000
   for (const [id, a] of titans) if (Math.hypot(a.titan.gait.x - x, a.titan.gait.z - z) < r) notice.set(id, { until: until + Math.random() * 1500, at })
 }
+/**
+ * Where the perching flock sits (idea #12): the nearest still giant within 900 m — a sleeping one
+ * (a mountain), or a Walker resting or barely moving — and seats on its head and shoulders, found by
+ * coming down onto the body from above (its rough shape) so they sit on it, not in it or over it.
+ */
+const _perchPts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
+/** Seats found on a giant's visible surface (raycast down), kept in each part's own frame. */
+const perchSeats = { id: '', at: 0, seats: [] as Array<{ obj: THREE.Object3D; local: THREE.Vector3 }> }
+const _perchRay = new THREE.Raycaster()
+function birdPerch(): Perch | null {
+  let best: { id: string; titan: Titan; calm: boolean } | null = null
+  let bd = 900
+  const p = wanderer.pos
+  for (const [id, a] of titans) {
+    const d = Math.hypot(a.titan.gait.x - p.x, a.titan.gait.z - p.z)
+    if (d < bd) {
+      bd = d
+      best = { id, titan: a.titan, calm: a.titan.gait.resting || a.titan.gait.speed < a.titan.gait.maxSpeed * 0.08 }
+    }
+  }
+  for (const t of mountains.targets()) {
+    const d = Math.hypot(t.titan.gait.x - p.x, t.titan.gait.z - p.z)
+    if (d < bd) {
+      bd = d
+      best = { id: t.id, titan: t.titan, calm: true }
+    }
+  }
+  if (!best) return null
+  const T = best.titan
+  // Where they sit: straight down onto what you see (the body, its plates and horns) above the head
+  // and each shoulder — the rough shape put them inside it, out of sight. Kept in the part's own
+  // frame (they ride its movement); found again only now and then (a raycast is not free).
+  const now = performance.now()
+  if (perchSeats.id !== best.id || now - perchSeats.at > 15000) {
+    perchSeats.id = best.id
+    perchSeats.at = now
+    perchSeats.seats = []
+    for (const name of ['head', 'upperArmL', 'upperArmR']) {
+      const part = T.part(name)
+      if (!part) continue
+      const o = part.mesh.getWorldPosition(new THREE.Vector3())
+      _perchRay.set(new THREE.Vector3(o.x, o.y + T.H * 0.3, o.z), new THREE.Vector3(0, -1, 0))
+      _perchRay.far = T.H * 0.6
+      // (The camera is needed to cast against sprites — the eyes' glow — which are then skipped.)
+      _perchRay.camera = camera
+      const hit = _perchRay.intersectObject(part.mesh, true).find((h) => (h.object as THREE.Mesh).isMesh && !(h.object as THREE.Sprite).isSprite && (h.object as THREE.Mesh).material && !((h.object as THREE.Mesh).material as THREE.Material).transparent)
+      if (hit) perchSeats.seats.push({ obj: hit.object, local: hit.object.worldToLocal(hit.point.clone()) })
+    }
+  }
+  if (!perchSeats.seats.length) return null
+  const pts = perchSeats.seats.map((s2, k) => _perchPts[k].copy(s2.local).applyMatrix4(s2.obj.matrixWorld))
+  return { id: best.id, points: pts, calm: best.calm }
+}
+
 function noticeIdle(dt: number): void {
   noticeClock -= dt
   if (noticeClock > 0 || climber.active) return
@@ -1767,7 +1844,16 @@ function simulate(dt: number): void {
   if (climber.active) {
     raid()
     if (input.pressed('KeyE')) letGo(0.6)
-    else if (input.pressed('Space')) letGo(4.5)
+    else if (input.pressed('Space') && climber.standing) {
+      // Standing on a giant, Space is a jump — up, and on the way you are going — and you come
+      // down on it again where there is footing (landOn), not thrown off it.
+      const fwd = climber.moving > 0 ? 3.2 : 0.6
+      letGo(0)
+      wanderer.vel.y = Math.max(wanderer.vel.y, 0) + 5.2
+      wanderer.vel.x += Math.sin(wanderer.yaw) * fwd
+      wanderer.vel.z += Math.cos(wanderer.yaw) * fwd
+      sound.scramble(0.4)
+    } else if (input.pressed('Space')) letGo(4.5)
     else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
       narration.say('You lost your grip.')
       letGo(1.2)
@@ -1944,6 +2030,14 @@ function simulate(dt: number): void {
           if (grapple.attached && wanderer.pos.y > terrain.heightAt(wanderer.pos.x, wanderer.pos.z) + 0.4) wanderer.grounded = false
         }
         wanderer.hanging = grapple.attached && !wanderer.grounded
+        // Coming down onto a giant: you stand on it (a jump on its back, a fall from a shoulder, a
+        // glide onto its head).
+        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && climber.landOn(wanderer.pos, wanderer.vel.y)) {
+          grapple.release()
+          wanderer.gliding = false
+          fallTop = NaN
+          sound.land('stone', Math.min(1, Math.max(0, -wanderer.vel.y) / 12))
+        }
         climber.pushOut(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
@@ -2452,7 +2546,6 @@ function frame(now: number): void {
 // QA (?qa=throw): a frame breaks on purpose 8 s in, to prove the card and that the save survives.
 let qaThrowAt = params.get('qa') === 'throw' ? 8000 : 0
 let padAt = 0
-let climbLookIdle = 0
 
 function frameBody(now: number): void {
   if (qaThrowAt && now > qaThrowAt) {
@@ -2552,6 +2645,15 @@ function frameBody(now: number): void {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
     wanderer.climbPose(dt, climber.world, climber.normal, climber.standing, rig.yaw + Math.PI, climber.moving)
+    // Out of the rock (user, 2026-11-05: "clipping when climbing on a giant, a lot"): of a few
+    // points on the body, the deepest inside the giant sets how far out along the surface the body
+    // stands, eased so it does not shake.
+    {
+      let deep = 0
+      for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(wanderer.obj.matrixWorld.compose(wanderer.obj.position, wanderer.obj.quaternion, wanderer.obj.scale))))
+      clipPush += (Math.min(2.5, deep * 1.15) - clipPush) * Math.min(1, dt * (deep * 1.15 > clipPush ? 14 : 3))
+      wanderer.obj.position.addScaledVector(climber.normal, clipPush)
+    }
   } else if (cliff.active) {
     wanderer.climbPose(dt, cliff.world, cliff.normal, false, rig.yaw + Math.PI, cliff.moving ? 1 : 0)
   } else {
@@ -2581,8 +2683,8 @@ function frameBody(now: number): void {
     wanderer.backlit = THREE.MathUtils.smoothstep(_bl.x * sky.sunDir.x + _bl.z * sky.sunDir.z, 0.15, 0.75) * (1 - sky.night)
   }
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
-  water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z))
-  water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z))
+  { const _t = performance.now(); water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z)); sysCost.water = Math.max(sysCost.water, performance.now() - _t) }
+  { const _t = performance.now(); water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z)); sysCost.streams = Math.max(sysCost.streams, performance.now() - _t) }
   water.update(dt)
   water.weather(weather.now.dark, weather.now.rain, [sea.mesh.material as THREE.MeshStandardMaterial])
   sea.update(dt, camera.position)
@@ -2597,7 +2699,7 @@ function frameBody(now: number): void {
   for (const [, c] of colossi.places) birdSpots.push({ x: c.x, z: c.z })
   // Seabirds wheeling over the beach.
   for (const a of SHORE_BIRDS) birdSpots.push({ x: Math.sin(a) * (SHORE.coast - 80), z: Math.cos(a) * (SHORE.coast - 80), pale: true })
-  birds.step(dt, camera.position, birdSpots)
+  birds.step(dt, camera.position, birdSpots, birdPerch(), wanderer.pos)
   birds.render()
   sky.tick(dt)
   sky.advance(dt)
@@ -2618,7 +2720,7 @@ function frameBody(now: number): void {
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
-  worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes)
+  { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); sysCost.map = Math.max(sysCost.map, performance.now() - _t) }
   clouds.tint(weather.now.dark, sky.night, sky.dusk, sky.sunLow)
   // Mist lies thickest in the hollows at dawn and at dusk.
   const t = sky.time
@@ -2642,9 +2744,9 @@ function frameBody(now: number): void {
   }
   // (At a long drop the wind rises: vertigo is heard as much as seen.)
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo), awe())
-  vegetation.update(dt, camera.position)
+  { const _t = performance.now(); vegetation.update(dt, camera.position); sysCost.veg = Math.max(sysCost.veg, performance.now() - _t) }
   skirts?.update(camera.position)
-  grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera)
+  { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); sysCost.grass = Math.max(sysCost.grass, performance.now() - _t) }
   rocks.update(camera.position)
   cairns.update(dt)
   camp.update(dt, weather.now.wind)
@@ -2739,7 +2841,11 @@ function frameBody(now: number): void {
 
   const look = input.consumeLook()
   // (On a giant or a rock face the camera's focus stands off the surface, out along the hold.)
-  const focus = climber.active || cliff.active ? _focus.copy(wanderer.obj.position).addScaledVector(climber.active ? climber.normal : cliff.normal, 2) : wanderer.obj.position
+  // (Smoothed, and only a little: on a giant the hold's normal turns sharply from lump to lump, and
+  // the focus jumping 2 m with it lurched the view — the user, 2026-11-05: "the position taking over
+  // is annoying".)
+  if (climber.active || cliff.active) _focusN.lerp(climber.active ? climber.normal : cliff.normal, Math.min(1, dt * 3)).normalize()
+  const focus = climber.active || cliff.active ? _focus.copy(wanderer.obj.position).addScaledVector(_focusN, 0.9) : wanderer.obj.position
   if (freeCam) {
     camera.position.copy(freeCam.from)
     camera.lookAt(freeCam.at)
@@ -2750,19 +2856,9 @@ function frameBody(now: number): void {
     const riding = !!ridden && ridden.gait.speed > 0.4
     rig.blendTo(riding ? RIDE_CAM : climber.active ? CLIMB_CAM : cliff.active ? CLIFF_CAM : WANDERER_CAM)
     rig.ease(dt)
-    if (riding && Math.abs(look.dx) < 1) {
-      let dy = ridden!.gait.heading + Math.PI - rig.yaw
-      dy = Math.atan2(Math.sin(dy), Math.cos(dy))
-      rig.yaw += dy * Math.min(1, dt * 0.35)
-      // …and from a little above, looking down over the land going by.
-      if (Math.abs(look.dy) < 1) rig.pitch += (0.32 - rig.pitch) * Math.min(1, dt * 0.5)
-    }
-    // Climbing a giant, left alone a moment, the view tilts to look up along its body against the
-    // sky (QA Q14: facing its skin you lost the giant; looking up you see how much is left).
-    if (climber.active && !riding) {
-      climbLookIdle = Math.abs(look.dx) + Math.abs(look.dy) > 0.5 ? 0 : climbLookIdle + dt
-      if (climbLookIdle > 1.2) rig.pitch += (-0.14 - rig.pitch) * Math.min(1, dt * 0.6)
-    } else climbLookIdle = 0
+    // (On a giant the camera only pulls back — the climbing and riding distances above. It no longer
+    // turns to the way the giant walks or tilts up along its body by itself: the user, 2026-11-05,
+    // "climbing takes over the camera… that's okay only for the zoom out".)
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
     if (wanderer.gliding) {
@@ -2876,7 +2972,7 @@ function frameBody(now: number): void {
   foliageFocus.value.copy(_head)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
-  terrainView.update(camera.position, ready ? 5 : 40)
+  { const _t = performance.now(); terrainView.update(camera.position, ready ? 5 : 40); sysCost.terrain = Math.max(sysCost.terrain, performance.now() - _t) }
   sky.follow(focus, camera)
   renderer.info.reset()
   // Near plants and stones: only those in view (the camera is final for this frame now).
@@ -3147,6 +3243,9 @@ const g = {
   HIGH,
   softSwitch,
   aoSwitch,
+  perchSeats,
+  stepCost,
+  sysCost,
   trail,
   travel,
   noticeNear,
