@@ -1,6 +1,7 @@
 // The sunken bells (user's pick #7, "must be done very well, so carefully"; PLAN §4b). One per
-// land: a bronze bell half sunk in the ground, green with age, tilted where it fell, under a stone
-// yoke with a striking-beam hung from it on two old ropes.
+// land: a bronze bell green with age, hung on a short iron chain from an old stone yoke standing
+// alone in the land, its lip a little clear of the grass, with a striking-beam hung beside it from
+// the same lintel on two old ropes.
 //
 // Ringing it is slow and physical. E: you set your shoulder to the beam and it swings in. The bell
 // answers with a hum that breathes — it swells and fades on its own, every BREATH seconds — and the
@@ -61,6 +62,8 @@ const PROFILE: Array<[number, number]> = [
   [0.76, 0.81], [0.85, 0.77], [0.91, 0.68], [0.96, 0.5], [0.99, 0.25], [1.0, 0.0],
 ]
 const BELL_H = 3.4
+/** The hanging bell's lip, above the yoke's foot (its origin, 0.4 m under the ground). */
+const LIP_Y = 6.3 - (1.0 + BELL_H + 0.39)
 function outline(t: number): number {
   for (let i = 1; i < PROFILE.length; i++)
     if (t <= PROFILE[i][0]) {
@@ -72,26 +75,41 @@ function outline(t: number): number {
   return 0
 }
 
-/** The bell: bronze walls with a hollow inside (its mouth shows where it tipped), bands, a crown loop. */
+/** The bell: bronze walls with a hollow inside (its mouth shows from below), bands, a crown loop. */
 function bellGeometry(): THREE.BufferGeometry {
-  const pts: THREE.Vector2[] = []
   const N = 30
-  // Inside, crown down to the lip; round the lip; outside, lip up to the crown.
-  for (let i = N; i >= 0; i--) {
-    const t = (i / N) * 0.94
-    pts.push(new THREE.Vector2(Math.max(0.001, outline(t) - 0.13), t * BELL_H))
-  }
-  pts.push(new THREE.Vector2(1.36, 0.02))
+  // The outside, lip up to the crown (a lathe of points going up faces out), and round under the
+  // lip to the inside wall.
+  const outer: THREE.Vector2[] = [new THREE.Vector2(1.17, 0.0), new THREE.Vector2(1.36, 0.02)]
   for (let i = 0; i <= N; i++) {
     const t = i / N
-    pts.push(new THREE.Vector2(Math.max(0.001, outline(t)), t * BELL_H))
+    outer.push(new THREE.Vector2(Math.max(0.001, outline(t)), t * BELL_H))
   }
-  const parts: THREE.BufferGeometry[] = [new THREE.LatheGeometry(pts, 40)]
-  // Two raised bands (one low on the sound bow, one on the shoulder) and the loop it hung from.
+  // The inside: built the same way (going up), then turned to face the hollow.
+  const inner: THREE.Vector2[] = []
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * 0.94
+    inner.push(new THREE.Vector2(Math.max(0.001, outline(t) - 0.13), t * BELL_H))
+  }
+  const inside = new THREE.LatheGeometry(inner, 40).toNonIndexed()
+  {
+    const p = inside.getAttribute('position')
+    const n = inside.getAttribute('normal')
+    for (let i = 0; i < p.count; i += 3) {
+      // Reverse each triangle's winding, and its normals.
+      for (const attr of [p, n]) {
+        const x = attr.getX(i + 1), y = attr.getY(i + 1), z = attr.getZ(i + 1)
+        attr.setXYZ(i + 1, attr.getX(i + 2), attr.getY(i + 2), attr.getZ(i + 2))
+        attr.setXYZ(i + 2, x, y, z)
+      }
+    }
+    for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i))
+  }
+  const parts: THREE.BufferGeometry[] = [new THREE.LatheGeometry(outer, 40), inside]
+  // Two raised bands (one low on the sound bow, one on the shoulder) and the loop it hangs from.
   for (const t of [0.12, 0.8]) parts.push(new THREE.TorusGeometry(outline(t) + 0.01, 0.045, 6, 40).rotateX(Math.PI / 2).translate(0, t * BELL_H, 0))
   parts.push(new THREE.TorusGeometry(0.34, 0.11, 8, 18).translate(0, BELL_H + 0.28, 0))
-  const g = mergeParts(parts)
-  return g
+  return mergeParts(parts)
 }
 
 export class SunkenBells {
@@ -104,7 +122,7 @@ export class SunkenBells {
   onWake: (b: SunkBell) => void = () => {}
 
   constructor(defs: SunkBellDef[], terrain: Terrain, build: Build) {
-    const bronze = new THREE.MeshStandardMaterial({ color: 0x3f5a4a, metalness: 0.5, roughness: 0.66, side: THREE.DoubleSide })
+    const bronze = new THREE.MeshStandardMaterial({ color: 0x4f6a57, metalness: 0.3, roughness: 0.6 })
     // (Verdigris in the hollows, bronze where it is rubbed: a little warmer on the lip and crown.)
     bronze.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vBy;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvBy = position.y;')
@@ -116,6 +134,7 @@ export class SunkenBells {
     const bellGeo = bellGeometry()
     const wood = new THREE.MeshStandardMaterial({ color: 0x6f5a40, roughness: 0.88 })
     const rope = new THREE.MeshStandardMaterial({ color: 0x6e604a, roughness: 1 })
+    const iron = new THREE.MeshStandardMaterial({ color: 0x2e2b28, metalness: 0.6, roughness: 0.65 })
     for (const def of defs) {
       const rand = mulberry32(def.seed)
       const y = terrain.heightAt(def.x, def.z)
@@ -130,24 +149,37 @@ export class SunkenBells {
       own.emissiveIntensity = 0
       const body = new THREE.Mesh(bellGeo, own)
       body.castShadow = body.receiveShadow = true
-      bell.add(body)
       const lip = own
-      // Sunk to a third of its height and tipped over toward the yoke's post, one side of the lip
-      // clear of the ground (you can see into its dark mouth there).
-      bell.position.set(def.x, y - 1.05, def.z)
-      bell.rotation.set(0.36 * az, def.rot, -0.36 * ax)
+      // Hung from the lintel by its crown loop on a short iron chain (user, 2026-11-05: "the bell
+      // is not attached" — it stood loose on the grass under the yoke). The group's origin is the
+      // hanging point, so the bell sways from it; its lip hangs a little clear of the grass.
+      const HANG = y - 0.4 + 6.4 - 0.1
+      const CHAIN = 1.0
+      body.position.y = -(CHAIN + BELL_H + 0.39)
+      bell.add(body)
+      const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, CHAIN + 0.1, 6).translate(0, -(CHAIN + 0.1) / 2, 0), iron)
+      chain.castShadow = true
+      bell.add(chain)
+      bell.position.set(def.x, HANG, def.z)
+      bell.rotation.y = def.rot
       this.group.add(bell)
       // The yoke: two squared stone posts either side, a lintel across (solid: the rocks' stone).
       const span = 6.2
       const postH = 6.4
+      // The lintel is a deep slab (4 m along the way you face): the bell hangs at its back edge,
+      // the ram on two straight ropes from under its front, nothing passing through anything; the
+      // posts stand under its middle.
+      const nx = Math.sin(def.rot)
+      const nz = Math.cos(def.rot)
+      const MID = 1.4
       const parts: Array<{ geo: THREE.BufferGeometry; box: [number, number, number, number, number, number] }> = []
       for (const s of [-1, 1]) {
         // (weatheredStone is centred on its origin: stood up on the ground here.)
         const g = weatheredStone(0.9, postH, 0.9, rand, true, 0.08)
-        g.translate(ax * s * span * 0.5, postH / 2, az * s * span * 0.5)
-        parts.push({ geo: g, box: [ax * s * span * 0.5, postH / 2, az * s * span * 0.5, 0.5, postH / 2, 0.5] })
+        g.translate(ax * s * span * 0.5 + nx * MID, postH / 2, az * s * span * 0.5 + nz * MID)
+        parts.push({ geo: g, box: [ax * s * span * 0.5 + nx * MID, postH / 2, az * s * span * 0.5 + nz * MID, 0.5, postH / 2, 0.5] })
       }
-      const lintel = new THREE.BoxGeometry(span + 1.6, 0.8, 1.0, 4, 1, 1).rotateY(def.rot).translate(0, postH + 0.3, 0)
+      const lintel = new THREE.BoxGeometry(span + 1.6, 0.8, 4.0, 4, 1, 3).rotateY(def.rot).translate(nx * MID, postH + 0.3, nz * MID)
       parts.push({ geo: lintel, box: [0, postH + 0.3, 0, 0, 0, 0] })
       const merged = mergeParts(parts.map((p) => p.geo))
       const c = Math.cos(def.rot)
@@ -162,39 +194,39 @@ export class SunkenBells {
           // The lintel, in its own frame (along the yoke).
           const u = lx * c - lz * sn
           const w = lx * sn + lz * c
-          d = Math.min(d, Math.max(Math.abs(u) - (span + 1.6) / 2, Math.abs(ly - postH - 0.3) - 0.4, Math.abs(w) - 0.5))
+          d = Math.min(d, Math.max(Math.abs(u) - (span + 1.6) / 2, Math.abs(ly - postH - 0.3) - 0.4, Math.abs(w - MID) - 2.0))
+          // The bell hanging under it (solid: you, the camera and arrows stop at the bronze).
+          const bt = (ly - LIP_Y) / BELL_H
+          if (bt > -0.2 && bt < 1.2) d = Math.min(d, Math.max(Math.hypot(lx, lz) - outline(THREE.MathUtils.clamp(bt, 0, 1)), ly - LIP_Y - BELL_H, LIP_Y - ly))
           return d
         },
-        hx: span / 2 + 2,
-        hz: span / 2 + 2,
+        hx: span / 2 + 5,
+        hz: span / 2 + 5,
         hy: postH / 2 + 2,
         cy: postH / 2,
       }
       build(shape, merged, { x: def.x, y: y - 0.4, z: def.z })
       // The beam: a log hung from the lintel on two ropes, its end toward you (it swings toward
       // the bell's shoulder, along the yoke's normal).
-      const nx = Math.sin(def.rot)
-      const nz = Math.cos(def.rot)
       const beam = new THREE.Group()
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.3, 4.4, 12, 1).rotateX(Math.PI / 2), wood)
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.3, 2.4, 12, 1).rotateX(Math.PI / 2), wood)
       log.castShadow = true
-      // (Hung from the middle of the lintel, the log a little to your side of the bell, its near
-      // end over the bell's shoulder.)
-      log.position.set(0, -4.3, 1.45)
+      // Its near end against the bell's sound bow (1.15 m out from its axis, at the lip's height
+      // plus half a metre).
+      log.position.set(0, -4.3, 0)
       beam.add(log)
       for (const s of [-1, 1]) {
-        // A V of two ropes from the lintel to either end of the log.
-        const end = new THREE.Vector3(0, -4.05, 1.45 + s * 1.5)
-        const r = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, end.length(), 4).translate(0, -end.length() / 2, 0), rope)
-        r.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), end.clone().normalize())
+        // Two ropes straight down from the slab's underside to the log, a hand from either end.
+        const r = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 4.1, 4).translate(0, -2.05, s * 0.8), rope)
+        r.castShadow = true
         beam.add(r)
       }
-      beam.position.set(def.x, y - 0.4 + postH - 0.1, def.z)
+      beam.position.set(def.x + nx * 2.35, y - 0.4 + postH - 0.1, def.z + nz * 2.35)
       beam.rotation.y = def.rot
       this.group.add(beam)
-      const stand = new THREE.Vector3(def.x + nx * 4.6, 0, def.z + nz * 4.6)
+      const stand = new THREE.Vector3(def.x + nx * 5.6, 0, def.z + nz * 5.6)
       stand.y = terrain.heightAt(stand.x, stand.z)
-      this.bells.push({ def, stand, at: new THREE.Vector3(def.x, y + 0.6, def.z), count: 0, since: Infinity, hum: 0, woken: false, beam, lip, bell })
+      this.bells.push({ def, stand, at: new THREE.Vector3(def.x, y + 2.6, def.z), count: 0, since: Infinity, hum: 0, woken: false, beam, lip, bell })
     }
   }
 
@@ -239,7 +271,8 @@ export class SunkenBells {
       const life = Math.exp(-b.since / (BREATH * (1.2 + 0.5 * b.count)))
       const target = b.since === Infinity ? 0 : (0.25 + 0.15 * b.count) * life
       b.hum += (target - b.hum) * Math.min(1, dt * 6)
-      const swell = 0.5 + 0.5 * Math.cos((b.since / BREATH) * Math.PI * 2)
+      // (Never struck: since is Infinity, and cos(Infinity) is NaN — a NaN glow turned the whole bell black.)
+      const swell = Number.isFinite(b.since) ? 0.5 + 0.5 * Math.cos((b.since / BREATH) * Math.PI * 2) : 0
       // The beam: it hangs with its end against the bell. Shoved in, it rings it and rebounds
       // toward you, and swings back to touch the bell again one breath later — on the swell:
       // that is when to shove it again. (Damped: left alone, it settles against the bronze.)
@@ -247,9 +280,8 @@ export class SunkenBells {
       b.beam.rotation.x = -0.42 * sw
       // The lip's light breathes with the hum; and the bell shivers a hair while it hums.
       b.lip.emissiveIntensity = b.hum * (0.2 + 0.8 * swell) * 0.5 + (b.woken ? 0.05 : 0)
-      const shiver = b.hum * 0.004 * Math.sin(this.time * 70)
-      b.bell.position.x += shiver - (b.bell.userData.sh ?? 0)
-      b.bell.userData.sh = shiver
+      // Struck, it swings a little away from the ram on its chain and back (and shivers while it hums).
+      b.bell.rotation.x = 0.05 * sw + b.hum * 0.0025 * Math.sin(this.time * 70)
     }
   }
 }
