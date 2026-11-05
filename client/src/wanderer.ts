@@ -1606,9 +1606,15 @@ export class Wanderer {
     } else this.swimLift += (0 - this.swimLift) * Math.min(1, dt * 6)
     av.root.position.y = -this.hipDrop + this.swimLift
     av.root.updateMatrixWorld(true)
-    if (on < 1 && Math.abs(this.footOff[0]) + Math.abs(this.footOff[1]) < 0.002) return
+    const fwdB = _cf.set(0, 0, 1).applyQuaternion(this.obj.quaternion)
     for (let i = 0; i < 2; i++) {
       const sd = i === 0 ? 'r' : 'l'
+      // Only as much as the ground asks: on the flat the clip's leg is left exactly as it is (solved
+      // there anyway, a nearly straight leg's bend direction was noise, and the knee went sideways or
+      // backward mid-stride — user, 2026-11-05: "knee surgery?").
+      const need = Math.abs(this.footOff[i] + this.hipDrop)
+      const wIK = THREE.MathUtils.smoothstep(need, 0.01, 0.04)
+      if (wIK < 0.001) continue
       const thigh = av.bone(`thigh_${sd}`)!
       const calf = av.bone(`calf_${sd}`)!
       const foot = av.bone(`foot_${sd}`)!
@@ -1626,13 +1632,17 @@ export class Wanderer {
       // The knee: in the plane of hip, ankle and the clip's knee, at the right distance from each.
       const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d)
       const h = Math.sqrt(Math.max(0, l1 * l1 - a * a))
+      // The knee bends the way the clip bent it — and always forward of the leg's line (a knee
+      // never bends backward); nearly straight, the body's forward decides.
       const pole = _p1.clone().sub(_p0)
       pole.addScaledVector(_rb, -pole.dot(_rb))
-      if (pole.lengthSq() < 1e-6) pole.set(0, 0, 1).applyQuaternion(this.obj.quaternion)
+      if (pole.dot(fwdB) < 0.02 || pole.lengthSq() < 4e-4) pole.copy(fwdB)
+      pole.addScaledVector(_rb, -pole.dot(_rb))
       pole.normalize()
       const kneeT = _p0.clone().addScaledVector(_rb, a).addScaledVector(pole, h)
-      this.aimBone(thigh, calf, _p0, kneeT, 1)
-      this.aimBone(calf, foot, kneeT, _ra, 1)
+      this.aimBone(thigh, calf, _p0, kneeT, wIK)
+      calf.getWorldPosition(_p1)
+      this.aimBone(calf, foot, _p1, _ra, wIK)
     }
   }
 

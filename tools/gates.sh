@@ -52,7 +52,7 @@ for s in walk run climb fall undercroft eerie bell dread rocks cairns map discov
   run "$s" env SHOTS="$out" node tools/shot.mjs "$s"
 done
 # The features of 2026-11-05, driven like a player (each exits non-zero if what it tests stops holding).
-for s in sled seeds lanterns bells woodbell dunebell bellsave thermals; do
+for s in sled seeds lanterns bells woodbell dunebell bellsave thermals knees; do
   mkdir -p "$out/$s"
   run "$s" node "tools/features/$s.mjs" "$out/$s"
 done
