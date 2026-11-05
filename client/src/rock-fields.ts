@@ -7,7 +7,7 @@ import { makeSimplex2, mulberry32, type Noise2, type RegionName } from '@titans/
 
 export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 'boulders'
 /** The colossi: the First Ones' remains and works, hundreds of metres across. */
-export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining' | 'husk' | 'mourner'
+export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining' | 'husk' | 'mourner' | 'head'
 export type ShapeKind = FormationKind | ColossusKind
 type THREE3 = [number, number, number]
 
@@ -370,7 +370,7 @@ export function meshShape(sh: Shape, res = 64): RockMesh {
 
 // --- the colossi ----------------------------------------------------------------
 
-const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining', 'husk', 'mourner']
+const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining', 'husk', 'mourner', 'head']
 export const isColossus = (k: ShapeKind): k is ColossusKind => (COLOSSI as string[]).includes(k)
 
 /** Capsule between two points. */
@@ -596,6 +596,34 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       hy: 70,
       hz: 260,
       cy: 25,
+    }
+  }
+  if (kind === 'head') {
+    // The head in the sand (PLAN §4b.3): a carved stone head ~24 m tall, buried to the chin —
+    // long-faced, a heavy brow over deep eyes, a long nose, the lips pursed; long ears. Its mouth
+    // is a doorway into a room inside the jaw (floor at 1 m, walls 2.4–3.4 m thick). Facing +z.
+    return {
+      field: (x, y, z) => {
+        let d = ellipsoid(x, y - 15, z + 1, 8, 10, 8.5) // the cranium
+        d = smin(d, roundBox(x, y - 5, z - 0.5, 7, 5.5, 7.5, 2.5), 4) // the jaw, square and heavy
+        d = smin(d, capsule(x, y, z, -6, 15, 6.6, 6, 15, 6.6, 1.6), 2) // the brow
+        d = ssub(d, ellipsoid(Math.abs(x) - 3.3, y - 12.8, z - 7.6, 2.2, 1.4, 1.8), 1) // the eyes, deep under it
+        d = smin(d, capsule(x, y, z, 0, 14, 7.4, 0, 8.9, 9.3, 1.4), 1.5) // the nose
+        d = smin(d, ellipsoid(x, y - 8.6, z - 8.9, 2.2, 1.2, 1.4), 1.2)
+        d = smin(d, ellipsoid(x, y - 6.6, z - 8.0, 3.6, 1.0, 1.6), 1) // the upper lip, over the door
+        d = smin(d, ellipsoid(Math.abs(x) - 8.3, y - 12, z, 1.2, 5, 2.2), 1.5) // the ears
+        // The doorway (between the lips) and the room behind it.
+        // (One cavity, cut once, the doorway's box running on well into the room: a union of two
+        // boxes' fields under-reads the distance near the face where they meet — it read a wall
+        // half a metre off in the middle of the way in, and you could not get through.)
+        const cavity = Math.min(roundBox(x, y - 3.1, z - 4.95, 2.6, 2.1, 6.95, 0.6), roundBox(x, y - 4.4, z, 3.6, 3.4, 4.6, 1.0))
+        d = ssub(d, cavity, 0.8)
+        return d + wear(x, y, z, 0.35)
+      },
+      hx: 11,
+      hy: 14,
+      hz: 12,
+      cy: 12,
     }
   }
   if (kind === 'skull') {

@@ -134,6 +134,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'wisp-wood', 'A charm of root', 'Follow the light that drifts among the giant trees.', 'A charm woven from fine root, knotted in a pattern you keep almost recognising.', 'figure', '#7a6044'),
   f('trinket', 'wisp-dunes', 'A bead of glass', 'Follow the light that drifts among the hoodoos of the Dune Sea.', 'A bead of clear glass with a single grain of sand inside it that never settles.', 'beads', '#cfe6e4'),
   // What the sunken bells wake (PLAN §4b).
+  f('trinket', 'head-dunes', 'A tongue of glass', 'In the mouth of the head that rose out of the Dune Sea.', 'A long flat shard of green glass, warm, the shape of a tongue. Hold it to your ear and there is the sound of a great many people, very far off, saying one word.', 'beads', '#7fae8e'),
   f('trinket', 'stair-wood', 'A ring of bark', 'At the top of the stair that came out of the giant tree in the Old Wood.', 'A ring cut from bark as hard as stone, worn smooth inside by a finger far bigger than yours.', 'figure', '#6a5238'),
   f('trinket', 'sky-green', 'A feather of stone', 'On top of the stone that hung in the sky over the Green.', 'A flat grey stone the shape of a feather, lighter than it should be. Set it down and it does not quite touch the ground.', 'stone', '#9a9ea4'),
   // What the lantern paths lead to (light the first lamp at night; the fire runs to the ring).

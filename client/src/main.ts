@@ -67,6 +67,7 @@ import { Seeds } from './seeds'
 import { Lanterns, type LanternDef } from './lanterns'
 import { SunkenBells, StoneDescent, BREATH, type SunkBellDef } from './sunken-bells'
 import { TreeStair } from './tree-stair'
+import { DuneHead } from './dune-head'
 import { Awakening } from './awakening'
 import { Herd } from './herd'
 import { CATALOGUE, Discoveries, visit, type Site } from './discovery'
@@ -509,6 +510,7 @@ const bellDescent = (() => {
   while (top > y1 && rocks.sdf({ ...f, y: y1 }, f.x, top, f.z) > 0) top -= 0.5
   return { y1, top: new THREE.Vector3(f.x, top + 0.05, f.z), run: null as StoneDescent | null }
 })()
+let duneHead: DuneHead | null = null
 let woodTree: { f: (typeof colossi.giantTrees)[number]['f']; h: number } | null = null
 /** The stair round the Wood's tree: worked out when first needed (its bell rung, or a save). */
 let woodStair: TreeStair | null = null
@@ -543,8 +545,54 @@ const sunkBells = (() => {
       woodTree = t
     }
   }
+  // The Dune Sea's: out in the dunes within sight of the buried head (a level place for it, and
+  // one for the bell ~110 m off, facing it).
+  let dunesDef: SunkBellDef | null = null
+  {
+    const rand = mulberry32(914)
+    for (let i = 0; i < 3000 && !dunesDef; i++) {
+      const a = rand() * Math.PI * 2
+      const d = 2500 + rand() * 6000
+      const hx = Math.sin(a) * d
+      const hz = Math.cos(a) * d
+      if (biome.desert(hx, hz) < 0.9) continue
+      let lo = Infinity, hi = -Infinity
+      for (let k = 0; k < 8; k++) for (const r of [0, 6, 11]) {
+        const h = terrain.heightAt(hx + Math.cos(k * 0.785) * r, hz + Math.sin(k * 0.785) * r)
+        lo = Math.min(lo, h); hi = Math.max(hi, h)
+      }
+      if (hi - lo > 2.5 || blocked(hx, hz) || rocks.occupies(hx + 10, hz) || rocks.occupies(hx - 10, hz) || rocks.occupies(hx, hz + 10) || rocks.occupies(hx, hz - 10)) continue
+      for (let j = 0; j < 24 && !dunesDef; j++) {
+        const b = (j / 24) * Math.PI * 2
+        const x = hx + Math.sin(b) * 70
+        const z = hz + Math.cos(b) * 70
+        const sl = Math.hypot(terrain.heightAt(x + 5, z) - terrain.heightAt(x - 5, z), terrain.heightAt(x, z + 5) - terrain.heightAt(x, z - 5)) / 10
+        if (sl > 0.1 || biome.desert(x, z) < 0.8 || blocked(x, z)) continue
+        // Open ground round it (it stood against a cliff), and the head in plain sight from where
+        // you strike (a cliff between them hid it rising: the whole point).
+        let open = true
+        for (let k = 0; k < 10 && open; k++) for (const r of [12, 22]) if (rocks.occupies(x + Math.cos(k * 0.63) * r, z + Math.sin(k * 0.63) * r)) open = false
+        if (!open) continue
+        const sx = x + Math.sin(b + 0.6) * 5.6
+        const sz = z + Math.cos(b + 0.6) * 5.6
+        const sy = terrain.heightAt(sx, sz) + 1.7
+        const ty = lo + 12
+        let seen = true
+        for (let t = 0.05; t < 0.9 && seen; t += 4 / 70) {
+          const px = sx + (hx - sx) * t
+          const pz = sz + (hz - sz) * t
+          const py = sy + (ty - sy) * t
+          if (terrain.heightAt(px, pz) > py - 0.5 || rocks.sdfAt(px, py, pz) < 1) seen = false
+        }
+        if (!seen) continue
+        dunesDef = { id: 'bell-dunes', x, z, rot: Math.atan2(Math.sin(b + 0.6), Math.cos(b + 0.6)), seed: 915 }
+        // The head faces the bell.
+        duneHead = new DuneHead(rocks, terrain, hx, hz, b, 916)
+      }
+    }
+  }
   return new SunkenBells(
-    [def, woodDef].filter((d): d is SunkBellDef => !!d),
+    [def, woodDef, dunesDef].filter((d): d is SunkBellDef => !!d),
     terrain,
     (shape, geo, at) => rocks.addBuilt(shape, geo, { ...at, rot: 0, layers: [LAYER.carved, LAYER.moss], scale: 6, tint: [0.86, 0.85, 0.82] }),
   )
@@ -909,6 +957,8 @@ const spots = (() => {
   for (const r of resonance.rings) placed.push({ id: r.def.id, kind: 'trinket', at: r.reward.clone(), hidden: true })
   // On top of the stone the Green's bell calls down (revealed when it lands).
   placed.push({ id: 'sky-green', kind: 'trinket', at: bellDescent.top.clone(), hidden: true })
+  // In the room in the head in the sand (revealed when it has risen).
+  if (duneHead) placed.push({ id: 'head-dunes', kind: 'trinket', at: duneHead.inside.clone(), hidden: true })
   // At the top of the stair round the Wood's tree (placed there when the stair is made).
   placed.push({ id: 'stair-wood', kind: 'trinket', at: new THREE.Vector3(0, -1000, 0), hidden: true })
   // On each lantern path's slab, when the fire reaches it.
@@ -1016,6 +1066,29 @@ const makeWoodStair = (): TreeStair | null => {
   return woodStair
 }
 const wakeBell = (id: string, instant: boolean) => {
+  if (id === 'bell-dunes' && duneHead) {
+    const dig = () => {
+      const box = duneHead!.dig(terrain)
+      terrainView.markDirty(box.x0, box.z0, box.x1, box.z1)
+      lakes.onDeform(box)
+    }
+    if (instant) {
+      duneHead.finish()
+      dig()
+      if (!finds.has('head-dunes')) spots.reveal('head-dunes')
+    } else {
+      duneHead.onPour = (x, y, z) => effects.drag(x, y, z, 3)
+      duneHead.onDone = () => {
+        // The sand runs out of its mouth (under the dust it raised).
+        dig()
+        for (let k = 0; k < 6; k++) effects.drag(duneHead!.inside.x, duneHead!.inside.y + 1, duneHead!.inside.z, 4)
+        sound.rubble(wanderer.pos.distanceTo(duneHead!.inside))
+        if (!finds.has('head-dunes')) spots.reveal('head-dunes')
+      }
+      duneHead.wake()
+    }
+    return
+  }
   if (id === 'bell-wood') {
     const st = makeWoodStair()
     if (!st) return
@@ -1039,7 +1112,7 @@ const wakeBell = (id: string, instant: boolean) => {
   }
 }
 sunkBells.onWake = (b) => {
-  sound.waking(b.def.id === 'bell-wood' ? 50 : 64)
+  sound.waking(b.def.id === 'bell-wood' ? 50 : b.def.id === 'bell-dunes' ? 46 : 64)
   wakeBell(b.def.id, false)
   // Every giant within a long way stops, and turns to the sound.
   noticeNear(b.at.x, b.at.z, 2500, 40, b.at)
@@ -2997,6 +3070,7 @@ function frameBody(now: number): void {
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
   sunkBells.update(dt)
   bellDescent.run?.update(dt)
+  duneHead?.update(dt)
   if (woodStair?.running) {
     woodStair.update(dt)
     if (!woodStair.running && !finds.has('stair-wood')) spots.reveal('stair-wood')
@@ -3497,6 +3571,7 @@ const g = {
   bellDescent,
   get woodStair() { return woodStair },
   makeWoodStair,
+  get duneHead() { return duneHead },
   skyStone,
   /** The first-steps progress (tools). */
   tipState,

@@ -215,8 +215,11 @@ the bow, the wing-cloak, the sight-stone.
 
 ## 4b. The sunken bells (user's pick #7, 2026-11-05: "must be done very well, so carefully")
 
-One bell per land, half sunk in the ground and green with age, tilted where it fell, a stone yoke
-over it and a striking-beam hung from the yoke on old ropes. **Ringing it is slow and physical:**
+One bell per land, green with age, hung on a short iron chain from an old stone yoke standing alone
+in the land (a deep lintel on two posts), its lip a metre clear of the grass, with a striking-ram
+hung beside it from the same lintel on two ropes (user, 2026-11-05: "the bell is not attached" — the
+first stood loose on the grass). Nothing grows within 16 m of a yoke; where you strike, what it
+wakes is in plain sight. **Ringing it is slow and physical:**
 E puts your shoulder to the beam and lets it swing in; the bell answers with a long hum that swells
 and fades on its own breath (~2.6 s). Strike again *as the hum swells* and it grows; strike against
 it and it chokes and sinks back. Five strokes in time, and the land answers. No words at any point
@@ -231,8 +234,9 @@ with something left there (trinket + a stone with words: §2f):
    what was kept up there.
 2. **The Old Wood — the stair round the tree.** Slabs of stone rise out of the ground one after
    another and stand in a spiral up a giant tree's trunk to its crown.
-3. **The Dune Sea — the head in the sand.** The sand round the bell shivers; a buried stone head
-   rises out of it, sand pouring off, and its open mouth is a door.
+3. **The Dune Sea — the head in the sand.** A smooth bump of carved stone in the dunes is the crown
+   of a buried head; it rises out of the sand, sand pouring off (a sculpted colossus: rock-fields
+   'head'), and its open mouth is a doorway into a room in its jaw (the sand dug out of it).
 
 **Mechanism (one for all three):** the change is a built/colossus formation whose `y` eases from
 its sleeping height to its woken one (collision follows `f.y`); dust where it meets the ground;
