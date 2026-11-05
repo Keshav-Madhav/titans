@@ -799,6 +799,7 @@ export class Wanderer {
   private t = 0
   /** Smoothed speed (in walks) the limbs follow. */
   private gait = 0
+  private hsS = 0
   private climbing = false
   private climbMoving = 0
   private readonly pelvis = new THREE.Group()
@@ -1683,7 +1684,10 @@ export class Wanderer {
       pos.needsUpdate = true
       this.wing.geometry.computeVertexNormals()
     }
-    const hs = this.climbing ? 0 : this.speed
+    // (Eased: the speed changes on the 60 Hz simulation steps — at 120 Hz the stride, and the lantern
+    // swinging on it, moved in a staircase.)
+    this.hsS += ((this.climbing ? 0 : this.speed) - this.hsS) * Math.min(1, dt * 14)
+    const hs = this.hsS
     this.gait += (Math.min(1.6, hs / WALK) - this.gait) * Math.min(1, dt * 6)
     // The stride keeps the planted foot still on the ground (user: "walking looks like
     // sliding"): the foot under you sweeps back at LEG · swing · (dφ/dt), and that must be

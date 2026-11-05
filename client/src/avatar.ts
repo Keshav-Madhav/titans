@@ -45,6 +45,7 @@ export class Avatar {
   private startT = 1
   private swim = 0
   private posedW = 0
+  private vS = 0
   private readonly modeW = { climb: 0, glide: 0, slide: 0, hang: 0 }
   /** The hood's red (the wanderer's cloak material, shared). */
   readonly meshes: THREE.SkinnedMesh[] = []
@@ -115,7 +116,10 @@ export class Avatar {
   }
 
   update(dt: number, s: AvatarState): void {
-    const v = s.grounded && !s.swimming ? s.speed : 0
+    // (The speed changes on the simulation's 60 Hz steps: eased, so at 120 Hz the blend and the
+    // stride's rate do not move in a staircase.)
+    this.vS += ((s.grounded && !s.swimming ? s.speed : 0) - this.vS) * Math.min(1, dt * 14)
+    const v = this.vS
     // The locomotion blend: idle → walk → jog → sprint by ground speed.
     const kW = THREE.MathUtils.smoothstep(v, 0.15, 1.2)
     const kJ = THREE.MathUtils.smoothstep(v, 2.4, 4.6)
