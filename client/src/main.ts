@@ -1703,6 +1703,14 @@ function simulate(dt: number): void {
     else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
       narration.say('You lost your grip.')
       letGo(1.2)
+    } else if (climber.world.y < terrain.heightAt(climber.world.x, climber.world.z) - 0.5 && Number.isNaN(waterAt(climber.world.x, climber.world.z))) {
+      // A hold carried down into the land — a giant's leg sunk in a dip (Q56: the adversary gate
+      // once found the climber 16 m underground, still holding on): step off onto the ground.
+      const gx = climber.world.x
+      const gz = climber.world.z
+      letGo(0.3)
+      wanderer.place(gx, terrain.heightAt(gx, gz) + 0.05, gz)
+      wanderer.vel.set(0, 0, 0)
     } else {
       // The body rides along, for the camera and the moment we let go.
       wanderer.place(climber.world.x, climber.world.y, climber.world.z)
