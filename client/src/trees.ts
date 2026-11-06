@@ -439,14 +439,22 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         float dith = (float(4 * b2lo + b2hi) + 0.5) / 16.0;
         // (A narrow band: over 2.6 m of depth the whole near branch was a screen-door — QA cycle 6, a
         // forest frame half covered in an even dot grid. Over 0.6 m it is a soft edge, not a pattern.)
-        if (nearCam < 3.0 + 0.6 * dith) discard;
+        // (Faded through coverage, not cut: with alpha-to-coverage on 4× MSAA a falling alpha thins a
+        // leaf by sub-samples, so the dither only has to break up four levels, and the fade reads as a
+        // soft thinning — cut by the dither alone it was a coarse grid of dots, tour review 2026-11-07.)
+        float fadeK = smoothstep(2.6, 3.8, nearCam + 0.25 * (dith - 0.5));
         // Between the camera and the wanderer, leaves thin out (the wanderer is
         // never lost behind a tree): within a tube round that line, dithered.
         vec3 sp = (viewMatrix * vec4(uFocus, 1.0)).xyz;
         vec3 fp = -vViewPosition;
         float along = clamp(dot(fp, sp) / dot(sp, sp), 0.0, 1.0);
         float tube = length(fp - sp * along);
-        if (along < 0.97 && tube < (1.4 + 2.2 * along) * (0.86 + 0.14 * dith)) discard;`,
+        if (along < 0.97) {
+          float r = 1.4 + 2.2 * along;
+          fadeK *= smoothstep(r * 0.7, r * 1.05, tube + 0.12 * r * (dith - 0.5));
+        }
+        diffuseColor.a *= fadeK;
+        if (diffuseColor.a < 0.02) discard;`,
       )
   }
   return mat
