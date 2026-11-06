@@ -34,15 +34,31 @@ export class MireView {
     const mat = new THREE.MeshStandardMaterial({ color: 0x11160f, roughness: 0.18, metalness: 0.2, envMapIntensity: 0.22, emissive: 0x030403, transparent: true, depthWrite: false })
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, soft)
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vPoolW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvPoolW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;')
       sh.fragmentShader = sh.fragmentShader
-        .replace('void main() {', '#include <packing>\n' + SOFT_GLSL + '\nvoid main() {')
+        .replace('void main() {', '#include <packing>\nvarying vec3 vPoolW;\n' + SOFT_GLSL + '\nvoid main() {')
         .replace(
           '#include <dithering_fragment>',
           `#include <dithering_fragment>
           {
             // Shallow at the bank: dark peat showing, then gone into the mud over its last 30 cm.
-            float shore = softFade(0.7, 0.004);
-            // Peat water mirrors the sky dimly; at the bank the bed shows through, dark and wet.
+            // How deep the water stands over the bed here, straight down: the gap behind the surface
+            // along the line of sight, times how steeply the eye looks down. (Along the line of sight alone,
+            // a pool seen low from 100 m away had metres "behind" it right to its edge, and lay on the
+            // marsh as a white plank with a hard edge — tour review.)
+            float shore = 1.0;
+            if (uSoftOn > 0.5) {
+              float sd = texture2D(tSoftDepth, gl_FragCoord.xy / uSoftRes).r;
+              float gap = -perspectiveDepthToViewZ(sd, uSoftNF.x, uSoftNF.y) + perspectiveDepthToViewZ(gl_FragCoord.z, uSoftNF.x, uSoftNF.y);
+              float down = abs(normalize(vPoolW - cameraPosition).y);
+              shore = smoothstep(0.0, 0.35, gap * down);
+            }
+            // Peat water: black, with only a dim sheen of the sky even at a grazing angle (seen low, the
+            // reflection went nearly white — a pale plank lying across the marsh, tour review).
+            gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.16, 0.17, 0.17)) * 0.55 + gl_FragColor.rgb * 0.12;
+            // At the bank the bed shows through, dark and wet.
             gl_FragColor.rgb = mix(vec3(0.05, 0.045, 0.035), gl_FragColor.rgb, smoothstep(0.1, 0.9, shore));
             gl_FragColor.a = smoothstep(0.0, 0.6, shore);
           }`,
