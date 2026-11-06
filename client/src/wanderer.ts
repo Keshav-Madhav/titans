@@ -1356,13 +1356,21 @@ export class Wanderer {
     }
 
     const hs = Math.hypot(this.vel.x, this.vel.z)
+    // Turning toward where you go: a critically damped spring on the turn's rate, not a fixed share of
+    // the angle a step — reversing, that turned 34° in the first frame (2,000°/s from a standstill).
+    // Now it winds up and settles, an about-face in ~0.3 s, without overshoot.
+    let d = 0
     if (hs > 0.3) {
-      const target = Math.atan2(this.vel.x, this.vel.z)
-      let d = target - this.yaw
+      d = Math.atan2(this.vel.x, this.vel.z) - this.yaw
       d = Math.atan2(Math.sin(d), Math.cos(d))
-      this.yaw += d * Math.min(1, 12 * dt)
     }
+    const W = 13
+    this.yawV += (W * W * d - 2 * W * this.yawV) * Math.min(dt, 1 / 30)
+    this.yaw += this.yawV * dt
   }
+
+  /** The facing's turn rate (rad/s), sprung toward where you go. */
+  private yawV = 0
 
   /** A shockwave: thrown by `impulse` and knocked down for `seconds`. */
   knock(impulse: THREE.Vector3, seconds: number): void {
