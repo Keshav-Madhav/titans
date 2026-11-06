@@ -2154,8 +2154,23 @@ function simulate(dt: number): void {
   }
   if (climber.active) {
     raid()
-    if (input.pressed('KeyE')) letGo(0.6)
-    else if (input.pressed('Space') && climber.standing) {
+    // (Each key read once: input.pressed() consumes the press — asked twice, the second never saw it.)
+    const keyE = input.pressed('KeyE')
+    const keySpace = input.pressed('Space')
+    if (keyE && climber.standing) {
+      // Standing on it, E is getting off: a hop out the way you face, and no catching you again on
+      // the way down (the user, 2026-11-06: "getting off a giant is near impossible" — let go on top,
+      // you were caught on the very same footing the next frame).
+      letGo(0)
+      wanderer.vel.y = Math.max(wanderer.vel.y, 0) + 3.5
+      wanderer.vel.x += Math.sin(wanderer.yaw) * 4.5
+      wanderer.vel.z += Math.cos(wanderer.yaw) * 4.5
+      noCatchUntil = performance.now() + 1500
+      sound.scramble(0.4)
+    } else if (keyE) {
+      letGo(0.6)
+      noCatchUntil = performance.now() + 1500
+    } else if (keySpace && climber.standing) {
       // Standing on a giant, Space is a jump — up, and on the way you are going — and you come
       // down on it again where there is footing (landOn), not thrown off it.
       const fwd = climber.moving > 0 ? 3.2 : 0.6
@@ -2164,10 +2179,13 @@ function simulate(dt: number): void {
       wanderer.vel.x += Math.sin(wanderer.yaw) * fwd
       wanderer.vel.z += Math.cos(wanderer.yaw) * fwd
       sound.scramble(0.4)
-    } else if (input.pressed('Space')) letGo(4.5)
-    else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
+    } else if (keySpace) {
+      letGo(4.5)
+      noCatchUntil = performance.now() + 1500
+    } else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
       narration.say('You lost your grip.')
       letGo(1.2)
+      noCatchUntil = performance.now() + 1500
     } else if (climber.world.y < terrain.heightAt(climber.world.x, climber.world.z) - 0.5 && Number.isNaN(waterAt(climber.world.x, climber.world.z))) {
       // A hold carried down into the land — a giant's leg sunk in a dip (Q56: the adversary gate
       // once found the climber 16 m underground, still holding on): step off onto the ground.
@@ -2275,7 +2293,9 @@ function simulate(dt: number): void {
       const lit = cairns.save()
       for (const [land, names] of Object.entries(CAIRN_LANDS)) if (names.includes(cairn.name) && names.every((n) => lit.includes(n))) setTimeout(() => finds.find(`ember-${land}`), 4000)
       saveDirty = true
-    } else if (input.pressed('KeyE')) {
+    } else if (input.pressed('KeyE') && performance.now() > letGoAt + 350) {
+      // (Not with the same press that just let go: the climb's E let go, and this, later in the same
+      // step, took hold again at once — you could not get off.)
       chest.set(wanderer.pos.x, wanderer.pos.y + 0.9, wanderer.pos.z)
       climber.tryGrab(chest)
       // No giant within reach: a rock formation or colossus; else the land, if there is a wall to hand.
@@ -2357,7 +2377,7 @@ function simulate(dt: number): void {
         wanderer.hanging = grapple.attached && !wanderer.grounded
         // Coming down onto a giant: you stand on it (a jump on its back, a fall from a shoulder, a
         // glide onto its head).
-        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && climber.landOn(wanderer.pos, wanderer.vel.y)) {
+        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
           grapple.release()
           wanderer.gliding = false
           fallTop = NaN
@@ -2493,7 +2513,11 @@ function heldAwake(): Titan | undefined {
 let firstClimbDone = false
 
 /** Let go of the giant: fall with its motion plus a push off the rock. */
+/** After letting go on purpose, a giant does not catch you again until this (ms). */
+let noCatchUntil = 0
+let letGoAt = -1e9
 function letGo(push: number): void {
+  letGoAt = performance.now()
   if (tipState.high >= 150) firstClimbDone = true
   const v = climber.release(push)
   const w = climber.world
@@ -3737,6 +3761,7 @@ const g = {
     return skyline
   },
   awakening,
+  get reveal() { return reveal },
   farGiants,
   herd,
   finds,
