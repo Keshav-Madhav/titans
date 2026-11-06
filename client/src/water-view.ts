@@ -66,8 +66,16 @@ const MIN_STREAM = 24
  */
 export function shown(lake: { level: number; basin: { spill: number; bottom: number } }): number {
   const full = THREE.MathUtils.smoothstep(lake.level, lake.basin.spill - 0.6, lake.basin.spill - 0.05)
-  return lake.level - 0.45 * full * Math.min(1, (lake.level - lake.basin.bottom) / 1.5)
+  // How deep the water is, taken over every lake brimming at this same level: two basins that touch
+  // share one water, and each sunk by its own depth drew the shallow one up to 0.3 m above its deep
+  // neighbour — a pale sheet with a hard edge, standing on the grass beside the real lake.
+  const depth = Math.max(lake.level - lake.basin.bottom, full > 0 ? (brimDepth.get(levelKey(lake.level)) ?? 0) : 0)
+  return lake.level - 0.45 * full * Math.min(1, depth / 1.5)
 }
+
+/** The deepest water among lakes standing at a level (to the centimetre). Refreshed by WaterView.sync. */
+const brimDepth = new Map<number, number>()
+const levelKey = (level: number): number => Math.round(level * 100)
 
 export class WaterView {
   readonly group = new THREE.Group()
@@ -163,6 +171,11 @@ export class WaterView {
 
   sync(lakes: readonly Lake[], heightAt: (x: number, z: number) => number): void {
     const live = new Set<number>()
+    brimDepth.clear()
+    for (const lake of lakes) {
+      const k = levelKey(lake.level)
+      brimDepth.set(k, Math.max(brimDepth.get(k) ?? 0, lake.level - lake.basin.bottom))
+    }
     for (const lake of lakes) {
       live.add(lake.id)
       let e = this.entries.get(lake.id)
@@ -309,10 +322,12 @@ export class WaterView {
           // to nothing over the last few centimetres of depth.
           float wMask = smoothstep(0.15, 0.6, wBed.g);
           if (wMask < 0.01 || wDepth < -0.02) discard;
-          float wDeep = smoothstep(0.15, 4.0, wDepth);
-          // Shallows: clear, green over the bed; further out the deep blue.
-          diffuseColor.rgb = mix(vec3(0.24, 0.42, 0.36), diffuseColor.rgb, wDeep);
-          diffuseColor.a = smoothstep(-0.02, 0.22, wDepth) * mix(0.28, 0.95, smoothstep(0.22, 2.4, wDepth)) * wMask;
+          float wDeep = smoothstep(0.15, 5.0, wDepth);
+          // Shallows: clear, a dark green over the bed; further out the deep blue. (Two metres over a
+          // drowned meadow was 85% opaque and pale: a milky slab laid on the grass, its edge a hard
+          // line — the user, 2026-11-06: "hard floating edges". Clear to 4 m now, the bed showing.)
+          diffuseColor.rgb = mix(vec3(0.13, 0.25, 0.22), diffuseColor.rgb, wDeep);
+          diffuseColor.a = smoothstep(-0.02, 0.22, wDepth) * mix(0.22, 0.95, smoothstep(0.3, 4.5, wDepth)) * wMask;
           // Foam where it laps the shore: a soft line, broken and moving.
           float wFoamN = wNoise(vWaterW.xz * 0.9 + vec2(uTime * 0.15, uTime * 0.1)) * 0.6 + wNoise(vWaterW.xz * 2.7 - uTime * 0.2) * 0.4;
           // (A thin broken line at the very edge: a still lake hardly foams. Over the last 32 cm at up

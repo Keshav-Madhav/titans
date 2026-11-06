@@ -15,6 +15,7 @@
 // what you have seen; the wheel zooms, a drag pans.
 
 import { actionOf } from './input'
+import { shown } from './water-view'
 import * as THREE from 'three'
 import { inBasin, WORLD_HALF, type Lake, type RegionName, type Terrain } from '@titans/shared'
 
@@ -287,7 +288,9 @@ export class WorldMap {
     const h = h0 ?? T.heightAt(x, z)
     for (const l of lakes) {
       const b = l.basin
-      if (x >= b.x0 && z >= b.z0 && x < b.x0 + b.w && z < b.z0 + b.h && inBasin(b, Math.round(x), Math.round(z))) return WATER
+      // Water where the lake is, not its whole basin: a half-full lake painted to the brim showed shores
+      // the world doesn't have (hard edges on the map, out on dry land).
+      if (x >= b.x0 && z >= b.z0 && x < b.x0 + b.w && z < b.z0 + b.h && inBasin(b, Math.round(x), Math.round(z)) && h < shown(l)) return WATER
     }
     const e = Math.max(m, 2)
     const hx = (hE ?? T.heightAt(x + e, z)) - h
@@ -363,7 +366,8 @@ export class WorldMap {
   private watchLakes(lakes: readonly Lake[]): void {
     this.lakes = lakes
     for (const l of lakes) {
-      const sig = `${l.basin.sorted.length}.${l.level > l.basin.bottom + 0.3 ? 1 : 0}`
+      // (The level to half a metre: the shore moves as it fills, without repainting every step.)
+      const sig = `${l.basin.sorted.length}.${l.level > l.basin.bottom + 0.3 ? Math.round(shown(l) * 2) : 'dry'}`
       if (this.lakeSigs.get(l.id) === sig) continue
       const was = this.lakeSigs.has(l.id)
       this.lakeSigs.set(l.id, sig)
