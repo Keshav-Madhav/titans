@@ -177,10 +177,11 @@ export class Climber {
   }
 
   /** How deep (m) world point `p` is inside the giant held (0 outside) — for keeping the body out. */
-  depth(p: THREE.Vector3): number {
+  depth(p: THREE.Vector3, except?: TitanPart | null): number {
     if (!this.target) return 0
     let d = 0
     for (const part of this.target.titan.parts) {
+      if (part === except) continue
       const inv = _inv.copy(part.mesh.matrixWorld).invert()
       _q.copy(p).applyMatrix4(inv)
       for (const L of part.lumps) {

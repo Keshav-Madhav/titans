@@ -1237,6 +1237,15 @@ const CLIP_PTS = [
 ].map(([x, y, z]) => new THREE.Vector3(x, y, z))
 const _clipW = new THREE.Vector3()
 let clipPush = 0
+/** Climbing: how far the body is moved along the hold's normal to sit HUG_GAP off the stone. */
+let hugPush = 0
+const HUG_GAP = 0.14
+const HUG_FROM = 2
+const HUG_PTS = [[0, 1.68, 0.16], [0, 1.35, 0.14], [0, 0.95, 0.12], [0.13, 0.5, 0.16], [-0.13, 0.5, 0.16], [0.12, 0.06, 0.14], [-0.12, 0.06, 0.14]].map(([x, y, z]) => new THREE.Vector3(x, y, z))
+const _hugRay = new THREE.Raycaster(undefined, undefined, 0, HUG_FROM + 3)
+const _hugO = new THREE.Vector3()
+const _hugDir = new THREE.Vector3()
+const _hugHits: THREE.Intersection[] = []
 const journal = new Journal(finds)
 journal.haveBag = () => bag.have
 const toolbar = new Toolbar(finds)
@@ -3087,10 +3096,31 @@ function frameBody(now: number): void {
     // points on the body, the deepest inside the giant sets how far out along the surface the body
     // stands, eased so it does not shake.
     {
+      const M = wanderer.obj.matrixWorld.compose(wanderer.obj.position, wanderer.obj.quaternion, wanderer.obj.scale)
+      // Against the stone you hold: rays in along the hold's normal from the chest, hips, knees and
+      // feet to the part's own mesh. Its lumps are a rough fit — the hold sat 0.4 m inside to 1.3 m
+      // outside the stone — and the body hung 0.5–2 m off the giant, feet dangling in the air. The
+      // nearest point of the body is kept HUG_GAP off the stone, eased so the climb doesn't shake.
+      let near = Infinity
+      const part = climber.standing ? null : climber.part
+      if (part) {
+        _hugRay.camera = camera
+        _hugDir.copy(climber.normal).negate()
+        for (const lp of HUG_PTS) {
+          _clipW.copy(lp).applyMatrix4(M)
+          _hugRay.set(_hugO.copy(_clipW).addScaledVector(climber.normal, HUG_FROM), _hugDir)
+          _hugHits.length = 0
+          const h = _hugRay.intersectObject(part.mesh, true, _hugHits)[0]
+          if (h) near = Math.min(near, h.distance - HUG_FROM)
+        }
+      }
+      const want = Number.isFinite(near) ? THREE.MathUtils.clamp(HUG_GAP - near, -1.8, 2.5) : 0
+      hugPush += (want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8))
+      // Every other part of the giant (a thigh above the shin you hold, the armour): its lumps.
       let deep = 0
-      for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(wanderer.obj.matrixWorld.compose(wanderer.obj.position, wanderer.obj.quaternion, wanderer.obj.scale))))
+      for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(M), part))
       clipPush += (Math.min(2.5, deep * 1.15) - clipPush) * Math.min(1, dt * (deep * 1.15 > clipPush ? 14 : 3))
-      wanderer.obj.position.addScaledVector(climber.normal, clipPush)
+      wanderer.obj.position.addScaledVector(climber.normal, hugPush + clipPush)
     }
   } else if (cliff.active) {
     wanderer.climbPose(dt, cliff.world, cliff.normal, false, rig.yaw + Math.PI, cliff.moving ? 1 : 0)
@@ -3872,6 +3902,10 @@ const g = {
       z: climber.world.z,
       // (Above the ground under you: whichever giant it is.)
       height: climber.world.y - terrain.heightAt(climber.world.x, climber.world.z),
+      clipPush,
+      hugPush,
+      nx: climber.normal.x, ny: climber.normal.y, nz: climber.normal.z,
+      depth: (p: THREE.Vector3) => climber.depth(p),
     }
   },
   /**
