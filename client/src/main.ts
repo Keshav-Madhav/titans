@@ -1241,6 +1241,9 @@ let clipPush = 0
 let hugPush = 0
 /** What the hug's rays cost a frame (eased; tools read it from climbState). */
 let hugMs = 0
+/** The normal the climbing body is posed to: the hold's, eased (climbNFresh: take it at once). */
+const climbN = new THREE.Vector3(0, 0, 1)
+let climbNFresh = true
 const _hugIn = new THREE.Vector3()
 const HUG_GAP = 0.14
 const HUG_PTS = [[0, 1.68, 0.16], [0, 1.35, 0.14], [0, 0.95, 0.12], [0.13, 0.5, 0.16], [-0.13, 0.5, 0.16], [0.12, 0.06, 0.14], [-0.12, 0.06, 0.14]].map(([x, y, z]) => new THREE.Vector3(x, y, z))
@@ -3090,7 +3093,13 @@ function frameBody(now: number): void {
   if (climber.active) {
     // Glued to the hold through the giant's pose of THIS frame.
     climber.sync(dt)
-    wanderer.climbPose(dt, climber.world, climber.normal, climber.standing, rig.yaw + Math.PI, climber.moving)
+    // The body turns to the stone's normal eased, not at once: where the hold crosses from one part
+    // to the next (shin to foot) the normal jumped ~25°, and with it the body's lean and its offset
+    // from the hold — a 0.5 m snap in one frame.
+    if (climbNFresh) climbN.copy(climber.normal)
+    else climbN.lerp(climber.normal, Math.min(1, dt * 9)).normalize()
+    climbNFresh = false
+    wanderer.climbPose(dt, climber.world, climbN, climber.standing, rig.yaw + Math.PI, climber.moving)
     // Out of the rock (user, 2026-11-05: "clipping when climbing on a giant, a lot"): of a few
     // points on the body, the deepest inside the giant sets how far out along the surface the body
     // stands, eased so it does not shake.
@@ -3107,20 +3116,24 @@ function frameBody(now: number): void {
       if (part) {
         const _t = performance.now()
         HUG_PTS.forEach((lp, i) => _hugW[i].copy(lp).applyMatrix4(M))
-        near = climber.stoneGap(_hugW, _hugIn.copy(climber.normal).negate(), 2)
+        near = climber.stoneGap(_hugW, _hugIn.copy(climbN).negate(), 2)
         hugMs += (performance.now() - _t - hugMs) * 0.05
       }
       const want = Number.isFinite(near) ? THREE.MathUtils.clamp(HUG_GAP - near, -1.8, 2.5) : 0
-      hugPush += (want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8))
+      // (Eased, and no faster than 2.5 m/s: where the hold crosses to another part the stone it
+      // measures jumps.)
+      hugPush += THREE.MathUtils.clamp((want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8)), -2.5 * dt, 2.5 * dt)
       // Every other part of the giant (a thigh above the shin you hold, the armour): its lumps.
       let deep = 0
       for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(M), part))
       clipPush += (Math.min(2.5, deep * 1.15) - clipPush) * Math.min(1, dt * (deep * 1.15 > clipPush ? 14 : 3))
-      wanderer.obj.position.addScaledVector(climber.normal, hugPush + clipPush)
+      wanderer.obj.position.addScaledVector(climbN, hugPush + clipPush)
     }
   } else if (cliff.active) {
+    climbNFresh = true
     wanderer.climbPose(dt, cliff.world, cliff.normal, false, rig.yaw + Math.PI, cliff.moving ? 1 : 0)
   } else {
+    climbNFresh = true
     wanderer.sync(acc / STEP)
   }
   // Limbs, cape and scarf; the weather's wind blows from the west-south-west.
