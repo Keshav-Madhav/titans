@@ -1369,6 +1369,8 @@ export class Wanderer {
     this.yaw += this.yawV * dt
   }
 
+  /** Swimming: how much the feet are held under the water (eased in and out). */
+  private swimLegW = 0
   /** The facing's turn rate (rad/s), sprung toward where you go. */
   private yawV = 0
 
@@ -1787,6 +1789,24 @@ export class Wanderer {
         const foot = _p1.copy(hip).addScaledVector(up, -0.8).addScaledVector(fwd, i ? 0.12 : -0.05)
         this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, _p2.copy(fwd), this.hangW)
       }
+    }
+  }
+
+  /**
+   * Swimming, the feet kept under: the swim clip's kick, with the body lifted for the head, brought the
+   * boots up out of the water behind you. A foot above SWIM_FEET under the surface is reached down to
+   * it, the knee bending toward the bed.
+   */
+  private swimLegs(dt: number): void {
+    this.swimLegW += ((this.swimming ? 1 : 0) - this.swimLegW) * Math.min(1, dt * 6)
+    if (this.swimLegW < 0.01 || !Number.isFinite(this.waterLevel)) return
+    const av = this.avatar!
+    const limit = this.waterLevel - 0.12
+    for (const sd of ['l', 'r']) {
+      av.bone(`foot_${sd}`)!.getWorldPosition(_p1)
+      if (_p1.y <= limit) continue
+      _p1.y = limit
+      this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, _p1, _p2.set(0, -1, 0), this.swimLegW)
     }
   }
 
@@ -2439,6 +2459,7 @@ export class Wanderer {
       this.retarget(dt)
       this.climbRig(dt)
       this.airRig(dt)
+      this.swimLegs(dt)
       this.footIK(dt, ground)
       this.footDowns(ground)
       this.followAvatar()
