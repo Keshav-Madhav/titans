@@ -80,6 +80,72 @@ export interface ClimbTarget {
   titan: Titan
 }
 
+/** A part's stone and what is built on it — plates, the shrine — not its fur (cards, alpha-cut). */
+const solidCache = new WeakMap<TitanPart, THREE.Mesh[]>()
+function solidMeshes(part: TitanPart): THREE.Mesh[] {
+  let list = solidCache.get(part)
+  if (!list) {
+    list = []
+    part.mesh.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.isMesh || (m as THREE.InstancedMesh).isInstancedMesh) return
+      const mat = m.material as THREE.Material
+      if (mat && (mat.alphaTest > 0 || mat.transparent)) return
+      list!.push(m)
+    })
+    solidCache.set(part, list)
+  }
+  return list
+}
+
+/** Rays in along `inward` from each point (from `from` out) against one mesh: nearest hits into _gt. */
+function castInto(mesh: THREE.Mesh, points: readonly THREE.Vector3[], n: number, inward: THREE.Vector3, from: number): void {
+  const geo = mesh.geometry
+  const pos = geo.attributes.position.array as ArrayLike<number>
+  const idx = geo.index?.array as ArrayLike<number> | undefined
+  _inv.copy(mesh.matrixWorld).invert()
+  _gd.copy(inward).transformDirection(_inv)
+  // The points (local), each with its ray's start; the box they and their rays span.
+  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity
+  for (let i = 0; i < n; i++) {
+    const o = _go[i].copy(points[i]).applyMatrix4(_inv).addScaledVector(_gd, -from)
+    for (const q of [o, _gq.copy(o).addScaledVector(_gd, from + 2.5)]) {
+      x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); z0 = Math.min(z0, q.z)
+      x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); z1 = Math.max(z1, q.z)
+    }
+  }
+  const tris = idx ? idx.length / 3 : pos.length / 9
+  for (let t = 0; t < tris; t++) {
+    const a = (idx ? idx[t * 3] : t * 3) * 3
+    const b = (idx ? idx[t * 3 + 1] : t * 3 + 1) * 3
+    const c = (idx ? idx[t * 3 + 2] : t * 3 + 2) * 3
+    const ax = pos[a], ay = pos[a + 1], az = pos[a + 2]
+    const bx = pos[b], by = pos[b + 1], bz = pos[b + 2]
+    const cx = pos[c], cy = pos[c + 1], cz = pos[c + 2]
+    if (Math.max(ax, bx, cx) < x0 || Math.min(ax, bx, cx) > x1) continue
+    if (Math.max(ay, by, cy) < y0 || Math.min(ay, by, cy) > y1) continue
+    if (Math.max(az, bz, cz) < z0 || Math.min(az, bz, cz) > z1) continue
+    // Möller–Trumbore, either side (the ray starts outside; a backface is only hit from within).
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az
+    const px = _gd.y * e2z - _gd.z * e2y, py = _gd.z * e2x - _gd.x * e2z, pz = _gd.x * e2y - _gd.y * e2x
+    const det = e1x * px + e1y * py + e1z * pz
+    if (Math.abs(det) < 1e-9) continue
+    const inv = 1 / det
+    for (let i = 0; i < n; i++) {
+      const o = _go[i]
+      const sx = o.x - ax, sy = o.y - ay, sz = o.z - az
+      const u = (sx * px + sy * py + sz * pz) * inv
+      if (u < 0 || u > 1) continue
+      const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x
+      const v = (_gd.x * qx + _gd.y * qy + _gd.z * qz) * inv
+      if (v < 0 || u + v > 1) continue
+      const d = (e2x * qx + e2y * qy + e2z * qz) * inv
+      if (d > 0 && d < _gt[i]) _gt[i] = d
+    }
+  }
+}
+
 export class Climber {
   active = false
   target: ClimbTarget | null = null
@@ -192,52 +258,9 @@ export class Climber {
   stoneGap(points: readonly THREE.Vector3[], inward: THREE.Vector3, from: number): number {
     const part = this.part
     if (!part) return Infinity
-    const geo = part.mesh.geometry
-    const pos = geo.attributes.position.array as ArrayLike<number>
-    const idx = geo.index?.array as ArrayLike<number> | undefined
-    _inv.copy(part.mesh.matrixWorld).invert()
-    _gd.copy(inward).transformDirection(_inv)
-    // The points (local), each with its ray's start; the box they and their rays span.
-    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity
     const n = Math.min(points.length, _go.length)
-    for (let i = 0; i < n; i++) {
-      const o = _go[i].copy(points[i]).applyMatrix4(_inv).addScaledVector(_gd, -from)
-      _gt[i] = Infinity
-      for (const q of [o, _gq.copy(o).addScaledVector(_gd, from + 2.5)]) {
-        x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); z0 = Math.min(z0, q.z)
-        x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); z1 = Math.max(z1, q.z)
-      }
-    }
-    const tris = idx ? idx.length / 3 : pos.length / 9
-    for (let t = 0; t < tris; t++) {
-      const a = (idx ? idx[t * 3] : t * 3) * 3
-      const b = (idx ? idx[t * 3 + 1] : t * 3 + 1) * 3
-      const c = (idx ? idx[t * 3 + 2] : t * 3 + 2) * 3
-      const ax = pos[a], ay = pos[a + 1], az = pos[a + 2]
-      const bx = pos[b], by = pos[b + 1], bz = pos[b + 2]
-      const cx = pos[c], cy = pos[c + 1], cz = pos[c + 2]
-      if (Math.max(ax, bx, cx) < x0 || Math.min(ax, bx, cx) > x1) continue
-      if (Math.max(ay, by, cy) < y0 || Math.min(ay, by, cy) > y1) continue
-      if (Math.max(az, bz, cz) < z0 || Math.min(az, bz, cz) > z1) continue
-      // Möller–Trumbore, either side (the ray starts outside; a backface is only hit from within).
-      const e1x = bx - ax, e1y = by - ay, e1z = bz - az
-      const e2x = cx - ax, e2y = cy - ay, e2z = cz - az
-      const px = _gd.y * e2z - _gd.z * e2y, py = _gd.z * e2x - _gd.x * e2z, pz = _gd.x * e2y - _gd.y * e2x
-      const det = e1x * px + e1y * py + e1z * pz
-      if (Math.abs(det) < 1e-9) continue
-      const inv = 1 / det
-      for (let i = 0; i < n; i++) {
-        const o = _go[i]
-        const sx = o.x - ax, sy = o.y - ay, sz = o.z - az
-        const u = (sx * px + sy * py + sz * pz) * inv
-        if (u < 0 || u > 1) continue
-        const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x
-        const v = (_gd.x * qx + _gd.y * qy + _gd.z * qz) * inv
-        if (v < 0 || u + v > 1) continue
-        const d = (e2x * qx + e2y * qy + e2z * qz) * inv
-        if (d > 0 && d < _gt[i]) _gt[i] = d
-      }
-    }
+    for (let i = 0; i < n; i++) _gt[i] = Infinity
+    for (const mesh of solidMeshes(part)) if (mesh.visible) castInto(mesh, points, n, inward, from)
     let gap = Infinity
     for (let i = 0; i < n; i++) gap = Math.min(gap, _gt[i] - from)
     return gap

@@ -1241,6 +1241,10 @@ let clipPush = 0
 let hugPush = 0
 /** What the hug's rays cost a frame (eased; tools read it from climbState). */
 let hugMs = 0
+/** On a giant's back: how far the body is lowered to put its soles on the visible stone. */
+let standDrop = 0
+const _footW = [new THREE.Vector3(), new THREE.Vector3()]
+const _down = new THREE.Vector3(0, -1, 0)
 /** The normal the climbing body is posed to: the hold's, eased (climbNFresh: take it at once). */
 const climbN = new THREE.Vector3(0, 0, 1)
 let climbNFresh = true
@@ -3125,9 +3129,21 @@ function frameBody(now: number): void {
       hugPush += THREE.MathUtils.clamp((want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8)), -2.5 * dt, 2.5 * dt)
       // Every other part of the giant (a thigh above the shin you hold, the armour): its lumps.
       let deep = 0
-      for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(M), part))
+      for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(M), climber.part))
       clipPush += (Math.min(2.5, deep * 1.15) - clipPush) * Math.min(1, dt * (deep * 1.15 > clipPush ? 14 : 3))
       wanderer.obj.position.addScaledVector(climbN, hugPush + clipPush)
+      // On your feet on its back: the soles on the stone you see (the lumps the hold rides stand up
+      // to 0.5 m proud of it, more over a ridge — you stood 0.4 m in the air, 1.6 m walking).
+      let drop = 0
+      if (climber.standing) {
+        M.compose(wanderer.obj.position, wanderer.obj.quaternion, wanderer.obj.scale)
+        _footW[0].set(0.12, 0.3, 0.05).applyMatrix4(M)
+        _footW[1].set(-0.12, 0.3, 0.05).applyMatrix4(M)
+        const g = climber.stoneGap(_footW, _down, 2) - 0.3
+        if (Number.isFinite(g)) drop = THREE.MathUtils.clamp(g, -0.6, 1.2)
+      }
+      standDrop += THREE.MathUtils.clamp((drop - standDrop) * Math.min(1, dt * 12), -3 * dt, 3 * dt)
+      wanderer.obj.position.y -= standDrop
     }
   } else if (cliff.active) {
     climbNFresh = true
@@ -3914,6 +3930,8 @@ const g = {
       clipPush,
       hugPush,
       hugMs,
+      standDrop,
+      stoneGap: (pts: THREE.Vector3[], d: THREE.Vector3, from: number) => climber.stoneGap(pts, d, from),
       nx: climber.normal.x, ny: climber.normal.y, nz: climber.normal.z,
       depth: (p: THREE.Vector3) => climber.depth(p),
     }
