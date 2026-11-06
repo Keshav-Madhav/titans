@@ -1792,6 +1792,31 @@ export class Wanderer {
     this.aimBone(B, C, _t1, end, w)
   }
 
+  /** Each foot's height over the ground last frame, and whether it is down (rigged body). */
+  private readonly footH = [1, 1]
+  private readonly footDown = [true, true]
+
+  /**
+   * A step lands when one of the rigged body's feet comes down to the ground (the clips' own
+   * footfalls): the sound, the prints and the trail on that beat. (They were timed off the old body's
+   * stride, which runs at its own rate: up to 150 ms off the feet you saw, and running, 21 steps
+   * heard to 16 taken.)
+   */
+  private footDowns(ground: (x: number, z: number) => number): void {
+    const av = this.avatar!
+    const moving = this.grounded && !this.climbing && !this.gliding && !this.swimming && this.speed > 0.6
+    for (let i = 0; i < 2; i++) {
+      av.bone(`foot_${i === 0 ? 'r' : 'l'}`)!.getWorldPosition(_p0)
+      const h = _p0.y - ground(_p0.x, _p0.z)
+      // Down below ~13 cm (the ankle sits ~9.6 cm up when planted), up again above ~20.
+      if (!this.footDown[i] && h < 0.13) {
+        this.footDown[i] = true
+        if (moving) this.onStep?.(Math.min(1, this.speed / SPRINT))
+      } else if (this.footDown[i] && h > 0.2) this.footDown[i] = false
+      this.footH[i] = h
+    }
+  }
+
   /** Turn `bone` so the direction to `child` lies along from → to, by `w`. */
   private aimBone(b: THREE.Bone, c: THREE.Bone, from: THREE.Vector3, to: THREE.Vector3, w: number): void {
     b.updateWorldMatrix(true, true)
@@ -2038,7 +2063,8 @@ export class Wanderer {
     const half = Math.floor(s / Math.PI)
     if (half !== this.lastHalf) {
       this.lastHalf = half
-      if (!this.climbing && this.grounded && !this.gliding && hs > 0.6) this.onStep?.(Math.min(1, hs / SPRINT))
+      // (On the rigged body, its own feet say when a step lands: footDowns(), after it is posed.)
+      if (!this.avatar && !this.climbing && this.grounded && !this.gliding && hs > 0.6) this.onStep?.(Math.min(1, hs / SPRINT))
     }
     const run = Math.max(0, this.gait - 1) / 0.6
     this.pelvis.rotation.y = 0
@@ -2387,6 +2413,7 @@ export class Wanderer {
       this.climbRig(dt)
       this.airRig(dt)
       this.footIK(dt, ground)
+      this.footDowns(ground)
       this.followAvatar()
     }
     // The cloth, in the world: pinned at the shoulders (with the chest's lean).
