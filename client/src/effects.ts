@@ -5,6 +5,7 @@
 // Both pools are fixed-size InstancedMeshes, so a footfall allocates nothing.
 
 import * as THREE from 'three'
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '@titans/shared'
 
 const DUST = 260
@@ -100,9 +101,26 @@ export class Effects {
       this.dust.setMatrixAt(i, this.m.makeScale(0, 0, 0))
     }
 
-    const rockGeo = new THREE.IcosahedronGeometry(1, 0)
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.95, flatShading: true })
+    // A broken lump of the giant, not a die: from afar, twenty flat facets in one grey read as black
+    // dice hanging in the sky (screenshot review, 2026-11-06). Finer, each vertex pushed in or out,
+    // softly shaded; each piece its own stretch and its own shade of stone or moss.
+    const rockGeo = mergeVertices(new THREE.IcosahedronGeometry(1, 1).deleteAttribute('normal').deleteAttribute('uv'))
+    {
+      const p = rockGeo.getAttribute('position') as THREE.BufferAttribute
+      const jr = mulberry32(4411)
+      for (let i = 0; i < p.count; i++) {
+        const k = 0.72 + jr() * 0.5
+        p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.85, p.getZ(i) * k)
+      }
+      rockGeo.computeVertexNormals()
+    }
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 })
     this.rocks = new THREE.InstancedMesh(rockGeo, rockMat, ROCKS)
+    {
+      const shades = [0x9a9080, 0x7f776a, 0x8c8a74, 0x6f7a58, 0xa49a88].map((h) => new THREE.Color(h))
+      const cr = mulberry32(977)
+      for (let i = 0; i < ROCKS; i++) this.rocks.setColorAt(i, shades[Math.floor(cr() * shades.length)].clone().multiplyScalar(0.85 + cr() * 0.3))
+    }
     this.rocks.castShadow = true
     this.rocks.frustumCulled = false
     for (let i = 0; i < ROCKS; i++) {
@@ -291,7 +309,7 @@ export class Effects {
       this.e.set(s.rx, s.ry, 0)
       this.q.setFromEuler(this.e)
       const k = s.age >= s.life ? 0 : s.size
-      this.rocks.setMatrixAt(i, m.compose(this.v.set(s.x, s.y, s.z), this.q, this.s.set(k, k * 0.8, k)))
+      this.rocks.setMatrixAt(i, m.compose(this.v.set(s.x, s.y, s.z), this.q, this.s.set(k * (0.8 + (i % 5) * 0.1), k * (0.6 + (i % 3) * 0.15), k * (1.15 - (i % 4) * 0.1))))
     }
     this.rocks.instanceMatrix.needsUpdate = true
   }
