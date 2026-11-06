@@ -3378,6 +3378,7 @@ function frameBody(now: number): void {
     // (On a giant the camera only pulls back — the climbing and riding distances above. It no longer
     // turns to the way the giant walks or tilts up along its body by itself: the user, 2026-11-05,
     // "climbing takes over the camera… that's okay only for the zoom out".)
+    rig.meshStep = 64 / terrainView.resolution // (the quality governor can change it)
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
     if (wanderer.gliding) {

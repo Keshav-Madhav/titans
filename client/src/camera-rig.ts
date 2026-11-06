@@ -87,6 +87,15 @@ export class CameraRig {
 
   /** Signed distance to solid rock (negative inside), so the camera stays out of it. */
   occluder: ((x: number, y: number, z: number) => number) | null = null
+  /**
+   * The near terrain mesh's grid step (m). The ground the camera keeps clear of is the mesh's, not the
+   * true height: on a cliff a 1 m triangle bridges the drop, standing up to 3 m above the true height
+   * at a point — the camera sat under the drawn ground and the screen went white (seen through the
+   * land's back faces to the sky — tour review, 2026-11-06, a ledge at the Old Wood's cliffs).
+   */
+  meshStep = 1
+  /** How far the camera is raised over the focus where there is no room for it (eased). */
+  private lift = 0
   /** How far out the camera may go now (eases back out after being pulled in). */
   private held = Infinity
 
@@ -123,6 +132,13 @@ export class CameraRig {
     // The focus is never under the ground.
     this.focus.y = Math.max(this.focus.y, terrain.heightAt(this.focus.x, this.focus.z) + 0.5)
 
+    // The highest of the mesh-grid corners round (x, z): at or above the drawn ground there.
+    const s = this.meshStep
+    const ground = (x: number, z: number): number => {
+      const x0 = Math.floor(x / s) * s
+      const z0 = Math.floor(z / s) * s
+      return Math.max(terrain.heightAt(x0, z0), terrain.heightAt(x0 + s, z0), terrain.heightAt(x0, z0 + s), terrain.heightAt(x0 + s, z0 + s))
+    }
     const pitch = Math.max(this.pitch, -0.08)
     const cp = Math.cos(pitch)
     const cam = this.camera.position
@@ -153,7 +169,7 @@ export class CameraRig {
         if (!solid) outside = true
         solid = false
       }
-      if (solid || y < terrain.heightAt(x, z) + 0.35) {
+      if (solid || y < ground(x, z) + 0.35) {
         clear = Math.max(0.6, t - 0.5)
         break
       }
@@ -165,13 +181,19 @@ export class CameraRig {
     // plane cut into them. Pulled in until there is room all round it.
     const room = (cx: number, cy: number, cz: number): boolean => {
       if (this.occluder && this.occluder(cx, cy, cz) < CAM_R) return false
-      for (const [ox, oz] of RING) if (cy < terrain.heightAt(cx + ox * CAM_R, cz + oz * CAM_R) + CAM_R) return false
+      for (const [ox, oz] of RING) if (cy < ground(cx + ox * CAM_R, cz + oz * CAM_R) + CAM_R) return false
       return true
     }
     for (let i = 0; i < 12 && d > 0.6 && !room(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d); i++) d = Math.max(0.6, d - 0.3)
     if (d < this.held) this.held = d
     cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
-    const floor = terrain.heightAt(cam.x, cam.z) + 0.45
+    // Pulled all the way in and still no room — on a ledge against a cliff, a wall 10 cm from the lens
+    // and the near plane cutting through it to the white beyond: up over your head instead, eased.
+    let lift = 0
+    while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    this.lift += (lift - this.lift) * Math.min(1, dt * (lift > this.lift ? 12 : 2))
+    cam.y += this.lift
+    const floor = ground(cam.x, cam.z) + 0.45
     if (cam.y < floor) cam.y = floor
 
     if (this.trauma > 0.002) {
@@ -188,6 +210,10 @@ export class CameraRig {
     const up = this.pitch < -0.08 ? (-this.pitch - 0.08) * 2.4 : 0
     this.look.copy(this.focus)
     this.look.y += Math.tan(Math.min(up, 1.35)) * this.dist
+    // (Lifted over your head, it looks on past you — over the shoulder, not straight down on you.)
+    const hl = Math.hypot(ux, uz) || 1
+    this.look.x -= (ux / hl) * this.lift * 0.45
+    this.look.z -= (uz / hl) * this.lift * 0.45
     this.camera.lookAt(this.look)
   }
 }
