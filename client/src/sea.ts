@@ -91,7 +91,8 @@ export class Sea {
           float sDepth = mix(200.0, -texture2D(uBed, sUv).r, inMap);
           float sDeep = smoothstep(0.3, 9.0, sDepth);
           diffuseColor.rgb = mix(vec3(0.22, 0.44, 0.40), diffuseColor.rgb, sDeep);
-          diffuseColor.a = mix(0.25, 0.97, smoothstep(0.0, 3.0, sDepth));
+          // (Opaque once deep: at 0.97 a swimmer's legs showed through as a pale ghost under them.)
+          diffuseColor.a = mix(0.25, 1.0, smoothstep(0.0, 3.0, sDepth));
           // Surf: lines of foam rolling in over the shallows, breaking on the sand.
           float sN = sNoise(vSeaW.xz * 0.35 + uTime * 0.08) * 0.6 + sNoise(vSeaW.xz * 1.3 - uTime * 0.15) * 0.4;
           float sRoll = sin(sDepth * 2.2 + uTime * 1.3 + sN * 2.0);
