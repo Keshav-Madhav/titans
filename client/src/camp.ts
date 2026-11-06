@@ -4,8 +4,8 @@
 // the wind (so you see it from where you start) — and the bag.
 
 import * as THREE from 'three'
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { mulberry32, type Terrain } from '@titans/shared'
-import { carvedStone } from './spots'
 
 /**
  * Where it is: at the top of the Undercroft's stair, a few steps out on the
@@ -36,7 +36,6 @@ export class Camp {
     const CAMP = where
     const rand = mulberry32(4711)
     const at = (dx: number, dz: number, lift = 0) => new THREE.Vector3(CAMP.x + dx, terrain.heightAt(CAMP.x + dx, CAMP.z + dz) + lift, CAMP.z + dz)
-    const stone = carvedStone()
     const char = new THREE.MeshStandardMaterial({ color: 0x1e1a17, roughness: 1 })
     const wood = new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 0.95 })
     const roll = new THREE.MeshStandardMaterial({ color: 0x5e4a3a, roughness: 1 })
@@ -61,11 +60,34 @@ export class Camp {
       this.group.add(this.smoke)
     }
     // The fire ring, cold.
+    // (Rounded field stones, half sunk, sooted on the side to the fire: twelve flat facets in the pale
+    // carved-stone finish read as crumpled white paper — screenshot review, 2026-11-06.)
+    const ringMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + rand() * 0.2
-      const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 + rand() * 0.1, 0), stone)
-      s.position.copy(at(Math.cos(a) * 0.75, Math.sin(a) * 0.75, 0.08))
-      s.rotation.set(rand() * 3, rand() * 3, rand() * 3)
+      const r = 0.2 + rand() * 0.09
+      const g = mergeVertices(new THREE.IcosahedronGeometry(1, 2).deleteAttribute('normal').deleteAttribute('uv'))
+      const pos = g.getAttribute('position') as THREE.BufferAttribute
+      const col = new Float32Array(pos.count * 3)
+      // (Vertex colours are linear: an sRGB grey stored as-is came out ~3× too light, the stones white.)
+      const base = new THREE.Color().setHSL(0.08 + rand() * 0.04, 0.1 + rand() * 0.06, 0.26 + rand() * 0.08, THREE.SRGBColorSpace)
+      const c = new THREE.Color()
+      // The fire's side in the stone's own (unrotated) frame: toward the ring's centre.
+      const inX = -Math.cos(a), inZ = -Math.sin(a)
+      for (let k = 0; k < pos.count; k++) {
+        const x = pos.getX(k), y = pos.getY(k), z = pos.getZ(k)
+        const bump = 1 + 0.12 * Math.sin(x * 5.1 + i) * Math.cos(z * 4.3 - i) + 0.06 * Math.sin(y * 9.7 + i * 2)
+        pos.setXYZ(k, x * r * 1.15 * bump, y * r * 0.72 * bump, z * r * bump)
+        const soot = Math.max(0, (x * inX + z * inZ) * 0.8 + y * 0.3)
+        c.copy(base).multiplyScalar(1 - 0.75 * Math.min(1, soot))
+        col.set([c.r, c.g, c.b], k * 3)
+      }
+      g.computeVertexNormals()
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+      const s = new THREE.Mesh(g, ringMat)
+      s.position.copy(at(Math.cos(a) * 0.75, Math.sin(a) * 0.75, r * 0.15))
+      s.rotation.y = rand() * 0.6
+      s.castShadow = true
       this.group.add(s)
     }
     const ash = new THREE.Mesh(new THREE.CircleGeometry(0.62, 16).rotateX(-Math.PI / 2), char)
