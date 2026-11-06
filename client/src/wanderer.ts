@@ -857,6 +857,8 @@ export class Wanderer {
   private readonly scarfPins = [new THREE.Vector3(), new THREE.Vector3()]
   private readonly axisA = new THREE.Vector3()
   private readonly legCaps: Capsule[] = [0, 1, 2, 3].map(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0.12 }))
+  /** The legs, and (rigged body) the arms — upper arm and forearm each, a little thinner. */
+  private readonly limbCaps: Capsule[] = [...this.legCaps, ...[0, 1, 2, 3].map(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0.085 }))]
   private readonly axisB = new THREE.Vector3()
   private readonly hangDir = new THREE.Vector3()
   private readonly windV = new THREE.Vector3()
@@ -2545,6 +2547,13 @@ export class Wanderer {
         av.bone(`calf_${side}`)!.getWorldPosition(c[i * 2].b)
         c[i * 2 + 1].a.copy(c[i * 2].b)
         av.bone(`foot_${side}`)!.getWorldPosition(c[i * 2 + 1].b)
+        // (And the arms: the cape, wrapped further round the shoulders, hung over them, and a sleeve
+        // and bracer stood out through the middle of it.)
+        const A = this.limbCaps
+        av.bone(`upperarm_${side}`)!.getWorldPosition(A[4 + i * 2].a)
+        av.bone(`lowerarm_${side}`)!.getWorldPosition(A[4 + i * 2].b)
+        A[5 + i * 2].a.copy(A[4 + i * 2].b)
+        av.bone(`hand_${side}`)!.getWorldPosition(A[5 + i * 2].b)
         continue
       }
       L.hip.getWorldPosition(c[i * 2].a)
@@ -2559,7 +2568,7 @@ export class Wanderer {
     // — user, 2026-11-05. Gliding the wing carries it; otherwise at most a little over the shoulders.)
     this.cape.ceil = this.gliding ? Infinity : this.vel.y < -6 ? 0.15 : 0.1
     this.clothGround = ground
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, this.swimming ? this.soakedFloor : ground, this.legCaps)
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, this.swimming ? this.soakedFloor : ground, this.avatar ? this.limbCaps : this.legCaps)
     this.windV.multiplyScalar(1.25)
     // (The scarf too: falling, and in the water, it stood up over the hood like a red stalk.)
     this.scarf.ceil = this.gliding ? Infinity : 0.05
