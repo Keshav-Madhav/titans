@@ -220,6 +220,16 @@ export class Weather {
             // panel. A cloud has no surface: each layer thins away as the eye nears its
             // height, and close by.)
             a *= smoothstep(6.0, 60.0, abs(cameraPosition.y - vWorld.y)) * smoothstep(15.0, 160.0, dist);
+            // Seen edge-on — toward the horizon, or from up near its height — a sheet's noise smeared
+            // into long horizontal bands, its dark belly into dark lines across the whole screen that
+            // stayed put as you turned (the deck is level: turning never moves it) — the user,
+            // 2026-11-06: "black horizontal blurry lines… at the same position on my screen always
+            // no matter where i look". Each sheet thins and greys into the haze as the eye nears its
+            // plane; from well above, the sea of cloud stays.
+            float graze = abs(toCam.y);
+            float face = mix(smoothstep(0.03, 0.22, graze), 1.0, above);
+            c = mix(uFog, c, mix(smoothstep(0.02, 0.3, graze), 1.0, above));
+            a *= face;
             // Thinning out into whatever it meets (a giant, a cliff): no cut line.
             a *= softFade(60.0, 0.35);
             gl_FragColor = vec4(c, a);
