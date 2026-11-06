@@ -207,40 +207,73 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
     return g
   },
-  // A fern: fronds arching out from a crown, each a long tapering leaf bent down at the tip.
+  // A fern: fronds arching out from a crown. (Each frond a strip of leaflets, not one solid leaf: as
+  // a solid, flat-lit tapering blade it read as clip-art — bright cartoon green, untextured — against
+  // the textured ground (tour review, 2026-11-06). Now a midrib with leaflets out both sides, darker
+  // at the crown and in its own shade, lit by the frond's own facing.)
   fern: () => {
-    const parts: THREE.BufferGeometry[] = []
-    const fronds = 8
+    const pos: number[] = []
+    const col: number[] = []
+    const nrm: number[] = []
+    const c0 = new THREE.Color(0x23401a)
+    const c1 = new THREE.Color(0x4a7330)
+    const c2 = new THREE.Color(0x6f8a3c)
+    const tmp = new THREE.Color()
+    const fronds = 9
     for (let i = 0; i < fronds; i++) {
       const a = (i / fronds) * Math.PI * 2 + (i % 2) * 0.3
       const L = 0.85 + (i % 3) * 0.15
-      const pos: number[] = []
-      const segs = 6
+      const arch = 0.5 + (i % 4) * 0.06
+      const at = (t: number): [number, number, number] => [Math.cos(a) * L * t, arch * t - 0.62 * t * t + 0.05, Math.sin(a) * L * t]
+      const sx = -Math.sin(a)
+      const sz = Math.cos(a)
+      const segs = 9
       for (let k = 0; k < segs; k++) {
         const t0 = k / segs
         const t1 = (k + 1) / segs
-        // Out and up, then over (a parabola), narrowing to the tip.
-        const at = (t: number) => [Math.cos(a) * L * t, 0.55 * t - 0.62 * t * t + 0.05, Math.sin(a) * L * t]
-        const w0 = 0.13 * (1 - t0) + 0.01
-        const w1 = 0.13 * (1 - t1) + 0.01
         const p0 = at(t0)
         const p1 = at(t1)
-        const sx = -Math.sin(a)
-        const sz = Math.cos(a)
-        const A = [p0[0] - sx * w0, p0[1], p0[2] - sz * w0]
-        const B = [p0[0] + sx * w0, p0[1], p0[2] + sz * w0]
-        const C = [p1[0] + sx * w1, p1[1], p1[2] + sz * w1]
-        const D = [p1[0] - sx * w1, p1[1], p1[2] - sz * w1]
-        pos.push(...A, ...B, ...C, ...A, ...C, ...D, ...B, ...A, ...C, ...C, ...A, ...D)
+        // The frond's tangent and its up-facing normal here (lit by its own facing).
+        const tx = p1[0] - p0[0], ty = p1[1] - p0[1], tz = p1[2] - p0[2]
+        let nx = ty * sz - tz * 0, ny = tz * sx - tx * sz, nz = tx * 0 - ty * sx
+        const nl = Math.hypot(nx, ny, nz) || 1
+        nx /= nl; ny /= nl; nz /= nl
+        if (ny < 0) { nx = -nx; ny = -ny; nz = -nz }
+        // A pair of leaflets: out to both sides, angled forward and drooping, longest mid-frond.
+        const span = (0.17 * Math.sin(Math.PI * Math.min(1, t0 * 1.15 + 0.08)) + 0.02) * (1 + (i % 2) * 0.12)
+        const shade = tmp.copy(c0).lerp(c1, Math.min(1, t0 * 1.6)).lerp(c2, Math.max(0, t0 - 0.6) * 0.9)
+        for (const side of [-1, 1]) {
+          const base = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2]
+          const tip = [base[0] + sx * side * span + (p1[0] - p0[0]) * 1.4, base[1] - span * 0.35, base[2] + sz * side * span + (p1[2] - p0[2]) * 1.4]
+          // (A leaflet: a narrow diamond from the rib to its tip.)
+          const w = 0.03 + span * 0.18
+          const mx = (base[0] + tip[0]) / 2, my = (base[1] + tip[1]) / 2, mz = (base[2] + tip[2]) / 2
+          const A = base, C = tip
+          const B = [mx + (p1[0] - p0[0]) * w * 6, my + 0.004, mz + (p1[2] - p0[2]) * w * 6]
+          const D = [mx - (p1[0] - p0[0]) * w * 6, my - 0.004, mz - (p1[2] - p0[2]) * w * 6]
+          for (const tri of [[A, B, C], [A, C, D], [B, A, C], [C, A, D]]) for (const v of tri) {
+            pos.push(v[0], v[1], v[2])
+            nrm.push(nx, ny, nz)
+            const tipLight = v === C ? 1.12 : 1
+            col.push(shade.r * tipLight, shade.g * tipLight, shade.b * tipLight)
+          }
+        }
+        // The rib itself: a thin dark strip.
+        const rw = 0.012 * (1 - t0) + 0.004
+        const A = [p0[0] - sx * rw, p0[1], p0[2] - sz * rw], B = [p0[0] + sx * rw, p0[1], p0[2] + sz * rw]
+        const C = [p1[0] + sx * rw, p1[1], p1[2] + sz * rw], D = [p1[0] - sx * rw, p1[1], p1[2] - sz * rw]
+        for (const tri of [[A, B, C], [A, C, D], [B, A, C], [C, A, D]]) for (const v of tri) {
+          pos.push(v[0], v[1], v[2])
+          nrm.push(nx, ny, nz)
+          col.push(c0.r * 0.9, c0.g * 0.9, c0.b * 0.9)
+        }
       }
-      const g = new THREE.BufferGeometry()
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-      const nrm = new Float32Array(pos.length)
-      for (let j = 1; j < nrm.length; j += 3) nrm[j] = 1
-      g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
-      parts.push(colored(g, i % 2 ? 0x3f6a2a : 0x4c7a30))
     }
-    return mergeGeometries(parts)!
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+    return g
   },
   // A stand of tall flowering stems: thin stalks, a pale head at the top of each.
   stalk: () => {
