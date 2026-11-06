@@ -3227,7 +3227,7 @@ function frameBody(now: number): void {
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); costNote('map', performance.now() - _t) }
-  clouds.tint(weather.now.dark, sky.night, sky.dusk, sky.sunLow)
+  clouds.tint(weather.now.dark, sky.night, sky.dusk, sky.sunLow, sky.sunDir.y)
   // Mist lies thickest in the hollows at dawn and at dusk.
   const t = sky.time
   const dawnMist = Math.max(1 - Math.abs(t - 0.17) / 0.08, 1 - Math.abs(t - 0.88) / 0.05, 0) * 0.9
