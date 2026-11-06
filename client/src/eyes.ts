@@ -26,22 +26,47 @@ export class Eyes {
   constructor(readonly sets: EyeSet[]) {
     // (Big enough to find on a 400 m statue from the grass below.)
     const disc = new THREE.CylinderGeometry(2.6, 2.9, 0.9, 24).rotateX(Math.PI / 2)
-    const iris = new THREE.CircleGeometry(1.05, 24)
-    const ring = new THREE.RingGeometry(1.25, 1.6, 24)
+    // An eye, not a lamp: a round amber disc in a ring on a pillar read as a porthole light (screenshot
+    // review, 2026-11-06). The iris an almond between carved lids, a dark slit of pupil down it.
+    const almond = (w: number, h: number) => {
+      const sh = new THREE.Shape()
+      sh.moveTo(-w, 0)
+      sh.quadraticCurveTo(0, h * 2, w, 0)
+      sh.quadraticCurveTo(0, -h * 2, -w, 0)
+      return new THREE.ShapeGeometry(sh, 16)
+    }
+    const iris = almond(1.55, 0.62)
+    const pupil = almond(0.5, 0.13).rotateZ(Math.PI / 2)
+    // The lids: a heavy carved ridge over the eye and a lighter one under it.
+    const lid = (up: number) => {
+      const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-1.9, 0, 0), new THREE.Vector3(0, up * 1.75, 0), new THREE.Vector3(1.9, 0, 0))
+      return new THREE.TubeGeometry(curve, 16, up > 0 ? 0.26 : 0.17, 6)
+    }
+    const lidUp = lid(1)
+    const lidDown = lid(-0.8)
     for (const set of sets) {
       set.eyes.forEach((e, k) => {
         const g = new THREE.Group()
         const body = new THREE.Mesh(disc, carvedStone())
         body.castShadow = body.receiveShadow = true
-        const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 1.9, 0.6) })
+        // (Amber, not so far over 1 that the bloom took it to white.)
+        const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 0.95, 0.22) })
         const i = new THREE.Mesh(iris, mat)
         i.position.z = 0.46
-        const r = new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: 0x2a2620 }))
-        r.position.z = 0.455
+        const r = new THREE.Mesh(pupil, new THREE.MeshBasicMaterial({ color: 0x140f0a }))
+        r.position.z = 0.47
+        const lids = new THREE.Group()
+        for (const lg of [lidUp, lidDown]) {
+          const m = new THREE.Mesh(lg, body.material)
+          m.castShadow = true
+          lids.add(m)
+        }
+        lids.position.z = 0.5
+        g.add(lids)
         // A soft amber glow over the open iris, so an eye reads from far off.
         // (fog: false — a sprite's shader has no 'transformed' for the patched fog to read: it would not compile.)
-        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture(), color: new THREE.Color(2.6, 1.5, 0.5), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
-        halo.scale.setScalar(6.5)
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture(), color: new THREE.Color(1.6, 0.9, 0.3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
+        halo.scale.setScalar(5.5)
         halo.position.z = 0.6
         g.add(body, i, r, halo)
         g.position.copy(e.at)
@@ -128,9 +153,12 @@ function haloTexture(): THREE.CanvasTexture {
   c.width = c.height = 64
   const g = c.getContext('2d')!
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-  grad.addColorStop(0, 'rgba(255,220,160,0.9)')
-  grad.addColorStop(0.3, 'rgba(255,190,110,0.35)')
-  grad.addColorStop(1, 'rgba(255,190,110,0)')
+  // (Falling off like light, not a cone: from 0.35 at a third out to nothing at the rim, it read close
+  // up as a flat disc of orange painted on the wall round the eye — screenshot review, 2026-11-06.)
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12
+    grad.addColorStop(t, `rgba(255,${Math.round(200 - 30 * t)},${Math.round(130 - 40 * t)},${(0.85 * Math.exp(-t * t * 9) * (1 - t)).toFixed(3)})`)
+  }
   g.fillStyle = grad
   g.fillRect(0, 0, 64, 64)
   halo = new THREE.CanvasTexture(c)
