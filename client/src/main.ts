@@ -3185,6 +3185,7 @@ function frameBody(now: number): void {
   water.update(dt)
   water.weather(weather.now.dark, weather.now.rain, [sea.mesh.material as THREE.MeshStandardMaterial])
   sea.update(dt, camera.position)
+  wake.dark = Math.max(sky.night, weather.now.dark * 0.5)
   wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
   // The air going past: gliding at speed, or falling (from about a 4 m drop on).
   const fallV = wanderer.grounded || wanderer.swimming ? 0 : Math.max(0, -wanderer.vel.y)

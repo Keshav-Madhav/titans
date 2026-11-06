@@ -41,6 +41,9 @@ export class Wake {
   }
 
   /** `swimming` and where (and the water's surface there), `speed` m/s. */
+  /** 0 day … 1 night: the foam takes the light there is (unlit, it glowed neon-white round you at night). */
+  dark = 0
+
   update(dt: number, swimming: boolean, p: THREE.Vector3, level: number, speed: number): void {
     if (swimming && !this.wasIn) for (let k = 0; k < 3; k++) this.spawn(p.x, level, p.z, 0.4 + k * 0.3, 2.4 - k * 0.4)
     this.wasIn = swimming
@@ -56,7 +59,9 @@ export class Wake {
       r.t += dt
       const k = r.t / LIFE
       r.mesh.scale.setScalar(r.mesh.scale.x + dt * r.grow)
-      ;(r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k) * (1 - k)
+      const rm = r.mesh.material as THREE.MeshBasicMaterial
+      rm.opacity = 0.5 * (1 - k) * (1 - k) * (1 - 0.55 * this.dark)
+      rm.color.setRGB(0.95, 0.965, 0.96).multiplyScalar(1 - 0.8 * this.dark).lerp(new THREE.Color(0.18, 0.22, 0.3), 0.6 * this.dark)
       if (r.t >= LIFE) r.mesh.visible = false
     }
   }
