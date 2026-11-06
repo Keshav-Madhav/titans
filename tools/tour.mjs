@@ -36,7 +36,8 @@ const spots = await page.evaluate(([count, seed]) => {
 }, [COUNT, SEED])
 // (TOUR_NIGHT=1: the same spots by night, dusk and dawn.)
 const TIMES = process.env.TOUR_NIGHT ? [0.95, 0.02, 0.9, 0.1, 0.98, 0.06] : [0.3, 0.42, 0.55, 0.68, 0.74, 0.36, 0.5, 0.62]
-const WEATHER = ['clear', 'clear', 'breaking', 'clear', 'overcast', 'clear', 'storm', 'clear']
+// (TOUR_WEATHER=storm: every spot in that weather.)
+const WEATHER = process.env.TOUR_WEATHER ? [process.env.TOUR_WEATHER] : ['clear', 'clear', 'breaking', 'clear', 'overcast', 'clear', 'storm', 'clear']
 const log = []
 let n = 0
 for (const [i, sp] of spots.entries()) {

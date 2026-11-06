@@ -282,10 +282,12 @@ export class Weather {
             vUv = uv;
             // (Faded out right at the lens too: a 1.4 m streak passing half a metre from the camera
             // was a long white bar slashed across the whole frame.)
+            // (Rain from 3 m out, full by 7.5: within a few metres a streak was a thick white bar across
+            // the view — storm tour, 2026-11-07.)
             float dc = distance(base + vec3(0.0, 0.7, 0.0), cameraPosition);
             // (Sand wisps only near: far off, a few pixels each, they rendered as rows of dark
             // dashes over a cliff. The ochre fog carries the storm out there.)
-            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(mix(25.0, 10.0, uSand), mix(70.0, 25.0, uSand), dc)) * smoothstep(2.0, 6.0, dc);
+            vA = (h(id * 5.1) < uRain ? 1.0 : 0.0) * (1.0 - smoothstep(mix(25.0, 10.0, uSand), mix(70.0, 25.0, uSand), dc)) * smoothstep(mix(3.0, 2.0, max(uSand, uSnow)), mix(7.5, 6.0, max(uSand, uSnow)), dc);
             // No rain under the Undercroft's roof.
             vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
             if (hq.x < ${HALL.hx.toFixed(1)} && hq.y < ${HALL.hz.toFixed(1)} && base.y < uRoof - 2.0) vA = 0.0;
