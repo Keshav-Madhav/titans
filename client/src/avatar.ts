@@ -133,7 +133,9 @@ export class Avatar {
   update(dt: number, s: AvatarState): void {
     // (The speed changes on the simulation's 60 Hz steps: eased, so at 120 Hz the blend and the
     // stride's rate do not move in a staircase.)
-    this.vS += ((s.grounded && !s.swimming ? s.speed : 0) - this.vS) * Math.min(1, dt * 14)
+    // (In the air it is held where it was: eased toward 0 there, the run's blend slid from jog to walk
+    // in the frames of the take-off while the jump faded in — the whole body popped 11 cm.)
+    this.vS += ((s.swimming ? 0 : s.grounded ? s.speed : this.vS) - this.vS) * Math.min(1, dt * 14)
     const v = this.vS
     // The locomotion blend: idle → walk → jog → sprint by ground speed.
     const kW = THREE.MathUtils.smoothstep(v, 0.15, 1.2)
@@ -166,14 +168,16 @@ export class Avatar {
     const ground = (1 - this.air) * (1 - this.swim)
     // A landing: the clip's crouch, over the first 0.45 s of being down, then the run carries on.
     const land = ground * Math.max(0, 1 - this.landT / 0.45) * Math.min(1, this.landT * 12)
-    const start = this.air * Math.max(0, 1 - this.startT / 0.35)
+    const startK = Math.max(0, 1 - this.startT / 0.35)
+    const start = this.air * startK
     this.w('Idle_Loop', ground * wIdle * (1 - land))
     this.w('Walk_Loop', ground * wWalk * (1 - land))
     this.w('Jog_Fwd_Loop', ground * wJog * (1 - land))
     this.w('Sprint_Loop', ground * wSprint * (1 - land))
     this.w('Jump_Land', land)
     this.w('Jump_Start', start)
-    this.w('Jump_Loop', this.air * (1 - start))
+    // (The take-off's share of the air, not of the whole: air·(1 − start) counted it twice, ~1.2 in all.)
+    this.w('Jump_Loop', this.air * (1 - startK))
     const swimGo = THREE.MathUtils.smoothstep(s.speed, 0.3, 1.6)
     this.w('Swim_Fwd_Loop', this.swim * swimGo)
     this.w('Swim_Idle_Loop', this.swim * (1 - swimGo))
