@@ -7,6 +7,7 @@
 
 import * as THREE from 'three'
 import { mulberry32, POOL_CELL, poolInCell, type Terrain } from '@titans/shared'
+import { SOFT_GLSL, soft, softScene } from './soft'
 
 const NEAR = 1400
 const POOLS = 260
@@ -25,7 +26,28 @@ export class MireView {
   ) {
     this.water0 = poolWater(terrain, mire)
     // Black, still, mirroring: barely a ripple.
-    const mat = new THREE.MeshStandardMaterial({ color: 0x11160f, roughness: 0.04, metalness: 0.2, envMapIntensity: 2.2, emissive: 0x040705 })
+    // (The water is drawn with the soft layers (soft.ts), after the land, fading out as the bed
+    // behind it nears: the ground used to cut each disc off in a hard line, and at a glance it
+    // mirrored the pale sky — the pools read as flat sky-blue cutouts lying on the mud, the
+    // plainest "developer water" in the game (screenshot review, 2026-11-06). It mirrors less now
+    // the lower you look at it, and a peat-dark tint holds near the bank.)
+    const mat = new THREE.MeshStandardMaterial({ color: 0x11160f, roughness: 0.18, metalness: 0.2, envMapIntensity: 0.22, emissive: 0x030403, transparent: true, depthWrite: false })
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, soft)
+      sh.fragmentShader = sh.fragmentShader
+        .replace('void main() {', '#include <packing>\n' + SOFT_GLSL + '\nvoid main() {')
+        .replace(
+          '#include <dithering_fragment>',
+          `#include <dithering_fragment>
+          {
+            // Shallow at the bank: dark peat showing, then gone into the mud over its last 30 cm.
+            float shore = softFade(0.7, 0.004);
+            // Peat water mirrors the sky dimly; at the bank the bed shows through, dark and wet.
+            gl_FragColor.rgb = mix(vec3(0.05, 0.045, 0.035), gl_FragColor.rgb, smoothstep(0.1, 0.9, shore));
+            gl_FragColor.a = smoothstep(0.0, 0.6, shore);
+          }`,
+        )
+    }
     this.water = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), mat, POOLS)
     this.water.frustumCulled = false
     this.water.receiveShadow = true
@@ -47,7 +69,10 @@ export class MireView {
     this.snags.frustumCulled = false
     this.snags.castShadow = true
     this.snags.count = 0
-    this.group.add(this.water, this.snags)
+    this.group.add(this.snags)
+    // (With the soft layers: see the material.)
+    this.water.renderOrder = 1
+    softScene.add(this.water)
   }
 
   /** The pools laid out near you: where their water stands. */

@@ -286,6 +286,9 @@ class SceneThenSoft extends Pass {
     soft.uSoftRes.value.set(read.width, read.height)
     soft.uSoftNF.value.set(this.camera.near, this.camera.far)
     softScene.fog = this.scene.fog
+    // (The sky's reflection for what is lit in there — the Mire's pools: without it they were holes.)
+    softScene.environment = this.scene.environment
+    softScene.environmentIntensity = this.scene.environmentIntensity
     const auto = renderer.autoClear
     renderer.autoClear = false
     // (The soft layers write no depth: the depth just resolved for them stays right. Without this

@@ -2737,3 +2737,10 @@ try {
   await context.close()
   await browser.close()
 }
+// A shader that failed to compile draws nothing, and the scene still "works": the Mire's pools
+// vanished that way and their gate passed (2026-11-06). Any shader error fails the gate.
+const shaderErrors = errors.filter((e) => /Shader Error|VALIDATE_STATUS false|ERROR: 0:/.test(e))
+if (shaderErrors.length) {
+  console.log('FAIL: shader errors:\n  ' + shaderErrors.slice(0, 4).join('\n  '))
+  process.exitCode = 1
+}
