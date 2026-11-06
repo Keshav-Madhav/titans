@@ -221,6 +221,13 @@ kbd {
   box-shadow: 0 0 0 9px #4a321f, 0 0 0 10px #2a1c10, inset 0 0 50px rgba(120, 90, 50, 0.25), 0 30px 80px rgba(0, 0, 0, 0.6);
   scrollbar-width: thin; scrollbar-color: rgba(90, 64, 34, 0.45) transparent;
 }
+/* (The lists ran to the very bottom edge of the page and stopped mid-line, with nothing to say there
+   was more below — screenshot review, 2026-11-07. The page's foot fades to paper as it scrolls.) */
+#journal-frame::after {
+  content: ''; display: block; position: sticky; bottom: -40px; height: 56px; margin: -56px -48px -40px;
+  background: linear-gradient(rgba(226, 214, 188, 0), rgba(226, 214, 188, 0.92) 70%, #e2d6bc);
+  pointer-events: none;
+}
 #journal-frame h1 {
   margin: 0 0 2px; display: flex; justify-content: space-between; align-items: baseline;
   font: italic 34px/1 var(--serif-title); color: var(--ink-brown);
