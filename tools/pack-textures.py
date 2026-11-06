@@ -65,6 +65,19 @@ def fetch(asset, kind):
     return path
 
 
+def soften_specks(im, strength=1.6):
+    """Dark grains lifted most of the way to their surroundings. The generated dune sand sprinkles dark
+    grains along every ripple trough; tiled across the Dune Sea they read as rows of black dots (ants
+    walking the ripples — screenshot review, 2026-11-06). The trough's broad shading stays."""
+    from PIL import ImageFilter, ImageChops
+    soft = im.filter(ImageFilter.GaussianBlur(3))
+    lum, slum = im.convert('L'), soft.convert('L')
+    # How much darker each pixel is than its neighbourhood, past a small allowance, as a 0..255 mask.
+    diff = ImageChops.subtract(slum, lum)
+    mask = diff.point(lambda d: max(0, min(255, int((d - 4) * 12 * strength))))
+    return Image.composite(soft, im, mask)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, asset in LAYERS:
@@ -79,6 +92,8 @@ def main():
             normal = Image.open(fetch(asset, 'nor_gl')).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS)
             height = Image.open(fetch(asset, 'Displacement')).convert('L').resize((SIZE, SIZE), Image.LANCZOS)
         nr, ng, _ = normal.split()
+        if name == 'sand':
+            colour = soften_specks(colour)
         colour.save(os.path.join(OUT, f'{name}_c.jpg'), quality=88, optimize=True)
         Image.merge('RGB', (nr, ng, height)).save(os.path.join(OUT, f'{name}_n.jpg'), quality=90, optimize=True)
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT) if f.endswith('.jpg'))
