@@ -142,7 +142,7 @@ export class Ambience {
     for (let i = 0; i < BUTTERFLIES; i++) {
       const hue = [0.12, 0.08, 0.15, 0.58, 0.02][i % 5]
       this.butterState.push({ x: (this.rand() - 0.5) * 2 * BUTTER_R, y: 0.8, z: (this.rand() - 0.5) * 2 * BUTTER_R, a: this.rand() * 6.28, ph: this.rand() * 10, hue })
-      this.butter.setColorAt(i, col.setHSL(hue, 0.55, 0.62))
+      this.butter.setColorAt(i, col.setHSL(hue, 0.55, 0.62, THREE.SRGBColorSpace)) // (sRGB: as linear numbers the wings came out washed-out pastel)
     }
     this.group.add(this.butter)
 
