@@ -506,6 +506,44 @@ export class Vegetation {
     return until !== undefined && until > this.clockS
   }
 
+  /**
+   * Keep a walker out of the trees' trunks (the user, 2026-11-06: you walked straight through a tree).
+   * Each trunk a circle — its own radius at the foot, by the tree's scale, plus the body's — pushed out
+   * of sideways. Only cells already grown (nothing is generated for this). True if it moved.
+   */
+  trunkPush(p: THREE.Vector3): boolean {
+    let moved = false
+    const cx = Math.floor(p.x / CELL)
+    const cz = Math.floor(p.z / CELL)
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = this.cells.get(key(cx + dx, cz + dz))
+        if (!c) continue
+        for (const [b, r0] of [[c.conifer, 0.3], [c.broad, 0.55]] as const) {
+          if (!b) continue
+          const m = b.m
+          for (let i = 0; i < b.n; i++) {
+            const tx = m[i * 16 + 12]
+            const tz = m[i * 16 + 14]
+            const ex = p.x - tx
+            const ez = p.z - tz
+            if (Math.abs(ex) > 3 || Math.abs(ez) > 3) continue
+            const sc = Math.hypot(m[i * 16], m[i * 16 + 1], m[i * 16 + 2])
+            const r = r0 * sc + 0.3
+            const d = Math.hypot(ex, ez)
+            if (d >= r || Math.abs(p.y - m[i * 16 + 13]) > 3) continue
+            if (d < 1e-4) p.x = tx + r
+            else {
+              p.x = tx + (ex / d) * r
+              p.z = tz + (ez / d) * r
+            }
+            moved = true
+          }
+        }
+      }
+    return moved
+  }
+
   /** Is there a tree within `r` of (x, z)? (The reveal keeps them out of its shot.) */
   treeNear(x: number, z: number, r: number): boolean {
     const cx = Math.floor(x / CELL)

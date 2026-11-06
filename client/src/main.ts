@@ -2367,6 +2367,7 @@ function simulate(dt: number): void {
         for (const c of travellerCamps) c.keepOut(wanderer.pos)
         // (And the small made things: stones with words, cairns, ringing stones, shrines.)
         keepOffProps(wanderer.pos)
+        vegetation.trunkPush(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
         tryMantle(dt)
