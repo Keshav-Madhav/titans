@@ -28,6 +28,7 @@ export class Camp {
   private smokeAlpha: THREE.InstancedBufferAttribute | null = null
   private readonly rest: Float32Array
   readonly bagAt = new THREE.Vector3()
+  private readonly poleAt = new THREE.Vector3()
   private time = 0
 
   /** At `where` (the first, with the bag, by default); `withBag` false for the traveller's later camps. */
@@ -84,6 +85,7 @@ export class Camp {
     // grass from a hundred metres; now it stands well over a shrub and streams).
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, POLE, 7).translate(0, POLE / 2, 0), wood)
     pole.position.copy(at(1.9, -1.4))
+    this.poleAt.copy(pole.position)
     pole.rotation.set(0.07, 0, -0.06)
     this.group.add(pole)
     // A crosspiece lashed near the top, for the cloth to hang from.
@@ -133,6 +135,29 @@ export class Camp {
       if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
     })
     bare.castShadow = false
+  }
+
+  /**
+   * Keep a walker out of the fire ring and the tripod over it, and off the flag pole (the user walked
+   * straight through the camp: the tripod's legs passed through the body). Pushed out to the ring's
+   * edge sideways; true if it moved.
+   */
+  keepOut(pos: THREE.Vector3): boolean {
+    let moved = false
+    const push = (cx: number, cz: number, r: number) => {
+      const dx = pos.x - cx
+      const dz = pos.z - cz
+      const d = Math.hypot(dx, dz)
+      if (d >= r || Math.abs(pos.y - this.fire.y) > 2.5) return
+      const k = d > 1e-4 ? r / d : 0
+      pos.x = d > 1e-4 ? cx + dx * k : cx + r
+      pos.z = d > 1e-4 ? cz + dz * k : cz
+      moved = true
+    }
+    // The ring's stones sit at 0.75 m, the tripod's feet at 0.85: a body (0.3 m) stays outside them.
+    push(this.fire.x, this.fire.z, 1.15)
+    push(this.poleAt.x, this.poleAt.z, 0.35)
+    return moved
   }
 
   /** Close enough to take the bag (and it is still there). */

@@ -2362,6 +2362,9 @@ function simulate(dt: number): void {
           sound.land('stone', Math.min(1, Math.max(0, -wanderer.vel.y) / 12))
         }
         climber.pushOut(wanderer.pos)
+        // (The camps: their fire rings, tripods and flag poles stand in the way.)
+        camp.keepOut(wanderer.pos)
+        for (const c of travellerCamps) c.keepOut(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
         tryMantle(dt)
