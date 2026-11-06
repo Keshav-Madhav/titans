@@ -519,7 +519,10 @@ export class Vegetation {
       for (let dx = -1; dx <= 1; dx++) {
         const c = this.cells.get(key(cx + dx, cz + dz))
         if (!c) continue
-        for (const [b, r0] of [[c.conifer, 0.3], [c.broad, 0.55]] as const) {
+        // (And the boulders lying about: a 3 m one was walk-through as well. Each by its geometry's
+        // half-width, a little inside it — they are lumpy and round, not cylinders.)
+        const rocks = (['rock', 'rockA', 'rockB', 'rockC'] as const).map((k) => [c[k], this.halfWidth(k) * 0.8] as const)
+        for (const [b, r0] of [[c.conifer, 0.3], [c.broad, 0.55], ...rocks] as const) {
           if (!b) continue
           const m = b.m
           for (let i = 0; i < b.n; i++) {
@@ -529,6 +532,8 @@ export class Vegetation {
             const ez = p.z - tz
             if (Math.abs(ex) > 3 || Math.abs(ez) > 3) continue
             const sc = Math.hypot(m[i * 16], m[i * 16 + 1], m[i * 16 + 2])
+            // (A stone you would step over is no wall: only rocks wider than ~0.8 m stop you.)
+            if (b !== c.conifer && b !== c.broad && r0 * sc < 0.4) continue
             const r = r0 * sc + 0.3
             const d = Math.hypot(ex, ez)
             if (d >= r || Math.abs(p.y - m[i * 16 + 13]) > 3) continue
@@ -543,6 +548,21 @@ export class Vegetation {
       }
     return moved
   }
+
+  /** A kind's geometry's half-width across the ground (unscaled), measured once. */
+  private halfWidth(k: Kind): number {
+    let h = this.halfW.get(k)
+    if (h === undefined) {
+      const g = this.meshes[k]?.geometry
+      if (!g) return 0
+      g.computeBoundingBox()
+      const b = g.boundingBox!
+      h = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) / 2
+      this.halfW.set(k, h)
+    }
+    return h
+  }
+  private readonly halfW = new Map<Kind, number>()
 
   /** Is there a tree within `r` of (x, z)? (The reveal keeps them out of its shot.) */
   treeNear(x: number, z: number, r: number): boolean {
