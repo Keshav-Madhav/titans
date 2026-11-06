@@ -42,6 +42,8 @@ export class Avatar {
   private readonly act = new Map<string, THREE.AnimationAction>()
   private phase = 0
   private air = 0
+  /** Idle → the stride, eased on its own (see update). */
+  private kW = 0
   private wasGrounded = true
   private landT = 1
   private startT = 1
@@ -138,7 +140,10 @@ export class Avatar {
     this.vS += ((s.swimming ? 0 : s.grounded ? s.speed : this.vS) - this.vS) * Math.min(1, dt * 14)
     const v = this.vS
     // The locomotion blend: idle → walk → jog → sprint by ground speed.
-    const kW = THREE.MathUtils.smoothstep(v, 0.15, 1.2)
+    // (Idle to the stride over ~0.2 s however fast you set off: by the speed alone it took 3 frames,
+    // and the right hand swung 0.38 m forward from your side in 50 ms.)
+    this.kW += (THREE.MathUtils.smoothstep(v, 0.15, 1.2) - this.kW) * Math.min(1, dt * 10)
+    const kW = this.kW
     const kJ = THREE.MathUtils.smoothstep(v, 2.4, 4.6)
     const kS = THREE.MathUtils.smoothstep(v, 6.5, 9.5)
     const wIdle = 1 - kW
