@@ -111,7 +111,15 @@ function analyse({ rows, marks }) {
     for (const [i, v] of acc) if (v > Math.max(120, st.med * 10)) pops.push({ bone: n, at: +(rows[i].t - rows[0].t).toFixed(0), acc: Math.round(v), med: st.med })
   }
   pops.sort((a, b) => b.acc - a.acc)
-  return { frames: rows.length, frameMs: fs, hitches: hitches.slice(0, 10), hitchCount: hitches.length, input, camera: { accMed: camS.med, jerks: camJerks.slice(0, 8), jerkCount: camJerks.length }, pops: pops.slice(0, 8), popCount: pops.length }
+  // Frames where the camera moved over a metre (a cut or a snap), with what the body was doing.
+  const camSnaps = []
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i], b = rows[i - 1]
+    const d = Math.hypot(a.cx - b.cx, a.cy - b.cy, a.cz - b.cz)
+    const db = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+    if (d > 1) camSnaps.push({ at: +(a.t - rows[0].t).toFixed(0), cam: +d.toFixed(2), body: +db.toFixed(2), climb: a.climb, glide: a.glide })
+  }
+  return { camSnaps: camSnaps.slice(0, 6), frames: rows.length, frameMs: fs, hitches: hitches.slice(0, 10), hitchCount: hitches.length, input, camera: { accMed: camS.med, jerks: camJerks.slice(0, 8), jerkCount: camJerks.length }, pops: pops.slice(0, 8), popCount: pops.length }
 }
 
 const report = []
@@ -144,7 +152,8 @@ report.push(await segment('giant', () => { window.__g.grabTitan() }, async (shot
   await press(['KeyA'], 1200); await press(['KeyD'], 1200); await shot()
 }))
 // 5. Off the giant, glide down.
-report.push(await segment('glide', () => { const g = window.__g; g.finds.find('cloak'); const p = g.wanderer.pos; g.wanderer.place(p.x, p.y + 80, p.z) }, async (shot) => {
+// (Teleported first: still holding the giant, Space let go of it with a push — the 'glide' jolt was that.)
+report.push(await segment('glide', () => { const g = window.__g; g.finds.find('cloak'); g.teleport(-600, 420); const p = g.wanderer.pos; g.wanderer.place(p.x, p.y + 80, p.z) }, async (shot) => {
   await page.waitForTimeout(300)
   await page.evaluate(() => window.__g.input.press('Space'))
   await page.waitForTimeout(1200); await shot()
@@ -158,6 +167,7 @@ for (const r of report) {
   console.log(`== ${r.name}: ${r.frames} frames; frame ms ${JSON.stringify(r.frameMs)}; hitches ${r.hitchCount}${r.hitches.length ? ' ' + JSON.stringify(r.hitches.slice(0, 4)) : ''}`)
   console.log(`   input ms: ${r.input.map((i) => `${i.keys} ${i.ms ?? 'none'}`).join(', ')}`)
   console.log(`   camera acc med ${r.camera.accMed}; jerks ${r.camera.jerkCount}${r.camera.jerks.length ? ' ' + JSON.stringify(r.camera.jerks.slice(0, 4)) : ''}`)
+  if (r.camSnaps.length) console.log(`   camera snaps: ${JSON.stringify(r.camSnaps)}`)
   console.log(`   bone pops ${r.popCount}${r.pops.length ? ' ' + JSON.stringify(r.pops.slice(0, 4)) : ''}`)
 }
 console.log('errors:', errs.length ? errs.join(' | ') : 'none')

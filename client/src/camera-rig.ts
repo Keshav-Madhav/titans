@@ -174,7 +174,11 @@ export class CameraRig {
         break
       }
     }
-    this.held = clear < this.held ? clear : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
+    // (Pulled in fast, not at once: a giant's leg swinging across the line snapped the camera 6–9 m
+    // in a frame while you climbed — the playtest's camera snaps. At 40 m/s it comes in over a few
+    // frames; the leg may cross the view for them. The camera's own spot is still kept out of the
+    // rock every frame, below.)
+    this.held = clear < this.held ? Math.max(clear, this.held - dt * 40) : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
     let d = Math.min(want, this.held)
     // The camera is a ball, not a point (QA, the user: "camera through things"): on the line it
     // stopped short of rock, but sat a hand's width from a wall or a slope beside it and the near
