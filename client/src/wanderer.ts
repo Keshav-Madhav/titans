@@ -481,7 +481,7 @@ class Cloth {
           const depth = this.pleats * (row / (rows - 1))
           // (Not all the way out: the cloth is wider than the line it hangs on, and the
           // slack goes into the folds — which a cloth pulled taut across could not make.)
-          const spread = 1 + (this.taper(row) - 1) * 0.3
+          const spread = 1 + (this.taper(row) - 1) * 0.55
           let cx = 0
           let cz = 0
           for (let c = 0; c < cols; c++) {
@@ -1500,7 +1500,9 @@ export class Wanderer {
       for (let i = 0; i < 9; i++) {
         const a = Math.PI * (0.06 + (0.88 * i) / 8)
         // (Past the shoulders, wrapping them: at their width it hung as a strip down the back.)
-        const local = new THREE.Vector3(-Math.cos(a) * half * 1.35, y - 0.05 * Math.sin(a) - 0.03 * (1 - Math.sin(a)), S.z - 0.02 - Math.sin(a) * 0.16)
+        // (And round them toward the front at the ends, deeper over the back: on a shallow arc the cape
+        // settled flat, a red board on the back — the user's complaint, still true on 2026-11-06.)
+        const local = new THREE.Vector3(-Math.cos(a) * half * 1.45, y - 0.05 * Math.sin(a) - 0.03 * (1 - Math.sin(a)), S.z + 0.03 - Math.sin(a) * 0.21)
         this.capeObj.push(local.clone())
         // (Body space → world → the spine bone's space.)
         this.capeSpine.push(local.applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
@@ -1561,7 +1563,7 @@ export class Wanderer {
     // front, a stalk standing out of the water and a streak in a fall.)
     this.scarf.mesh.visible = false
     // (Deeper folds: standing, it hung as a flat red rectangle.)
-    this.cape.pleats = 0.13
+    this.cape.pleats = 0.17
     this.followAvatar()
   }
 
