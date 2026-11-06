@@ -82,9 +82,17 @@ const PAD_BUTTONS: Record<number, string> = {
 }
 const PAD_DEAD = 0.18
 
+/** How long a press waits to be read (a few frames even at a slow frame rate). */
+const PRESS_FRESH_MS = 300
+
 export class Input {
   private readonly down = new Set<string>()
-  private readonly pressedOnce = new Set<string>()
+  /**
+   * Presses not yet read, with when they happened. A press nothing reads soon is gone: a Space pressed
+   * to jump on foot (walking reads Space as held, never as a press) was still waiting when you later
+   * took hold of a giant — and threw you off it on the first step of the climb.
+   */
+  private readonly pressedOnce = new Map<string, number>()
   lookX = 0
   lookY = 0
   wheel = 0
@@ -99,7 +107,7 @@ export class Input {
       if (a) {
         if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.down.add(a)
-        this.pressedOnce.add(a)
+        this.pressedOnce.set(a, performance.now())
       }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault()
     })
@@ -221,16 +229,17 @@ export class Input {
       if (on && !was) {
         if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.padHeld.add(a)
-        this.pressedOnce.add(a)
+        this.pressedOnce.set(a, performance.now())
       } else if (!on && was) this.padHeld.delete(a)
     })
   }
 
   /** True once per physical press. */
   pressed(code: string): boolean {
-    if (!this.pressedOnce.has(code)) return false
+    const at = this.pressedOnce.get(code)
+    if (at === undefined) return false
     this.pressedOnce.delete(code)
-    return true
+    return performance.now() - at < PRESS_FRESH_MS
   }
 
   /** Movement axes from WASD/arrows: x = strafe right, y = forward. */
@@ -273,7 +282,7 @@ export class Input {
   /** For tools: hold or release a key code. */
   press(code: string): void {
     this.down.add(code)
-    this.pressedOnce.add(code)
+    this.pressedOnce.set(code, performance.now())
   }
 
   release(code: string): void {
