@@ -3381,6 +3381,7 @@ function frameBody(now: number): void {
     // turns to the way the giant walks or tilts up along its body by itself: the user, 2026-11-05,
     // "climbing takes over the camera… that's okay only for the zoom out".)
     rig.meshStep = 64 / terrainView.resolution // (the quality governor can change it)
+    rig.aiming = bow.draw > 0
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
     // (A spring on the swing's rate: as a share of the angle a frame, opening the cloak with the view

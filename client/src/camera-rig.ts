@@ -96,6 +96,8 @@ export class CameraRig {
   meshStep = 1
   /** How far the camera is raised over the focus where there is no room for it (eased). */
   private lift = 0
+  /** Set while a bow is drawn: the camera holds still under the aim (no rising, see update). */
+  aiming = false
   /** How far out the camera may go now (eases back out after being pulled in). */
   private held = Infinity
 
@@ -132,12 +134,19 @@ export class CameraRig {
     // The focus is never under the ground.
     this.focus.y = Math.max(this.focus.y, terrain.heightAt(this.focus.x, this.focus.z) + 0.5)
 
-    // The highest of the mesh-grid corners round (x, z): at or above the drawn ground there.
+    // The ground as the mesh draws it at (x, z): its grid's corners blended. (Not the land's true height —
+    // on a cliff a grid triangle bridges the drop up to 3 m above it, and the camera sat under the drawn
+    // ground, the screen white; nor the grid's highest corner — over-cautious, it pulled the camera in at
+    // every hollow, and the bow's aim was 33° off at the bell.)
     const s = this.meshStep
-    const ground = (x: number, z: number): number => {
+    const drawn = (x: number, z: number): number => {
       const x0 = Math.floor(x / s) * s
       const z0 = Math.floor(z / s) * s
-      return Math.max(terrain.heightAt(x0, z0), terrain.heightAt(x0 + s, z0), terrain.heightAt(x0, z0 + s), terrain.heightAt(x0 + s, z0 + s))
+      const fx = (x - x0) / s
+      const fz = (z - z0) / s
+      const a = terrain.heightAt(x0, z0) + (terrain.heightAt(x0 + s, z0) - terrain.heightAt(x0, z0)) * fx
+      const b = terrain.heightAt(x0, z0 + s) + (terrain.heightAt(x0 + s, z0 + s) - terrain.heightAt(x0, z0 + s)) * fx
+      return a + (b - a) * fz
     }
     const pitch = Math.max(this.pitch, -0.08)
     const cp = Math.cos(pitch)
@@ -159,6 +168,7 @@ export class CameraRig {
     // (Starting inside rock — on a giant's body the march begins within its rough shape —
     // counts only once the line has come out into the open: hit at once, the camera was
     // pulled into your back the whole climb.)
+    let byRock = false
     let outside = !(this.occluder && this.occluder(this.focus.x, this.focus.y, this.focus.z) < 0.5)
     for (let t = 0.6; t <= want; t += Math.max(0.35, t * 0.08)) {
       const x = this.focus.x + ux * t
@@ -169,8 +179,9 @@ export class CameraRig {
         if (!solid) outside = true
         solid = false
       }
-      if (solid || y < ground(x, z) + 0.35) {
+      if (solid || y < drawn(x, z) + 0.35) {
         clear = Math.max(0.6, t - 0.5)
+        byRock = solid
         break
       }
     }
@@ -178,14 +189,17 @@ export class CameraRig {
     // in a frame while you climbed — the playtest's camera snaps. At 40 m/s it comes in over a few
     // frames; the leg may cross the view for them. The camera's own spot is still kept out of the
     // rock every frame, below.)
-    this.held = clear < this.held ? Math.max(clear, this.held - dt * 40) : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
+    // (The ground cannot swing across the line, and pulling in to it at once keeps the view steady
+    // under your hand — the bow's aim settles in a frame; rate-limited, the bell gate's aim drifted
+    // and missed.)
+    this.held = clear < this.held ? (byRock && !this.aiming ? Math.max(clear, this.held - dt * 40) : clear) : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
     let d = Math.min(want, this.held)
     // The camera is a ball, not a point (QA, the user: "camera through things"): on the line it
     // stopped short of rock, but sat a hand's width from a wall or a slope beside it and the near
     // plane cut into them. Pulled in until there is room all round it.
     const room = (cx: number, cy: number, cz: number): boolean => {
       if (this.occluder && this.occluder(cx, cy, cz) < CAM_R) return false
-      for (const [ox, oz] of RING) if (cy < ground(cx + ox * CAM_R, cz + oz * CAM_R) + CAM_R) return false
+      for (const [ox, oz] of RING) if (cy < drawn(cx + ox * CAM_R, cz + oz * CAM_R) + CAM_R) return false
       return true
     }
     for (let i = 0; i < 12 && d > 0.6 && !room(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d); i++) d = Math.max(0.6, d - 0.3)
@@ -194,10 +208,13 @@ export class CameraRig {
     // Pulled all the way in and still no room — on a ledge against a cliff, a wall 10 cm from the lens
     // and the near plane cutting through it to the white beyond: up over your head instead, eased.
     let lift = 0
-    while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    // (Not when you look up — the camera sits low behind you then by design, the ground just under it —
+    // nor while aiming: risen, the view tilted 11° and drifted as it eased, and the bow missed.)
+    if (this.pitch > 0.02 && !this.aiming) while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    if (this.aiming) this.lift = 0
     this.lift += (lift - this.lift) * Math.min(1, dt * (lift > this.lift ? 12 : 2))
     cam.y += this.lift
-    const floor = ground(cam.x, cam.z) + 0.45
+    const floor = drawn(cam.x, cam.z) + 0.45
     if (cam.y < floor) cam.y = floor
 
     if (this.trauma > 0.002) {
