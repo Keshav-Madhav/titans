@@ -1239,13 +1239,12 @@ const _clipW = new THREE.Vector3()
 let clipPush = 0
 /** Climbing: how far the body is moved along the hold's normal to sit HUG_GAP off the stone. */
 let hugPush = 0
+/** What the hug's rays cost a frame (eased; tools read it from climbState). */
+let hugMs = 0
+const _hugIn = new THREE.Vector3()
 const HUG_GAP = 0.14
-const HUG_FROM = 2
 const HUG_PTS = [[0, 1.68, 0.16], [0, 1.35, 0.14], [0, 0.95, 0.12], [0.13, 0.5, 0.16], [-0.13, 0.5, 0.16], [0.12, 0.06, 0.14], [-0.12, 0.06, 0.14]].map(([x, y, z]) => new THREE.Vector3(x, y, z))
-const _hugRay = new THREE.Raycaster(undefined, undefined, 0, HUG_FROM + 3)
-const _hugO = new THREE.Vector3()
-const _hugDir = new THREE.Vector3()
-const _hugHits: THREE.Intersection[] = []
+const _hugW = HUG_PTS.map(() => new THREE.Vector3())
 const journal = new Journal(finds)
 journal.haveBag = () => bag.have
 const toolbar = new Toolbar(finds)
@@ -3101,18 +3100,15 @@ function frameBody(now: number): void {
       // feet to the part's own mesh. Its lumps are a rough fit — the hold sat 0.4 m inside to 1.3 m
       // outside the stone — and the body hung 0.5–2 m off the giant, feet dangling in the air. The
       // nearest point of the body is kept HUG_GAP off the stone, eased so the climb doesn't shake.
+      // (On the triangles the part shows: a coarser level let the body 0.4 m into the stone, and the
+      // lumps' analytic shape stood up to 0.7 m proud of it.)
       let near = Infinity
       const part = climber.standing ? null : climber.part
       if (part) {
-        _hugRay.camera = camera
-        _hugDir.copy(climber.normal).negate()
-        for (const lp of HUG_PTS) {
-          _clipW.copy(lp).applyMatrix4(M)
-          _hugRay.set(_hugO.copy(_clipW).addScaledVector(climber.normal, HUG_FROM), _hugDir)
-          _hugHits.length = 0
-          const h = _hugRay.intersectObject(part.mesh, true, _hugHits)[0]
-          if (h) near = Math.min(near, h.distance - HUG_FROM)
-        }
+        const _t = performance.now()
+        HUG_PTS.forEach((lp, i) => _hugW[i].copy(lp).applyMatrix4(M))
+        near = climber.stoneGap(_hugW, _hugIn.copy(climber.normal).negate(), 2)
+        hugMs += (performance.now() - _t - hugMs) * 0.05
       }
       const want = Number.isFinite(near) ? THREE.MathUtils.clamp(HUG_GAP - near, -1.8, 2.5) : 0
       hugPush += (want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8))
@@ -3904,6 +3900,7 @@ const g = {
       height: climber.world.y - terrain.heightAt(climber.world.x, climber.world.z),
       clipPush,
       hugPush,
+      hugMs,
       nx: climber.normal.x, ny: climber.normal.y, nz: climber.normal.z,
       depth: (p: THREE.Vector3) => climber.depth(p),
     }
