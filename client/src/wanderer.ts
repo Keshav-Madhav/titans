@@ -1148,6 +1148,7 @@ export class Wanderer {
       jump = false
     }
     this.tilt += ((this.stunned > 0 ? 1.25 : 0) - this.tilt) * Math.min(1, dt * (this.stunned > 0 ? 10 : 3))
+    this.flyLean = THREE.MathUtils.clamp(this.flyLean + (this.gliding ? 1 : -1) * dt * 4, 0, 1)
     // Camera looks along -Z at yaw 0, so forward is (-sin, -cos).
     const fx = -Math.sin(camYaw)
     const fz = -Math.cos(camYaw)
@@ -1371,6 +1372,8 @@ export class Wanderer {
     this.yaw += this.yawV * dt
   }
 
+  /** In flight: how far the body has leaned into the flying pose (eased in and out). */
+  private flyLean = 0
   /** Swimming: how much the feet are held under the water (eased in and out). */
   private swimLegW = 0
   /** The facing's turn rate (rad/s), sprung toward where you go. */
@@ -1409,9 +1412,13 @@ export class Wanderer {
       this.obj.position.y += Math.sin(this.swimLean) * 0.78
     }
     // In flight: lean into the bank, nose with the flight path, body near level.
-    if (this.gliding) {
-      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bank * 0.9))
-      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, 0.9 - this.gamma * 0.5))
+    // (Eased in and out over ~0.2 s: opening the cloak tipped the body 52° forward in one frame —
+    // the playtest's worst pop, the head and hands thrown 0.5 m in 16 ms.)
+    // (On an S-curve: eased exponentially alone, its first frame was its biggest — 13.5°.)
+    const fl = this.flyLean * this.flyLean * (3 - 2 * this.flyLean)
+    if (fl > 0.002) {
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bank * 0.9 * fl))
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, (0.9 - this.gamma * 0.5) * fl))
     }
   }
 
@@ -1761,9 +1768,11 @@ export class Wanderer {
    * On the line: both hands up on the rope above the head, the legs hanging a little bent.
    */
   private airRig(dt: number): void {
-    this.glideW += ((this.gliding ? 1 : 0) - this.glideW) * Math.min(1, dt * 8)
+    this.glideW = THREE.MathUtils.clamp(this.glideW + (this.gliding ? 1 : -1) * dt * 5, 0, 1)
     this.hangW += ((this.hanging && !this.gliding ? 1 : 0) - this.hangW) * Math.min(1, dt * 8)
     if (this.glideW < 0.01 && this.hangW < 0.01) return
+    // (On an S-curve, as the body's lean: eased exponentially the arms' first frame was their biggest.)
+    const gw = this.glideW * this.glideW * (3 - 2 * this.glideW)
     const av = this.avatar!
     const q = this.obj.quaternion
     const fwd = _cf.set(0, 0, 1).applyQuaternion(q)
@@ -1778,10 +1787,10 @@ export class Wanderer {
         // (Holding the wing's leading edge: out to the side, level with the back — in flight that is
         // a little "behind", above the arms' line.)
         const hand = _p1.copy(sh).addScaledVector(right, side * 0.6).addScaledVector(fwd, -0.04).addScaledVector(up, 0.04 + dip)
-        this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, _p2.copy(up).addScaledVector(fwd, -0.5), this.glideW)
+        this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, _p2.copy(up).addScaledVector(fwd, -0.5), gw)
         const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
         const foot = _p1.copy(hip).addScaledVector(up, -0.8).addScaledVector(fwd, -0.22).addScaledVector(right, -side * 0.03)
-        this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, _p2.copy(fwd), this.glideW)
+        this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, _p2.copy(fwd), gw)
       }
       if (this.hangW >= 0.01) {
         const head = av.bone('Head')!.getWorldPosition(_p0)
