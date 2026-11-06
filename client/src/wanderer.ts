@@ -1567,6 +1567,19 @@ export class Wanderer {
     this.followAvatar()
   }
 
+  /**
+   * Swimming, the cape's floor: soaked, it hangs a hand's breadth under the surface, not on it (it lay
+   * spread on the water, a red blanket floating with a hood at one end — the body under it unseen).
+   * Where the ground under it is the water's surface (within 5 cm), 0.22 m below; a bed above that
+   * stays the bed.
+   */
+  private clothGround: (x: number, z: number) => number = () => -Infinity
+  private readonly soakedFloor = (x: number, z: number): number => {
+    const g = this.clothGround(x, z)
+    const w = this.waterLevel
+    return Number.isFinite(w) && g >= w - 0.05 ? w - 0.22 : g
+  }
+
   /** Foot IK's eased state: each foot's height offset to the ground, and the hips' drop. */
   private readonly footOff = [0, 0]
   private hipDrop = 0
@@ -2514,7 +2527,8 @@ export class Wanderer {
     // (Never up through the hood: falling fast it stood straight up out of the head, a red spike
     // — user, 2026-11-05. Gliding the wing carries it; otherwise at most a little over the shoulders.)
     this.cape.ceil = this.gliding ? Infinity : this.vel.y < -6 ? 0.15 : 0.1
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, ground, this.legCaps)
+    this.clothGround = ground
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, this.swimming ? this.soakedFloor : ground, this.legCaps)
     this.windV.multiplyScalar(1.25)
     // (The scarf too: falling, and in the water, it stood up over the hood like a red stalk.)
     this.scarf.ceil = this.gliding ? Infinity : 0.05
