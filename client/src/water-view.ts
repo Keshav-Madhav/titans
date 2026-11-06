@@ -58,6 +58,17 @@ interface Entry {
 /** Streams shorter than this (cells, ~metres) are not drawn. */
 const MIN_STREAM = 24
 
+/**
+ * Where a lake's surface is drawn: a full one a little under its brim. Lakes fill to their spill point,
+ * and in a giant's dragged trench — straight, steep-walled — that is level with the grass: the water was
+ * a flat sheet laid on the field with hard straight edges (the user, 2026-11-06: "water bodies with hard
+ * floating edges"). Drawn 0.45 m down, a strip of bank shows all round it.
+ */
+export function shown(lake: { level: number; basin: { spill: number; bottom: number } }): number {
+  const full = THREE.MathUtils.smoothstep(lake.level, lake.basin.spill - 0.6, lake.basin.spill - 0.05)
+  return lake.level - 0.45 * full * Math.min(1, (lake.level - lake.basin.bottom) / 1.5)
+}
+
 export class WaterView {
   readonly group = new THREE.Group()
   private readonly entries = new Map<number, Entry>()
@@ -166,7 +177,7 @@ export class WaterView {
         // in quick succession are taken together: the job reads the lake as it is when it starts.
         this.jobs.set(lake.id, { lake, version: lake.version, data: null, row: 0 })
       }
-      e.mesh.position.y = lake.level
+      e.mesh.position.y = shown(lake)
       e.mesh.visible = lake.level > lake.basin.bottom + 0.05
     }
     for (const [id, e] of this.entries) {
@@ -213,7 +224,7 @@ export class WaterView {
         disposeLakeMaterial(e.mesh.material as THREE.MeshStandardMaterial)
         e.mesh = this.makeLake(j.lake, heightAt, j.data)
         e.version = j.version
-        e.mesh.position.y = j.lake.level
+        e.mesh.position.y = shown(j.lake)
         e.mesh.visible = j.lake.level > j.lake.basin.bottom + 0.05
       }
       this.jobs.delete(id)

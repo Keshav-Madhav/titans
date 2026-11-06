@@ -43,7 +43,7 @@ import { SkySystem } from './sky'
 import { Input, setBindings, watchKeycaps } from './input'
 import { MAX_SLOPE, Wanderer } from './wanderer'
 import { nearLods, setGiantSkin, Titan } from './titan'
-import { WaterView } from './water-view'
+import { WaterView, shown as shownLevel } from './water-view'
 import { Effects } from './effects'
 import { CameraRig, CLIFF_CAM, CLIMB_CAM, RIDE_CAM, WANDERER_CAM } from './camera-rig'
 import { Hud } from './hud'
@@ -905,7 +905,8 @@ const spots = (() => {
     cloakModel.position.y = 0.06
     const wrap = new THREE.Group()
     wrap.add(cloakModel)
-    placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap })
+    // (Now in the bag from the start: the place kept, hidden, for tools — the glide is tried from here.)
+    placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap, hidden: true })
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
@@ -1584,15 +1585,6 @@ function grow(b: Box): void {
   if (!replaying) stepCost.trample = Math.max(stepCost.trample, performance.now() - tt)
   grass.markDirty(b.x0, b.z0, b.x1, b.z1)
 }
-/** Does the box `c` (grown a little) hold any cell of the basin's bed? */
-function bedUnder(b: { x0: number; z0: number; w: number; h: number; mask: Uint8Array }, c: Box): boolean {
-  const x0 = Math.max(b.x0, Math.floor(c.x0) - 2)
-  const z0 = Math.max(b.z0, Math.floor(c.z0) - 2)
-  const x1 = Math.min(b.x0 + b.w - 1, Math.ceil(c.x1) + 2)
-  const z1 = Math.min(b.z0 + b.h - 1, Math.ceil(c.z1) + 2)
-  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (b.mask[(z - b.z0) * b.w + (x - b.x0)]) return true
-  return false
-}
 /** True while applying events that are not happening now (loading, ancient trails). */
 let replaying = false
 /** True while laying down the First Ones' trails (their footfalls are not "steps" anyone saw). */
@@ -1652,9 +1644,12 @@ function onGait(ev: GaitEvent | MountainRise, replay = false, from?: string): vo
       const b = l.basin
       if (b.x0 > strideBox.x1 || b.x0 + b.w < strideBox.x0 || b.z0 > strideBox.z1 || b.z0 + b.h < strideBox.z0) continue
       if (!(b.x0 > footBox.x1 || b.x0 + b.w < footBox.x0 || b.z0 > footBox.z1 || b.z0 + b.h < footBox.z0)) continue
-      // Only if some change this stride lies on its bed (a lake whose box the stride's box crossed,
-      // its bed untouched, was re-solved for nothing: 27 ms for a big one).
-      if (!strideBoxes.some((c) => bedUnder(b, c))) continue
+      // Only if one of this stride's own changes reaches its area (the stride's union box, all the
+      // ground between two prints, crossed lakes nothing touched: 27 ms for a big one). Not only its
+      // bed: a trench cut beside a lake lowers the ground it should spread onto — skipped, its old
+      // shore stood up to 23 m in the air over the new ground (the user, 2026-11-06: "water bodies
+      // with hard floating edges").
+      if (!strideBoxes.some((c) => c.x0 - 2 <= b.x0 + b.w && c.x1 + 2 >= b.x0 && c.z0 - 2 <= b.z0 + b.h && c.z1 + 2 >= b.z0)) continue
       lakeQueue.set(l.id, { x0: b.x0, z0: b.z0, x1: b.x0 + b.w, z1: b.z0 + b.h })
     }
   }
@@ -2112,7 +2107,8 @@ function hornInput(id: string, t: Titan): GaitInput | null {
 }
 
 function simulate(dt: number): void {
-  wanderer.canGlide = finds.has('cloak')
+  // (The cloak comes in the bag: a save from before that has the bag but not the cloak glides too.)
+  wanderer.canGlide = finds.has('cloak') || finds.has('bag')
   watchProgress = watching(dt)
   watchFalls(dt)
   if (finds.has('horn') && input.pressed('KeyH')) blowHorn()
@@ -2210,6 +2206,12 @@ function simulate(dt: number): void {
       tipState.bag = true
       setTimeout(() => narration.say('Folded inside: a map, mostly blank, and an empty notebook. And under them, a coil of rope.'), 2600)
       setTimeout(() => finds.find('line'), 6500)
+      // (The wing-cloak comes with them — the user, 2026-11-06: start with it, with the bag and the
+      // line; it was at the top of the Great Stair, far into the game.)
+      setTimeout(() => {
+        narration.say('And folded at the very bottom, a long red cloak, stiffened along its edges.')
+        finds.find('cloak')
+      }, 11000)
     } else if (offerings.near(wanderer.pos) && input.pressed('KeyE')) {
       const s = offerings.near(wanderer.pos)!
       const want = CATALOGUE.find((c) => c.id === s.def.wants)
@@ -2504,8 +2506,20 @@ const body = new THREE.Vector3()
 
 /** The water's surface over (x, z) — a lake or a marsh pool — or NaN where it is dry. */
 function waterAt(x: number, z: number): number {
+  // (A lake's water where it is drawn: a full one a little under its brim — water-view shown().)
   const l = lakes.levelAt(x, z)
-  if (!Number.isNaN(l)) return l
+  if (!Number.isNaN(l)) {
+    const ix = Math.floor(x)
+    const iz = Math.floor(z)
+    for (const k of lakes.lakes) {
+      if (k.level !== l) continue
+      const b = k.basin
+      if (ix < b.x0 || iz < b.z0 || ix >= b.x0 + b.w || iz >= b.z0 + b.h) continue
+      const s = shownLevel(k)
+      return terrain.cellHeight(ix, iz) < s ? s : NaN
+    }
+    return l
+  }
   const m = mireView.levelAt(x, z)
   return Number.isNaN(m) ? sea.levelAt(x, z) : m
 }

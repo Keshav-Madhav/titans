@@ -1323,12 +1323,8 @@ const scenes = {
     })
     const took = await page.evaluate(async () => {
       const g = window.__g
-      const c = g.spots.spots.find((s) => s.id === 'cloak')
-      g.teleport(c.at.x + 0.6, c.at.z, c.at.y + 0.1)
-      await new Promise((r) => setTimeout(r, 200))
-      g.input.press('KeyE')
-      await new Promise((r) => setTimeout(r, 150))
-      g.input.release('KeyE')
+      // (The cloak now comes with the bag: given here as the bag gives it.)
+      g.finds.find('cloak')
       await new Promise((r) => setTimeout(r, 100))
       return g.finds.has('cloak')
     })
