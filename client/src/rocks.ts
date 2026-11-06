@@ -221,6 +221,10 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           // whole body in dirt.)
           float heap = clamp(vAbove.y * 0.008, 0.3, 2.5) * (0.5 + 1.0 * smoothstep(0.2, 0.8, wn));
           float soil = (1.0 - smoothstep(heap * 0.55, heap, vAbove.x)) * (1.0 - smoothstep(0.3, 0.7, rN.y)) * uRockSoil;
+          // (Not on bark: a giant tree's roots heap their own "ground" in 6 m cells, and the earth banked
+          // against it came out as straight-edged blocks of soil over the bark — tour review, 2026-11-07.
+          // A tree stands in its own litter; the moss band already greens its foot.)
+          if (abs(vLayer.x - 11.0) < 0.5) soil = 0.0;
           if (soil > 0.001) {
             bool sandy = abs(vLayer.y - 4.0) < 0.5;
             vec3 nG;
