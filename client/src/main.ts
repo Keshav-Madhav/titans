@@ -2365,6 +2365,8 @@ function simulate(dt: number): void {
         // (The camps: their fire rings, tripods and flag poles stand in the way.)
         camp.keepOut(wanderer.pos)
         for (const c of travellerCamps) c.keepOut(wanderer.pos)
+        // (And the small made things: stones with words, cairns, ringing stones, shrines.)
+        keepOffProps(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
         tryMantle(dt)
@@ -2786,6 +2788,39 @@ function stepMantle(dt: number): void {
     wanderer.vel.set(mantle.dir.x * 2.5, 0, mantle.dir.z * 2.5)
   }
 }
+/**
+ * The small made things you could walk straight through (the user, 2026-11-06, after the camp: the
+ * stones with words, the cairns' stacks): each a circle on the ground — its own size plus the body's —
+ * that a walker is pushed out of sideways. (Each is still within reach to use: read, light, strike.)
+ */
+interface PropSolid { x: number; z: number; y: number; r: number; on?: () => boolean }
+let propSolids: PropSolid[] | null = null
+function keepOffProps(p: THREE.Vector3): void {
+  if (!propSolids) {
+    propSolids = []
+    for (const s of spots.spots) if (s.kind === 'stone') propSolids.push({ x: s.at.x, z: s.at.z, y: s.at.y, r: 0.75 })
+    for (const c of cairns.cairns) propSolids.push({ x: c.x, z: c.z, y: c.y, r: 1.05 })
+    for (const ring of resonance.rings) {
+      for (const st of ring.stones) propSolids.push({ x: st.at.x, z: st.at.z, y: st.at.y, r: 0.85 })
+      // (The slab until it has sunk: then what it kept lies there to be taken.)
+      propSolids.push({ x: ring.def.x, z: ring.def.z, y: ring.y, r: 1.6, on: () => !ring.solved })
+    }
+    for (const sh of offerings.shrines) propSolids.push({ x: sh.at.x, z: sh.at.z, y: sh.at.y, r: 1.15 })
+  }
+  for (const s of propSolids) {
+    const dx = p.x - s.x
+    const dz = p.z - s.z
+    if (Math.abs(dx) > s.r || Math.abs(dz) > s.r || Math.abs(p.y - s.y) > 2.5) continue
+    const d = Math.hypot(dx, dz)
+    if (d >= s.r || (s.on && !s.on())) continue
+    if (d < 1e-4) p.x = s.x + s.r
+    else {
+      p.x = s.x + (dx / d) * s.r
+      p.z = s.z + (dz / d) * s.r
+    }
+  }
+}
+
 /** Rock formations: walls push the wanderer out; ledges, arch tops and cave floors hold them up. */
 function onRock(): void {
   const p = wanderer.pos
