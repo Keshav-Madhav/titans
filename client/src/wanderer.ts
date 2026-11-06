@@ -1624,7 +1624,9 @@ export class Wanderer {
       // water — it is not clear — and only the cape showed, floating.)
       const head = av.bone('Head')!.getWorldPosition(_p0).y
       const back = av.bone('spine_03')!.getWorldPosition(_p1).y
-      const lift = Math.max(this.waterLevel + 0.3 - head, this.waterLevel - 0.02 - back)
+      // (The head bone 0.2 m up — the face and hood clear — not 0.3: treading water at 0.3 the arms,
+      // out at the shoulders, stood above the surface, a red T floating on the lake.)
+      const lift = Math.max(this.waterLevel + 0.2 - head, this.waterLevel - 0.02 - back)
       this.swimLift += (lift - this.swimLift) * Math.min(1, dt * 6)
     } else this.swimLift += (0 - this.swimLift) * Math.min(1, dt * 6)
     av.root.position.y = -this.hipDrop + this.swimLift
