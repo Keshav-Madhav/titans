@@ -2369,17 +2369,19 @@ export class Wanderer {
 
     // The lantern swings on its hook: with the stride, a beat behind it, and out on a turn.
     {
+      // (The rigged body's own stride: one clip cycle is two steps, as one turn of the old stride.)
+      const stride = this.avatar ? this.avatar.stride * Math.PI * 2 : this.stride
       const go = this.grounded && !this.climbing && !this.swimming ? Math.min(1, this.gait) : 0
-      const swing = Math.sin(this.stride - 0.7) * (0.22 + 0.18 * run) * go
+      const swing = Math.sin(stride - 0.7) * (0.22 + 0.18 * run) * go
       this.lanternHook.rotation.x += (swing - this.lanternHook.rotation.x) * Math.min(1, dt * 10)
-      const out = THREE.MathUtils.clamp(-this.bodyRoll * 1.4, -0.4, 0.4) + Math.cos(this.stride) * 0.06 * go
+      const out = THREE.MathUtils.clamp(-this.bodyRoll * 1.4, -0.4, 0.4) + Math.cos(stride) * 0.06 * go
       this.lanternHook.rotation.z += (out - this.lanternHook.rotation.z) * Math.min(1, dt * 6)
       // The satchel bumps against the hip with each step.
       const bag = this.bagParts[1]
       if (bag) {
         // (sin², not |sin|: its sharp bottom snapped the bag twice a stride.)
-        bag.position.y = -0.12 + Math.sin(this.stride) ** 2 * 0.018 * go * (1 + run)
-        bag.rotation.z = 0.1 + Math.sin(this.stride + 0.5) * 0.08 * go
+        bag.position.y = -0.12 + Math.sin(stride) ** 2 * 0.018 * go * (1 + run)
+        bag.rotation.z = 0.1 + Math.sin(stride + 0.5) * 0.08 * go
       }
     }
 
