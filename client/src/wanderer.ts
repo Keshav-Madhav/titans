@@ -1148,7 +1148,7 @@ export class Wanderer {
       jump = false
     }
     this.tilt += ((this.stunned > 0 ? 1.25 : 0) - this.tilt) * Math.min(1, dt * (this.stunned > 0 ? 10 : 3))
-    this.flyLean = THREE.MathUtils.clamp(this.flyLean + (this.gliding ? 1 : -1) * dt * 4, 0, 1)
+    this.flyLean = THREE.MathUtils.clamp(this.flyLean + (this.gliding ? 1 : -1) * dt * 2.5, 0, 1)
     // Camera looks along -Z at yaw 0, so forward is (-sin, -cos).
     const fx = -Math.sin(camYaw)
     const fz = -Math.cos(camYaw)
@@ -1319,7 +1319,9 @@ export class Wanderer {
       const lift = KL * v * v * cl * stall
       const drag = KL * v * v * (CD0 + 0.12 * cl * cl)
       this.airspeed = THREE.MathUtils.clamp(v + (-FLY_G * Math.sin(this.gamma) - drag) * dt, 2, 45)
-      this.gamma = THREE.MathUtils.clamp(this.gamma + ((lift * Math.cos(this.bank) - FLY_G * Math.cos(this.gamma)) / Math.max(v, 3)) * dt, -1.35, 0.9)
+      // (Down to straight down, −1.56: clamped at −1.35, a fall straight down was thrown 6 m/s sideways
+      // the frame the cloak opened — the playtest's camera jolt. Lift brings the nose up from there.)
+      this.gamma = THREE.MathUtils.clamp(this.gamma + ((lift * Math.cos(this.bank) - FLY_G * Math.cos(this.gamma)) / Math.max(v, 3)) * dt, -1.56, 0.9)
       // Bank right (+): turn right — the body faces +z, its right is −x, so heading falls.
       this.heading -= ((lift * Math.sin(this.bank)) / Math.max(v, 3)) * dt
       const cg = Math.cos(this.gamma)
@@ -1768,7 +1770,7 @@ export class Wanderer {
    * On the line: both hands up on the rope above the head, the legs hanging a little bent.
    */
   private airRig(dt: number): void {
-    this.glideW = THREE.MathUtils.clamp(this.glideW + (this.gliding ? 1 : -1) * dt * 5, 0, 1)
+    this.glideW = THREE.MathUtils.clamp(this.glideW + (this.gliding ? 1 : -1) * dt * 2.8, 0, 1)
     this.hangW += ((this.hanging && !this.gliding ? 1 : 0) - this.hangW) * Math.min(1, dt * 8)
     if (this.glideW < 0.01 && this.hangW < 0.01) return
     // (On an S-curve, as the body's lean: eased exponentially the arms' first frame was their biggest.)

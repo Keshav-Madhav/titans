@@ -1243,6 +1243,8 @@ let clipPush = 0
 let hugPush = 0
 /** What the hug's rays cost a frame (eased; tools read it from climbState). */
 let hugMs = 0
+/** In flight: the camera's swing round behind you (rad/s), sprung. */
+let flySwingV = 0
 /** On a giant's back: how far the body is lowered to put its soles on the visible stone. */
 let standDrop = 0
 const _footW = [new THREE.Vector3(), new THREE.Vector3()]
@@ -3381,10 +3383,18 @@ function frameBody(now: number): void {
     rig.meshStep = 64 / terrainView.resolution // (the quality governor can change it)
     rig.update(dt, awakening.active ? 0 : look.dx, awakening.active ? 0 : look.dy, awakening.active ? 0 : look.wheel, focus, terrain)
     // In flight the camera swings round behind you (you steer the body, not the view).
-    if (wanderer.gliding) {
-      let dy = wanderer.yaw + Math.PI - rig.yaw
-      dy = Math.atan2(Math.sin(dy), Math.cos(dy))
-      rig.yaw += dy * Math.min(1, dt * 2.2)
+    // (A spring on the swing's rate: as a share of the angle a frame, opening the cloak with the view
+    // half a turn round set the camera orbiting at ~38 m/s from a standstill — the playtest's jolt.)
+    {
+      let dy = 0
+      if (wanderer.gliding) {
+        dy = wanderer.yaw + Math.PI - rig.yaw
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy))
+      }
+      const W = 2.6
+      flySwingV += (W * W * dy - 2 * W * flySwingV) * Math.min(dt, 1 / 30)
+      if (!wanderer.gliding) flySwingV *= Math.max(0, 1 - dt * 6)
+      rig.yaw += flySwingV * dt
     }
     // Drawing the bow: the camera comes in over the right shoulder, the view narrows, you face where you aim.
     if (bow.draw > 0 && !awakening.active) {
