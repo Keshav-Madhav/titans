@@ -1294,7 +1294,11 @@ export class Wanderer {
         jump = false
       }
     }
-    if (jump && this.grounded) {
+    // (Space still held from a glide that has just touched down is not a jump: it bounced you straight
+    // back into the air and the glide went on along the ground at 30-40 m/s — the user, 2026-11-07,
+    // "i was able to glide on the ground holding space and w reaching high speeds". Let go first.)
+    if (!jump) this.landedHolding = false
+    if (jump && this.grounded && !this.landedHolding) {
       this.vel.y = JUMP
       this.grounded = false
     }
@@ -1311,6 +1315,7 @@ export class Wanderer {
         this.gamma = Math.atan2(this.vel.y, Math.max(hs0, 1))
         this.heading = hs0 > 1 ? Math.atan2(this.vel.x, this.vel.z) : this.yaw
         this.bank = 0
+        this.gammaRate = 0
       }
       const cl = THREE.MathUtils.clamp(0.62 - move.y * 0.47, 0.12, 1.15)
       this.bank += (move.x * 0.75 - this.bank) * Math.min(1, dt * 2.5)
@@ -1321,7 +1326,16 @@ export class Wanderer {
       this.airspeed = THREE.MathUtils.clamp(v + (-FLY_G * Math.sin(this.gamma) - drag) * dt, 2, 45)
       // (Down to straight down, −1.56: clamped at −1.35, a fall straight down was thrown 6 m/s sideways
       // the frame the cloak opened — the playtest's camera jolt. Lift brings the nose up from there.)
-      this.gamma = THREE.MathUtils.clamp(this.gamma + ((lift * Math.cos(this.bank) - FLY_G * Math.cos(this.gamma)) / Math.max(v, 3)) * dt, -1.56, 0.9)
+      // (Pitch damped, as a cloak's own drag does: undamped the flight swung in a long wave — dive, then
+      // climb 15 m with nothing pressed, then dive — and "it feels like i go up naturally if i dont press
+      // w" (the user, 2026-11-07). Damped it settles into a steady, shallow descent; diving (W) still
+      // trades height for speed and pulling up (S) speed for height.)
+      const gRate = (lift * Math.cos(this.bank) - FLY_G * Math.cos(this.gamma)) / Math.max(v, 3)
+      this.gammaRate += (gRate - this.gammaRate) * Math.min(1, dt * 3)
+      this.gamma = THREE.MathUtils.clamp(this.gamma + (gRate - 0.35 * this.gammaRate) * dt, -1.56, 0.9)
+      // Without S held you do not climb on your own: the speed from a dive is spent level, gliding
+      // on, not swung back into height. Pulling up (S) still climbs, and so does rising air below.
+      if (move.y > -0.2) this.gamma = Math.min(this.gamma, 0.02)
       // Bank right (+): turn right — the body faces +z, its right is −x, so heading falls.
       this.heading -= ((lift * Math.sin(this.bank)) / Math.max(v, 3)) * dt
       const cg = Math.cos(this.gamma)
@@ -1353,6 +1367,13 @@ export class Wanderer {
     if (this.pos.y <= ground) {
       this.pos.y = ground
       this.vel.y = 0
+      if (this.gliding) {
+        // Down: the cloak folds, the run carries on from the flight's speed, eased off.
+        this.gliding = false
+        this.landedHolding = true
+        this.vel.x *= 0.45
+        this.vel.z *= 0.45
+      }
       this.grounded = true
     } else if (this.grounded && this.pos.y - ground < 0.35 && this.vel.y <= 0) {
       this.pos.y = ground // stick to the ground walking downhill
@@ -1374,6 +1395,10 @@ export class Wanderer {
     this.yaw += this.yawV * dt
   }
 
+  /** In flight: the flight path's turn rate, smoothed (the pitch damping reads it). */
+  private gammaRate = 0
+  /** Touched down from a glide with Space still held (no jump until it is let go). */
+  private landedHolding = false
   /** In flight: how far the body has leaned into the flying pose (eased in and out). */
   private flyLean = 0
   /** Swimming: how much the feet are held under the water (eased in and out). */

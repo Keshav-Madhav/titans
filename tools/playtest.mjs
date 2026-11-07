@@ -33,7 +33,7 @@ await page.evaluate(() => {
       const w = g.wanderer, c = g.camera.position, av = w.avatar
       const b = {}
       for (const n of BONES) { av.bone(n).getWorldPosition(v); b[n] = [v.x - w.obj.position.x, v.y - w.obj.position.y, v.z - w.obj.position.z] }
-      R.rows.push({ t, x: w.obj.position.x, y: w.obj.position.y, z: w.obj.position.z, yaw: w.yaw, speed: w.speed, grounded: w.grounded, cx: c.x, cy: c.y, cz: c.z, climb: g.climbState().active, glide: w.gliding, b })
+      R.rows.push({ t, x: w.obj.position.x, y: w.obj.position.y, z: w.obj.position.z, yaw: w.yaw, speed: w.speed, grounded: w.grounded, cx: c.x, cy: c.y, cz: c.z, climb: g.climbState().active, glide: w.gliding, b, rig: [g.rig.held, g.rig.lift ?? 0, g.rig.yaw, g.rig.pitch, g.rig.dist, g.rig.focus.x, g.rig.focus.y, g.rig.focus.z].map((v) => +v.toFixed(3)), part: g.climbState().part, standing: g.climbState().standing })
     }
     requestAnimationFrame(tick)
   }
@@ -117,7 +117,7 @@ function analyse({ rows, marks }) {
     const a = rows[i], b = rows[i - 1]
     const d = Math.hypot(a.cx - b.cx, a.cy - b.cy, a.cz - b.cz)
     const db = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
-    if (d > 1) camSnaps.push({ at: +(a.t - rows[0].t).toFixed(0), cam: +d.toFixed(2), body: +db.toFixed(2), climb: a.climb, glide: a.glide })
+    if (d > 1) camSnaps.push({ at: +(a.t - rows[0].t).toFixed(0), cam: +d.toFixed(2), body: +db.toFixed(2), climb: a.climb, glide: a.glide, dt: +(a.t - b.t).toFixed(1), rigBefore: b.rig, rigAfter: a.rig, part: [b.part, a.part], standing: [b.standing, a.standing] })
   }
   return { camSnaps: camSnaps.slice(0, 6), frames: rows.length, frameMs: fs, hitches: hitches.slice(0, 10), hitchCount: hitches.length, input, camera: { accMed: camS.med, jerks: camJerks.slice(0, 8), jerkCount: camJerks.length }, pops: pops.slice(0, 8), popCount: pops.length }
 }
