@@ -737,6 +737,8 @@ export class Wanderer {
   sledding = false
   /** Is (x, z) snow you can slide on? (main sets it: the High Ice.) */
   isSnow: (x: number, z: number) => boolean = () => false
+  /** Dune sand under (x, z) (main.ts sets it): slides start a little gentler there than on grass. */
+  isSand: (x: number, z: number) => boolean = () => false
   /** Standing on rock (set by the world each step): the land's slope under it is no matter. */
   onStone = false
   /** The water's surface where you stand (main.ts sets it each step; NaN: dry). */
@@ -1198,9 +1200,14 @@ export class Wanderer {
       const sx = terrain.heightAt(this.pos.x + 0.6, this.pos.z) - terrain.heightAt(this.pos.x - 0.6, this.pos.z)
       const sz = terrain.heightAt(this.pos.x, this.pos.z + 0.6) - terrain.heightAt(this.pos.x, this.pos.z - 0.6)
       const grade = Math.hypot(sx, sz) / 1.2
-      const snowy = this.isSnow(this.pos.x, this.pos.z) && !this.onStone
+      // (Not only the High Ice's snow: a dune's lee face and a steep grass bank take the cloak too —
+      // the user, 2026-11-07, "travelling feels daunting … like sliding". Steeper is needed off the
+      // snow, so a walk across a slope is still a walk.)
+      const snow = this.isSnow(this.pos.x, this.pos.z)
+      const slideGrade = snow ? 0.28 : this.isSand(this.pos.x, this.pos.z) ? 0.36 : 0.5
+      const snowy = (snow || grade > slideGrade * 0.6 || this.sledding) && !this.onStone && !this.swimming
       const hv = Math.hypot(this.vel.x, this.vel.z)
-      if (!this.sledding && this.grounded && snowy && grade > 0.28 && len > 0) {
+      if (!this.sledding && this.grounded && snowy && grade > slideGrade && len > 0) {
         // Pushing downhill (within ~50° of the fall line).
         const down = -(wx * sx + wz * sz) / (Math.hypot(sx, sz) * len)
         if (down > 0.64) {
@@ -1208,7 +1215,7 @@ export class Wanderer {
           this.lope = 0
         }
       }
-      if (this.sledding && (!snowy || (grade < 0.12 && hv < 1.6))) this.sledding = false
+      if (this.sledding && (!snowy || (grade < (snow ? 0.12 : 0.18) && hv < 1.6))) this.sledding = false
       if (this.sledding && this.grounded) {
         const gl = Math.hypot(sx, sz) || 1
         // Gravity along the fall line (≈ g·sin θ), a little friction, air drag at speed.
@@ -1301,12 +1308,24 @@ export class Wanderer {
     if (jump && this.grounded && !this.landedHolding) {
       this.vel.y = JUMP
       this.grounded = false
+      // A running leap (the long run, or off a slide), cloak on your back: a bigger spring and the
+      // cloak opens at the top of it, not only once falling fast — so a run off a crest or a slide
+      // off a dune's lip carries on through the air (the user, 2026-11-07: "being able to launch
+      // easily to glide").
+      const hv = Math.hypot(this.vel.x, this.vel.z)
+      if (this.canGlide && (this.lope > 0.6 || this.sledding) && hv > SPRINT * 0.85) {
+        this.vel.y = JUMP * 1.45
+        this.vel.x *= 1.08
+        this.vel.z *= 1.08
+        this.leapGlide = true
+      }
     }
+    if (this.grounded) this.leapGlide = false
     this.vel.y -= GRAVITY * dt
     // The wing-cloak: falling with Space held, it opens — you sink slowly and
     // sail the way you lean (or the way you face), and land on your feet.
     const wasGliding = this.gliding
-    this.gliding = this.canGlide && !this.grounded && jump && (wasGliding || this.vel.y < -1)
+    this.gliding = this.canGlide && !this.grounded && jump && (wasGliding || this.vel.y < -1 || (this.leapGlide && this.vel.y < 0.5))
     if (this.gliding) {
       if (!wasGliding) {
         // Opening: take up the flight from how you were falling.
@@ -1401,6 +1420,8 @@ export class Wanderer {
   private landedHolding = false
   /** In flight: how far the body has leaned into the flying pose (eased in and out). */
   private flyLean = 0
+  /** A running leap is in the air: the cloak may open at its top (see the jump). */
+  private leapGlide = false
   /** Swimming: how much the feet are held under the water (eased in and out). */
   private swimLegW = 0
   /** The facing's turn rate (rad/s), sprung toward where you go. */

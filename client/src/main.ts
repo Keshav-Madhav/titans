@@ -2695,6 +2695,7 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
 }
 // Ice slides: the High Ice's snow (as the footsteps tell snow from sand).
 wanderer.isSnow = (x, z) => highSector(x, z) > 0.5 && terrain.heightAt(x, z) > HIGH.top - 60
+wanderer.isSand = (x, z) => terrain.base.regions.name(x, z) === 'desert'
 let sledSaid = false
 wanderer.seedLift = (p, dir) => (seeds.lastK = seeds.liftAt(p, dir))
 wanderer.thermalLift = (p) => thermals.liftAt(p)
@@ -3050,7 +3051,8 @@ function frameBody(now: number): void {
   // The first slide: say how it goes, once.
   if (wanderer.sledding && !sledSaid) {
     sledSaid = true
-    narration.say('You sit back on the cloak and the snow takes you. Lean with A and D; S to dig in.')
+    const where = wanderer.isSnow(wanderer.pos.x, wanderer.pos.z) ? 'the snow' : wanderer.isSand(wanderer.pos.x, wanderer.pos.z) ? 'the sand' : 'the slope'
+    narration.say(`You sit back on the cloak and ${where} takes you. Lean with A and D; S to dig in; Space at the bottom to leap.`)
   }
   // One queued lake a frame (a footfall's wider reach).
   {
