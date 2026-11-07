@@ -900,6 +900,9 @@ export class Wanderer {
     // you are the one thing in the land that must always read): a faint glow of its own colour,
     // nothing by day, rising with the dark (animate()).
     red.emissive.set(cloak)
+    // (Through the weave's own texture, not a flat colour: at full strength it lit the cloak as one
+    // flat neon-red cutout at night, no folds, no shading — night tour review, 2026-11-08.)
+    red.emissiveMap = cloth.map
     red.emissiveIntensity = 0
     this.redCloth = red
     // (Each with its own weave or grain: a flat colour read as a mannequin.)
@@ -2732,7 +2735,7 @@ export class Wanderer {
     this.lanternOn += (Math.max(0, (dark - 0.25) / 0.75) - this.lanternOn) * Math.min(1, dt * 0.8)
     // …and against the light: looking toward the sun the cloak went near-black on the bright beach
     // (QA cycle 7). The red keeps a faint glow of its own as the view turns into the sun.
-    this.redCloth.emissiveIntensity = Math.max(0.16 * this.lanternOn, 0.5 * this.backlit)
+    this.redCloth.emissiveIntensity = Math.max(0.1 * this.lanternOn, 0.5 * this.backlit)
     this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
     this.lantern.distance = 10 + this.lanternOn * 18
     // (The light rides the lantern from the world, not inside the body: when the camera pressed up to you
