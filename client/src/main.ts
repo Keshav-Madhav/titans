@@ -1805,7 +1805,13 @@ function loadLocal(): boolean {
     a.titan.restBlend = t.pose.resting ? 1 : 0
     a.aloneSince = t.aloneSince ?? 0
   }
-  wanderer.place(d.player.x, terrain.heightAt(d.player.x, d.player.z), d.player.z)
+  // (At the saved height when that is above the land: on the Undercroft's plaza, a ledge, a stone —
+  // what you stood on is not the land. Put at the land's height there, a reload sank you 72 m into
+  // the earth over the hall and the screen was black — 2026-11-07, reproduced in a real window.)
+  {
+    const land = terrain.heightAt(d.player.x, d.player.z)
+    wanderer.place(d.player.x, d.player.y > land ? d.player.y + 0.05 : land, d.player.z)
+  }
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
   if (d.seen) worldMap.load(d.seen)
