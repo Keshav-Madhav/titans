@@ -62,7 +62,9 @@ class GodRaysPass extends Pass {
             float decay = 1.0;
             vec3 sum = vec3(0.0);
             // Dither the start so the steps do not band.
-            uv -= delta * fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+            vec3 p3 = fract(vec3(gl_FragCoord.xyx) * 0.1031);
+            p3 += dot(p3, p3.yzx + 33.33);
+            uv -= delta * fract((p3.x + p3.y) * p3.z);
             for (int i = 0; i < N; i++) {
               uv -= delta;
               sum += bright(uv) * decay;
@@ -198,7 +200,11 @@ const GRADE = {
     vec3 toSrgb(vec3 c) {
       return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
     }
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    // (A hash without sin(): fract(sin(x) * 43758) on inputs in the tens of thousands runs out of
+    // float precision and stops being noise — it drew fine horizontal lines fixed to the screen over
+    // flat ground, the user's "black lines", 2026-11-07, worst on some GPUs. This one keys off the
+    // pixel itself and stays noise at any size.)
+    float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 
     void main() {
       // (No lens fringing: red and blue read a fraction of a pixel aside, and wherever fine detail
@@ -239,7 +245,7 @@ const GRADE = {
 
       c = toSrgb(clamp(c, 0.0, 1.0));
       // Film grain, in display space.
-      c += (hash(vUv * 1000.0 + fract(time * 7.13)) - 0.5) * 0.028;
+      c += (hash(gl_FragCoord.xy + floor(fract(time * 7.13) * 97.0) * vec2(17.0, 31.0)) - 0.5) * 0.028;
       gl_FragColor = vec4(c, 1.0);
     }`,
 }

@@ -53,8 +53,13 @@ const aoMat = new THREE.ShaderMaterial({
       vec3 pl = viewPosAt(vUv - vec2(px.x, 0.0), viewZAt(vUv - vec2(px.x, 0.0)));
       vec3 pu = viewPosAt(vUv + vec2(0.0, px.y), viewZAt(vUv + vec2(0.0, px.y)));
       vec3 pd = viewPosAt(vUv - vec2(0.0, px.y), viewZAt(vUv - vec2(0.0, px.y)));
-      vec3 dx = abs(pr.z - p.z) < abs(p.z - pl.z) ? pr - p : p - pl;
-      vec3 dy = abs(pu.z - p.z) < abs(p.z - pd.z) ? pu - p : p - pd;
+      // (Both sides, averaged, where they agree — on a plain surface: one side alone carried each
+      // row's depth rounding into the normal, tipping it row by row, and the AO came out in fine
+      // horizontal stripes fixed to the screen over flat ground.)
+      float ex = abs((pr.z - p.z) - (p.z - pl.z));
+      float ey = abs((pu.z - p.z) - (p.z - pd.z));
+      vec3 dx = ex < 0.02 * z ? (pr - pl) * 0.5 : abs(pr.z - p.z) < abs(p.z - pl.z) ? pr - p : p - pl;
+      vec3 dy = ey < 0.02 * z ? (pu - pd) * 0.5 : abs(pu.z - p.z) < abs(p.z - pd.z) ? pu - p : p - pd;
       vec3 n = normalize(cross(dx, dy));
       // The reach: about a metre near you, wider far off; in pixels, kept on screen-sane terms.
       float R = clamp(0.9 + z * 0.012, 0.9, 7.0);
@@ -72,7 +77,12 @@ const aoMat = new THREE.ShaderMaterial({
         float d2 = dot(v, v);
         float nv = dot(n, v) / sqrt(d2 + 1e-4);
         // (Only what rises above the surface, and only near: a far wall behind is not a crease.)
-        occ += max(0.0, nv - 0.08) * (1.0 - smoothstep(R * R * 0.6, R * R * 1.6, d2));
+        // (And only what truly rises off it — a few centimetres, more far off: on flat ground seen
+        // low, depth's rounding steps every screen row, the normal from depth tips row by row, and
+        // a bare tilt-past-threshold darkened alternate rows — fine horizontal stripes fixed to the
+        // screen over the camp's earth, the user's "black lines", 2026-11-07.)
+        float rise = dot(n, v);
+        occ += max(0.0, nv - 0.08) * smoothstep(0.02 + z * 0.002, 0.06 + z * 0.004, rise) * (1.0 - smoothstep(R * R * 0.6, R * R * 1.6, d2));
       }
       float ao = 1.0 - occ / 12.0 * 2.8;
       gl_FragColor = vec4(clamp(ao, 0.0, 1.0), z, 0.0, 1.0);

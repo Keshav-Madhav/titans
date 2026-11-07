@@ -412,7 +412,7 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
             '#include <alphatest_fragment>',
             `#include <alphatest_fragment>
             float furNear = smoothstep(40.0, 120.0, distance(vFurW, cameraPosition));
-            if (fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) > furNear) discard;`,
+            if (fract(52.9829189 * fract(dot(floor(gl_FragCoord.xy), vec2(0.06711056, 0.00583715)))) > furNear) discard;`,
           )
       }
       fm.customProgramCacheKey = () => 'fur-near-fade'

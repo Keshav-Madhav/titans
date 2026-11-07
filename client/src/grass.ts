@@ -245,7 +245,7 @@ export class Grass {
         // Both faces lit as the ground is (DoubleSide would turn the back faces' normals down: black).
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif')
         // Blades right at the lens dissolve instead of filling the frame.
-        .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (length(vViewPosition) < 0.9 + 0.8 * fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453)) discard;')
+        .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (length(vViewPosition) < 0.9 + 0.8 * fract(52.9829189 * fract(dot(floor(gl_FragCoord.xy), vec2(0.06711056, 0.00583715))))) discard;')
     }
     mat.onBeforeCompile = hook(false)
     mat.customProgramCacheKey = () => 'grass-cards'
