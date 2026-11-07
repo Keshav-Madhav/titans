@@ -3332,7 +3332,9 @@ function frameBody(now: number): void {
   // Fine giant meshes for giants you have come near, a little each frame (titan.ts).
   nearLods()
   weather.part = awakening.reveal
-  weather.desert = biome.desert(camera.position.x, camera.position.z)
+  // (Snapped: part-way into the Dune Sea — by a mesa, at its edge — what fell was half rain, half
+  // sand: thin white diagonal bars over the dunes, tour review 2026-11-08. Desert enough is sand.)
+  weather.desert = THREE.MathUtils.smoothstep(biome.desert(camera.position.x, camera.position.z), 0.15, 0.45)
   weather.high = highSector(camera.position.x, camera.position.z) * THREE.MathUtils.smoothstep(camera.position.y, HIGH.top - 200, HIGH.top - 40)
   weather.mire = biome.mire(camera.position.x, camera.position.z)
   // (Only from a camera that is somewhere: from NaN its eased sand and fog went NaN for good.)
