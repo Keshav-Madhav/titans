@@ -282,9 +282,16 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
       const a = i * 2.1
       const ox = Math.cos(a) * 0.12
       const oz = Math.sin(a) * 0.12
-      const h = 0.9 + (i % 2) * 0.35
-      parts.push(colored(new THREE.CylinderGeometry(0.008, 0.012, h, 4).translate(ox, h / 2, oz).toNonIndexed(), 0x5d7036))
-      parts.push(colored(new THREE.IcosahedronGeometry(0.055, 0).scale(1, 1.6, 1).translate(ox, h + 0.04, oz), [0xe8e2d0, 0xd9b8d8, 0xe8c66a, 0xc9d6e8][i]))
+      // (Knee-high and green: at a metre and more, dark, they stood about the meadow like bare black poles.)
+      const h = 0.55 + (i % 2) * 0.22
+      parts.push(colored(new THREE.CylinderGeometry(0.007, 0.011, h, 4).translate(ox, h / 2, oz).toNonIndexed(), 0x7d9a48))
+      // (A loose head of small florets, not one faceted bead: as a 12-sided 11 cm gem in pastel on a
+      // stick it read as a lollipop or a crystal — tour review, 2026-11-07.)
+      const col = [0xd8d2bf, 0xc7a9c4, 0xd6b65e, 0xb9c4d4][i]
+      for (let k = 0; k < 6; k++) {
+        const fa = k * 2.4 + i, fr = k === 0 ? 0 : 0.03
+        parts.push(colored(new THREE.IcosahedronGeometry(0.026 + (k === 0 ? 0.008 : 0), 1).scale(1, 0.8, 1).translate(ox + Math.cos(fa) * fr, h + 0.02 + (k === 0 ? 0.03 : k * 0.008), oz + Math.sin(fa) * fr), col))
+      }
     }
     // (All non-indexed, no uvs: mergeGeometries needs them alike.)
     for (const g of parts) g.deleteAttribute('uv')
