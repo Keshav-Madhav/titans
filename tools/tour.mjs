@@ -40,7 +40,11 @@ const TIMES = process.env.TOUR_NIGHT ? [0.95, 0.02, 0.9, 0.1, 0.98, 0.06] : [0.3
 const WEATHER = process.env.TOUR_WEATHER ? [process.env.TOUR_WEATHER] : ['clear', 'clear', 'breaking', 'clear', 'overcast', 'clear', 'storm', 'clear']
 const log = []
 let n = 0
+// (TOUR_ONLY=70: only that shot, with the console and the camera's state — to chase one bad frame.)
+const ONLY = process.env.TOUR_ONLY ? +process.env.TOUR_ONLY : -1
+if (ONLY >= 0) page.on('console', (m) => console.log('console:', m.type(), m.text().slice(0, 300)))
 for (const [i, sp] of spots.entries()) {
+  if (ONLY >= 0 && i !== ONLY) { n++; continue }
   const t = TIMES[i % TIMES.length]
   const w = WEATHER[(i * 3) % WEATHER.length]
   const where = await page.evaluate(async ([sp, t, w]) => {
@@ -62,8 +66,27 @@ for (const [i, sp] of spots.entries()) {
   await page.screenshot({ path: `${base}-a.png` })
   // The second look: from the side and higher, the land around and what stands in it.
   await page.evaluate(() => { const g = window.__g; g.setCam(g.rig.yaw + 1.9, 0.42, 22) })
+  if (ONLY >= 0) {
+    // (Watching it frame by frame: the first frame anything goes off.)
+    const trace = await page.evaluate(async () => {
+      const g = window.__g, w = g.wanderer, out = []
+      const P = w.pos
+      for (const m of ['set', 'copy', 'add', 'addScaledVector', 'setX', 'setZ', 'lerp']) { const o = P[m].bind(P); P[m] = (...a) => { const bx = P.x, bz = P.z; const r = o(...a); if (Math.hypot(P.x - bx, P.z - bz) > 50) out.push(['jump', m, [bx, bz].map(Math.round), new Error().stack.split('\n').slice(1, 7).join(' | ')]); return r } }
+      { const o = w.place.bind(w); w.place = (x, y, z) => { if (Math.hypot(x - P.x, z - P.z) > 50) out.push(['place', [x, y, z].map(Math.round), new Error().stack.split('\n').slice(1, 7).join(' | ')]); return o(x, y, z) } }
+      const say = g.narration.say.bind(g.narration); g.narration.say = (t, ...a) => { out.push(['say', t, JSON.stringify(g.fallState), +w.pos.y.toFixed(1)]); return say(t, ...a) }
+      for (let i = 0; i < 70; i++) {
+        await new Promise((r) => requestAnimationFrame(r))
+        const c = g.camera.position, p = w.pos
+        out.push([i, +p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1), +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), +(+g.rig.dist).toFixed(2), w.grounded, w.gliding, w.sledding, g.fallState.fallTop])
+      }
+      return out
+    })
+    const pick = trace.filter((t, k) => typeof t[0] === 'string' || k === 0 || k === trace.length - 1 || Math.abs(t[1] - (trace[k - 1][1] ?? t[1])) > 5 || Math.abs(t[4] - (trace[k - 1][4] ?? t[4])) > 5 || ![t[1], t[4]].every(Number.isFinite))
+    console.log('trace:', JSON.stringify(pick.slice(0, 12)))
+  }
   await page.waitForTimeout(1200)
   await page.screenshot({ path: `${base}-b.png` })
+  if (ONLY >= 0) console.log(JSON.stringify(await page.evaluate(() => { const g = window.__g, c = g.camera.position, p = g.wanderer.pos; return { cam: [c.x, c.y, c.z].map((v) => +v.toFixed(2)), pos: [p.x, p.y, p.z].map((v) => +v.toFixed(2)), ground: +g.terrain.heightAt(c.x, c.z).toFixed(2), rockTop: g.rocks.topAt(c.x, c.z), rig: [g.rig.yaw, g.rig.pitch, g.rig.dist].map((v) => +(+v).toFixed(3)), inHallish: false } })))
   log.push({ n, tag: sp.tag, time: t, weather: w, ...where })
   n++
 }

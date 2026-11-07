@@ -1828,6 +1828,7 @@ function loadLocal(): boolean {
   {
     const land = terrain.heightAt(d.player.x, d.player.z)
     wanderer.place(d.player.x, d.player.y > land ? d.player.y + 0.05 : land, d.player.z)
+    lastSafe.copy(wanderer.pos)
   }
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
@@ -1924,8 +1925,12 @@ const still: GaitInput = { forward: 0, turn: 0 }
 // black, and you wake where you last stood on safe ground. (So a climb is
 // worth something: let go at a giant's shoulder and it is lost.)
 const FATAL_FALL = 24
-/** Where you last stood on safe ground. */
-const lastSafe = new THREE.Vector3(0, 0, 0)
+/**
+ * Where you last stood on safe ground. (Set wherever you are put — the start, a reload, a jump to a
+ * fire — not only after 1.5 s standing on the flat: it began at the world's origin, under the hall,
+ * and a fall soon after a reload woke you there, in the dark — a black screen, found by the tour.)
+ */
+const lastSafe = new THREE.Vector3(WAKE_AT.x, terrain.heightAt(WAKE_AT.x, WAKE_AT.z), WAKE_AT.z)
 let safeFor = 0
 /** The highest point of the current fall (NaN on the ground). */
 let fallTop = NaN
@@ -4016,6 +4021,10 @@ const g = {
   sound,
   tips,
   narration,
+  /** Tools: the fall being watched (its top, NaN on the ground) and where you would wake. */
+  get fallState() {
+    return { fallTop, lastSafe: lastSafe.toArray(), blackout }
+  },
   pause,
   /** A giant's foot coming down at (x, z), through the real event path (tools). */
   footfallAt(x: number, z: number, stomp = false) {
@@ -4056,6 +4065,7 @@ const g = {
     cables.ride = null
     wanderer.hanging = false
     wanderer.place(x, y ?? terrain.heightAt(x, z), z)
+    lastSafe.set(x, terrain.heightAt(x, z), z)
     fallTop = NaN
   },
   /** Walk up to giant 1's left foot from outside and grab it. */
