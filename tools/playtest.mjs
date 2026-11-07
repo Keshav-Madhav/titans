@@ -48,11 +48,11 @@ const press = async (keys, ms) => {
 const segment = async (name, setup, drive) => {
   await page.evaluate(setup)
   await page.waitForTimeout(1500)
-  await page.evaluate(() => { window.__rec.rows = []; window.__rec.marks = []; window.__rec.on = true })
+  await page.evaluate(() => { window.__rec.rows = []; window.__rec.marks = []; window.__rec.on = true; window.__g.spikes.length = 0 })
   const shots = []
   await drive(async () => { const f = `${OUT}/pt-${name}-${shots.length}.png`; await page.screenshot({ path: f }); shots.push(f) })
-  const data = await page.evaluate(() => { window.__rec.on = false; return { rows: window.__rec.rows, marks: window.__rec.marks } })
-  return { name, ...analyse(data), shots }
+  const data = await page.evaluate(() => { window.__rec.on = false; return { rows: window.__rec.rows, marks: window.__rec.marks, spikes: window.__g.spikes.slice() } })
+  return { name, ...analyse(data), spikes: data.spikes, shots }
 }
 
 function stats(a) {
@@ -167,6 +167,7 @@ for (const r of report) {
   console.log(`== ${r.name}: ${r.frames} frames; frame ms ${JSON.stringify(r.frameMs)}; hitches ${r.hitchCount}${r.hitches.length ? ' ' + JSON.stringify(r.hitches.slice(0, 4)) : ''}`)
   console.log(`   input ms: ${r.input.map((i) => `${i.keys} ${i.ms ?? 'none'}`).join(', ')}`)
   console.log(`   camera acc med ${r.camera.accMed}; jerks ${r.camera.jerkCount}${r.camera.jerks.length ? ' ' + JSON.stringify(r.camera.jerks.slice(0, 4)) : ''}`)
+  if (r.spikes?.length) console.log(`   long frames (system ms): ${JSON.stringify(r.spikes.slice(0, 4))}`)
   if (r.camSnaps.length) console.log(`   camera snaps: ${JSON.stringify(r.camSnaps)}`)
   console.log(`   bone pops ${r.popCount}${r.pops.length ? ' ' + JSON.stringify(r.pops.slice(0, 4)) : ''}`)
 }
