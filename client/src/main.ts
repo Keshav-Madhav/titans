@@ -140,6 +140,27 @@ const renderer = new THREE.WebGLRenderer({
   reversedDepthBuffer: params.get('rdb') !== '0',
 })
 renderer.setSize(innerWidth, innerHeight, false)
+// A shader that will not compile on this machine's GPU draws nothing, silently (the user, 2026-11-07:
+// a pitch-black view that no test here could reproduce). Each failure is shown in a corner, once, so a
+// screenshot says which: three.js reports it through here.
+{
+  const seen = new Set<string>()
+  renderer.debug.onShaderError = (gl, program, vs, fs) => {
+    const log = (gl.getShaderInfoLog(fs) || '') + (gl.getShaderInfoLog(vs) || '') + (gl.getProgramInfoLog(program) || '')
+    const line = log.split('\n').find((l) => /ERROR/.test(l)) ?? log.slice(0, 200)
+    console.error('titans: shader error', log)
+    if (seen.has(line)) return
+    seen.add(line)
+    let box = document.getElementById('gl-errors')
+    if (!box) {
+      box = document.createElement('div')
+      box.id = 'gl-errors'
+      box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:60vw;z-index:50;font:12px/1.35 ui-monospace,monospace;color:#ffd6a0;background:rgba(20,10,5,0.85);padding:6px 9px;border-radius:4px;pointer-events:none;white-space:pre-wrap'
+      document.body.appendChild(box)
+    }
+    box.textContent += (box.textContent ? '\n' : 'Graphics error (please screenshot):\n') + line.trim().slice(0, 220)
+  }
+}
 // ACES plus a warm grade (atmosphere.ts patches CustomToneMapping).
 renderer.toneMapping = THREE.CustomToneMapping
 renderer.toneMappingExposure = 0.84
@@ -3519,6 +3540,19 @@ function frameBody(now: number): void {
   quality.gpuBegin()
   { const _t = performance.now(); post.render(dt, sky.sunDir); costNote('render', performance.now() - _t) }
   quality.gpuEnd()
+  // A safety net (the user, 2026-11-07: the whole view pitch black, the HUD drawn, everywhere and after
+  // a reload): if the body or the camera has ever gone to an invalid number, everything drawn from it
+  // is black. Put the body back on the last safe ground and the camera behind it.
+  {
+    const c = camera.position, p = wanderer.pos
+    if (![c.x, c.y, c.z, p.x, p.y, p.z, wanderer.vel.x, wanderer.vel.y, wanderer.vel.z].every(Number.isFinite)) {
+      console.error('titans: an invalid position — set back to safe ground', { cam: c.toArray(), pos: p.toArray() })
+      const s = Number.isFinite(lastSafe.x) && (lastSafe.x !== 0 || lastSafe.z !== 0) ? lastSafe : new THREE.Vector3(CAMP.x + 2, 0, CAMP.z + 2)
+      wanderer.vel.set(0, 0, 0)
+      wanderer.place(s.x, terrain.heightAt(s.x, s.z), s.z)
+      rig.reset()
+    }
+  }
   work.push(performance.now() - t0)
   {
     const total = performance.now() - t0

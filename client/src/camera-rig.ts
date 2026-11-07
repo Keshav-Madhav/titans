@@ -66,6 +66,17 @@ export class CameraRig {
     this.snapped = false
   }
 
+  /** Start over: the camera's eased state dropped (after something left it invalid — see main.ts). */
+  reset(): void {
+    this.snapped = false
+    this.held = this.dist
+    this.lift = 0
+    this.trauma = 0
+    if (!Number.isFinite(this.yaw)) this.yaw = 0
+    if (!Number.isFinite(this.pitch)) this.pitch = 0.15
+    this.focus.set(0, 0, 0)
+  }
+
   /** Change profile without a cut: the distance eases over (riding on and off). */
   blendTo(p: CameraProfile): void {
     if (p === this.profile) return
