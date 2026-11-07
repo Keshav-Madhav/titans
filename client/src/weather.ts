@@ -117,7 +117,7 @@ export class Weather {
     uNoise: { value: null as THREE.Texture | null },
     uWind: { value: new THREE.Vector2(1, 0.4) },
   }
-  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 }, uSnow: { value: 0 } }
+  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 }, uSnow: { value: 0 }, uNight: { value: 0 } }
   /**
    * How much of where you stand is the Dune Sea (main.ts sets it): there a
    * storm brings no rain but sand — ochre air, grit driven flat by the wind.
@@ -294,7 +294,7 @@ export class Weather {
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
-          uniform float uSand, uSnow;
+          uniform float uSand, uSnow, uNight;
           varying float vA;
           varying vec2 vUv;
           void main() {
@@ -304,7 +304,10 @@ export class Weather {
             float flake = 1.0 - smoothstep(0.2, 0.5, length(vUv - 0.5));
             soft = mix(soft, flake, uSnow);
             vec3 col = mix(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), vec3(0.96, 0.97, 1.0), uSnow);
-            gl_FragColor = vec4(col, mix(0.22 + 0.4 * uSand, 0.85, uSnow) * vA * soft);
+            // (At night the falling water takes the dark: a constant grey, it was bright white streaks
+            // slashed across a black frame — night storm tour, 2026-11-07. The lantern still lights the near.)
+            col *= mix(1.0, 0.32, uNight);
+            gl_FragColor = vec4(col, mix(0.22 + 0.4 * uSand, 0.85, uSnow) * vA * soft * mix(1.0, 0.7, uNight));
           }`,
         transparent: true,
         depthWrite: false,
@@ -459,6 +462,7 @@ export class Weather {
       ;(this.rainbow.material as THREE.ShaderMaterial).uniforms.uA.value = bow * 0.5
     }
     u.uNight.value = Math.max(sky.night, sky.dusk * 0.75)
+    this.rainUniforms.uNight.value = u.uNight.value
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms
     su.cloudCoverage.value = 0.32 + 0.6 * w.cover
