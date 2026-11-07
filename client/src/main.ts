@@ -3502,6 +3502,8 @@ function frameBody(now: number): void {
   // The camera pressed right up to you (a wall behind): see past yourself, not into your hood.
   const tooClose = camera.position.distanceTo(_head.copy(wanderer.obj.position).setY(wanderer.obj.position.y + 1.2)) < 1.6
   foliageFocus.value.copy(_head)
+  // (Its lantern's light stays lit in the scene whatever: see wanderer.ts.)
+  if (wanderer.lantern.parent !== scene) scene.attach(wanderer.lantern)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
   { const _t = performance.now(); terrainView.update(camera.position, ready ? 5 : 40); costNote('terrain', performance.now() - _t) }

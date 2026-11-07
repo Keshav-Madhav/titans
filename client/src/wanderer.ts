@@ -844,7 +844,7 @@ export class Wanderer {
   private readonly props: Record<'bow' | 'horn' | 'sight', THREE.Object3D>
   private readonly cape: Cloth
   private readonly scarf: Cloth
-  private readonly lantern: THREE.PointLight
+  readonly lantern: THREE.PointLight
   /** 0 … 1: how far the lantern has come up (it follows the dark). */
   private lanternOn = 0
   private readonly lanternGlow: THREE.Mesh
@@ -2597,6 +2597,13 @@ export class Wanderer {
     this.redCloth.emissiveIntensity = Math.max(0.16 * this.lanternOn, 0.5 * this.backlit)
     this.lantern.intensity = (0.04 + this.lanternOn * 7) * flicker
     this.lantern.distance = 10 + this.lanternOn * 18
+    // (The light rides the lantern from the world, not inside the body: when the camera pressed up to you
+    // the body is hidden, and a light hidden with it changed the scene's light count — every material in
+    // view recompiled, an 83 ms hitch walking up to a giant, playtest 2026-11-07.)
+    if (this.lantern.parent !== this.lanternHook) {
+      this.lanternHook.updateWorldMatrix(true, false)
+      this.lantern.position.set(0, -0.1, 0.06).applyMatrix4(this.lanternHook.matrixWorld)
+    }
     // The glass: dim amber by day (a lantern hardly lit), bright and warm in the dark.
     const glow = (0.35 + 0.65 * this.lanternOn) * flicker
     ;(this.lanternGlow.material as THREE.MeshBasicMaterial).color.setRGB(0.95 * glow + 0.05, 0.62 * glow, 0.3 * glow)
