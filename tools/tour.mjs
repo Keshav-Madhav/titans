@@ -64,6 +64,37 @@ for (const [i, sp] of spots.entries()) {
   }, [sp, t, w])
   const base = `${OUT}/tour-${String(n).padStart(3, '0')}-${sp.tag}`
   await page.screenshot({ path: `${base}-a.png` })
+  if (ONLY >= 0 && process.env.TOUR_HUNT_A) {
+    // Which object is it? Hide each of the scene's children in turn and see which takes the dark
+    // patch at the given screen box (x0,y0,x1,y1 in pixels) away.
+    const [x0, y0, x1, y1] = process.env.TOUR_HUNT_A.split(',').map(Number)
+    let shotN = 0
+    const dark = async () => { const b = await page.screenshot({ path: `${OUT}/hunt-${String(shotN++).padStart(3, '0')}.png`, clip: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } }); return b }
+    const { PNG } = await import('pngjs').catch(() => ({ PNG: null }))
+    const lum = (buf) => { if (!PNG) return buf.length; const p = PNG.sync.read(buf); let n = 0; for (let i = 0; i < p.data.length; i += 4) if (p.data[i] + p.data[i + 1] + p.data[i + 2] < 90) n++; return n }
+    const base0 = lum(await dark())
+    const ROOT = process.env.TOUR_HUNT_IN ? +process.env.TOUR_HUNT_IN : -1
+    const n = await page.evaluate((R) => (R >= 0 ? window.__g.scene.children[R] : window.__g.scene).children.length, ROOT)
+    const res = []
+    for (let i = 0; i < n; i++) {
+      const name = await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.userData.v0 = c.visible; c.visible = false; g.frames(1, 0); let kind = ''; for (const [k, m] of Object.entries(g.vegetation?.meshes ?? {})) if (m === c) kind = k; return (c.name || c.type) + ':' + (c.children?.length ?? 0) + ':' + kind + ':' + (c.geometry?.getAttribute('position')?.count ?? '') }, [i, ROOT])
+      const d = lum(await dark())
+      await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.visible = c.userData.v0 }, [i, ROOT])
+      res.push([i, name])
+    }
+    console.log('hunt:', JSON.stringify(res))
+  }
+  if (ONLY >= 0 && process.env.TOUR_TOGGLES_A) {
+    for (const k of ['noao', 'noshadow']) {
+      await page.evaluate((k) => { const g = window.__g; g.aoSwitch.on = k !== 'noao'; g.renderer.shadowMap.enabled = k !== 'noshadow'; g.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true }); g.frames(1, 0) }, k)
+      await page.screenshot({ path: `${base}-a-${k}.png` })
+    }
+    await page.evaluate(() => { const g = window.__g; g.aoSwitch.on = true; g.renderer.shadowMap.enabled = true; g.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true }) })
+  }
+  if (ONLY >= 0 && process.env.TOUR_RAY_A) console.log('rayA:', JSON.stringify(await page.evaluate((uv) => {
+    const g = window.__g, T = g.THREE, rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(uv[0], uv[1]), g.camera)
+    return rc.intersectObjects(g.scene.children, true).slice(0, 6).map((h) => { const o = h.object; let kind = null; if (g.veg) for (const [k, m] of Object.entries(g.veg.meshes ?? {})) if (m === o) kind = k; return { name: o.name || o.type, kind, count: o.count, d: +h.distance.toFixed(1), mat: o.material && (o.material.name || o.material.type), inst: h.instanceId, icol: o.instanceColor && h.instanceId !== undefined ? [0, 1, 2].map((c) => +o.instanceColor.array[h.instanceId * 3 + c].toFixed(2)) : null, vcol: !!(o.geometry && o.geometry.getAttribute('color')), verts: o.geometry && o.geometry.getAttribute('position').count } })
+  }, process.env.TOUR_RAY_A.split(',').map(Number))))
   // The second look: from the side and higher, the land around and what stands in it.
   await page.evaluate(() => { const g = window.__g; g.setCam(g.rig.yaw + 1.9, 0.42, 22) })
   if (ONLY >= 0) {
@@ -93,6 +124,7 @@ for (const [i, sp] of spots.entries()) {
     }
     await page.evaluate(() => { const g = window.__g; g.aoSwitch.on = true; g.renderer.shadowMap.enabled = true })
   }
+  if (ONLY >= 0 && process.env.TOUR_RAY_A) { await page.evaluate(() => {}); }
   if (ONLY >= 0 && process.env.TOUR_RAY) console.log('ray:', JSON.stringify(await page.evaluate((uv) => {
     const g = window.__g, T = g.THREE, rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(uv[0], uv[1]), g.camera)
     return rc.intersectObjects(g.scene.children, true).slice(0, 5).map((h) => ({ facing: h.face ? +h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(rc.ray.direction).toFixed(2) : null, sdfCam: g.rocks.inside ? g.rocks.inside(g.camera.position) : 'n/a', name: h.object.name || h.object.type, parent: h.object.parent && h.object.parent.name, d: +h.distance.toFixed(1), mat: h.object.material && (h.object.material.name || h.object.material.type), vis: h.object.visible }))

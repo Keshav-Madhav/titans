@@ -176,7 +176,19 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   pebble: () => rockLayers(colored(brokenRock(7, 1, [1, 0.7, 1], 0.5), 0xffffff)),
   // Bushes and scrub: clumps of leaf cards, as the trees are.
   bush: () => bushGeometry(31, 12),
-  shrub: () => bushGeometry(37, 4, 0.7),
+  // (Its normals mostly up, lit like the ground it grows from: four cards from the crown's centre
+  // left half of each facing down, and a low shrub came out as a flat black cutout on sunny grass —
+  // the tour, 2026-11-07.)
+  shrub: () => {
+    const g = bushGeometry(37, 4, 0.7)
+    const n = g.getAttribute('normal') as THREE.BufferAttribute
+    const v = new THREE.Vector3()
+    for (let i = 0; i < n.count; i++) {
+      v.set(n.getX(i), n.getY(i), n.getZ(i)).lerp(new THREE.Vector3(0, 1, 0), 0.7).normalize()
+      n.setXYZ(i, v.x, v.y, v.z)
+    }
+    return g
+  },
   grass: () => {
     // A tuft of thin blades leaning outward.
     const pos: number[] = []
