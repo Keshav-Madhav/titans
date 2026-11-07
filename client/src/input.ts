@@ -234,6 +234,12 @@ export class Input {
     })
   }
 
+  /** Is there a fresh press of `code` waiting (without taking it)? */
+  peek(code: string): boolean {
+    const at = this.pressedOnce.get(code)
+    return at !== undefined && performance.now() - at < PRESS_FRESH_MS
+  }
+
   /** True once per physical press. */
   pressed(code: string): boolean {
     const at = this.pressedOnce.get(code)

@@ -84,6 +84,7 @@ import { Prints } from './prints'
 import { Sea } from './sea'
 import { Frozen } from './frozen'
 import { Grapple, RANGE as GRAPPLE_RANGE } from './grapple'
+import { Cables, HANG as CABLE_HANG } from './cables'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -394,6 +395,14 @@ function uncover(instant = false): void {
 // The Hanging Steps: a parkour line on the western Green (hop, climb, up to the top).
 const STEPS_AT = { x: -1700, z: 300 }
 const hanging = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
+// The old cables between the tall stones (cables.ts).
+const _cablesT0 = performance.now()
+const cables = new Cables(rocks, terrain, WORLD_SEED)
+const cablesBootMs = performance.now() - _cablesT0
+scene.add(cables.group)
+const _cHand = new THREE.Vector3()
+let cableSaid = false
+const _cDir = new THREE.Vector3()
 scene.add(hanging.decor)
 const stepsTop = hanging.top
 
@@ -2184,6 +2193,39 @@ function simulate(dt: number): void {
     }
     hookEl.classList.toggle('on', hookOn)
   }
+  // The old cables: E under one takes hold; you ride it down hanging; Space (or the low end) lets go.
+  if (!cables.ride && !climber.active && !cliff.active && !wanderer.swimming && !grapple.attached && input.peek('KeyE')) {
+    _cHand.copy(wanderer.pos).y += CABLE_HANG
+    const n = cables.nearest(_cHand, 2.4)
+    if (n) {
+      input.pressed('KeyE')
+      cables.ride = { c: n.c, t: n.t, v: Math.max(2, Math.hypot(wanderer.vel.x, wanderer.vel.z) * 0.6) }
+      sound.pickUp()
+      if (!cableSaid) {
+        cableSaid = true
+        narration.say('Old rope, still sound. It takes your weight and you go. Space lets go.')
+      }
+    }
+  }
+  if (cables.ride) {
+    const st = cables.step(dt, _cHand, _cDir)
+    if (st === 'end' || input.pressed('Space')) {
+      const v = cables.ride.v
+      cables.ride = null
+      wanderer.hanging = false
+      wanderer.grounded = false
+      wanderer.vel.set(_cDir.x * v, _cDir.y * v + 1.5, _cDir.z * v)
+      fallTop = wanderer.pos.y
+    } else {
+      wanderer.place(_cHand.x, _cHand.y - CABLE_HANG, _cHand.z)
+      wanderer.vel.copy(_cDir).multiplyScalar(cables.ride.v)
+      wanderer.yaw = Math.atan2(_cDir.x, _cDir.z)
+      wanderer.hanging = true
+      wanderer.grounded = false
+      fallTop = wanderer.pos.y
+      return
+    }
+  }
   if (grapple.attached && wanderer.grounded && !input.held('KeyG')) {
     slackFor += dt
     if (slackFor > 1.2) grapple.release()
@@ -3861,6 +3903,8 @@ const g = {
   noticeNear,
   foliageMipLift,
   rockTools,
+  cables,
+  cablesBootMs,
   fogSun,
   fogSunHold,
   bloomSize,
