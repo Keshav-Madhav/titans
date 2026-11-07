@@ -416,7 +416,9 @@ export class Weather {
     // On the High Places it snows: what falls is flakes, and even on a fair day a few drift by.
     this.rainUniforms.uRain.value = Math.max(w.rain, this.sand, this.high * (0.35 + 0.65 * w.rain))
     this.rainUniforms.uWind.value = w.wind
-    this.rainUniforms.uSand.value = this.sand * (1 - this.high)
+    // (What falls is sand wherever you stand in the Dune Sea, at once: eased with the storm, a storm met
+    // on arriving there rained for half a minute over the dunes first — tour 8 review.)
+    this.rainUniforms.uSand.value = Math.max(this.sand, this.desert * THREE.MathUtils.smoothstep(w.rain, 0.05, 0.3)) * (1 - this.high)
     this.rainUniforms.uSnow.value = this.high
     this.rain.visible = w.rain > 0.02 || this.high > 0.02
 
