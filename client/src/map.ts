@@ -90,6 +90,11 @@ export class WorldMap {
   private readonly rowB = new Float64Array(TILE + 1)
   private lakeSigs = new Map<number, string>()
   private lakes: readonly Lake[] = []
+  /** Tools: how many times a lake's change asked its tiles to be painted again. */
+  lakeRepaints = 0
+  /** Tiles whose land or water changed: still drawn, queued to be painted again. */
+  private readonly stale = new Set<string>()
+  private lakeCheckAt = 0
   private lastReveal = new THREE.Vector3(1e9, 0, 0)
   private readonly mini: HTMLCanvasElement
   private miniCache: HTMLCanvasElement | null = null
@@ -319,7 +324,7 @@ export class WorldMap {
       if (!this.building) {
         const k = this.wanted.shift()
         if (!k) return
-        if (this.tiles.has(k)) continue
+        if (this.tiles.has(k) && !this.stale.has(k)) continue
         const [L, tx, tz] = k.split('/').map(Number)
         const canvas = document.createElement('canvas')
         canvas.width = canvas.height = TILE
@@ -357,6 +362,7 @@ export class WorldMap {
       }
       if (b.row >= TILE) {
         this.tiles.set(b.key, b.canvas)
+        this.stale.delete(b.key)
         this.building = null
       }
     }
@@ -365,10 +371,15 @@ export class WorldMap {
   /** A lake changed: the tiles under it are painted again. */
   private watchLakes(lakes: readonly Lake[]): void {
     this.lakes = lakes
+    // (At most every 2 s: the water settles over a few seconds after each footfall.)
+    const now = performance.now()
+    if (now - this.lakeCheckAt < 2000) return
+    this.lakeCheckAt = now
     for (const l of lakes) {
       // (The level to half a metre: the shore moves as it fills, without repainting every step.)
       const sig = `${l.basin.sorted.length}.${l.level > l.basin.bottom + 0.3 ? Math.round(shown(l) * 2) : 'dry'}`
       if (this.lakeSigs.get(l.id) === sig) continue
+      this.lakeRepaints = (this.lakeRepaints ?? 0) + 1
       const was = this.lakeSigs.has(l.id)
       this.lakeSigs.set(l.id, sig)
       if (!was && this.tiles.size === 0) continue
@@ -378,7 +389,13 @@ export class WorldMap {
         const span = SPAN / (1 << L)
         const x0 = -WORLD_HALF + tx * span
         const z0 = -WORLD_HALF + tz * span
-        if (b.x0 < x0 + span && b.x0 + b.w > x0 && b.z0 < z0 + span && b.z0 + b.h > z0) this.tiles.delete(k)
+        // (Kept on screen until its repaint is done: deleted, a blurry coarser tile stood in for it —
+        // and beside a walking giant whose footprints keep changing the lakes, 56 times in ten seconds,
+        // the minimap was always half blurred squares — the user, 2026-11-07.)
+        if (b.x0 < x0 + span && b.x0 + b.w > x0 && b.z0 < z0 + span && b.z0 + b.h > z0 && !this.stale.has(k)) {
+          this.stale.add(k)
+          this.wanted.push(k)
+        }
       }
     }
   }
@@ -433,6 +450,7 @@ export class WorldMap {
     }
     // The newest wants go first (what you are looking at now), the coarse world tile always.
     this.wanted = [...fresh, ...this.wanted.filter((k) => !fresh.includes(k))].slice(0, 48)
+    for (const k of this.stale) if (!this.wanted.includes(k)) this.wanted.push(k)
     this.missing = fresh.length
     if (!this.tiles.has('0/0/0') && !this.wanted.includes('0/0/0')) this.wanted.push('0/0/0')
     // Only where you have seen: the mask, softened at its edge.
