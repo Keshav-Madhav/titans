@@ -168,7 +168,6 @@ export class CameraRig {
     // (Starting inside rock — on a giant's body the march begins within its rough shape —
     // counts only once the line has come out into the open: hit at once, the camera was
     // pulled into your back the whole climb.)
-    let byRock = false
     let outside = !(this.occluder && this.occluder(this.focus.x, this.focus.y, this.focus.z) < 0.5)
     for (let t = 0.6; t <= want; t += Math.max(0.35, t * 0.08)) {
       const x = this.focus.x + ux * t
@@ -181,7 +180,6 @@ export class CameraRig {
       }
       if (solid || y < drawn(x, z) + 0.35) {
         clear = Math.max(0.6, t - 0.5)
-        byRock = solid
         break
       }
     }
@@ -192,7 +190,7 @@ export class CameraRig {
     // (The ground cannot swing across the line, and pulling in to it at once keeps the view steady
     // under your hand — the bow's aim settles in a frame; rate-limited, the bell gate's aim drifted
     // and missed.)
-    this.held = clear < this.held ? (byRock && !this.aiming ? Math.max(clear, this.held - dt * 40) : clear) : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
+    this.held = clear < this.held ? (!this.aiming ? Math.max(clear, this.held - dt * 40) : clear) : this.held + (clear - this.held) * Math.min(1, dt * 2.5)
     let d = Math.min(want, this.held)
     // The camera is a ball, not a point (QA, the user: "camera through things"): on the line it
     // stopped short of rock, but sat a hand's width from a wall or a slope beside it and the near
@@ -203,7 +201,13 @@ export class CameraRig {
       return true
     }
     for (let i = 0; i < 12 && d > 0.6 && !room(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d); i++) d = Math.max(0.6, d - 0.3)
-    if (d < this.held) this.held = d
+    // (Also over a few frames when only the room round the lens is short — a giant's leg sweeping past
+    // pulled it 1.8 m in one frame, playtest; at once only if the lens itself would be inside rock.)
+    if (d < this.held) {
+      const lensIn = this.occluder ? this.occluder(this.focus.x + ux * this.held, this.focus.y + uy * this.held, this.focus.z + uz * this.held) < 0.05 : false
+      this.held = lensIn || this.aiming ? d : Math.max(d, this.held - dt * 40)
+      d = this.held
+    }
     cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
     // Pulled all the way in and still no room — on a ledge against a cliff, a wall 10 cm from the lens
     // and the near plane cutting through it to the white beyond: up over your head instead, eased.
