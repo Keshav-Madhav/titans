@@ -402,6 +402,8 @@ const cablesBootMs = performance.now() - _cablesT0
 scene.add(cables.group)
 const _cHand = new THREE.Vector3()
 let cableSaid = false
+let ropeCheck = 0
+let ropeNear = false
 const _cDir = new THREE.Vector3()
 scene.add(hanging.decor)
 const stepsTop = hanging.top
@@ -3402,6 +3404,13 @@ function frameBody(now: number): void {
   }
   // What E would do here.
   const free = !climber.active && !cliff.active
+  // (A rope within reach overhead: looked for a few times a second.)
+  ropeCheck -= dt
+  if (ropeCheck <= 0) {
+    ropeCheck = 0.2
+    _cHand.copy(wanderer.pos).y += CABLE_HANG
+    ropeNear = !cables.ride && !!cables.nearest(_cHand, 2.4)
+  }
   const spotNear = free && !cairns.near(wanderer.pos) ? spots.near(wanderer.pos, (id) => finds.has(id)) : null
   const html =
     free && camp.near(wanderer.pos)
@@ -3424,6 +3433,10 @@ function frameBody(now: number): void {
             ? `<kbd>E</kbd>Take hold`
           : free && wallToClimb()
             ? `<kbd>E</kbd>Climb${finds.has('line') ? ' · <kbd>G</kbd>Throw the line' : ''}`
+          : cables.ride
+            ? `<kbd>Space</kbd>Let go`
+          : free && ropeNear
+            ? `<kbd>E</kbd>Take hold of the rope`
           : grapple.attached && !wanderer.grounded
             ? `<kbd>G</kbd>Haul in · <kbd>Space</kbd>Let go`
           : watchProgress > 0.08
