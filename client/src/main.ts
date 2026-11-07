@@ -3284,7 +3284,10 @@ function frameBody(now: number): void {
   {
     const p = wanderer.pos
     const ground = wanderer.isSnow(p.x, p.z) ? 'snow' : wanderer.isSand(p.x, p.z) ? 'sand' : 'grass'
-    sound.slide(wanderer.sledding && wanderer.grounded ? Math.hypot(wanderer.vel.x, wanderer.vel.z) : 0, ground)
+    const sv = wanderer.sledding && wanderer.grounded ? Math.hypot(wanderer.vel.x, wanderer.vel.z) : 0
+    sound.slide(sv, ground)
+    // (And the spray it throws: a few puffs a frame at speed, thinned by frame rate.)
+    if (sv > 3 && Math.random() < Math.min(1, dt * 30)) effects.spray(p.x, p.y, p.z, wanderer.vel.x, wanderer.vel.z, sv, ground)
   }
   effects.update(dt)
   clouds.update(dt, camera.position)

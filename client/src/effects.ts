@@ -18,7 +18,9 @@ function dustMaterial(): THREE.ShaderMaterial {
     uniforms: { uColor: { value: new THREE.Color(0xb5a684) } },
     vertexShader: /* glsl */ `
       attribute float aAlpha;
+      attribute float aWhite;
       varying float vAlpha;
+      varying float vWhite;
       varying vec2 vUv;
       void main() {
         vec3 c = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -28,17 +30,19 @@ function dustMaterial(): THREE.ShaderMaterial {
         gl_Position = projectionMatrix * mv;
         vUv = uv;
         vAlpha = aAlpha;
+        vWhite = aWhite;
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       varying float vAlpha;
+      varying float vWhite;
       varying vec2 vUv;
       void main() {
         vec2 p = vUv * 2.0 - 1.0;
         float r = dot(p, p);
         if (r > 1.0) discard;
         float a = (1.0 - r) * (1.0 - r) * vAlpha;
-        gl_FragColor = vec4(uColor * (0.85 + 0.15 * (1.0 - r)), a);
+        gl_FragColor = vec4(mix(uColor, vec3(0.86, 0.9, 0.96), vWhite) * (0.85 + 0.15 * (1.0 - r)), a);
         #include <colorspace_fragment>
       }`,
   })
@@ -77,6 +81,9 @@ export class Effects {
   readonly group = new THREE.Group()
   private readonly dust: THREE.InstancedMesh
   private readonly alpha: THREE.InstancedBufferAttribute
+  /** Per puff: 0 dust, 1 snow (a slide's spray on the high snow). */
+  private readonly white: THREE.InstancedBufferAttribute
+  private nextWhite = 0
   private readonly rocks: THREE.InstancedMesh
   private readonly puffs: Puff[] = []
   private readonly stones: Rock[] = []
@@ -94,6 +101,8 @@ export class Effects {
     this.dust = new THREE.InstancedMesh(plane, dustMaterial(), DUST)
     this.alpha = new THREE.InstancedBufferAttribute(new Float32Array(DUST), 1)
     plane.setAttribute('aAlpha', this.alpha)
+    this.white = new THREE.InstancedBufferAttribute(new Float32Array(DUST), 1)
+    plane.setAttribute('aWhite', this.white)
     this.dust.frustumCulled = false
     this.dust.renderOrder = 2
     for (let i = 0; i < DUST; i++) {
@@ -193,6 +202,39 @@ export class Effects {
   }
 
   /**
+   * Sliding (on the cloak, down snow, sand or a steep grass bank): a low spray thrown out to both
+   * sides and back from under you. `speed` m/s; `snow` throws white, otherwise the dust colour
+   * (and on grass, only a breath of it).
+   */
+  spray(x: number, y: number, z: number, vx: number, vz: number, speed: number, surface: 'snow' | 'sand' | 'grass'): void {
+    const r = this.rand
+    const k = Math.min(1, speed / 8) * (surface === 'grass' ? 0.3 : 1)
+    if (k <= 0.02) return
+    const h = Math.hypot(vx, vz) || 1
+    const fx = vx / h
+    const fz = vz / h
+    this.nextWhite = surface === 'snow' ? 1 : 0
+    const n = 2 + Math.round(3 * k)
+    for (let i = 0; i < n; i++) {
+      const side = i % 2 ? 1 : -1
+      const out = 0.8 + r() * 1.6
+      this.puff(
+        x - fx * 0.4 + (r() - 0.5) * 0.3,
+        y + 0.3,
+        z - fz * 0.4 + (r() - 0.5) * 0.3,
+        -fx * speed * 0.1 + -fz * side * out,
+        0.5 + r() * 0.9 * k,
+        -fz * speed * 0.1 + fx * side * out,
+        0.45 + r() * 0.3,
+        1.4 + 1.2 * k,
+        0.7 + r() * 0.6,
+        (surface === 'snow' ? 0.5 : 0.36) * k,
+      )
+    }
+    this.nextWhite = 0
+  }
+
+  /**
    * A stone shaken loose from a walking giant at (x, y, z), carried along at
    * its pace (vx, vz), trailing a little dust as it falls (the concept: a
    * colossus that crumbles as it moves).
@@ -248,8 +290,9 @@ export class Effects {
   }
 
   private puff(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number, grow: number, life: number, alpha: number): void {
-    const p = this.puffs[this.nextPuff]
-    this.nextPuff = (this.nextPuff + 1) % DUST
+    const i = this.nextPuff
+    const p = this.puffs[i]
+    this.nextPuff = (i + 1) % DUST
     p.x = x
     p.y = y
     p.z = z
@@ -261,6 +304,10 @@ export class Effects {
     p.age = 0
     p.life = life
     p.alpha = alpha
+    if (this.white.getX(i) !== this.nextWhite) {
+      this.white.setX(i, this.nextWhite)
+      this.white.needsUpdate = true
+    }
   }
 
   update(dt: number): void {
