@@ -295,7 +295,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // where the interpolated normal would leave a pale tooth of sand or grass.
         vec3 gFlat = normalize(cross(gDx, gDy));
         // (Smooth, so the projection does not jump at every triangle edge.)
-        float gSteep = 1.0 - smoothstep(0.58, 0.8, min(gN.y, abs(gFlat.y) + 0.06));
+        // (In the desert, sand holds to a much steeper face: a dune's slip face is sand, and the red
+        // strata belong to the mesas' near-vertical walls — the tour, 2026-11-07, found whole dune
+        // faces painted as red cliff, sawtoothed where they met the sand.)
+        float gSteep = 1.0 - smoothstep(mix(0.58, 0.34, vColor.b), mix(0.8, 0.55, vColor.b), min(gN.y, abs(gFlat.y) + 0.06));
         // The facing on steep ground comes from the triangle (the smoothed normal can
         // still point up on a wall at coarse detail); only its horizontal part, so the
         // projection turns smoothly round a cliff instead of jumping at each edge.
