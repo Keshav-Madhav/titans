@@ -2196,11 +2196,16 @@ function simulate(dt: number): void {
     hookEl.classList.toggle('on', hookOn)
   }
   // The old cables: E under one takes hold; you ride it down hanging; Space (or the low end) lets go.
-  if (!cables.ride && !climber.active && !cliff.active && !wanderer.swimming && !grapple.attached && input.peek('KeyE')) {
+  // (In the air, holding E is enough: gliding past at 15 m/s, a single press had to land in the
+  // fraction of a second the rope was in reach.)
+  const ropeWant = input.peek('KeyE') || (!wanderer.grounded && input.held('KeyE'))
+  if (!cables.ride && !climber.active && !cliff.active && !wanderer.swimming && !grapple.attached && ropeWant) {
     _cHand.copy(wanderer.pos).y += CABLE_HANG
-    const n = cables.nearest(_cHand, 2.4)
+    // (A little more reach in the air: a glide passes the rope rather than standing under it.)
+    const n = cables.nearest(_cHand, wanderer.grounded ? 2.4 : 3.2)
     if (n) {
       input.pressed('KeyE')
+      wanderer.gliding = false
       cables.ride = { c: n.c, t: n.t, v: Math.max(2, Math.hypot(wanderer.vel.x, wanderer.vel.z) * 0.6) }
       sound.pickUp()
       if (!cableSaid) {
