@@ -1169,6 +1169,8 @@ export class Wanderer {
     if (deep > SWIM_DEPTH && this.pos.y < this.waterLevel - 0.45) {
       if (!this.swimming) this.vel.y *= 0.25 // (the water takes the fall)
       this.swimming = true
+      // (Off the cloak: a slide down a bank into a lake went on, sitting, while swimming.)
+      this.sledding = false
       this.gliding = false
       this.lope = 0
       const speed = sprint ? SWIM_FAST : SWIM
