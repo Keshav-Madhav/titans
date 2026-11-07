@@ -1632,7 +1632,10 @@ export class Wanderer {
       this.neckAnchor.matrixAutoUpdate = false
       this.obj.add(this.neckAnchor)
       // (Sized to this body: its shoulders are 0.34 m apart — the old mantle, 0.88 m across, was a bell.)
-      const mantle = new THREE.Mesh(mantleGeometry().scale(0.66, 0.5, 0.78), this.redCloth)
+      // (A little wider and 2.4 cm higher than it was: the tunic's collar came up through its top as
+      // dark arcs on the shoulders, in and out with the breathing — a mantle sitting on the collar.)
+      const mantle = new THREE.Mesh(mantleGeometry().scale(0.73, 0.5, 0.86), this.redCloth)
+      mantle.position.y = 0.024
       mantle.castShadow = true
       this.neckAnchor.add(mantle)
       // The face's hollow: in the hood's opening, a little in front of the head bone, its bowl open forward.
