@@ -85,6 +85,7 @@ import { Sea } from './sea'
 import { Frozen } from './frozen'
 import { Grapple, RANGE as GRAPPLE_RANGE } from './grapple'
 import { Cables, HANG as CABLE_HANG } from './cables'
+import { scrubNaN } from './scrub'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
 import { Resonance } from './resonance'
@@ -402,6 +403,8 @@ const cablesBootMs = performance.now() - _cablesT0
 scene.add(cables.group)
 const _cHand = new THREE.Vector3()
 let cableSaid = false
+/** The last frame whose positions were all numbers (for the safety net's report). */
+let lastGood: Record<string, unknown> = {}
 let ropeCheck = 0
 let ropeNear = false
 const _cDir = new THREE.Vector3()
@@ -3311,7 +3314,8 @@ function frameBody(now: number): void {
   weather.desert = biome.desert(camera.position.x, camera.position.z)
   weather.high = highSector(camera.position.x, camera.position.z) * THREE.MathUtils.smoothstep(camera.position.y, HIGH.top - 200, HIGH.top - 40)
   weather.mire = biome.mire(camera.position.x, camera.position.z)
-  weather.update(dt, camera)
+  // (Only from a camera that is somewhere: from NaN its eased sand and fog went NaN for good.)
+  if (Number.isFinite(camera.position.x + camera.position.y + camera.position.z)) weather.update(dt, camera)
   // The night is dark, but not so dark you cannot walk in it by the moon: open the eye a little.
   // (The eye opens as the light goes: the low-sun hours and the night are not just darker days.)
   // (With the dusk too, not only the deep night: between sunset and the moon taking over the key
@@ -3619,13 +3623,27 @@ function frameBody(now: number): void {
   quality.gpuBegin()
   { const _t = performance.now(); post.render(dt, sky.sunDir); costNote('render', performance.now() - _t) }
   quality.gpuEnd()
+  // (What the last good frame was doing — the console line above says it, to find the cause.)
+  if (Number.isFinite(wanderer.pos.x + wanderer.pos.y + wanderer.pos.z + camera.position.x)) lastGood = { pos: wanderer.pos.toArray().map((v) => Math.round(v)), gliding: wanderer.gliding, sledding: wanderer.sledding, rope: !!cables.ride, climbing: climber.active }
   // A safety net (the user, 2026-11-07: the whole view pitch black, the HUD drawn, everywhere and after
   // a reload): if the body or the camera has ever gone to an invalid number, everything drawn from it
   // is black. Put the body back on the last safe ground and the camera behind it.
   {
     const c = camera.position, p = wanderer.pos
-    if (![c.x, c.y, c.z, p.x, p.y, p.z, wanderer.vel.x, wanderer.vel.y, wanderer.vel.z].every(Number.isFinite)) {
-      console.error('titans: an invalid position — set back to safe ground', { cam: c.toArray(), pos: p.toArray() })
+    if (![c.x, c.y, c.z, p.x, p.y, p.z, wanderer.vel.x, wanderer.vel.y, wanderer.vel.z, wanderer.yaw, rig.yaw, rig.pitch].every(Number.isFinite)) {
+      console.error('titans: an invalid position — set back to safe ground', {
+        cam: c.toArray(), pos: p.toArray(), vel: wanderer.vel.toArray(), yaw: wanderer.yaw, rigYaw: rig.yaw, rigPitch: rig.pitch,
+        gliding: wanderer.gliding, sledding: wanderer.sledding, swimming: wanderer.swimming, hanging: wanderer.hanging,
+        climbing: climber.active, cliff: cliff.active, rope: !!cables.ride, grapple: grapple.attached, last: lastGood,
+      })
+      wanderer.recover()
+      // (And all that eases toward where you are: the weather's sand and rain, the sky, the fog.)
+      scrubNaN(weather, 2)
+      scrubNaN(sky, 1)
+      if (scene.fog) scrubNaN(scene.fog)
+      scrubNaN(rig)
+      cables.ride = null
+      if (grapple.busy) grapple.release()
       const s = Number.isFinite(lastSafe.x) && (lastSafe.x !== 0 || lastSafe.z !== 0) ? lastSafe : new THREE.Vector3(CAMP.x + 2, 0, CAMP.z + 2)
       wanderer.vel.set(0, 0, 0)
       wanderer.place(s.x, terrain.heightAt(s.x, s.z), s.z)

@@ -406,8 +406,14 @@ class Cloth {
    */
   step(dt: number, pins: THREE.Vector3[], hang: THREE.Vector3, wind: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, r: number, ground: (x: number, z: number) => number, limbs: Capsule[] = []): void {
     const { cols, rows, p, q } = this
-    // The first time, or after a teleport: hang straight from the pins.
-    if (!this.ready || pins[0].distanceTo(_v.set(p[0], p[1], p[2])) > 4) {
+    // (Pins that are not numbers — the body gone invalid for a frame — leave the cloth as it was.)
+    for (const pin of pins) if (!Number.isFinite(pin.x + pin.y + pin.z)) return
+    // The first time, after a teleport, or once anything in it is not a number: hang straight from
+    // the pins. (NaN > 4 is false: a cloth gone NaN never reset, drew NaN every frame, and the bloom
+    // spread it over the whole screen — black, until a reload. The user, 2026-11-07, on Firefox.)
+    let bad = false
+    for (let i = 0; i < p.length && !bad; i += 3) bad = !Number.isFinite(p[i] + p[i + 1] + p[i + 2] + q[i] + q[i + 1] + q[i + 2])
+    if (!this.ready || bad || pins[0].distanceTo(_v.set(p[0], p[1], p[2])) > 4) {
       this.widths = pins.slice(1).map((v, i) => v.distanceTo(pins[i]))
       for (let row = 0; row < rows; row++) {
         for (let c = 0; c < cols; c++) {
@@ -1437,6 +1443,44 @@ export class Wanderer {
   }
 
   /** Teleport: no interpolation across the jump. */
+  /**
+   * After a frame gone invalid: every number and vector the body keeps, put back to rest where it is
+   * not a number (see main.ts). A hand-picked list missed most of them — the stride, the gait, the
+   * body's own velocity — and they poisoned the position again on the very next step.
+   */
+  recover(): void {
+    const self = this as unknown as Record<string, unknown>
+    for (const k of Object.keys(self)) {
+      if (k === 'waterLevel') continue // (NaN there means dry ground, on purpose)
+      const v = self[k]
+      if (typeof v === 'number' && !Number.isFinite(v)) self[k] = k === 'airspeed' ? 9 : 0
+      else if (Array.isArray(v) && v.every((x) => typeof x === 'number')) for (let i = 0; i < v.length; i++) { if (!Number.isFinite(v[i])) v[i] = 0 }
+      else if (v instanceof THREE.Vector3 && !Number.isFinite(v.x + v.y + v.z)) v.set(0, 0, 0)
+      else if (v instanceof THREE.Quaternion && !Number.isFinite(v.x + v.y + v.z + v.w)) v.identity()
+    }
+    this.gliding = this.sledding = this.hanging = false
+    this.vel.set(0, 0, 0)
+    this.obj.quaternion.setFromAxisAngle(_up, this.yaw)
+    // The rigged body too: its eased speeds and every bone (the clips rewrite the bones each frame,
+    // but an eased value gone NaN would feed them NaN for ever).
+    const av = this.avatar as unknown as Record<string, unknown> | null
+    if (av) {
+      for (const k of Object.keys(av)) {
+        const v = av[k]
+        if (typeof v === 'number' && !Number.isFinite(v)) av[k] = 0
+      }
+      const mw = (av as { modeW?: Record<string, number> }).modeW
+      if (mw) for (const k of Object.keys(mw)) if (!Number.isFinite(mw[k])) mw[k] = 0
+      this.obj.traverse((o) => {
+        // (The anchors hold their matrices by hand — matrixAutoUpdate off — and kept a NaN one.)
+        if (!o.matrixAutoUpdate && o.matrix.elements.some((x) => !Number.isFinite(x))) o.matrix.identity()
+        if (!Number.isFinite(o.position.x + o.position.y + o.position.z)) o.position.set(0, 0, 0)
+        if (!Number.isFinite(o.quaternion.x + o.quaternion.y + o.quaternion.z + o.quaternion.w)) o.quaternion.identity()
+        if (!Number.isFinite(o.scale.x + o.scale.y + o.scale.z)) o.scale.set(1, 1, 1)
+      })
+    }
+  }
+
   place(x: number, y: number, z: number): void {
     this.pos.set(x, y, z)
     this.prev.copy(this.pos)
@@ -2650,7 +2694,11 @@ export class Wanderer {
     // view recompiled, an 83 ms hitch walking up to a giant, playtest 2026-11-07.)
     if (this.lantern.parent !== this.lanternHook) {
       this.lanternHook.updateWorldMatrix(true, false)
-      this.lantern.position.set(0, -0.1, 0.06).applyMatrix4(this.lanternHook.matrixWorld)
+      _p5.set(0, -0.1, 0.06).applyMatrix4(this.lanternHook.matrixWorld)
+      // (Never to a place that is not a number: a light there makes every lit pixel NaN, the whole
+      // frame black — the user's black screen, 2026-11-07.)
+      if (Number.isFinite(_p5.x + _p5.y + _p5.z)) this.lantern.position.copy(_p5)
+      else this.lantern.position.copy(this.pos).y += 1
     }
     // The glass: dim amber by day (a lantern hardly lit), bright and warm in the dark.
     const glow = (0.35 + 0.65 * this.lanternOn) * flicker

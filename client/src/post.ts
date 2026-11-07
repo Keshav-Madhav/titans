@@ -207,7 +207,13 @@ const GRADE = {
       // Under water the picture wavers.
       vec2 uv = vUv + under * 0.006 * vec2(sin(vUv.y * 38.0 + time * 2.1), cos(vUv.x * 31.0 + time * 1.7));
       vec3 c = texture2D(tDiffuse, uv).rgb;
-      if (bloomOn > 0.5) c += texture2D(tBloom, uv).rgb;
+      // (Not a number anywhere — one bad pixel, spread by the bloom's blur over the whole frame — is
+      // dropped, not drawn: the frame stays visible.)
+      if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
+      if (bloomOn > 0.5) {
+        vec3 bl = texture2D(tBloom, uv).rgb;
+        if (!(any(isnan(bl)) || any(isinf(bl)))) c += bl;
+      }
       c += texture2D(tRays, vUv).rgb * rayColor * rayStrength;
       c = aces(c * exposure * (1.0 - 0.12 * mood) * (1.0 + flash * 0.8));
 
