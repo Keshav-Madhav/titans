@@ -2910,7 +2910,12 @@ function keepOffProps(p: THREE.Vector3): void {
 function onRock(): void {
   const p = wanderer.pos
   body.set(p.x, p.y + 0.9, p.z)
-  if (rocks.pushOut(body)) p.set(body.x, body.y - 0.9, body.z)
+  if (rocks.pushOut(body)) {
+    // (Never out under the land: pushed out of a statue's buried base, the nearest way out ran down
+    // and you stood 13 m under the grass by the Sentinel, the camera in the stone — tour in a real
+    // window, 2026-11-07. Out onto the land's top instead.)
+    p.set(body.x, Math.max(body.y - 0.9, terrain.heightAt(body.x, body.z)), body.z)
+  }
   wanderer.onStone = false
   if (wanderer.vel.y > 0.5) return // leaving the ground in a jump
   const floor = rocks.floorAt(p.x, p.y, p.z)

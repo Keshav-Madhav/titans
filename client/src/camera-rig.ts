@@ -230,6 +230,9 @@ export class CameraRig {
     // of the hall.)
     const roofed = inHall(this.focus.x, this.focus.z, 40)
     if (this.pitch > 0.02 && !this.aiming && !roofed) while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    // (And only if rising finds room: rising the full 4 m into solid stone — down a hollow under the
+    // Sentinel's plinth, the camera already inside it — put the lens deeper in rock; tour in a real window.)
+    if (lift >= 4 && !room(cam.x, cam.y + lift, cam.z)) lift = 0
     if (this.aiming) this.lift = 0
     this.lift += (lift - this.lift) * Math.min(1, dt * (lift > this.lift ? 12 : 2))
     cam.y += this.lift
