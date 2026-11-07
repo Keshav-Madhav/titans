@@ -4,7 +4,7 @@
 // a Titan read as enormous from the ground.
 
 import * as THREE from 'three'
-import { type Terrain } from '@titans/shared'
+import { inHall, type Terrain } from '@titans/shared'
 
 export interface CameraProfile {
   minDist: number
@@ -214,7 +214,11 @@ export class CameraRig {
     let lift = 0
     // (Not when you look up — the camera sits low behind you then by design, the ground just under it —
     // nor while aiming: risen, the view tilted 11° and drifted as it eased, and the bow missed.)
-    if (this.pitch > 0.02 && !this.aiming) while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    // (Never under a roof — in the Undercroft, its stair and the ground round its walls — where rising
+    // put the camera up into the stone and the screen went black: the user, 2026-11-07, coming up out
+    // of the hall.)
+    const roofed = inHall(this.focus.x, this.focus.z, 40)
+    if (this.pitch > 0.02 && !this.aiming && !roofed) while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
     if (this.aiming) this.lift = 0
     this.lift += (lift - this.lift) * Math.min(1, dt * (lift > this.lift ? 12 : 2))
     cam.y += this.lift
