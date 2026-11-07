@@ -42,6 +42,26 @@ const log = []
 let n = 0
 // (TOUR_ONLY=70: only that shot, with the console and the camera's state — to chase one bad frame.)
 const ONLY = process.env.TOUR_ONLY ? +process.env.TOUR_ONLY : -1
+async function hunt(box) {
+    // Which object is it? Hide each of the scene's children in turn and see which takes the dark
+    // patch at the given screen box (x0,y0,x1,y1 in pixels) away.
+    const [x0, y0, x1, y1] = box.split(',').map(Number)
+    let shotN = 0
+    const dark = async () => { const b = await page.screenshot({ path: `${OUT}/hunt-${String(shotN++).padStart(3, '0')}.png`, clip: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } }); return b }
+    const { PNG } = await import('pngjs').catch(() => ({ PNG: null }))
+    const lum = (buf) => { if (!PNG) return buf.length; const p = PNG.sync.read(buf); let n = 0; for (let i = 0; i < p.data.length; i += 4) if (p.data[i] + p.data[i + 1] + p.data[i + 2] < 90) n++; return n }
+    const base0 = lum(await dark())
+    const ROOT = process.env.TOUR_HUNT_IN ? +process.env.TOUR_HUNT_IN : -1
+    const n = await page.evaluate((R) => (R >= 0 ? window.__g.scene.children[R] : window.__g.scene).children.length, ROOT)
+    const res = []
+    for (let i = 0; i < n; i++) {
+      const name = await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.userData.v0 = c.visible; c.visible = false; g.frames(1, 0); let kind = ''; for (const [k, m] of Object.entries(g.vegetation?.meshes ?? {})) if (m === c) kind = k; return (c.name || c.type) + ':' + (c.children?.length ?? 0) + ':' + kind + ':' + (c.geometry?.getAttribute('position')?.count ?? '') }, [i, ROOT])
+      const d = lum(await dark())
+      await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.visible = c.userData.v0 }, [i, ROOT])
+      res.push([i, name])
+    }
+    console.log('hunt:', JSON.stringify(res))
+  }
 if (ONLY >= 0) page.on('console', (m) => console.log('console:', m.type(), m.text().slice(0, 300)))
 for (const [i, sp] of spots.entries()) {
   if (ONLY >= 0 && i !== ONLY) { n++; continue }
@@ -64,26 +84,7 @@ for (const [i, sp] of spots.entries()) {
   }, [sp, t, w])
   const base = `${OUT}/tour-${String(n).padStart(3, '0')}-${sp.tag}`
   await page.screenshot({ path: `${base}-a.png` })
-  if (ONLY >= 0 && process.env.TOUR_HUNT_A) {
-    // Which object is it? Hide each of the scene's children in turn and see which takes the dark
-    // patch at the given screen box (x0,y0,x1,y1 in pixels) away.
-    const [x0, y0, x1, y1] = process.env.TOUR_HUNT_A.split(',').map(Number)
-    let shotN = 0
-    const dark = async () => { const b = await page.screenshot({ path: `${OUT}/hunt-${String(shotN++).padStart(3, '0')}.png`, clip: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } }); return b }
-    const { PNG } = await import('pngjs').catch(() => ({ PNG: null }))
-    const lum = (buf) => { if (!PNG) return buf.length; const p = PNG.sync.read(buf); let n = 0; for (let i = 0; i < p.data.length; i += 4) if (p.data[i] + p.data[i + 1] + p.data[i + 2] < 90) n++; return n }
-    const base0 = lum(await dark())
-    const ROOT = process.env.TOUR_HUNT_IN ? +process.env.TOUR_HUNT_IN : -1
-    const n = await page.evaluate((R) => (R >= 0 ? window.__g.scene.children[R] : window.__g.scene).children.length, ROOT)
-    const res = []
-    for (let i = 0; i < n; i++) {
-      const name = await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.userData.v0 = c.visible; c.visible = false; g.frames(1, 0); let kind = ''; for (const [k, m] of Object.entries(g.vegetation?.meshes ?? {})) if (m === c) kind = k; return (c.name || c.type) + ':' + (c.children?.length ?? 0) + ':' + kind + ':' + (c.geometry?.getAttribute('position')?.count ?? '') }, [i, ROOT])
-      const d = lum(await dark())
-      await page.evaluate(([i, R]) => { const g = window.__g, c = (R >= 0 ? g.scene.children[R] : g.scene).children[i]; c.visible = c.userData.v0 }, [i, ROOT])
-      res.push([i, name])
-    }
-    console.log('hunt:', JSON.stringify(res))
-  }
+  if (ONLY >= 0 && process.env.TOUR_HUNT_A) await hunt(process.env.TOUR_HUNT_A)
   if (ONLY >= 0 && process.env.TOUR_TOGGLES_A) {
     for (const k of ['noao', 'noshadow']) {
       await page.evaluate((k) => { const g = window.__g; g.aoSwitch.on = k !== 'noao'; g.renderer.shadowMap.enabled = k !== 'noshadow'; g.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true }); g.frames(1, 0) }, k)
@@ -117,6 +118,7 @@ for (const [i, sp] of spots.entries()) {
   }
   await page.waitForTimeout(1200)
   await page.screenshot({ path: `${base}-b.png` })
+  if (ONLY >= 0 && process.env.TOUR_HUNT_B) await hunt(process.env.TOUR_HUNT_B)
   if (ONLY >= 0 && process.env.TOUR_TOGGLES) {
     for (const k of ['noao', 'noshadow', 'both']) {
       await page.evaluate((k) => { const g = window.__g; g.aoSwitch.on = k === 'noshadow'; g.renderer.shadowMap.enabled = k === 'noao'; g.scene.traverse((o) => { if (o.material && o.material.needsUpdate !== undefined && o.name.startsWith('rock')) o.material.needsUpdate = true }); g.frames(1, 0) }, k)
