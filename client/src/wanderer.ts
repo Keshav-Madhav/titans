@@ -1540,7 +1540,7 @@ export class Wanderer {
       this.neckAnchor.matrixAutoUpdate = false
       this.obj.add(this.neckAnchor)
       // (Sized to this body: its shoulders are 0.34 m apart — the old mantle, 0.88 m across, was a bell.)
-      const mantle = new THREE.Mesh(mantleGeometry().scale(0.66, 0.72, 0.78), this.redCloth)
+      const mantle = new THREE.Mesh(mantleGeometry().scale(0.66, 0.5, 0.78), this.redCloth)
       mantle.castShadow = true
       this.neckAnchor.add(mantle)
       // The face's hollow: in the hood's opening, a little in front of the head bone, its bowl open forward.
