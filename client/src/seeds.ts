@@ -11,7 +11,8 @@
 import * as THREE from 'three'
 import { mulberry32, PIT, inHall, DELL } from '@titans/shared'
 
-const NS = 8
+// (14, longer: the user, 2026-11-07, travel is daunting — a seed river is a road through the air.)
+const NS = 14
 const NP = 32
 const PER = 1400
 /** The wind the seeds go with (the weather's: from the west-south-west). */
@@ -40,8 +41,7 @@ uniform vec3 uSunCol;
 uniform vec3 uAmb;
 uniform float uPx;
 uniform float uShow;
-uniform vec4 uLen0;
-uniform vec4 uLen1;
+uniform float uLen[${NS}];
 attribute vec4 aP;
 attribute vec2 aQ;
 varying vec4 vCol;
@@ -56,7 +56,7 @@ vec3 pathAt(int river, float s) {
 
 void main() {
   int river = int(aP.x + 0.5);
-  float len = river < 4 ? uLen0[river] : uLen1[river - 4];
+  float len = uLen[river];
   // Along the river at a few metres a second (the slow ones a little slower), round and round.
   float speed = (3.2 + 2.2 * aQ.y) / len;
   float s = fract(aP.y + uTime * speed);
@@ -121,14 +121,14 @@ export class Seeds {
       const z = Math.cos(a) * d
       if (open(x, z) < 0.85) continue
       if (inHall(x, z, 300) || Math.hypot(x - PIT.x, z - PIT.z) < 400 || Math.hypot(x - DELL.x, z - DELL.z) < 700) continue
-      if (starts.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < 1100)) continue
+      if (starts.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < 950)) continue
       // A meadow, not a slope: and the whole run must stay out on the Green.
       const sl = Math.hypot(heightAt(x + 4, z) - heightAt(x - 4, z), heightAt(x, z + 4) - heightAt(x, z - 4)) / 8
       if (sl > 0.12) continue
       const turn = (rand() - 0.5) * 0.6
       const dx = WIND.x * Math.cos(turn) - WIND.y * Math.sin(turn)
       const dz = WIND.x * Math.sin(turn) + WIND.y * Math.cos(turn)
-      const len = 460 + rand() * 220
+      const len = 700 + rand() * 500
       if (open(x + dx * len, z + dz * len) < 0.6) continue
       starts.push([x, z])
       const amp = 18 + rand() * 30
@@ -176,7 +176,7 @@ export class Seeds {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
     geo.setAttribute('aP', new THREE.BufferAttribute(aP, 4))
     geo.setAttribute('aQ', new THREE.BufferAttribute(aQ, 2))
-    const lens = this.rivers.map((r) => r.len).concat([1, 1, 1, 1, 1, 1, 1, 1])
+    const lens = this.rivers.map((r) => r.len).concat(Array(NS).fill(1)).slice(0, NS)
     this.u = {
       tPath: { value: tex },
       uTime: { value: 0 },
@@ -186,8 +186,7 @@ export class Seeds {
       uAmb: { value: new THREE.Color() },
       uPx: { value: 500 },
       uShow: { value: 1 },
-      uLen0: { value: new THREE.Vector4(lens[0], lens[1], lens[2], lens[3]) },
-      uLen1: { value: new THREE.Vector4(lens[4], lens[5], lens[6], lens[7]) },
+      uLen: { value: lens },
     }
     const m = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: vert, fragmentShader: frag, transparent: true, depthWrite: false })
     this.points = new THREE.Points(geo, m)
