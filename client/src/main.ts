@@ -397,7 +397,7 @@ const STEPS_AT = { x: -1700, z: 300 }
 const hanging = hangingSteps(rocks, terrain, STEPS_AT.x, STEPS_AT.z)
 // The old cables between the tall stones (cables.ts).
 const _cablesT0 = performance.now()
-const cables = new Cables(rocks, terrain, WORLD_SEED)
+const cables = new Cables(rocks, terrain, WORLD_SEED, CAMP)
 const cablesBootMs = performance.now() - _cablesT0
 scene.add(cables.group)
 const _cHand = new THREE.Vector3()

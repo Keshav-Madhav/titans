@@ -28,8 +28,30 @@ export class Cables {
   /** Riding: which cable, how far along (0 … 1), speed along it (m/s). */
   ride: { c: Cable; t: number; v: number } | null = null
 
-  constructor(rocks: Rocks, terrain: Terrain, seed: number) {
+  constructor(rocks: Rocks, terrain: Terrain, seed: number, near?: { x: number; z: number }) {
     const rand = mulberry32(seed + 5150)
+    // One first, near where you begin (the first camp): down from the highest ground within a few
+    // hundred metres to a little way off the camp, so the idea is met early, not 3 km out.
+    if (near) {
+      let top: THREE.Vector3 | null = null
+      for (let k = 0; k < 400; k++) {
+        const a = rand() * Math.PI * 2
+        const d = 120 + rand() * 260
+        const x = near.x + Math.cos(a) * d
+        const z = near.z + Math.sin(a) * d
+        const y = terrain.heightAt(x, z)
+        if (!top || y > top.y) top = new THREE.Vector3(x, y, z)
+      }
+      for (let k = 0; top && k < 60 && !this.cables.length; k++) {
+        const a = rand() * Math.PI * 2
+        const x = near.x + Math.cos(a) * (25 + rand() * 30)
+        const z = near.z + Math.sin(a) * (25 + rand() * 30)
+        const y = terrain.heightAt(x, z)
+        if (top.y - y < 10) continue
+        const c = this.make(top.clone().setY(top.y + 2.4), new THREE.Vector3(x, y + 2.4, z), terrain)
+        if (c) this.cables.push(c)
+      }
+    }
     const tall = rocks.formations.filter((f) => (f.kind === 'spire' || f.kind === 'hoodoo') && !f.always)
     const tops = tall
       .map((f) => {
@@ -98,12 +120,17 @@ export class Cables {
     }
     // The ropes: one merged tube; a stake at each end.
     const rope = new THREE.MeshStandardMaterial({ color: 0x4a3b2c, roughness: 0.95 })
+    const hair = new THREE.LineBasicMaterial({ color: 0x2a2219, transparent: true, opacity: 0.85 })
     const wood = new THREE.MeshStandardMaterial({ color: 0x5b4a38, roughness: 1 })
     for (const c of this.cables) {
       const curve = new THREE.CatmullRomCurve3(c.pts)
-      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, SEG * 2, 0.035, 5), rope)
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, SEG * 2, 0.05, 6), rope)
       m.castShadow = true
       this.group.add(m)
+      // (And a hairline along it: a 7 cm rope is under a pixel past ~60 m and vanished — a line is
+      // always at least one, so the rope reads across a valley as a thin dark stroke.)
+      const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(SEG * 2)), hair)
+      this.group.add(ln)
       for (const end of [c.a, c.b]) {
         // (A post driven into the ground, the rope tied near its top.)
         const H = end.y - terrain.heightAt(end.x, end.z) + 0.3
