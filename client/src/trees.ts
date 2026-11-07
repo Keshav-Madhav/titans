@@ -470,14 +470,19 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         // (Faded through coverage, not cut: with alpha-to-coverage on 4× MSAA a falling alpha thins a
         // leaf by sub-samples, so the dither only has to break up four levels, and the fade reads as a
         // soft thinning — cut by the dither alone it was a coarse grid of dots, tour review 2026-11-07.)
-        float fadeK = smoothstep(2.6, 3.8, nearCam + 0.25 * (dith - 0.5));
+        // (Bark only right at the lens: a trunk is solid, and dissolved over 2.6 – 3.8 m the lower
+        // trunk of a tree the camera stood under hung down the view as a dark dotted curtain.)
+        float fadeK = barkH > -0.5 ? smoothstep(0.6, 1.0, nearCam + 0.1 * (dith - 0.5)) : smoothstep(2.6, 3.8, nearCam + 0.25 * (dith - 0.5));
         // Between the camera and the wanderer, leaves thin out (the wanderer is
         // never lost behind a tree): within a tube round that line, dithered.
         vec3 sp = (viewMatrix * vec4(uFocus, 1.0)).xyz;
         vec3 fp = -vViewPosition;
         float along = clamp(dot(fp, sp) / dot(sp, sp), 0.0, 1.0);
         float tube = length(fp - sp * along);
-        if (along < 0.97) {
+        // (Leaves only: a trunk is solid, and a thin one hides little — dithered, the lower trunk of a
+        // tree on the line to the wanderer came out as a dark dotted curtain hanging under its crown,
+        // tour review 2026-11-08, found in a real window. barkH is set only on the bark.)
+        if (along < 0.97 && barkH < -0.5) {
           float r = 1.4 + 2.2 * along;
           fadeK *= smoothstep(r * 0.7, r * 1.05, tube + 0.12 * r * (dith - 0.5));
         }
