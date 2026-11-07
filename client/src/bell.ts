@@ -6,6 +6,8 @@
 // says.)
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { withInside } from './shell'
 import type { Terrain } from '@titans/shared'
 import type { Rocks } from './rocks'
 import type { Shape } from './rock-fields'
@@ -52,7 +54,14 @@ export class Bell {
       profile.push(new THREE.Vector2(t > 0.97 ? r * (1 - (t - 0.97) * 25) : r, t * 24))
     }
     const bronze = new THREE.MeshStandardMaterial({ color: 0x5a6a52, metalness: 0.65, roughness: 0.5 })
-    const body = new THREE.Mesh(new THREE.LatheGeometry(profile, 40), bronze)
+    // (With its inside, and a lip round the mouth: looked up into from below it was a single
+    // surface, and the sky showed through it — the user, 2026-11-07.)
+    const lipR = profile[0].x
+    const lip = new THREE.RingGeometry(lipR - 0.6, lipR, 40).rotateX(Math.PI / 2).toNonIndexed()
+    lip.deleteAttribute('uv')
+    const shell = withInside(new THREE.LatheGeometry(profile, 40), 0.6)
+    shell.deleteAttribute('uv')
+    const body = new THREE.Mesh(mergeGeometries([shell, lip])!, bronze)
     body.position.y = -26
     body.castShadow = true
     const clapper = new THREE.Mesh(new THREE.SphereGeometry(3, 12, 8), bronze)

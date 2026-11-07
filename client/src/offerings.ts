@@ -5,6 +5,7 @@
 // lights, and it answers. (It takes nothing: it only wanted to see it.)
 
 import * as THREE from 'three'
+import { withInside } from './shell'
 import type { Terrain } from '@titans/shared'
 import { CATALOGUE } from './discovery'
 import { drawIcon } from './bag'
@@ -33,7 +34,7 @@ export class Offerings {
       const rs = mulberry32(Math.round(def.x * 3 + def.z * 5))
       const base = new THREE.Mesh(weatheredStone(1.8, 0.7, 1.2, rs, false, 0, true), carvedStone())
       base.position.y = 0.3
-      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.3, 0.22, 16, 1, true), carvedStone())
+      const bowl = new THREE.Mesh(withInside(new THREE.CylinderGeometry(0.45, 0.3, 0.22, 16, 1, true), 0.04), carvedStone())
       bowl.position.y = 0.76
       const back = new THREE.Mesh(weatheredStone(1.6, 1.7, 0.3, rs, true, 0), carvedStone())
       back.position.set(0, 1.2, -0.5)
