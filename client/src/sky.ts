@@ -138,7 +138,10 @@ export class SkySystem {
       float hz = 1.0 - smoothstep( 0.0, 0.35, max( direction.y, 0.0 ) );
       float toSun = pow( max( dot( normalize( vec3( direction.x, 0.0, direction.z ) ), normalize( vec3( vSunDirection.x, 0.0, vSunDirection.z ) ) ), 0.0 ), 3.0 );
       vec3 duskC = mix( vec3( 0.05, 0.06, 0.13 ), mix( vec3( 0.16, 0.12, 0.17 ), vec3( 0.5, 0.26, 0.17 ), toSun ), hz );
-      skyC = mix( skyC, duskC, uDusk );
+      // (Overhead it darkens later than at the horizon: by the plain dusk weight the zenith was
+      // already deep violet with stars out while the sun still sat on the horizon and the land and
+      // fog were bright — night tour review, 2026-11-08.)
+      skyC = mix( skyC, duskC, uDusk * mix( uDusk, 1.0, hz ) );
       // Night: a deep blue-black, a little lighter at the horizon.
       vec3 nightC = mix( vec3( 0.03, 0.045, 0.08 ), vec3( 0.006, 0.01, 0.024 ), smoothstep( 0.0, 0.5, max( direction.y, 0.0 ) ) );
       skyC = mix( skyC, nightC, uNight );
@@ -216,7 +219,7 @@ export class SkySystem {
     this.counter.intensity = lb.counter
     this.sky.material.uniforms.uNight.value = this.night
     this.sky.material.uniforms.uDusk.value = this.dusk
-    ;(this.stars.material as THREE.ShaderMaterial).uniforms.uNight.value = Math.max(this.night, this.dusk * 0.35)
+    ;(this.stars.material as THREE.ShaderMaterial).uniforms.uNight.value = Math.max(this.night, THREE.MathUtils.smoothstep(this.dusk, 0.7, 1) * 0.35)
     this.moon.material.opacity = THREE.MathUtils.smoothstep(this.night, 0.05, 0.6)
     // The image light follows the sky, rebaked when the sun has moved a few degrees.
     if (force || this.sunDir.angleTo(this.bakedAt) > THREE.MathUtils.degToRad(3)) {
