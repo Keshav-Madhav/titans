@@ -1987,6 +1987,22 @@ function watchFalls(dt: number): void {
     }
   }
 }
+/**
+ * Objects that never move: matrices composed once, then left alone by the per-frame update (the
+ * renderer still walks them; it no longer recomposes and remultiplies each). Children added later
+ * are not frozen.
+ */
+function freezeStatic(...roots: Array<THREE.Object3D | undefined | null>): void {
+  for (const r of roots) {
+    if (!r) continue
+    r.updateMatrixWorld(true)
+    r.traverse((o) => {
+      if (o === r) return
+      o.matrixAutoUpdate = false
+    })
+  }
+}
+
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
 
 /**
@@ -3688,6 +3704,10 @@ function frameBody(now: number): void {
 
   if (!ready && terrainView.settled()) {
     ready = true
+    // Fixed in place for good: their matrices made once, not every frame (a CPU profile of a run
+    // in the valley: updateMatrixWorld + multiplyMatrices ~1 ms a frame, 2,618 objects
+    // recomposed and remultiplied each frame — most of them never move).
+    freezeStatic(cables.group, colossi.group, vegetation.group, glyphs?.group)
     if (backupNote) setTimeout(() => narration.say('The last save was damaged. You wake from the one before it.'), 2500)
     if (params.get('qa') === 'throw') qaThrowAt = performance.now() + 8000
     // Compile every shader now, behind the title (user: "game hitches" — the first sight of
