@@ -83,7 +83,14 @@ for (const [i, sp] of spots.entries()) {
     return { x: Math.round(p.x), y: Math.round(p.y), z: Math.round(p.z), land: g.terrain.base.regions.name(p.x, p.z), swimming: g.wanderer.swimming }
   }, [sp, t, w])
   const base = `${OUT}/tour-${String(n).padStart(3, '0')}-${sp.tag}`
+  // (A fall while settling in — dropped at a terrace's lip — blacks the screen out for its 1.8 s; a
+  // shot then is the fade, not the land. Wait it out.)
+  const fell = await page.evaluate(() => window.__g.fallState.blackout > 0)
+  await page.waitForFunction(() => !(window.__g.fallState.blackout > 0), null, { timeout: 8000 }).catch(() => {})
+  // (And the fade back in, and getting up off the ground.)
+  if (fell) await page.waitForTimeout(2500)
   await page.screenshot({ path: `${base}-a.png` })
+  if (ONLY >= 0) console.log('atA:', JSON.stringify(await page.evaluate(() => { const g = window.__g, c = g.camera.position, w = g.wanderer; return { fall: g.fallState, fade: document.getElementById('fade')?.className, cam: [c.x, c.y, c.z].map((v) => +v.toFixed(1)), pos: [w.pos.x, w.pos.y, w.pos.z].map((v) => +v.toFixed(1)), ground: +g.terrain.heightAt(w.pos.x, w.pos.z).toFixed(1), swim: w.swimming, glide: w.gliding, climb: g.climbState && g.climbState() } })))
   if (ONLY >= 0 && process.env.TOUR_HUNT_A) await hunt(process.env.TOUR_HUNT_A)
   if (ONLY >= 0 && process.env.TOUR_TOGGLES_A) {
     for (const k of ['noao', 'noshadow']) {
