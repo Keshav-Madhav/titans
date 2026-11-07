@@ -171,7 +171,9 @@ export class Avatar {
     this.swim += ((s.swimming ? 1 : 0) - this.swim) * Math.min(1, dt * 5)
     // The other modes, each eased in and out over ~0.12 s.
     const want = { climb: s.mode === 'climb' ? 1 : 0, glide: s.mode === 'glide' ? 1 : 0, slide: s.mode === 'slide' ? 1 : 0, hang: s.mode === 'hang' ? 1 : 0 }
-    for (const k of ['climb', 'glide', 'slide', 'hang'] as const) this.modeW[k] += (want[k] - this.modeW[k]) * Math.min(1, dt * 8)
+    // (The cloak opening eases in over ~0.25 s, not 0.12: the arms swing all the way out, and at the
+    // faster rate the hands snapped there — the biggest pop in the playtest.)
+    for (const k of ['climb', 'glide', 'slide', 'hang'] as const) this.modeW[k] += (want[k] - this.modeW[k]) * Math.min(1, dt * (k === 'glide' && want[k] > this.modeW[k] ? 4 : 8))
     this.posedW = Math.min(1, this.modeW.climb + this.modeW.glide + this.modeW.slide + this.modeW.hang)
     const ground = (1 - this.air) * (1 - this.swim)
     // A landing: the clip's crouch, over the first 0.45 s of being down, then the run carries on.

@@ -45,7 +45,10 @@ const press = async (keys, ms) => {
   await page.waitForTimeout(ms)
   await page.evaluate((keys) => { for (const k of keys) window.__g.input.release(k); window.__rec.marks.push({ t: performance.now(), up: keys }) }, keys)
 }
+// PT_ONLY="glide jumps" runs just those segments.
+const ONLY_SEGS = process.env.PT_ONLY ? process.env.PT_ONLY.split(/\s+/) : null
 const segment = async (name, setup, drive) => {
+  if (ONLY_SEGS && !ONLY_SEGS.includes(name)) return { name, skipped: true }
   await page.evaluate(setup)
   await page.waitForTimeout(1500)
   await page.evaluate(() => { window.__rec.rows = []; window.__rec.marks = []; window.__rec.on = true; window.__g.spikes.length = 0 })
@@ -164,6 +167,7 @@ report.push(await segment('glide', () => { const g = window.__g; g.finds.find('c
 
 writeFileSync(`${OUT}/playtest.json`, JSON.stringify({ errors: errs, report }, null, 1))
 for (const r of report) {
+  if (r.skipped) continue
   console.log(`== ${r.name}: ${r.frames} frames; frame ms ${JSON.stringify(r.frameMs)}; hitches ${r.hitchCount}${r.hitches.length ? ' ' + JSON.stringify(r.hitches.slice(0, 4)) : ''}`)
   console.log(`   input ms: ${r.input.map((i) => `${i.keys} ${i.ms ?? 'none'}`).join(', ')}`)
   console.log(`   camera acc med ${r.camera.accMed}; jerks ${r.camera.jerkCount}${r.camera.jerks.length ? ' ' + JSON.stringify(r.camera.jerks.slice(0, 4)) : ''}`)
