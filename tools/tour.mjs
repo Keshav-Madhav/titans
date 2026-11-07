@@ -125,6 +125,14 @@ for (const [i, sp] of spots.entries()) {
   }
   await page.waitForTimeout(1200 + (+process.env.TOUR_WAIT_B || 0))
   await page.screenshot({ path: `${base}-b.png` })
+  if (ONLY >= 0 && process.env.TOUR_EVAL_B) {
+    // Each expression evaluated in the page, then the second shot again (TOUR_EVAL_B="a;;b").
+    let k = 0
+    for (const src of process.env.TOUR_EVAL_B.split(';;')) {
+      await page.evaluate((src) => { const g = window.__g; new Function('g', src)(g); g.frames(1, 0) }, src)
+      await page.screenshot({ path: `${base}-b-eval${k++}.png` })
+    }
+  }
   if (ONLY >= 0 && process.env.TOUR_HUNT_B) await hunt(process.env.TOUR_HUNT_B)
   if (ONLY >= 0 && process.env.TOUR_TOGGLES) {
     for (const k of ['noao', 'noshadow', 'both']) {
