@@ -65,7 +65,16 @@ export interface ColossusPlacement {
  * meets the floor go dark as they do in life — and its uniforms.
  */
 /** Tools: switches on the rock shader, shared by every rock material (soil 0 = no earth at the foot). */
-export const rockTools = { soil: { value: 1 } }
+export const rockTools = {
+  soil: { value: 1 },
+  /**
+   * Light thrown up off the sunlit land onto faces that look down (main.ts sets it from the sun):
+   * the underside of a giant's limb, an arch, an overhang. Without it they took only the sky's dim
+   * fill from below and came out as flat black slabs — the tour, 2026-11-07, a giant tree's low
+   * limb over a sunny meadow, pitch black with no bark at all.
+   */
+  bounce: { value: new THREE.Color(0, 0, 0) },
+}
 
 export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }, weathered = false): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
@@ -76,6 +85,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
     sh.uniforms.uRockSoil = rockTools.soil
+    sh.uniforms.uRockBounce = rockTools.bounce
     if (occlusion) {
       Object.assign(sh.uniforms, occlusion.uniforms)
       sh.fragmentShader = sh.fragmentShader
@@ -117,6 +127,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         uniform highp sampler2DArray tLayerColor;
         uniform highp sampler2DArray tLayerNormal;
         uniform float uRockSoil;
+        uniform vec3 uRockBounce;
         varying vec3 vLayer;
         varying vec3 vRockPos;
         varying vec3 vRockN;
@@ -265,6 +276,7 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         rockN = normalize(mix(nA, nB, topT));`,
       )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(rockN, 0.0)).xyz);')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse += diffuseColor.rgb * uRockBounce * smoothstep(0.15, -0.85, rockN.y);')
   }
   return mat
 }

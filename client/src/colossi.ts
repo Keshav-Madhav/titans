@@ -192,7 +192,7 @@ export class Colossi {
       if (hi - lo > 18) continue
       const tseed = 100 + trees.length
       const rot = rand() * 6.28
-      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot, seed: tseed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [1, 1, 1], res: 120 })
+      rocks.addColossus({ kind: 'trunk', x, z, y: lo - 2, rot, seed: tseed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [3.0, 2.85, 2.6], res: 120 })
       const f = rocks.formations[rocks.formations.length - 1]
       // Its crowns: one at each limb's end (local → world: mesh.rotation.y = rot).
       const c = Math.cos(rot)

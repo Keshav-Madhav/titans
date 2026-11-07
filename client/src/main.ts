@@ -3309,6 +3309,14 @@ function frameBody(now: number): void {
   birds.step(dt, camera.position, birdSpots, birdPerch(), wanderer.pos)
   birds.render()
   sky.tick(dt)
+  // The land's bounce up into undersides (rocks shader): the sun's strength off sunlit ground, a
+  // warm green-grey; nothing once the sun is down or behind a storm's deck.
+  {
+    // (Not under the ground: in the Undercroft the sun's land is overhead, not underfoot.)
+    const under = inHall(camera.position.x, camera.position.z) && camera.position.y < terrain.base.hallTop - 4
+    const k = under ? 0 : Math.max(0, sky.sun.intensity) * 0.15 * (1 - 0.6 * weather.now.dark)
+    rockTools.bounce.value.setRGB(0.92 * k, 0.95 * k, 0.72 * k)
+  }
   sky.advance(dt)
   setFogSun(sky.sunDir)
   trail.update(dt, wanderer.pos)

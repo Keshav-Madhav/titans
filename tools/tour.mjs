@@ -86,6 +86,17 @@ for (const [i, sp] of spots.entries()) {
   }
   await page.waitForTimeout(1200)
   await page.screenshot({ path: `${base}-b.png` })
+  if (ONLY >= 0 && process.env.TOUR_TOGGLES) {
+    for (const k of ['noao', 'noshadow', 'both']) {
+      await page.evaluate((k) => { const g = window.__g; g.aoSwitch.on = k === 'noshadow'; g.renderer.shadowMap.enabled = k === 'noao'; g.scene.traverse((o) => { if (o.material && o.material.needsUpdate !== undefined && o.name.startsWith('rock')) o.material.needsUpdate = true }); g.frames(1, 0) }, k)
+      await page.screenshot({ path: `${base}-${k}.png` })
+    }
+    await page.evaluate(() => { const g = window.__g; g.aoSwitch.on = true; g.renderer.shadowMap.enabled = true })
+  }
+  if (ONLY >= 0 && process.env.TOUR_RAY) console.log('ray:', JSON.stringify(await page.evaluate((uv) => {
+    const g = window.__g, T = g.THREE, rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(uv[0], uv[1]), g.camera)
+    return rc.intersectObjects(g.scene.children, true).slice(0, 5).map((h) => ({ facing: h.face ? +h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(rc.ray.direction).toFixed(2) : null, sdfCam: g.rocks.inside ? g.rocks.inside(g.camera.position) : 'n/a', name: h.object.name || h.object.type, parent: h.object.parent && h.object.parent.name, d: +h.distance.toFixed(1), mat: h.object.material && (h.object.material.name || h.object.material.type), vis: h.object.visible }))
+  }, process.env.TOUR_RAY.split(',').map(Number))))
   if (ONLY >= 0) console.log(JSON.stringify(await page.evaluate(() => { const g = window.__g, c = g.camera.position, p = g.wanderer.pos; return { cam: [c.x, c.y, c.z].map((v) => +v.toFixed(2)), pos: [p.x, p.y, p.z].map((v) => +v.toFixed(2)), ground: +g.terrain.heightAt(c.x, c.z).toFixed(2), rockTop: g.rocks.topAt(c.x, c.z), rig: [g.rig.yaw, g.rig.pitch, g.rig.dist].map((v) => +(+v).toFixed(3)), inHallish: false } })))
   log.push({ n, tag: sp.tag, time: t, weather: w, ...where })
   n++
