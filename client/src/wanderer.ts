@@ -1663,6 +1663,11 @@ export class Wanderer {
     }
     this.chestAnchor.add(this.wing)
     this.pelvisAnchor.add(this.lanternHook)
+    // (Not the strap: it was a hoop sized for the old, broader body, and on this one it stood off the
+    // chest in a loop seen against the sky from the side — the outfit's own diagonal belt reads as
+    // the bag's strap. The satchel hangs on at the hip.)
+    this.bagParts[0].removeFromParent()
+    this.bagParts[0] = new THREE.Object3D()
     for (const o of this.bagParts) this.pelvisAnchor.add(o)
     // The tools ride the rig's hands (with the old hands' turn: the poses were made for them).
     for (const i of [0, 1]) {
