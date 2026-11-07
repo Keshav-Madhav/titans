@@ -1393,6 +1393,9 @@ travel.onGo = (d) => {
   setTimeout(() => {
     const a = d.name === CAMP_NAME ? { x: d.x + 2.5, z: d.z + 1 } : { x: d.x + 2.2, z: d.z + 1.4 }
     const top = Math.max(terrain.heightAt(a.x, a.z), rocks.topAt(a.x, a.z) ?? -Infinity)
+    // (Off any rope taken in the half second of the fade.)
+    cables.ride = null
+    wanderer.hanging = false
     wanderer.place(a.x, top + 0.05, a.z)
     wanderer.vel.set(0, 0, 0)
     fallTop = NaN
@@ -4047,6 +4050,9 @@ const g = {
     for (const a of titans.values()) a.titan.gait.plough = on
   },
   teleport(x: number, z: number, y?: number) {
+    // (Letting go of any rope: riding one, the next frame put you straight back on it.)
+    cables.ride = null
+    wanderer.hanging = false
     wanderer.place(x, y ?? terrain.heightAt(x, z), z)
     fallTop = NaN
   },
