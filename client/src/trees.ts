@@ -345,6 +345,23 @@ export const foliageFocus = { value: new THREE.Vector3() }
 /** Tools: alpha lift per mip level for foliage cut-outs (0 = off, to compare). */
 export const foliageMipLift = { value: 0.3 }
 
+/**
+ * The giant trees' photographed bark (the same image the terrain array carries), for ordinary trunks
+ * too: their drawn furrows read as cartoon wavy stripes beside the giants' real bark — two games in
+ * one wood (tour review, 2026-11-08). Loaded once; until it arrives the drawn bark stands in.
+ */
+const barkTex: { value: THREE.Texture | null; on: { value: number } } = { value: null, on: { value: 0 } }
+function loadBark(): void {
+  if (barkTex.value) return
+  const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}tex/bark_c.jpg`, () => {
+    barkTex.on.value = 1
+  })
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 4
+  barkTex.value = t
+}
+
 export function foliageMaterial(map: THREE.Texture, time: { value: number }, sway: number): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.85, alphaTest: 0.42, side: THREE.DoubleSide })
   mat.alphaToCoverage = true
@@ -352,7 +369,10 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
     sh.uniforms.uTime = time
     sh.uniforms.uFocus = foliageFocus
     sh.uniforms.uMipLift = foliageMipLift
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;\nuniform float uMipLift;')
+    loadBark()
+    sh.uniforms.tBark = barkTex
+    sh.uniforms.uBarkOn = barkTex.on
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;\nuniform float uMipLift;\nuniform sampler2D tBark;\nuniform float uBarkOn;')
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
@@ -387,9 +407,17 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
         float fine = abs(sin((ba * 53.0 + wob * 2.3 + sin(bh * 190.0) * 0.2) * 3.14159));
         float plate = fract(sin(floor(bh * 140.0 + ba * 9.0) * 12.9898 + floor(ba * 17.0 + wob) * 78.233) * 43758.5);
         float crack = step(0.86, plate) * (1.0 - smoothstep(0.0, 0.3, ridge));
-        diffuseColor.rgb *= (0.36 + 0.74 * furrow) * (0.86 + 0.14 * smoothstep(0.1, 0.8, fine)) * (1.0 - 0.4 * crack) * (0.88 + 0.24 * plate * smoothstep(0.4, 0.9, ridge));
+        float drawn = (0.36 + 0.74 * furrow) * (0.86 + 0.14 * smoothstep(0.1, 0.8, fine)) * (1.0 - 0.4 * crack) * (0.88 + 0.24 * plate * smoothstep(0.4, 0.9, ridge));
         // The same pattern as relief (bumped below): ridges stand, furrows and cracks sink.
         barkH = furrow * 0.7 + smoothstep(0.1, 0.8, fine) * 0.2 - crack * 0.3;
+        if (uBarkOn > 0.5) {
+          // (Round the trunk twice, up it six times: a few metres a tile, as on the giants.)
+          vec3 pb = texture2D(tBark, vec2(ba * 2.0, bh * 6.0)).rgb;
+          float pl = dot(pb, vec3(0.299, 0.587, 0.114));
+          // Its pattern over the trunk's own colour (the image's mean is ~0.04 linear: scaled to ~1).
+          diffuseColor.rgb *= pb / 0.045 * 0.55;
+          barkH = smoothstep(0.0, 0.12, pl);
+        } else diffuseColor.rgb *= drawn;
       }`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
