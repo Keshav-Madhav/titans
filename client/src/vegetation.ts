@@ -535,7 +535,10 @@ export class Vegetation {
         'void main() {',
         `void main() {
         {
-          float near = smoothstep(0.7, 2.2, distance(vPlantW, cameraPosition));
+          // (Over a narrow band, 1.3 – 1.7 m: over 0.7 – 2.2 m a blade crossing in front of the lens
+          // half-dissolved for its whole length — a long dotted strip down the view, over the cloak
+          // and the sand (tour review, 2026-11-08). Now a blade that close is gone, past it whole.)
+          float near = smoothstep(1.3, 1.7, distance(vPlantW, cameraPosition));
           ivec2 b = ivec2(gl_FragCoord.xy) % 4;
           int i = b.x + b.y * 4;
           float th = float(i == 0 ? 0 : i == 1 ? 8 : i == 2 ? 2 : i == 3 ? 10 : i == 4 ? 12 : i == 5 ? 4 : i == 6 ? 14 : i == 7 ? 6 : i == 8 ? 3 : i == 9 ? 11 : i == 10 ? 1 : i == 11 ? 9 : i == 12 ? 15 : i == 13 ? 7 : i == 14 ? 13 : 5) / 16.0 + 1.0 / 32.0;
