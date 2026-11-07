@@ -1523,7 +1523,10 @@ export class Wanderer {
         // (Past the shoulders, wrapping them: at their width it hung as a strip down the back.)
         // (And round them toward the front at the ends, deeper over the back: on a shallow arc the cape
         // settled flat, a red board on the back — the user's complaint, still true on 2026-11-06.)
-        const local = new THREE.Vector3(-Math.cos(a) * half * 1.45, y - 0.05 * Math.sin(a) - 0.03 * (1 - Math.sin(a)), S.z + 0.03 - Math.sin(a) * 0.21)
+        // (The two ends tucked down under the mantle's skirt: level with the rest they stood up above the
+        // shoulder as the sheet's bare cut edge — a stiff flat flap in close shots.)
+        const end = Math.pow(Math.abs(Math.cos(a)), 3)
+        const local = new THREE.Vector3(-Math.cos(a) * half * 1.45, y - 0.05 * Math.sin(a) - 0.03 * (1 - Math.sin(a)) - 0.1 * end, S.z + 0.03 - Math.sin(a) * 0.21)
         this.capeObj.push(local.clone())
         // (Body space → world → the spine bone's space.)
         this.capeSpine.push(local.applyMatrix4(this.obj.matrixWorld).applyMatrix4(toSpine))
