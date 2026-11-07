@@ -303,7 +303,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // still point up on a wall at coarse detail); only its horizontal part, so the
         // projection turns smoothly round a cliff instead of jumping at each edge.
         vec2 gHor = gFlat.xz * sign(gFlat.y + 1e-4);
-        vec3 gTriN = normalize(mix(gN, vec3(gHor.x, 0.12, gHor.y) / max(1e-3, length(gHor)), gSteep * 0.9));
+        // (Turned to the wall's facing well before the rock fully shows: half-way, the top-down
+        // projection still carried real weight on a near-vertical face and smeared its texture down
+        // it in streaks — a furry dark fringe along every cliff's foot, tour review 2026-11-08.)
+        vec3 gTriN = normalize(mix(gN, vec3(gHor.x, 0.12, gHor.y) / max(1e-3, length(gHor)), min(1.0, gSteep * 3.0) * 0.92));
         // (Written out per layer — every array index a constant — not looped: indexed by a variable,
         // the per-layer arrays went to memory on Apple GPUs for every pixel; trimming the work
         // inside the loop saved nothing, and the terrain was 10 of 22 ms. Optimisation pass, 2026-11-04.)
