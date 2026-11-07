@@ -3278,6 +3278,11 @@ function frameBody(now: number): void {
   const fallV = wanderer.grounded || wanderer.swimming ? 0 : Math.max(0, -wanderer.vel.y)
   sound.rush(cables.ride ? (cables.ride.v - 6) / 30 : wanderer.gliding ? (wanderer.airspeed - 6) / 30 : (fallV - 7) / 25)
   sound.zip(cables.ride ? cables.ride.v : 0)
+  {
+    const p = wanderer.pos
+    const ground = wanderer.isSnow(p.x, p.z) ? 'snow' : wanderer.isSand(p.x, p.z) ? 'sand' : 'grass'
+    sound.slide(wanderer.sledding && wanderer.grounded ? Math.hypot(wanderer.vel.x, wanderer.vel.z) : 0, ground)
+  }
   effects.update(dt)
   clouds.update(dt, camera.position)
   birdSpots.length = 0

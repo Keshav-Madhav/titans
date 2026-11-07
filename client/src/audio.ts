@@ -688,6 +688,34 @@ export class Sound {
     this.zipOsc!.frequency.setTargetAtTime(55 + 70 * k, t, 0.1)
   }
 
+  /** Sliding on the cloak: cloth over the ground — a hiss on snow, a dry rasp on sand, a soft brush on grass. */
+  private slideGain: GainNode | null = null
+  private slideFilter: BiquadFilterNode | null = null
+  /** `v` speed (m/s), 0 not sliding; `surface` what is under you. */
+  slide(v: number, surface: 'snow' | 'sand' | 'grass'): void {
+    if (!this.ctx || !this.noise) return
+    if (!this.slideGain) {
+      const ctx = this.ctx
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      src.playbackRate.value = 0.8
+      this.slideFilter = ctx.createBiquadFilter()
+      this.slideFilter.type = 'bandpass'
+      this.slideGain = ctx.createGain()
+      this.slideGain.gain.value = 0
+      src.connect(this.slideFilter).connect(this.slideGain).connect(this.master!)
+      src.start()
+    }
+    const t = this.ctx.currentTime
+    const k = Math.max(0, Math.min(1, v / 16))
+    // (Each ground its own colour: snow high and smooth, sand gritty and mid, grass low and soft.)
+    const [f, q, lvl] = surface === 'snow' ? [2600, 0.9, 0.22] : surface === 'sand' ? [1500, 1.6, 0.26] : [700, 1.1, 0.18]
+    this.slideFilter!.frequency.setTargetAtTime(f * (0.7 + 0.5 * k), t, 0.1)
+    this.slideFilter!.Q.setTargetAtTime(q, t, 0.1)
+    this.slideGain.gain.setTargetAtTime(v > 0.5 ? lvl * (0.25 + 0.75 * k) : 0, t, v > 0.5 ? 0.06 : 0.12)
+  }
+
   /** The score's own level (the settings' music slider): the pad and the glass notes go through it. */
   private music: GainNode | null = null
   private musicLevel = 1
