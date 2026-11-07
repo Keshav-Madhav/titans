@@ -15,6 +15,7 @@
 // are solid (rocks.ts) — and, like any rock, climbable.
 
 import * as THREE from 'three'
+import { withInside } from './shell'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { DROWNED_AT, mulberry32, SHORE, SPREAD, type Terrain } from '@titans/shared'
 import { LAYER } from './terrain-material'
@@ -68,12 +69,16 @@ function column(r: number, h: number, broken: boolean, rand: () => number): THRE
     p.setXYZ(i, x * k, broken && y > h - 1 ? y - rand() * 16 : y, z * k)
   }
   shaft.computeVertexNormals()
-  const parts: THREE.BufferGeometry[] = [shaft, block(0, 6, 0, r * 1.45, 6, r * 1.45, 2), block(0, 17, 0, r * 1.25, 5, r * 1.25, 2)]
+  // (A broken one is open at the top: its inside, the wall's thickness in, or from above you saw
+  // through the far wall — the user, 2026-11-07, "several things are unrendering from the inside".)
+  const parts: THREE.BufferGeometry[] = [broken ? withInside(shaft, r * 0.08) : shaft, block(0, 6, 0, r * 1.45, 6, r * 1.45, 2), block(0, 17, 0, r * 1.25, 5, r * 1.25, 2)]
   if (!broken) {
     parts.push(new THREE.CylinderGeometry(r * 1.35, r * 0.95, 14, segs, 2).translate(0, h + 7, 0))
     parts.push(block(0, h + 20, 0, r * 1.5, 6, r * 1.5, 2))
   } else {
-    parts.push(new THREE.CircleGeometry(r * 0.95, segs).rotateX(-Math.PI / 2).translate(0, h - 8, 0))
+    // The rubble-choked floor of the break, under the lowest of the jagged rim (it was at 8 m down,
+    // above where the rim tears to 17 m: its edge stood out of the wall), inside the inner wall.
+    parts.push(new THREE.CircleGeometry(r * 0.9, segs).rotateX(-Math.PI / 2).translate(0, h - 19, 0))
   }
   return merged(parts)
 }
@@ -250,7 +255,9 @@ export class Colossi {
       const h = broken ? 160 + rand() * 220 : 520 + rand() * 320
       const y = Math.min(H(x, z), H(x + r, z), H(x - r, z), H(x, z + r), H(x, z - r)) - 4
       const shape: Shape = {
-        field: (lx, ly, lz) => Math.min(Math.max(Math.hypot(lx, lz) - r, Math.abs(ly - h / 2) - h / 2), box(lx, ly - 11, lz, r * 1.45, 11, r * 1.45), broken ? Infinity : box(lx, ly - h - 14, lz, r * 1.5, 14, r * 1.5)),
+        // (A broken one is hollow at its top, down to the rubble floor 19 m under the break: you
+        // stand in the break, not on air over it.)
+        field: (lx, ly, lz) => Math.min(Math.max(Math.hypot(lx, lz) - r, Math.abs(ly - h / 2) - h / 2, broken ? -Math.max(Math.hypot(lx, lz) - r * 0.9, h - 19 - ly) : -Infinity), box(lx, ly - 11, lz, r * 1.45, 11, r * 1.45), broken ? Infinity : box(lx, ly - h - 14, lz, r * 1.5, 14, r * 1.5)),
         hx: r * 1.6,
         hy: h / 2 + 30,
         hz: r * 1.6,
