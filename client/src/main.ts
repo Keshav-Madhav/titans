@@ -3276,7 +3276,8 @@ function frameBody(now: number): void {
   wake.update(dt, wanderer.swimming, wanderer.pos, wanderer.waterLevel, wanderer.speed)
   // The air going past: gliding at speed, or falling (from about a 4 m drop on).
   const fallV = wanderer.grounded || wanderer.swimming ? 0 : Math.max(0, -wanderer.vel.y)
-  sound.rush(wanderer.gliding ? (wanderer.airspeed - 6) / 30 : (fallV - 7) / 25)
+  sound.rush(cables.ride ? (cables.ride.v - 6) / 30 : wanderer.gliding ? (wanderer.airspeed - 6) / 30 : (fallV - 7) / 25)
+  sound.zip(cables.ride ? cables.ride.v : 0)
   effects.update(dt)
   clouds.update(dt, camera.position)
   birdSpots.length = 0

@@ -650,6 +650,44 @@ export class Sound {
     this.rushFilter!.frequency.setTargetAtTime(280 + 1700 * v, t, 0.3)
   }
 
+  /** Riding a rope: the hand-hold's hum running down it — a low, rough whirr that rises with speed. */
+  private zipGain: GainNode | null = null
+  private zipFilter: BiquadFilterNode | null = null
+  private zipOsc: OscillatorNode | null = null
+  /** `v` the speed along the rope (m/s), 0 off it. */
+  zip(v: number): void {
+    if (!this.ctx || !this.noise) return
+    if (!this.zipGain) {
+      const ctx = this.ctx
+      this.zipGain = ctx.createGain()
+      this.zipGain.gain.value = 0
+      // Rope fibre over a hard edge: band-passed noise, and a buzzing low tone under it.
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      this.zipFilter = ctx.createBiquadFilter()
+      this.zipFilter.type = 'bandpass'
+      this.zipFilter.Q.value = 3.5
+      src.connect(this.zipFilter).connect(this.zipGain)
+      this.zipOsc = ctx.createOscillator()
+      this.zipOsc.type = 'sawtooth'
+      const og = ctx.createGain()
+      og.gain.value = 0.07
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 400
+      this.zipOsc.connect(lp).connect(og).connect(this.zipGain)
+      this.zipGain.connect(this.master!)
+      src.start()
+      this.zipOsc.start()
+    }
+    const t = this.ctx.currentTime
+    const k = Math.max(0, Math.min(1, v / 26))
+    this.zipGain.gain.setTargetAtTime(v > 0 ? 0.05 + 0.2 * k : 0, t, v > 0 ? 0.08 : 0.15)
+    this.zipFilter!.frequency.setTargetAtTime(500 + 1600 * k, t, 0.1)
+    this.zipOsc!.frequency.setTargetAtTime(55 + 70 * k, t, 0.1)
+  }
+
   /** The score's own level (the settings' music slider): the pad and the glass notes go through it. */
   private music: GainNode | null = null
   private musicLevel = 1
