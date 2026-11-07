@@ -2993,7 +2993,11 @@ function frameBody(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   // (Paused: the world waits.)
-  acc += dt * clock.scale * (pause.open ? 0 : 1)
+  // (And while a page — map, bag, journal — is open in mid-air or holding on: opening it lets go of the
+  // keys, so a glide folded under you and you fell 40 m reading the map, or let go of a giant. On the
+  // ground the world goes on round you.)
+  const hanging = !wanderer.grounded || wanderer.swimming || climber.active || cliff.active
+  acc += dt * clock.scale * (pause.open || (anyOpen() && hanging) ? 0 : 1)
   while (acc >= STEP) {
     simulate(STEP)
     acc -= STEP
