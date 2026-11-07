@@ -31,6 +31,8 @@ export interface AvatarState {
   take: number
   /** How fast you climb (0 still … 1). */
   climbRate: number
+  /** Crouched on foot (C): 0 standing … 1 down. */
+  crouch: number
 }
 
 const ease = (x: number): number => x * x * (3 - 2 * x)
@@ -50,6 +52,7 @@ export class Avatar {
   private swim = 0
   private posedW = 0
   private vS = 0
+  private crouchW = 0
   private readonly modeW = { climb: 0, glide: 0, slide: 0, hang: 0 }
   /** The hood's red (the wanderer's cloak material, shared). */
   readonly meshes: THREE.SkinnedMesh[] = []
@@ -175,10 +178,13 @@ export class Avatar {
     const land = ground * Math.max(0, 1 - this.landT / 0.45) * Math.min(1, this.landT * 12)
     const startK = Math.max(0, 1 - this.startT / 0.35)
     const start = this.air * startK
-    this.w('Idle_Loop', ground * wIdle * (1 - land))
-    this.w('Walk_Loop', ground * wWalk * (1 - land))
-    this.w('Jog_Fwd_Loop', ground * wJog * (1 - land))
-    this.w('Sprint_Loop', ground * wSprint * (1 - land))
+    // Crouched: down on the crouch's hold, the walk's stride only half over it as you creep.
+    this.crouchW += (s.crouch - this.crouchW) * Math.min(1, dt * 9)
+    const cr = this.crouchW * ground * (1 - 0.45 * kW)
+    this.w('Idle_Loop', ground * wIdle * (1 - land) * (1 - cr))
+    this.w('Walk_Loop', ground * wWalk * (1 - land) * (1 - cr))
+    this.w('Jog_Fwd_Loop', ground * wJog * (1 - land) * (1 - cr))
+    this.w('Sprint_Loop', ground * wSprint * (1 - land) * (1 - cr))
     this.w('Jump_Land', land)
     this.w('Jump_Start', start)
     // (The take-off's share of the air, not of the whole: air·(1 − start) counted it twice, ~1.2 in all.)
@@ -198,7 +204,7 @@ export class Avatar {
     // flying: the leap's hold, arms out; sliding: crouched; on the line: the leap's hold.
     this.w('Push_Loop', this.modeW.climb)
     this.w('Jump_Loop', this.act.get('Jump_Loop')!.getEffectiveWeight() + this.modeW.glide + this.modeW.hang)
-    this.w('Crouch_Idle_Loop', this.modeW.slide)
+    this.w('Crouch_Idle_Loop', this.modeW.slide + cr * (1 - this.posedW))
     for (const n of ['Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop']) this.at(n, this.phase)
     this.at('Jump_Start', Math.min(0.99, 0.25 + this.startT / 1.33))
     this.at('Jump_Land', Math.min(0.99, this.landT / 0.6 * 0.55 + 0.1))

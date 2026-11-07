@@ -5,7 +5,7 @@ import type { TerrainView } from './terrain-view'
 
 // (The wanderer's line grows as you find things: see setHave.)
 const HINTS = {
-  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> climb',
+  wanderer: 'Click to look · <kbd>W A S D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>C</kbd> crouch · <kbd>E</kbd> climb',
   climbing: '<kbd>W A S D</kbd> climb · <kbd>E</kbd> let go · <kbd>Space</kbd> leap off · hold still where it leans back, or stand on top, to get your grip back',
   flying: '<kbd>W</kbd> dive (speed) · <kbd>S</kbd> pull up (height) · <kbd>A D</kbd> bank · slow too much and you stall · steep ground ahead lifts you · let go of <kbd>Space</kbd> to drop',
 }

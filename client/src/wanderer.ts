@@ -741,6 +741,12 @@ export class Wanderer {
   sliding = false
   /** On the cloak down a snowfield (ice slides). */
   sledding = false
+  /**
+   * Crouched (C, toggled — the user, 2026-11-07: "make slider happen on only crouch, make crouch be a
+   * deliberate button"): low and slow on foot; on a slope steep enough for the ground under you, a
+   * crouch is what puts you down on the cloak and away. Space or Shift stands you up.
+   */
+  crouching = false
   /** Is (x, z) snow you can slide on? (main sets it: the High Ice.) */
   isSnow: (x: number, z: number) => boolean = () => false
   /** Dune sand under (x, z) (main.ts sets it): slides start a little gentler there than on grass. */
@@ -1149,6 +1155,8 @@ export class Wanderer {
   step(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number, terrain: Terrain): void {
     this.prev.copy(this.pos)
     this.prevYaw = this.yaw
+    // (Standing up: a jump or a run takes you out of a crouch; so does the water, a wall or the air.)
+    if (this.crouching && ((sprint && !this.sledding) || jump || this.swimming || this.climbing || this.gliding || this.hanging)) this.crouching = false
     if (this.stunned > 0) {
       // Knocked down: no control until you are back on your feet.
       this.stunned = Math.max(0, this.stunned - dt)
@@ -1215,15 +1223,19 @@ export class Wanderer {
       const slideGrade = snow ? 0.28 : this.isSand(this.pos.x, this.pos.z) ? 0.36 : 0.5
       const snowy = (snow || grade > slideGrade * 0.6 || this.sledding) && !this.onStone && !this.swimming
       const hv = Math.hypot(this.vel.x, this.vel.z)
-      if (!this.sledding && this.grounded && snowy && grade > slideGrade && len > 0) {
-        // Pushing downhill (within ~50° of the fall line).
-        const down = -(wx * sx + wz * sz) / (Math.hypot(sx, sz) * len)
-        if (down > 0.64) {
+      // (Only from a crouch, never on its own: it used to start whenever you walked down a steep
+      // enough slope — the user, 2026-11-07, "sliding is EXTREMELY bugged … make slider happen on
+      // only crouch". Crouched, on the slope, heading down it or pushing down it, you go.)
+      if (!this.sledding && this.crouching && this.grounded && snowy && grade > slideGrade) {
+        const gl0 = Math.hypot(sx, sz) || 1
+        const pushDown = len > 0 ? -(wx * sx + wz * sz) / (gl0 * len) : 0
+        const goingDown = hv > 0.5 ? -(this.vel.x * sx + this.vel.z * sz) / (gl0 * hv) : 0
+        if (pushDown > 0.5 || goingDown > 0.5 || len === 0) {
           this.sledding = true
           this.lope = 0
         }
       }
-      if (this.sledding && (!snowy || (grade < (snow ? 0.12 : 0.18) && hv < 1.6))) this.sledding = false
+      if (this.sledding && (!this.crouching || !snowy || (grade < (snow ? 0.12 : 0.18) && hv < 1.6))) this.sledding = false
       if (this.sledding && this.grounded) {
         const gl = Math.hypot(sx, sz) || 1
         // Gravity along the fall line (≈ g·sin θ), a little friction, air drag at speed.
@@ -1237,14 +1249,40 @@ export class Wanderer {
         const vx = this.vel.x * c - this.vel.z * sn
         this.vel.z = this.vel.x * sn + this.vel.z * c
         this.vel.x = vx
-        const fric = 0.04 + (move.y < -0.3 ? 2.2 : 0) + hv * 0.004
-        this.vel.x *= Math.max(0, 1 - fric * dt)
-        this.vel.z *= Math.max(0, 1 - fric * dt)
-        // (No faster than a long glide: past that the snow's bumps would launch you.)
-        const cap = 32
-        if (hv > cap) {
-          this.vel.x *= cap / hv
-          this.vel.z *= cap / hv
+        // The ground's grip (a cloak on it, not a skate): snow is slick, sand drags, grass grips — a
+        // slide on grass only runs where the bank is steep, and dies on the flat in a few metres
+        // (it was ~0 friction everywhere, "as if even on grass its like polished glass" — the user).
+        const sand = !snow && this.isSand(this.pos.x, this.pos.z)
+        const mu = snow ? 0.06 : sand ? 0.3 : 0.4
+        const cosT = 1 / Math.sqrt(1 + grade * grade)
+        const hv1 = Math.hypot(this.vel.x, this.vel.z)
+        if (hv1 > 1e-3) {
+          // (Coulomb: a steady deceleration against the motion, never past a stop.)
+          const dv = Math.min(hv1, (mu * 9.8 * cosT + (move.y < -0.3 ? 6 : 0) + 0.012 * hv1 * hv1) * dt)
+          this.vel.x -= (this.vel.x / hv1) * dv
+          this.vel.z -= (this.vel.z / hv1) * dv
+        }
+        // (No faster than the ground allows: past that its bumps would launch you.)
+        const cap = snow ? 24 : sand ? 15 : 12
+        const hv2 = Math.hypot(this.vel.x, this.vel.z)
+        if (hv2 > cap) {
+          this.vel.x *= cap / hv2
+          this.vel.z *= cap / hv2
+        }
+        // No riding up a face: the ground just ahead, in the way you are going, too steep to stand on
+        // stops the slide there and takes the speed into it (momentum carried you straight up an 80°
+        // cliff — the user, 2026-11-07).
+        if (hv2 > 0.5) {
+          const ux = this.vel.x / hv2
+          const uz = this.vel.z / hv2
+          const rise = (terrain.heightAt(this.pos.x + ux * 1.2, this.pos.z + uz * 1.2) - terrain.heightAt(this.pos.x, this.pos.z)) / 1.2
+          if (rise > 0.35) {
+            // (Uphill at all, gravity already slows you; past a steep rise, it is a wall.)
+            const k = rise > MAX_SLOPE * 0.8 ? 1 : 0.6 * dt * 10
+            this.vel.x -= ux * hv2 * Math.min(1, k)
+            this.vel.z -= uz * hv2 * Math.min(1, k)
+            if (rise > MAX_SLOPE * 0.8) this.sledding = false
+          }
         }
         if (hv > 0.5) this.yaw = Math.atan2(this.vel.x, this.vel.z)
         this.sliding = false
@@ -1259,7 +1297,7 @@ export class Wanderer {
       const rise = len > 0 ? (terrain.heightAt(this.pos.x + wx * 2, this.pos.z + wz * 2) - terrain.heightAt(this.pos.x, this.pos.z)) / 2 : 0
       if (sprint && this.grounded && steady && rise < 0.18) this.lope = Math.min(1, this.lope + dt / 5)
       else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
-      const speed = sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
+      const speed = this.crouching ? WALK * 0.45 : sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
       const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
       // Letting go at speed, the body brakes over a few strides, not on the spot (QA cycle 5: from a
       // long run it stopped in a quarter of a second — ~200 m/s² at first, a snap no one could
@@ -1458,7 +1496,7 @@ export class Wanderer {
       else if (v instanceof THREE.Vector3 && !Number.isFinite(v.x + v.y + v.z)) v.set(0, 0, 0)
       else if (v instanceof THREE.Quaternion && !Number.isFinite(v.x + v.y + v.z + v.w)) v.identity()
     }
-    this.gliding = this.sledding = this.hanging = false
+    this.gliding = this.sledding = this.hanging = this.crouching = false
     this.vel.set(0, 0, 0)
     this.obj.quaternion.setFromAxisAngle(_up, this.yaw)
     // The rigged body too: its eased speeds and every bone (the clips rewrite the bones each frame,
@@ -1581,8 +1619,8 @@ export class Wanderer {
     this.obj.add(av.root)
     // (Rests taken standing — the idle clip's first pose — not in the rig's bind pose, a T with the
     // spine tilted half a radian from standing: everything anchored to it came out tipped.)
-    av.update(1 / 60, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0 })
-    av.update(1, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0 })
+    av.update(1 / 60, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0, crouch: 0 })
+    av.update(1, { speed: 0, grounded: true, swimming: false, vy: 0, mode: 'ground', take: -1, climbRate: 0, crouch: 0 })
     // (The whole body's matrices from the top: the bones' worlds were worked out from a stale
     // wanderer transform — its yaw at load — and every anchor came out turned round, the cape
     // hanging down the chest.)
@@ -2571,7 +2609,7 @@ export class Wanderer {
     if (this.avatar) {
       this.obj.updateMatrixWorld(true)
       const mode = this.climbing ? 'climb' : this.gliding ? 'glide' : this.sliding || this.sledding ? 'slide' : this.hanging ? 'hang' : 'ground'
-      this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving) })
+      this.avatar.update(dt, { speed: this.climbing ? 0 : this.speed, grounded: this.grounded || this.onBody, swimming: this.swimming, vy: this.vel.y, mode, take: this.takeT >= 0 ? this.takeT / 1.3 : -1, climbRate: Math.min(1, this.climbMoving), crouch: this.crouching && !this.sledding ? 1 : 0 })
       this.retarget(dt)
       this.climbRig(dt)
       this.airRig(dt)

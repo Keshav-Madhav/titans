@@ -2421,6 +2421,8 @@ function simulate(dt: number): void {
           if (f.lengthSq() > 0.01) f.setLength(3)
           wanderer.vel.add(f).add(new THREE.Vector3(0, 6, 0))
         }
+        // C: crouch, or stand (the slide comes only from a crouch).
+        if (input.pressed('KeyC') && wanderer.grounded && !wanderer.swimming && !climber.active) wanderer.crouching = !wanderer.crouching
         wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space') && !onLine, rig.yaw, terrain)
         if (grapple.busy) {
           const ev = grapple.step(dt, wanderer.pos, wanderer.vel, input.held('KeyG') && grapple.attached, wanderer.grounded)
@@ -3107,7 +3109,7 @@ function frameBody(now: number): void {
   if (wanderer.sledding && !sledSaid) {
     sledSaid = true
     const where = wanderer.isSnow(wanderer.pos.x, wanderer.pos.z) ? 'the snow' : wanderer.isSand(wanderer.pos.x, wanderer.pos.z) ? 'the sand' : 'the slope'
-    narration.say(`You sit back on the cloak and ${where} takes you. Lean with A and D; S to dig in; Space at the bottom to leap.`)
+    narration.say(`You sit back on the cloak and ${where} takes you. Lean with A and D; S to dig in; C to stand; Space at the bottom to leap.`)
   }
   // One queued lake a frame (a footfall's wider reach).
   {

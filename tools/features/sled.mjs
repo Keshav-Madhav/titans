@@ -29,6 +29,11 @@ await page.waitForTimeout(300)
 // (The camera's matrix updates on the next frame: check its facing only after one has run.)
 await page.evaluate((s) => { const g = window.__g; const d = new g.THREE.Vector3(); g.camera.getWorldDirection(d); if (d.x * s.dx + d.z * s.dz < 0) g.setCam(Math.atan2(s.dx, s.dz) + Math.PI, 0.2, 7) }, spot)
 await page.waitForTimeout(1500)
+// (Walking down it does not slide you — the user, 2026-11-07: a slide comes only from a crouch.)
+await page.keyboard.down('KeyW'); await page.waitForTimeout(600); await page.keyboard.up('KeyW')
+const walked = await page.evaluate(() => window.__g.wanderer.sledding)
+// C: crouch, and away.
+await page.keyboard.press('KeyC'); await page.waitForTimeout(100)
 await page.keyboard.down('KeyW'); await page.waitForTimeout(600); await page.keyboard.up('KeyW')
 await page.waitForTimeout(2400)
 const a = await page.evaluate(() => { const w = window.__g.wanderer; return { sledding: w.sledding, speed: +Math.hypot(w.vel.x, w.vel.z).toFixed(1), dir: Math.atan2(w.vel.x, w.vel.z) } })
@@ -38,8 +43,11 @@ const b = await page.evaluate(() => { const w = window.__g.wanderer; return { sl
 await page.keyboard.down('KeyS'); await page.waitForTimeout(1500); await page.keyboard.up('KeyS')
 const c = await page.evaluate(() => { const w = window.__g.wanderer; return { sledding: w.sledding, speed: +Math.hypot(w.vel.x, w.vel.z).toFixed(1) } })
 const turned = Math.abs(Math.atan2(Math.sin(b.dir - a.dir), Math.cos(b.dir - a.dir)))
-const pass = a.sledding && a.speed > 6 && turned > 0.15 && c.speed < b.speed
-console.log(`${pass ? 'ok  ' : 'FAIL'} sled: ${JSON.stringify({ spot: { grade: spot.grade }, run: a.speed, sledding: a.sledding, turnedRad: +turned.toFixed(2), braked: [b.speed, c.speed] })}`)
+// Standing up (C again) ends it.
+await page.keyboard.press('KeyC'); await page.waitForTimeout(300)
+const stood = await page.evaluate(() => !window.__g.wanderer.sledding && !window.__g.wanderer.crouching)
+const pass = !walked && a.sledding && a.speed > 5 && turned > 0.15 && c.speed < b.speed && stood
+console.log(`${pass ? 'ok  ' : 'FAIL'} sled: ${JSON.stringify({ spot: { grade: spot.grade }, walkedIntoSlide: walked, stood, run: a.speed, sledding: a.sledding, turnedRad: +turned.toFixed(2), braked: [b.speed, c.speed] })}`)
 console.log('errors:', errs.join(' | ') || 'none')
 await browser.close()
 if (!pass || errs.length) process.exit(1)

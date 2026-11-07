@@ -14,6 +14,7 @@ export const ACTIONS: ReadonlyArray<readonly [string, string]> = [
   ['KeyD', 'Right'],
   ['ShiftLeft', 'Run'],
   ['Space', 'Jump, glide'],
+  ['KeyC', 'Crouch (on a slope: slide)'],
   ['KeyE', 'Climb, take, use'],
   ['KeyQ', 'Draw the bow'],
   ['KeyF', 'Loose'],
@@ -79,6 +80,7 @@ const PAD_BUTTONS: Record<number, string> = {
   8: 'KeyM', // Back: map
   12: 'KeyJ', // up: journal
   13: 'KeyI', // down: bag
+  11: 'KeyC', // right stick press: crouch
 }
 const PAD_DEAD = 0.18
 
