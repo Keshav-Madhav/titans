@@ -1313,7 +1313,12 @@ export class Wanderer {
       const rise = len > 0 ? (terrain.heightAt(this.pos.x + wx * 2, this.pos.z + wz * 2) - terrain.heightAt(this.pos.x, this.pos.z)) / 2 : 0
       if (sprint && this.grounded && steady && rise < 0.18) this.lope = Math.min(1, this.lope + dt / 5)
       else if (this.grounded || !sprint) this.lope = Math.max(0, this.lope - dt * (sprint && len > 0 ? 0.5 : 2))
-      const speed = this.crouching ? WALK * 0.45 : sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK
+      // Wading: the water holds you back — knee-deep a little, waist-deep to under half pace, and no
+      // long run through it (playing the shore: a full 14.5 m/s sprint through waist-deep sea).
+      const wadeD = Number.isFinite(this.waterLevel) ? Math.max(0, this.waterLevel - this.pos.y) : 0
+      const wade = THREE.MathUtils.smoothstep(wadeD, 0.15, 1.1)
+      if (wade > 0.3) this.lope = Math.max(0, this.lope - dt * 1.5)
+      const speed = (this.crouching ? WALK * 0.45 : sprint ? SPRINT + (LONG - SPRINT) * this.lope * this.lope * (3 - 2 * this.lope) : WALK) * (1 - 0.58 * wade)
       const k = Math.min(1, ACCEL * dt * (this.grounded ? 1 : 0.25))
       // Letting go at speed, the body brakes over a few strides, not on the spot (QA cycle 5: from a
       // long run it stopped in a quarter of a second — ~200 m/s² at first, a snap no one could

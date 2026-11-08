@@ -41,9 +41,11 @@ export class Sea {
     for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 13, pos.getZ(i) / 13)
     const mat = new THREE.MeshStandardMaterial({
       color: 0x24506f,
-      roughness: 0.06,
-      metalness: 0.1,
-      envMapIntensity: 2.4,
+      // (Less of a mirror: at 0.06 rough and 2.4x the sky, from the beach under a pale sky the whole sea
+      // went white to the horizon — the playtest — and the swimmer stood in milk.)
+      roughness: 0.14,
+      metalness: 0.05,
+      envMapIntensity: 1.35,
       emissive: 0x0b2436,
       normalMap: rippleNormals(),
       normalScale: new THREE.Vector2(0.26, 0.26),
@@ -89,17 +91,19 @@ export class Sea {
           vec2 sUv = (vSeaW.xz - uBedO) / uBedS;
           float inMap = step(0.0, sUv.x) * step(sUv.x, 1.0) * step(0.0, sUv.y) * step(sUv.y, 1.0);
           float sDepth = mix(200.0, -texture2D(uBed, sUv).r, inMap);
-          float sDeep = smoothstep(0.3, 9.0, sDepth);
+          float sDeep = smoothstep(0.2, 4.0, sDepth);
           diffuseColor.rgb = mix(vec3(0.22, 0.44, 0.40), diffuseColor.rgb, sDeep);
           // (Opaque once deep: at 0.97 a swimmer's legs showed through as a pale ghost under them.)
           diffuseColor.a = mix(0.25, 1.0, smoothstep(0.0, 3.0, sDepth));
           // Surf: lines of foam rolling in over the shallows, breaking on the sand.
           float sN = sNoise(vSeaW.xz * 0.35 + uTime * 0.08) * 0.6 + sNoise(vSeaW.xz * 1.3 - uTime * 0.15) * 0.4;
           float sRoll = sin(sDepth * 2.2 + uTime * 1.3 + sN * 2.0);
-          float sSurf = (1.0 - smoothstep(0.0, 2.2, sDepth)) * smoothstep(0.55, 0.95, sRoll * 0.5 + 0.5 + (sN - 0.5) * 0.4);
+          // (Over a narrower band: the shore's shelf is wide and shallow, and surf across all of it read as
+          // a milky white sheet out to the horizon — the playtest, wading in.)
+          float sSurf = (1.0 - smoothstep(0.0, 1.1, sDepth)) * smoothstep(0.62, 0.97, sRoll * 0.5 + 0.5 + (sN - 0.5) * 0.4);
           float sEdge = (1.0 - smoothstep(0.0, 0.35, sDepth)) * smoothstep(0.3, 0.6, sN + (0.35 - sDepth));
           float sFoam = max(sSurf * 0.75, sEdge) * step(-0.05, sDepth);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.92), sFoam * 0.85);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.92), sFoam * 0.7);
           diffuseColor.a = max(diffuseColor.a, sFoam * 0.9);`,
         )
         .replace(
