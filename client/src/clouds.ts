@@ -80,6 +80,7 @@ export class Clouds {
         map: { value: puffTexture() },
         lit: { value: new THREE.Color(0xffffff) },
         dark: { value: new THREE.Color(0xa9b7c9) },
+        uVeil: { value: 0 },
       },
       vertexShader: /* glsl */ `
         attribute float aShade;
@@ -104,6 +105,7 @@ export class Clouds {
         uniform sampler2D map;
         uniform vec3 lit;
         uniform vec3 dark;
+        uniform float uVeil;
         varying vec2 vUv;
         varying float vShade;
         varying float vFade;
@@ -111,7 +113,7 @@ export class Clouds {
           vec4 t = texture2D(map, vUv);
           // Shaded underneath, sunlit on top (and toward the puff's upper edge).
           float l = clamp(vShade * 0.75 + (vUv.y - 0.3) * 0.5, 0.0, 1.0);
-          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade * softFade(40.0, 0.2));
+          gl_FragColor = vec4(mix(dark, lit, l), t.a * 0.92 * vFade * softFade(40.0, 0.2) * (1.0 - uVeil));
           #include <colorspace_fragment>
         }`,
     })
@@ -121,8 +123,12 @@ export class Clouds {
   }
 
   /** Under the weather's cloud deck the puffs go grey too (0 clear … 1 storm); at night, moonlit and dim. */
-  tint(dark: number, night = 0, dusk = night, sunLow = 0, sunY = 1): void {
+  tint(dark: number, night = 0, dusk = night, sunLow = 0, sunY = 1, sand = 0): void {
     const u = (this.mesh.material as THREE.ShaderMaterial).uniforms
+    // (Fair-weather puffs: gone into a storm's deck and a sandstorm's haze — grey puffs with blue
+    // gaps hung under every storm, and over the Dune Sea in a sandstorm the sky looked like a fine
+    // day; storm tour review, 2026-11-08.)
+    u.uVeil.value = Math.max(THREE.MathUtils.smoothstep(dark, 0.45, 0.8), THREE.MathUtils.smoothstep(sand, 0.2, 0.6))
     // (At dusk they take the sunset's colour, rose and dim underneath, before the moon's
     // grey-blue: white puffs on a darkening sky read as cut-outs.)
     // (And before it sets: with the sun a few degrees up the puffs stayed noon-white against a
