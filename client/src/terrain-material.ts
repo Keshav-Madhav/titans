@@ -200,6 +200,12 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           w /= max(1e-4, w.x + w.y + w.z);
           float L = float(i);
           float dist = distance(p, cameraPosition);
+          // (Far off, a softer mip: past a few hundred metres the rock's tile repeated as an even dot
+          // grid over whole mountainsides — the ring of peaks round the High Places read as quilted,
+          // the playtest. The shape and the light carry far walls, not the grain.)
+          float blurK = 1.0 + 5.0 * smoothstep(300.0, 2500.0, dist);
+          dpx *= blurK;
+          dpy *= blurK;
           bool wantN = dist < T_NRM_R;
           float s2 = s * 0.41;
           vec3 o = vec3(0.37, 0.61, 0.13);
@@ -393,6 +399,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           gAlb *= mix(1.0, 0.72 + 0.56 * wallDrift, smoothstep(0.02, 0.3, gMason));
         }
         gNorm = normalize(gNorm + gN * 1e-3);
+        if ((uTerrainExp & 128) != 0) gNorm = gN;
         gRough = gSum > 1e-4 ? gRough / gSum : 0.9;
         // Far away, the normal detail would only shimmer.
         gNorm = normalize(mix(gNorm, gN, smoothstep(120.0, 600.0, gDist)));
@@ -406,8 +413,12 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // grass, paler and warmer; not on rock.
         {
           float tw = trailAt(gP.xz).y * (1.0 - gRockW);
+          // (Not on snow, the earth: walked snow is packed snow, a little greyer and smoother. Trodden
+          // earth's fine mottle over the High Places' snow came out as dark green-brown specks thick
+          // over everywhere you had walked — the playtest, sliding the snowfields.)
+          float twSnow = smoothstep(0.3, 0.7, gW[7]);
           // (Toward trodden earth itself, mottled: a tint of the grass read as nothing at all.)
-          if (tw > 0.004) gAlb = mix(gAlb, vec3(0.30, 0.25, 0.17) * (0.8 + 0.4 * texture2D(tDetail, gP.xz * 0.6).r), smoothstep(0.05, 0.85, tw) * 0.75);
+          if (tw > 0.004) gAlb = mix(gAlb, mix(vec3(0.30, 0.25, 0.17) * (0.8 + 0.4 * texture2D(tDetail, gP.xz * 0.6).r), gAlb * vec3(0.86, 0.89, 0.93), twSnow), smoothstep(0.05, 0.85, tw) * mix(0.75, 0.5, twSnow));
         }
         // The Old Wood from afar: a mottled canopy where the trees stop being drawn.
         // Cliffs differ by land: mossy and dark in the Old Wood, pale grey elsewhere (red in the dunes).
@@ -418,7 +429,8 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gM2 = texture2D(tDetail, gP.xz * 0.0031 + 0.5).r;
         vec3 gWarm = gAlb * vec3(1.12, 1.04, 0.82);
         vec3 gCool = gAlb * vec3(0.86, 1.0, 0.92);
-        gAlb = mix(gAlb, mix(gCool, gWarm, gM1), (1.0 - gRockW) * 0.7);
+        // (Not over the snow: the greener and yellower swathes tinted snowfields green.)
+        gAlb = mix(gAlb, mix(gCool, gWarm, gM1), (1.0 - gRockW) * 0.7 * (1.0 - smoothstep(0.3, 0.7, gW[7])));
         gAlb *= 0.88 + 0.24 * gM2;
         float gCanopy = max(vColor.r, 0.0) * (1.0 - gRockW) * smoothstep(380.0, 760.0, gDist);
         if (gCanopy > 0.004) {
@@ -506,7 +518,12 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float sp = gSnowK * (1.0 - smoothstep(5.0, 45.0, gDist));
           if (sp > 0.01) {
             vec3 cell = floor(gP * 24.0);
-            float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            // (A hash that holds up far from the origin: fract(sin(x)·43758) of cells ~250,000 out — the
+            // High Places — had lost its precision and the glitter came out as a coarse speckle over the
+            // whole near snow, the playtest.)
+            vec3 hp = fract(mod(cell, 4096.0) * vec3(0.1031, 0.1030, 0.0973));
+            hp += dot(hp, hp.yxz + 33.33);
+            float h = fract((hp.x + hp.y) * hp.z);
             vec3 V = normalize(cameraPosition - gP);
             float tw = fract(h * 7.0 + dot(V, vec3(3.1, 1.7, 2.3)) * 5.0);
             totalEmissiveRadiance += vec3(1.0, 0.98, 0.94) * step(0.988, h) * smoothstep(0.8, 1.0, tw) * sp * 2.5;
