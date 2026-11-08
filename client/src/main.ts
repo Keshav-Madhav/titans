@@ -3932,7 +3932,11 @@ function frameBody(now: number): void {
     // camera up to the giant over and over, the wanderer out of frame, whatever you did with the mouse.)
     // (Nor while you hold on: on a giant's leg it tilted the view up its body and left you below the
     // bottom of the screen — climbing with no climber in sight, playtest 2026-11-08.)
-    if (sc.pitch !== null && !awakening.active && !climber.active && !cliff.active && performance.now() - lastLookAt > 5000) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
+    // (Only on your feet, and never so far that you leave the frame: at its -0.48 the gaze went ~55°
+    // up and the wanderer fell off the bottom of the screen — gliding down off a giant you flew blind,
+    // playtest 2026-11-08. -0.22 looks ~19° up: the giant above, you in the lower third.)
+    if (sc.pitch !== null && !awakening.active && !climber.active && !cliff.active && wanderer.grounded && performance.now() - lastLookAt > 5000)
+      rig.pitch += (Math.max(sc.pitch, -0.22) - rig.pitch) * Math.min(1, dt * 0.55)
     // A giant near you casts its shadow over you: the shadow map reaches out to it.
     const dom = scaleDir.dominant
     const wantR = dom && dom.dist < 1400 ? Math.min(1100, Math.max(260, dom.dist + (dom.thing.top - dom.thing.base) * 1.4)) : 260
