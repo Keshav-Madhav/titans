@@ -156,8 +156,8 @@ export class MireView {
         if (w < 0.25) continue
         const pool = poolInCell(cx, cz)
         const rand = mulberry32((cx * 92821) ^ (cz * 68917) ^ 0x7a1)
-        if (pool && nw < POOLS) {
-          const level = this.water0.level(cx, cz, pool)
+        const level = pool ? this.water0.level(cx, cz, pool) : NaN
+        if (pool && !Number.isNaN(level) && nw < POOLS) {
           const o = nw * (SPOKES + 1) * 3
           this.wPos[o] = pool.x
           this.wPos[o + 1] = level
@@ -211,12 +211,17 @@ export function poolWater(terrain: Terrain, mire: (x: number, z: number) => numb
       // downhill lip sets it, and the uphill side of the bowl stands dry (it hung out over the slope
       // as a flat black plate when set from the rim's average — the user's screenshot, 2026-11-08).
       let rim = Infinity
+      let top = -Infinity
       for (let i = 0; i < SPOKES; i++) {
         const a = (i / SPOKES) * Math.PI * 2
         const rr = poolReach(pool, cx, cz, a) + 1
-        rim = Math.min(rim, terrain.heightAt(pool.x + Math.cos(a) * rr, pool.z + Math.sin(a) * rr))
+        const h = terrain.heightAt(pool.x + Math.cos(a) * rr, pool.z + Math.sin(a) * rr)
+        rim = Math.min(rim, h)
+        top = Math.max(top, h)
       }
-      l = rim - 0.3
+      // (On a steep slope no water at all, a dry hollow: peat-black water lying in dents on a bare
+      // rock face read as holes in the land — storm flyover, 2026-11-08, the Mire's western slopes.)
+      l = top - rim > 4 ? NaN : rim - 0.3
       if (levels.size > 6000) levels.clear()
       levels.set(k, l)
     }
