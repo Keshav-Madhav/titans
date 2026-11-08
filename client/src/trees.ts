@@ -344,6 +344,13 @@ export const foliageFocus = { value: new THREE.Vector3() }
  */
 /** Tools: alpha lift per mip level for foliage cut-outs (0 = off, to compare). */
 export const foliageMipLift = { value: 0.3 }
+/**
+ * Moonlight on the crowns, 0 by day (main sets it from the night). Dense crowns shade themselves
+ * from the one key light, so by night only the faint sky fill reached them and every tree was a
+ * black cut-out on moonlit ground — a whole forest one flat black from above (night flyover,
+ * 2026-11-08). A cool glow of their own colour, past the shadows: the canopy reads, still dark.
+ */
+export const foliageNight = { value: 0 }
 
 /**
  * The giant trees' photographed bark (the same image the terrain array carries), for ordinary trunks
@@ -369,10 +376,11 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
     sh.uniforms.uTime = time
     sh.uniforms.uFocus = foliageFocus
     sh.uniforms.uMipLift = foliageMipLift
+    sh.uniforms.uNightLift = foliageNight
     loadBark()
     sh.uniforms.tBark = barkTex
     sh.uniforms.uBarkOn = barkTex.on
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;\nuniform float uMipLift;\nuniform sampler2D tBark;\nuniform float uBarkOn;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;\nuniform float uMipLift;\nuniform float uNightLift;\nuniform sampler2D tBark;\nuniform float uBarkOn;')
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
@@ -419,6 +427,11 @@ export function foliageMaterial(map: THREE.Texture, time: { value: number }, swa
           barkH = smoothstep(0.0, 0.12, pl);
         } else diffuseColor.rgb *= drawn;
       }`,
+    )
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      totalEmissiveRadiance += diffuseColor.rgb * uNightLift * vec3(0.55, 0.68, 1.0);`,
     )
     // DoubleSide flips back-face normals; the crown normals are meant for both faces.
     // And leaves right in front of the camera dissolve (dithered), so walking

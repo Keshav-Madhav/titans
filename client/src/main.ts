@@ -111,7 +111,7 @@ import { Clouds } from './clouds'
 import { Biome } from './biome'
 import { PaintField } from './paint'
 import { Vegetation, cullSwitch } from './vegetation'
-import { foliageFocus, foliageMipLift } from './trees'
+import { foliageFocus, foliageMipLift, foliageNight } from './trees'
 import { Grass, grassQuality } from './grass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
@@ -3747,6 +3747,7 @@ function frameBody(now: number): void {
   prints.update(dt)
   snowPrints.update(dt)
   prints.sun.value.copy(sky.keyDir)
+  foliageNight.value = sky.night * 0.22
   snowPrints.sun.value.copy(sky.keyDir)
   eyes.update(camera)
   dread.update(dt, dreadWorld(), terrain)

@@ -212,7 +212,9 @@ export class SkySystem {
     // sky. Without this the ground measured ~20% darker than midnight just after sunset — the
     // key light hands over at nothing (no jump in its direction), and nothing else filled in.
     const blue = this.dusk * (1 - this.night)
-    lb.fill = 0.34 * (0.3 + 0.7 * daylight) + 0.5 * glow + 0.6 * blue
+    // (+ a little at night: under the moon alone the Old Wood's dark floor and its crowns came out one
+    // flat black from above and from within — the night flyover, 2026-11-08. Moonlit dark, still readable.)
+    lb.fill = 0.34 * (0.3 + 0.7 * daylight) + 0.5 * glow + 0.6 * blue + 0.12 * this.night
     this.glow = glow
     lb.fillSky.set(0xc9c4b6).lerp(SUNSET_FILL, glow * 0.75).lerp(NIGHT_FILL, Math.max(this.dusk * 0.7, this.night))
     /** Haze thins under a high sun (the noon air was milky), thickens as it goes low. */
