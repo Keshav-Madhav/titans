@@ -230,6 +230,18 @@ export class Undercroft {
       m.renderOrder = 4
       this.group.add(m)
     }
+    // And down the stair, where the roof is open over it: daylight falling on the steps, each shaft
+    // only as deep as the stair is there — the way out you can see from across the hall (a new player
+    // wandered the dark walls for minutes with nothing pointing up, the headed playtest).
+    const sz0 = (RAMP.z0 + RAMP.z1) / 2
+    for (let x = RAMP.top + 10; x < -60; x += 22) {
+      const depth = Math.max(4, -rampY(x)) + 2
+      const g = new THREE.BoxGeometry(18, depth, RAMP.z1 - RAMP.z0 - 6, 1, 6, 1).translate(0, -depth / 2, 0)
+      const m = new THREE.Mesh(g, this.shaftMat)
+      m.position.set(HALL.x + x, top, HALL.z + sz0)
+      m.renderOrder = 4
+      this.group.add(m)
+    }
   }
 
   /** The shafts are as bright as the sun is: faint under storm, strong when it breaks. */
