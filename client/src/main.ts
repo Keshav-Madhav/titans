@@ -3930,7 +3930,9 @@ function frameBody(now: number): void {
     rig.distMul = sc.dist * (1 - 0.93 * glassK)
     // (Only once you have left the view alone a while: playing beside the Walker, it kept tilting the
     // camera up to the giant over and over, the wanderer out of frame, whatever you did with the mouse.)
-    if (sc.pitch !== null && !awakening.active && performance.now() - lastLookAt > 5000) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
+    // (Nor while you hold on: on a giant's leg it tilted the view up its body and left you below the
+    // bottom of the screen — climbing with no climber in sight, playtest 2026-11-08.)
+    if (sc.pitch !== null && !awakening.active && !climber.active && !cliff.active && performance.now() - lastLookAt > 5000) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
     // A giant near you casts its shadow over you: the shadow map reaches out to it.
     const dom = scaleDir.dominant
     const wantR = dom && dom.dist < 1400 ? Math.min(1100, Math.max(260, dom.dist + (dom.thing.top - dom.thing.base) * 1.4)) : 260
