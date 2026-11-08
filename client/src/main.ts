@@ -1937,10 +1937,15 @@ document.addEventListener('visibilitychange', () => {
   sound.away(document.hidden)
 })
 
-// The debug readout is out of the way unless asked for: ` toggles it (or ?debug).
+// The debug readout is out of the way unless asked for: F3 toggles it (or ?debug). (Not ` — that
+// is Creative's key, and turning Creative on laid the fps/position readout over the toolbar, in the
+// user's own screenshot, 2026-11-08.)
 if (params.has('debug')) document.body.classList.add('debug')
 addEventListener('keydown', (e) => {
-  if (e.code === 'Backquote') document.body.classList.toggle('debug')
+  if (e.code === 'F3') {
+    e.preventDefault()
+    document.body.classList.toggle('debug')
+  }
 })
 
 addEventListener('resize', () => {
