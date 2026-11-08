@@ -20,5 +20,5 @@ export async function launch(extraArgs = []) {
       console.log(`[browser] shared browser unreachable (${e.message.split('\n')[0]}); launching one`)
     }
   }
-  return chromium.launch({ channel: 'chrome', headless: true, args: [...ARGS, ...extraArgs] })
+  return chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', ...ARGS, ...extraArgs] })
 }

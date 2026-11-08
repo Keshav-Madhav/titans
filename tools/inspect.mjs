@@ -16,7 +16,7 @@ const weather = process.argv[5] ?? 'overcast'
 const url = process.argv[6] ?? 'http://localhost:4317/?offline'
 mkdirSync(out, { recursive: true })
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))

@@ -3,7 +3,7 @@
 import { chromium } from 'playwright-core'
 const expr = process.argv[2] ?? 'g.stats()'
 const url = process.argv[3] ?? 'http://localhost:4317/?offline'
-const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await b.newPage({ viewport: { width: 1280, height: 760 } })
 page.on('pageerror', (e) => console.error('[pageerror]', e.message))
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 })

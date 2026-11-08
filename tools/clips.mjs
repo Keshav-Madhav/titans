@@ -16,7 +16,7 @@ const only = process.argv.slice(3)
 mkdirSync(OUT, { recursive: true })
 const W = 1280
 const H = 720
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist', '--enable-precise-memory-info'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist', '--enable-precise-memory-info'] })
 
 const wait = (page, ms) => page.waitForTimeout(ms)
 /** Look about by dragging with the right button (works without pointer lock). */

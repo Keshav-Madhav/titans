@@ -1,7 +1,7 @@
 // The bells across a save (#7): wake all three, save, reload — the stone is down, the stair is out,
 // the head has risen (and the sand is dug from its mouth), and each trinket is there to take.
 import { chromium } from 'playwright-core'
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } })
 const errs = []; page.on('console', (m) => m.type() === 'error' && errs.push(m.text())); page.on('pageerror', (e) => errs.push(e.message))
 const ready = () => page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 240000 })

@@ -9,7 +9,7 @@ import { mkdirSync } from 'node:fs'
 const out = process.argv[2] ?? 'shots/firsthour'
 const url = process.argv[3] ?? 'http://localhost:4317/'
 mkdirSync(out, { recursive: true })
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
 // (VIDEO=1 records the whole playthrough to a .webm in the out folder.)
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 }, ...(process.env.VIDEO ? { recordVideo: { dir: out, size: { width: 1280, height: 760 } } } : {}) })
 const page = await ctx.newPage()

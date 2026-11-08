@@ -1,7 +1,7 @@
 // Getting off a giant: standing on its back, E; climbing its leg, E; climbing, Space. Each must end on
 // the ground (not caught again on the giant) within a few seconds.
 import { chromium } from 'playwright-core'
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } })
 const errs = []; page.on('pageerror', (e) => errs.push(e.message))
 await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })

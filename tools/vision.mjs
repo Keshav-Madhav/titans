@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs'
 
 const OUT = process.argv[2] ?? 'shots'
 mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
 const cdp = await page.context().newCDPSession(page)
 await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })

@@ -1,7 +1,7 @@
 // Knees that bend backward: over 3 s of running (flat) and 2 s across a slope, frames where a knee's
 // bend points behind the leg (shin in front of the thigh's line, seen from the side).
 import { chromium } from 'playwright-core'
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 480, height: 320 } })
 await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
 await page.waitForFunction('window.__g && window.__g.ready === true && !!window.__g.wanderer.avatar', null, { timeout: 240000 })

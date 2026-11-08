@@ -2,7 +2,7 @@
 //   node tools/sky-measure.mjs [query] [uniforms-json]
 import { chromium } from 'playwright-core'
 import { execSync } from 'node:child_process'
-const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle'] })
+const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle'] })
 const page = await b.newPage({ viewport: { width: 800, height: 500 } })
 await page.goto('http://localhost:4317/?offline' + (process.argv[2] ?? ''), { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(() => window.__g && window.__g.ready === true, null, { timeout: 120000 })

@@ -3,7 +3,7 @@
 // not trapped; on its top you stand, and what was kept there is there. Shots along the way.
 import { chromium } from 'playwright-core'
 const OUT = process.argv[2]
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 const errs = []; page.on('console', (m) => m.type() === 'error' && errs.push(m.text())); page.on('pageerror', (e) => errs.push(e.message))
 await page.goto('http://localhost:4317/?offline', { waitUntil: 'domcontentloaded' })
