@@ -300,14 +300,18 @@ export class Weather {
           void main() {
             if (vA < 0.01) discard;
             // Sand is soft at its edges and its ends; rain stays a crisp streak; snow a soft round flake.
-            float soft = mix(1.0, (1.0 - abs(vUv.x * 2.0 - 1.0)) * sin(vUv.y * 3.14159), uSand);
+            // (Rain tapers too: a crisp streak, end to end, read in a still as a white stick planted in
+            // the grass — a field of fence posts, storm tour review 2026-11-08. Brightest a third of the
+            // way down, fading to nothing at both ends, soft across.)
+            float rainSoft = smoothstep(0.0, 0.35, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y)) * (1.0 - 0.6 * abs(vUv.x * 2.0 - 1.0));
+            float soft = mix(rainSoft, (1.0 - abs(vUv.x * 2.0 - 1.0)) * sin(vUv.y * 3.14159), uSand);
             float flake = 1.0 - smoothstep(0.2, 0.5, length(vUv - 0.5));
             soft = mix(soft, flake, uSnow);
             vec3 col = mix(mix(vec3(0.72, 0.77, 0.82), vec3(0.85, 0.68, 0.46), uSand), vec3(0.96, 0.97, 1.0), uSnow);
             // (At night the falling water takes the dark: a constant grey, it was bright white streaks
             // slashed across a black frame — night storm tour, 2026-11-07. The lantern still lights the near.)
             col *= mix(1.0, 0.32, uNight);
-            gl_FragColor = vec4(col, mix(0.22 + 0.4 * uSand, 0.85, uSnow) * vA * soft * mix(1.0, 0.7, uNight));
+            gl_FragColor = vec4(col, mix(0.34 + 0.28 * uSand, 0.85, uSnow) * vA * soft * mix(1.0, 0.7, uNight));
           }`,
         transparent: true,
         depthWrite: false,
