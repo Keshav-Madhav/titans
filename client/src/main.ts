@@ -244,6 +244,18 @@ scene.add(colossi.group)
 // Striders: pale things on legs five hundred metres long, walking the far lands.
 const striders = new Striders(terrain, WORLD_SEED)
 scene.add(striders.group)
+// A strider's foot coming down. (The user, 2026-11-08: "no tremble, or very light, it should feel
+// like a stealthy creature but since its so huge, it definitely still has some impact too": a soft
+// puff of dust where the point goes in, a low thud — far quieter than a giant's step — and only the
+// faintest tremor, and only right beside it.)
+striders.onFootfall = (x, y, z) => {
+  const d = Math.hypot(camera.position.x - x, camera.position.z - z)
+  if (d > 1800) return
+  effects.land(x, y, z, 1)
+  effects.impact(x, y, z, 30)
+  sound.footfall(d * 2.2, false)
+  if (d < 120) rig.shake(0.04 * (1 - d / 120))
+}
 // Mist lying in the hollows and gathered round the colossi's feet.
 const mist = new Mist(terrain, WORLD_SEED, [...colossi.places].filter(([k]) => !k.startsWith('stone')).map(([, v]) => v))
 softScene.add(mist.mesh)
@@ -3161,6 +3173,8 @@ function keepOffProps(p: THREE.Vector3): void {
 /** Rock formations: walls push the wanderer out; ledges, arch tops and cave floors hold them up. */
 function onRock(): void {
   const p = wanderer.pos
+  body.set(p.x, p.y + 0.9, p.z)
+  if (striders.pushOut(body)) p.set(body.x, p.y, body.z)
   body.set(p.x, p.y + 0.9, p.z)
   if (rocks.pushOut(body)) {
     // (Never out under the land: pushed out of a statue's buried base, the nearest way out ran down

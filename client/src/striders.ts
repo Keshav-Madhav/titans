@@ -64,6 +64,41 @@ function bone(m: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3): void {
 export class Striders {
   readonly group = new THREE.Group()
   readonly striders: Strider[] = []
+  /** A foot coming down (world point on the ground): dust, a thud, the ground trembling (main.ts). */
+  onFootfall: (x: number, y: number, z: number) => void = () => {}
+
+  /**
+   * Push `p` (a body's centre, world) out of any strider leg it is inside, sideways; `r` its radius.
+   * The legs were ghosts — the user, 2026-11-08, "the strider legs are non collideable". Each shin is
+   * a tapered pole from the knee (10 m thick) down to the foot (0.6 m); the thigh from the hip (13 m)
+   * to the knee (8 m). Returns true if it moved.
+   */
+  pushOut(p: THREE.Vector3, r = 0.45): boolean {
+    let moved = false
+    for (const s of this.striders) {
+      if (Math.abs(s.x - p.x) > THIGH + SHIN || Math.abs(s.z - p.z) > THIGH + SHIN) continue
+      for (const leg of s.legs) {
+        for (const [a, b, ra, rb] of [[leg.knee.position, leg.foot, 10, 0.6], [_hip.set(s.x, leg.knee.position.y, s.z), leg.knee.position, 13, 8]] as Array<[THREE.Vector3, THREE.Vector3, number, number]>) {
+          // Nearest point on the segment, and the pole's radius there.
+          _sd.subVectors(b, a)
+          const l2 = _sd.lengthSq() || 1
+          const t = Math.min(1, Math.max(0, ((p.x - a.x) * _sd.x + (p.y - a.y) * _sd.y + (p.z - a.z) * _sd.z) / l2))
+          _sp.copy(a).addScaledVector(_sd, t)
+          const rad = ra + (rb - ra) * t + r
+          const dx = p.x - _sp.x
+          const dz = p.z - _sp.z
+          const dh = Math.hypot(dx, dz)
+          if (dh < rad && Math.abs(p.y - _sp.y) < rad + 2) {
+            const k = (rad - dh) / (dh || 1)
+            p.x += (dh > 1e-3 ? dx : 1) * k
+            p.z += (dh > 1e-3 ? dz : 0) * k
+            moved = true
+          }
+        }
+      }
+    }
+    return moved
+  }
   private t = 0
 
   constructor(
@@ -212,7 +247,11 @@ export class Striders {
           const e = k * k * (3 - 2 * k)
           leg.foot.lerpVectors(leg.from, leg.to, e)
           leg.foot.y += Math.sin(k * Math.PI) * 90
-          if (leg.swing >= 1) leg.swing = -1
+          if (leg.swing >= 1) {
+            leg.swing = -1
+            // Down: it lands (the user, 2026-11-08: the legs had no impact with the ground).
+            this.onFootfall(leg.foot.x, this.terrain.heightAt(leg.foot.x, leg.foot.z), leg.foot.z)
+          }
         }
         // Two-bone leg: hip → knee (high and out) → foot.
         const hipL = _a.set(s.x, ground + HIP + bob - 6, s.z)
@@ -234,6 +273,10 @@ export class Striders {
     }
   }
 }
+
+const _hip = new THREE.Vector3()
+const _sd = new THREE.Vector3()
+const _sp = new THREE.Vector3()
 
 function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   // Small local merge (no extra import of the utils in this module's hot path).
