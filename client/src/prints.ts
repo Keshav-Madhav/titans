@@ -16,34 +16,54 @@ export class Prints {
   private readonly m = new THREE.Matrix4()
   private readonly q = new THREE.Quaternion()
   private readonly up = new THREE.Vector3(0, 1, 0)
+  /** Where the sun is (world, unit): main sets it each frame. */
+  readonly sun = { value: new THREE.Vector3(0.4, 0.8, 0.3) }
 
   constructor(colour = new THREE.Color(0.24, 0.17, 0.1)) {
-    const geo = new THREE.PlaneGeometry(0.18, 0.36).rotateX(-Math.PI / 2)
+    const geo = new THREE.PlaneGeometry(0.2, 0.36).rotateX(-Math.PI / 2)
     this.alpha = new THREE.InstancedBufferAttribute(new Float32Array(N), 1)
     geo.setAttribute('aAlpha', this.alpha)
+    // (A hollow pressed in, lit by the sun — not a dark smudge: the tour's desert shots read the old
+    // flat dark ovals as dirt on the lens. A crisp rim; the wall away from the sun in shadow, the lip
+    // facing it a little lit; the floor only slightly darker than the sand; a foot's shape.)
     const mat = new THREE.ShaderMaterial({
-      uniforms: { uCol: { value: colour } },
+      uniforms: { uCol: { value: colour }, uSun: this.sun },
       vertexShader: /* glsl */ `
+        uniform vec3 uSun;
         attribute float aAlpha;
         varying float vA;
         varying vec2 vUv;
+        varying vec2 vSunL;
         void main() {
           vA = aAlpha;
           vUv = uv;
+          // The sun's way across the ground, in the print's own frame.
+          vec3 sl = transpose(mat3(instanceMatrix)) * uSun;
+          vSunL = normalize(vec2(sl.x, -sl.z) + 1e-4);
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uCol;
         varying float vA;
         varying vec2 vUv;
+        varying vec2 vSunL;
         void main() {
-          // A sole: an oval, the heel and the ball of the foot pressed deeper.
-          vec2 p = (vUv - 0.5) * vec2(2.0, 2.0);
-          float sole = 1.0 - smoothstep(0.75, 1.0, length(p * vec2(1.0, 0.95)));
-          float press = 0.55 + 0.45 * max(1.0 - smoothstep(0.0, 0.55, length(p - vec2(0.0, -0.55))), 1.0 - smoothstep(0.0, 0.6, length(p - vec2(0.0, 0.45))));
-          float a = sole * press * vA;
-          if (a < 0.01) discard;
-          gl_FragColor = vec4(uCol, a);
+          vec2 p = (vUv - 0.5) * 2.0;
+          // A foot: the ball wide, the waist narrower, the heel round.
+          float w = mix(0.62, 0.85, smoothstep(-0.4, 0.4, p.y)) * (1.0 - 0.18 * exp(-p.y * p.y * 9.0));
+          float r = length(vec2(p.x / w, p.y * 0.95));
+          float inside = 1.0 - smoothstep(0.86, 0.92, r);
+          float rimBand = smoothstep(0.72, 0.88, r) * (1.0 - smoothstep(0.9, 1.0, r));
+          float lipBand = smoothstep(0.9, 0.95, r) * (1.0 - smoothstep(0.95, 1.08, r));
+          vec2 n = normalize(vec2(p.x / (w * w), p.y) + 1e-4);
+          float toSun = dot(n, vSunL);
+          // Shadow: the floor a little, the wall on the far side from the sun most.
+          float shade = inside * (0.3 + 0.75 * rimBand * smoothstep(-0.2, 0.8, -toSun));
+          // Light: the lip and the near wall where the sun catches them.
+          float lit = (lipBand * 0.6 + rimBand * 0.4) * smoothstep(0.1, 0.9, toSun);
+          if (shade * vA < 0.01 && lit * vA < 0.01) discard;
+          if (lit > shade) gl_FragColor = vec4(vec3(1.0, 0.96, 0.88), lit * 0.35 * vA);
+          else gl_FragColor = vec4(uCol, shade * vA);
         }`,
       transparent: true,
       depthWrite: false,

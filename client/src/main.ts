@@ -3739,6 +3739,8 @@ function frameBody(now: number): void {
   spots.update(dt, camera)
   prints.update(dt)
   snowPrints.update(dt)
+  prints.sun.value.copy(sky.keyDir)
+  snowPrints.sun.value.copy(sky.keyDir)
   eyes.update(camera)
   dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)
