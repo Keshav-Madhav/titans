@@ -4096,11 +4096,18 @@ const g = {
     wanderer.hanging = false
     // (On top of any stone that stands there, not inside it at the land's height: a tour spot inside
     // the stair round a giant tree stood you in its stone, the camera with you — frames of stone.)
+    // (Only when truly inside — not merely beside a wall — and up to the first free spot above the
+    // land, not the highest top: in the Undercroft's pit that was the roof, and the bow gate's
+    // archer stood on it instead of by the eyes.)
     if (y === undefined) {
       const land = terrain.heightAt(x, z)
-      if (rocks.sdfAt(x, land + 0.9, z) < 0.45) {
-        const top = rocks.topAt(x, z)
-        if (top !== null) y = top
+      if (rocks.sdfAt(x, land + 0.9, z) < 0) {
+        for (let up = 0.5; up <= 60; up += 0.5) {
+          if (rocks.sdfAt(x, land + up + 0.9, z) > 0.45 && rocks.sdfAt(x, land + up + 1.55, z) > 0.3) {
+            y = rocks.floorAt(x, land + up + 0.2, z) ?? land + up
+            break
+          }
+        }
       }
     }
     wanderer.place(x, y ?? terrain.heightAt(x, z), z)
