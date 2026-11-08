@@ -3686,6 +3686,7 @@ function frameBody(now: number): void {
   hud.setGrip(climber.active ? climber.stamina : cliff.active ? cliff.stamina : null)
 
   const look = input.consumeLook()
+  if (Math.abs(look.dx) + Math.abs(look.dy) > 0.5) lastLookAt = performance.now()
   // (On a giant or a rock face the camera's focus stands off the surface, out along the hold.)
   // (Smoothed, and only a little: on a giant the hold's normal turns sharply from lump to lump, and
   // the focus jumping 2 m with it lurched the view — the user, 2026-11-05: "the position taking over
@@ -3713,7 +3714,6 @@ function frameBody(now: number): void {
     // half a turn round set the camera orbiting at ~38 m/s from a standstill — the playtest's jolt.)
     {
       let dy = 0
-      if (Math.abs(look.dx) + Math.abs(look.dy) > 0.5) lastLookAt = performance.now()
       if (wanderer.gliding) {
         dy = wanderer.yaw + Math.PI - rig.yaw
         dy = Math.atan2(Math.sin(dy), Math.cos(dy))
@@ -3756,7 +3756,9 @@ function frameBody(now: number): void {
     // (Through the Burning-glass you look from your own eyes: from 7 m back the lens magnified your
     // own back, and the sun-point burned your hood.)
     rig.distMul = sc.dist * (1 - 0.93 * glassK)
-    if (sc.pitch !== null && !awakening.active) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
+    // (Only once you have left the view alone a while: playing beside the Walker, it kept tilting the
+    // camera up to the giant over and over, the wanderer out of frame, whatever you did with the mouse.)
+    if (sc.pitch !== null && !awakening.active && performance.now() - lastLookAt > 5000) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
     // A giant near you casts its shadow over you: the shadow map reaches out to it.
     const dom = scaleDir.dominant
     const wantR = dom && dom.dist < 1400 ? Math.min(1100, Math.max(260, dom.dist + (dom.thing.top - dom.thing.base) * 1.4)) : 260

@@ -61,7 +61,7 @@ async function act(b) {
   const ms = b.ms ?? 0
   let evalResult
   if (b.eval) evalResult = await page.evaluate((src) => { try { return new Function('g', src)(window.__g) } catch (e) { return 'threw: ' + e.message } }, b.eval)
-  if (b.click) await page.mouse.click(640, 400)
+  if (b.click) await page.mouse.click(...(Array.isArray(b.click) ? b.click : [640, 400]))
   for (const k of b.tap ?? []) await page.keyboard.press(k, { delay: 60 })
   for (const k of b.hold ?? []) await page.keyboard.down(k)
   // Look: spread over the step (the game's own mouse-look input, as a locked mouse would feed it).
