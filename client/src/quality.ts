@@ -73,7 +73,10 @@ export class Quality {
     // MacBook-sized window, GPU time per frame on the Green: ratio 2 → 58 ms, 1.5 → 23 ms, 1 → 15 ms.
     // It starts at 1 and may rise to 1.5 when there is clear room — never 2 — the user, on an
     // M5 Pro: "massive performance issues".)
-    this.maxDpr = Math.min(devicePixelRatio, 1.5)
+    // (Up to the screen's own ratio now, 2 on a Retina panel — "full resolution", the user. Measured at
+    // ratio 2 on the M-series with 2x multisampling there (post.ts): 10–17 ms a frame on the Green and
+    // in the Grove. It only climbs while the median frame has clear room, and steps back at once.)
+    this.maxDpr = Math.min(devicePixelRatio, 2)
     this.dpr = Math.min(this.maxDpr, 1)
     this.initGpuTimer()
     this.apply(this.pinned ? Number(pin) : 0)
@@ -189,8 +192,12 @@ export class Quality {
 
   /** Call once per rendered frame (not while the loading veil is up). */
   frame(now: number): void {
-    // The frame's cost: the longer of its interval and its measured GPU time.
-    if (this.last) this.times.push(Math.max(now - this.last, this.gpuLast))
+    // The frame's cost: the longer of its interval and its measured GPU time — the GPU reading only
+    // while it is believable. (On the M-series in Chrome the query reads ~2.5x the real cost — 36–44 ms
+    // for frames that ran steadily at 14–17 ms uncapped — and held the game at a ratio of 1.125 where
+    // 2 ran at 60. The case it was added for, 23 ms read against a 16.7 ms interval, is within 1.6x.)
+    const iv = now - this.last
+    if (this.last) this.times.push(Math.max(iv, this.gpuLast <= iv * 1.6 ? this.gpuLast : 0))
     this.last = now
     const span = now - this.since
     if (span < WINDOW) return

@@ -126,7 +126,15 @@ class SizedBloom extends UnrealBloomPass {
   static fold = true
   render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget, dt: number, mask: boolean): void {
     this.blendMaterial.visible = !SizedBloom.fold
+    // (Folded, the stock pass still ends by binding the frame (4x multisampled, half float, full size)
+    // and drawing the now-invisible blend into it — and three resolves a multisampled target after
+    // every render into it: one more full-resolution resolve a frame, for nothing. At full resolution
+    // on the M-series that was 12–15 ms of the frame. The empty last draw is skipped.)
+    const quad = (this as unknown as { _fsQuad: { render(r: THREE.WebGLRenderer): void; material: THREE.Material } })._fsQuad
+    const draw = quad.render
+    if (SizedBloom.fold) quad.render = (r) => { if (quad.material !== this.blendMaterial) draw.call(quad, r) }
     super.render(renderer, write, read, dt, mask)
+    quad.render = draw
   }
   /** Stock blur kernels, and the same halved — for a chain begun at a quarter of the screen. */
   private stockMats?: THREE.ShaderMaterial[]
@@ -381,8 +389,21 @@ export class Post {
   }
 
   /** Follow the renderer's size and pixel ratio (the quality governor changes them). */
+  /** Multisampling for the frame (tools may set it; null: by the pixel ratio). */
+  static samples: number | null = null
   resize(): void {
-    this.composer.setPixelRatio(this.renderer.getPixelRatio())
+    // (At a high pixel ratio the pixels are already small enough to hide most stair-steps, and 4x
+    // multisampling of a full-size half-float frame is the costliest thing at full resolution —
+    // measured on the M-series at pixel ratio 2: the frame's memory traffic, not its shading.)
+    const pr = this.renderer.getPixelRatio()
+    const want = Post.samples ?? (pr >= 1.7 ? 2 : 4)
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+      if (t.samples !== want) {
+        t.samples = want
+        t.dispose()
+      }
+    }
+    this.composer.setPixelRatio(pr)
     this.composer.setSize(innerWidth, innerHeight)
   }
 
