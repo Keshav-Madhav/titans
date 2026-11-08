@@ -4094,6 +4094,15 @@ const g = {
     // (Letting go of any rope: riding one, the next frame put you straight back on it.)
     cables.ride = null
     wanderer.hanging = false
+    // (On top of any stone that stands there, not inside it at the land's height: a tour spot inside
+    // the stair round a giant tree stood you in its stone, the camera with you — frames of stone.)
+    if (y === undefined) {
+      const land = terrain.heightAt(x, z)
+      if (rocks.sdfAt(x, land + 0.9, z) < 0.45) {
+        const top = rocks.topAt(x, z)
+        if (top !== null) y = top
+      }
+    }
     wanderer.place(x, y ?? terrain.heightAt(x, z), z)
     lastSafe.set(x, terrain.heightAt(x, z), z)
     fallTop = NaN
