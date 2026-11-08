@@ -461,13 +461,17 @@ export function armorFor(key: string, shape: string, lumps: LumpSurface[], H: nu
     sm.receiveShadow = true
     group.add(sm)
     if (!petrified) {
-      if (!materials.has('glyph')) materials.set('glyph', new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 1.5, 1.9), fog: false, transparent: true, opacity: 0.85 }))
-      const glyph = new THREE.Mesh(new THREE.TorusGeometry(5.5 * S, 0.7 * S, 8, 40), materials.get('glyph'))
+      // (A cool light in the stone, not a lamp: at 1.2–1.9 with no fog, and seen low from where you
+      // climb over the slab's lip, the rings ran together into one flat blown-white plate lying on top
+      // of the giant — playtest, 2026-11-08. Below white, thinner, and sunk to the slab's face so it
+      // reads as a sigil cut into it and lit from within.)
+      if (!materials.has('glyph')) materials.set('glyph', new THREE.MeshBasicMaterial({ color: new THREE.Color(0.42, 0.72, 0.95), transparent: true, opacity: 0.9 }))
+      const glyph = new THREE.Mesh(new THREE.TorusGeometry(5.5 * S, 0.32 * S, 6, 48), materials.get('glyph'))
       glyph.rotation.x = Math.PI / 2
-      glyph.position.set(top.x, top.y + 3.7 * S, top.z)
+      glyph.position.set(top.x, top.y + 3.5 * S, top.z)
       // Found by name: its relic can be taken (main.ts), and then it goes dark.
       glyph.name = 'glyph'
-      const inner = new THREE.Mesh(new THREE.TorusGeometry(2.6 * S, 0.45 * S, 6, 6), materials.get('glyph'))
+      const inner = new THREE.Mesh(new THREE.TorusGeometry(2.6 * S, 0.24 * S, 5, 6), materials.get('glyph'))
       inner.rotation.x = Math.PI / 2
       inner.position.copy(glyph.position)
       inner.name = 'glyph-inner'
