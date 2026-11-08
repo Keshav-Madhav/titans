@@ -370,7 +370,17 @@ export class TerrainView {
       const z = c.z0 + (j - 1) * step
       for (let i = 0; i < H_ROW; i++) {
         const x = c.x0 + (i - 1) * step
-        const d = useDelta ? t.delta.sample(x, z) : 0
+        // (On a coarse chunk, the giants' prints averaged over the patch each vertex stands for: point-
+        // sampled, a 1 m steep-walled print came out as sharp triangular hollows and spikes on 2–8 m
+        // quads — hard facets under a low sun, tour review 2026-11-08. The walking ground, the leaves'
+        // 1 m quads, is sampled exactly as before.)
+        let d = 0
+        if (useDelta) {
+          if (step > 1.5) {
+            const o = step * 0.35
+            d = (2 * t.delta.sample(x, z) + t.delta.sample(x - o, z) + t.delta.sample(x + o, z) + t.delta.sample(x, z - o) + t.delta.sample(x, z + o)) / 6
+          } else d = t.delta.sample(x, z)
+        }
         const k = j * H_ROW + i
         if (fresh) B![k] = t.base.height(x, z)
         D[k] = d
