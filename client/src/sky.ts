@@ -71,8 +71,11 @@ export class SkySystem {
       // Under cloud (weather.ts): a flat, heavy grey, darker overhead.
       vec3 grey = vec3( 0.36, 0.40, 0.42 ) * mix( 1.15, 0.75, smoothstep( 0.0, 0.6, max( direction.y, 0.0 ) ) );
       // (The sun's disk is thousands of times brighter: clamp it, or it burns through the deck.)
+      // (Clamped first, then mixed: mixed first, the tenth of the disk left was still hundreds of
+      // times the deck and the clamp made it a hard white coin in the storm sky — storm tour review.
+      // Under a heavy deck the sun is a faint brighter patch at most.)
+      skyC = mix( skyC, min( skyC, vec3( mix( 1.2, 0.55, uOvercast ) ) ), smoothstep( 0.0, 0.3, uOvercast ) );
       skyC = mix( skyC, grey, uOvercast * 0.9 );
-      skyC = mix( skyC, min( skyC, vec3( 1.2 ) ), uOvercast );
       gl_FragColor = vec4( skyC, 1.0 );`,
     )
     const u = this.sky.material.uniforms
