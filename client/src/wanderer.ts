@@ -1154,6 +1154,12 @@ export class Wanderer {
     this.world.add(this.cape.mesh, this.scarf.mesh)
   }
 
+  /** Out of sight (the camera at your eyes, through the Burning-glass): the body, the cape. */
+  setHidden(h: boolean): void {
+    this.obj.visible = !h
+    this.cape.mesh.visible = !h
+  }
+
   /** One fixed simulation step. `camYaw` orients WASD to the view. */
   step(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number, terrain: Terrain): void {
     this.prev.copy(this.pos)

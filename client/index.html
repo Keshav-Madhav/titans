@@ -52,6 +52,15 @@
         position: fixed; inset: 0; pointer-events: none; opacity: 0;
         background: radial-gradient(ellipse at center, rgba(40, 90, 100, 0.06) 35%, rgba(6, 22, 28, 0.62) 100%);
       }
+      /* The Burning-glass: the view through a round lens in a brass rim (main.ts sets --k 0 … 1). */
+      #lens {
+        position: fixed; inset: 0; pointer-events: none; opacity: 0;
+        background: radial-gradient(circle at center, transparent 0, transparent calc(36vmin), rgba(150, 110, 45, 0.9) calc(36vmin + 1px), rgba(92, 64, 24, 0.95) calc(38.5vmin), rgba(18, 13, 8, 0.97) calc(39vmin), rgba(10, 8, 6, 0.98) 100%);
+      }
+      #lens::after {
+        content: ''; position: absolute; left: 50%; top: 50%; width: 72vmin; height: 72vmin; transform: translate(-50%, -50%); border-radius: 50%;
+        background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.10), transparent 24%), radial-gradient(circle at center, transparent 78%, rgba(30, 24, 14, 0.35) 100%);
+      }
       #aim {
         position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
         border: 2px solid rgba(244, 239, 230, 0.85); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
@@ -144,6 +153,7 @@
     <div id="hook"></div>
     <div id="tools"></div>
     <div id="sight"></div>
+    <div id="lens"></div>
     <div id="travel">
       <div id="travel-frame">
         <h1>The fires you have lit</h1>

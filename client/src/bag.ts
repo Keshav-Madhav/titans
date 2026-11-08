@@ -147,6 +147,27 @@ function drawLineIcon(icon: string, tint: string, size = 64): HTMLCanvasElement 
     g.stroke()
   }
   switch (icon) {
+    case 'glass':
+      // A round lens in a brass rim, on a short handle.
+      g.lineWidth = 6
+      g.strokeStyle = tint
+      shape(() => g.arc(28, 26, 15, 0, Math.PI * 2), false)
+      g.lineWidth = 2
+      g.strokeStyle = '#3a3226'
+      g.fillStyle = 'rgba(200, 225, 230, 0.55)'
+      shape(() => g.arc(28, 26, 12, 0, Math.PI * 2))
+      shape(() => g.arc(28, 26, 18, 0, Math.PI * 2), false)
+      g.fillStyle = '#6a4a2e'
+      shape(() => {
+        g.moveTo(39, 38)
+        g.lineTo(54, 55)
+        g.lineTo(50, 59)
+        g.lineTo(35, 42)
+        g.closePath()
+      })
+      g.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      shape(() => g.arc(24, 21, 5, Math.PI * 1.05, Math.PI * 1.55), false)
+      break
     case 'ring':
       g.lineWidth = 7
       g.strokeStyle = tint

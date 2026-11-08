@@ -21,6 +21,7 @@ export const ACTIONS: ReadonlyArray<readonly [string, string]> = [
   ['KeyG', 'Grappling line'],
   ['KeyH', 'Horn'],
   ['KeyV', 'Sight-stone'],
+  ['KeyR', 'Burning-glass'],
   ['KeyM', 'Map'],
   ['KeyJ', 'Journal'],
   ['KeyI', 'Bag'],

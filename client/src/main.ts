@@ -951,6 +951,23 @@ const spots = (() => {
     placed.push({ id: 'cloak', kind: 'trinket', at: new THREE.Vector3(gate.x - 5, cy, gate.z - 3), model: wrap, hidden: true })
   }
   placed.push({ id: 'sight', kind: 'trinket', at: sightAt, model: sightModel })
+  // The Burning-glass, beside the first camp's ashes (the user, 2026-11-08: "lets add a new item of
+  // magnifying glass, make it work well"): a brass-rimmed lens on a short handle, lying in the grass.
+  {
+    const gm = new THREE.Group()
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.012, 8, 24), new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.8, roughness: 0.35 }))
+    const lensM = new THREE.Mesh(new THREE.CircleGeometry(0.088, 24), new THREE.MeshStandardMaterial({ color: 0xd8eef0, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.45, side: THREE.DoubleSide }))
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, 0.13, 8).rotateZ(Math.PI / 2).translate(0.155, 0, 0), new THREE.MeshStandardMaterial({ color: 0x5a3e26, roughness: 0.8 }))
+    gm.add(rim, lensM, handle)
+    gm.rotation.x = -Math.PI / 2
+    gm.position.y = 0.02
+    const wrap = new THREE.Group()
+    wrap.add(gm)
+    // (On the far side of the fire from the bag, clear of its reach: E there takes the bag first.)
+    const gx = CAMP.x - 3.6
+    const gz = CAMP.z - 2.2
+    placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
+  }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
   // The eerie places: a stone at each, and something to take.
   {
@@ -2016,6 +2033,92 @@ function gateDoorNear(): boolean {
   if (!d || d.opening) return false
   const p = wanderer.pos
   return Math.hypot(p.x - d.front.x, p.z - d.front.z) < 16 && Math.abs(p.y - d.y0) < 6 && wanderer.grounded
+}
+
+/** The Burning-glass up to your eye (0 … 1, eased), and the base look speed it slows. */
+let glassK = 0
+let lookSens = 1
+const lensEl = document.getElementById('lens')!
+/** The sun-point: where the glass gathers the light (a small hot spark on what you look at). */
+const sunPoint = new THREE.Sprite(new THREE.SpriteMaterial({ map: (() => {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  gr.addColorStop(0, 'rgba(255,255,240,1)')
+  gr.addColorStop(0.18, 'rgba(255,236,170,0.95)')
+  gr.addColorStop(0.45, 'rgba(255,170,60,0.35)')
+  gr.addColorStop(1, 'rgba(255,140,40,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, 64, 64)
+  return new THREE.CanvasTexture(c)
+})(), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, transparent: true }))
+sunPoint.visible = false
+sunPoint.renderOrder = 10
+const sunAt = new THREE.Vector3()
+const sunLast = new THREE.Vector3()
+let sunBurn = 0
+let smokeT = 0
+let scorchSaid = false
+const _glassDir = new THREE.Vector3()
+scene.add(sunPoint)
+
+/** The Burning-glass, each frame: the zoom, the lens, the sun-point and what it lights. */
+function updateGlass(dt: number): void {
+  const want = finds.has('glass') && input.held('KeyR') && !climber.active && !cliff.active && !journal.open && !bag.open && !wanderer.swimming && !wanderer.gliding && bow.draw < 0.05 ? 1 : 0
+  glassK += (want - glassK) * Math.min(1, dt * (want ? 6 : 9))
+  if (glassK < 0.002) glassK = 0
+  lensEl.style.opacity = String(Math.min(1, glassK * 1.4))
+  // (Slower look through the lens, or the magnified view whips about.)
+  rig.sensitivity = lookSens * (1 - 0.68 * glassK)
+  // The body out of the way once the glass is at your eye.
+  wanderer.setHidden(glassK > 0.6)
+  // The sun gathered to a point: only in sunshine, and on something within a few strides.
+  let focused = false
+  if (glassK > 0.8 && sky.sunDir.y > 0.08 && weather.now.dark < 0.45 && sky.night < 0.2) {
+    camera.getWorldDirection(_glassDir)
+    const o = camera.position
+    for (let t = 0.8; t < 28; t += 0.2) {
+      const x = o.x + _glassDir.x * t
+      const y = o.y + _glassDir.y * t
+      const z = o.z + _glassDir.z * t
+      if (y < terrain.heightAt(x, z) + 0.02 || rocks.sdfAt(x, y, z) < 0) {
+        sunAt.set(x, Math.max(y, terrain.heightAt(x, z) + 0.03), z)
+        focused = true
+        break
+      }
+    }
+  }
+  sunPoint.visible = focused
+  if (!focused) {
+    sunBurn = Math.max(0, sunBurn - dt * 2)
+    return
+  }
+  // Held still, it burns; moved, it starts again.
+  if (sunAt.distanceTo(sunLast) < 0.5) sunBurn += dt
+  else sunBurn = Math.max(0, sunBurn - dt * 3)
+  sunLast.copy(sunAt)
+  const flick = 0.85 + 0.15 * Math.sin(performance.now() * 0.05) * Math.sin(performance.now() * 0.013)
+  sunPoint.position.copy(sunAt)
+  sunPoint.scale.setScalar((0.07 + 0.09 * Math.min(1, sunBurn)) * flick)
+  // Smoke once it has held a moment.
+  smokeT -= dt
+  if (sunBurn > 0.6 && smokeT <= 0) {
+    smokeT = 0.12
+    effects.smoke(sunAt.x, sunAt.y, sunAt.z, Math.min(1, sunBurn / 2))
+  }
+  if (sunBurn > 1.8) {
+    sunBurn = 0
+    const path = lanterns.near(sunAt, 4)
+    if (path && !path.kindled) {
+      lanterns.kindle(path)
+      sound.chime()
+      narration.say('The wick smokes, blackens — and takes. A small flame, pale in the daylight. The next lamp along catches from it.')
+    } else if (!scorchSaid) {
+      scorchSaid = true
+      narration.say('A thread of smoke, and a black mark the size of a coin. It would light a wick, if you had one to light.')
+    }
+  }
 }
 
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
@@ -3300,7 +3403,7 @@ function frameBody(now: number): void {
   // Limbs, cape and scarf; the weather's wind blows from the west-south-west.
   clothWind.set(1, 0, 0.4).normalize().multiplyScalar(0.8 + weather.now.wind * weather.now.wind * 7)
   // What is in your hands: the tool in use (the pose and the prop follow), and the toolbar.
-  wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 ? 'sight' : null
+  wanderer.holding = bow.draw > 0.05 ? 'bow' : performance.now() < hornHeldUntil ? 'horn' : glyphs.look > 0.05 || glassK > 0.05 ? 'sight' : null
   toolbar.update(wanderer.holding ?? (wanderer.gliding ? 'cloak' : grapple.busy ? 'line' : null))
   // The keys for the map, the journal and the bag show once you have the bag (the map and the notebook are in it).
   hud.setHave(toolMode || bag.have)
@@ -3485,6 +3588,7 @@ function frameBody(now: number): void {
     }
   }
   glyphs.update(dt, finds.has('sight') && input.held('KeyV') && !climber.active && !journal.open && !bag.open, wanderer.pos, crownWind.value)
+  updateGlass(dt)
   {
     const has = finds.has('bow')
     const drawing = has && !climber.active && !cliff.active && !awakening.active && !journal.open && !bag.open && (input.held('Mouse2') || input.held('KeyQ'))
@@ -3610,7 +3714,9 @@ function frameBody(now: number): void {
       wanderer.grounded && !climber.active && !cliff.active && bow.draw < 0.05,
     )
     rig.drop = sc.drop
-    rig.distMul = sc.dist
+    // (Through the Burning-glass you look from your own eyes: from 7 m back the lens magnified your
+    // own back, and the sun-point burned your hood.)
+    rig.distMul = sc.dist * (1 - 0.93 * glassK)
     if (sc.pitch !== null && !awakening.active) rig.pitch += (sc.pitch - rig.pitch) * Math.min(1, dt * 0.55)
     // A giant near you casts its shadow over you: the shadow map reaches out to it.
     const dom = scaleDir.dominant
@@ -3627,7 +3733,9 @@ function frameBody(now: number): void {
       // frame. Eased, and never while drawing the bow (the aim narrows it on purpose).
       const pitchWant = (THREE.MathUtils.smoothstep(Math.abs(rig.pitch), 0.12, 0.9) * (rig.pitch < 0 ? 9 : 7)) * (1 - bow.draw)
       pitchFov += (pitchWant - pitchFov) * Math.min(1, dt * 3)
-      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + pitchFov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
+      const fov0 = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + pitchFov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
+      // (Through the Burning-glass: far things come near — about ×3.)
+      const fov = fov0 + (19 - fov0) * glassK
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
@@ -3884,6 +3992,7 @@ function applySettings(s: Settings): void {
   sound.setVolume(s.volume)
   sound.setMusic(s.music)
   rig.sensitivity = s.sensitivity
+  lookSens = s.sensitivity
   rig.invertY = s.invertY
   rig.shakeScale = s.shake
   setBindings(s.keys)

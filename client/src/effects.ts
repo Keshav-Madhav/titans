@@ -234,6 +234,14 @@ export class Effects {
     this.nextWhite = 0
   }
 
+  /** A thread of smoke rising from a point (the Burning-glass): grey-white, slow, `k` 0 … 1 how thick. */
+  smoke(x: number, y: number, z: number, k: number): void {
+    const r = this.rand
+    this.nextWhite = 0.55
+    this.puff(x + (r() - 0.5) * 0.08, y + 0.05, z + (r() - 0.5) * 0.08, (r() - 0.5) * 0.15, 0.35 + r() * 0.3, (r() - 0.5) * 0.15, 0.06 + r() * 0.05, 0.25 + 0.2 * k, 1.4 + r() * 0.8, 0.18 + 0.3 * k)
+    this.nextWhite = 0
+  }
+
   /**
    * A stone shaken loose from a walking giant at (x, y, z), carried along at
    * its pace (vx, vz), trailing a little dust as it falls (the concept: a
