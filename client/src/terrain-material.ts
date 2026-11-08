@@ -360,11 +360,37 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // zero is the Old Wood's; the two lands never meet). Fetched only on the Steps' steep ground.
         float gMason = max(-vColor.r, 0.0) * gRockW;
         if (gMason > 0.02) {
+          // (Every terrace wall the same dressed stone at the same scale read as one tiled texture —
+          // sandbox, developer-mode (the user, 2026-11-08, a view over the Steps). Now: each stretch of
+          // wall its own scale and offset of the courses; the facing fallen away in patches to the raw
+          // rock behind; water-stain streaks down the face; moss at its foot and its lip; and a broad
+          // warm/cool drift of colour across the terraces.)
+          float wCell = texture2D(tDetail, gP.xz * 0.0021 + 0.17).r;
+          vec3 mP = gP * (0.75 + 0.6 * wCell) + vec3(wCell * 137.0, wCell * 11.0, wCell * 59.0);
           vec3 mc; vec3 mn; float mh;
-          triLayer(${LAYERS.indexOf('flagstone')}, gP, gDx, gDy, gTriN, gN, mc, mn, mh);
-          float mk = smoothstep(0.02, 0.45, gMason);
-          gAlb = mix(gAlb, mc * vec3(0.94, 0.91, 0.86), mk * 0.9);
+          triLayer(${LAYERS.indexOf('flagstone')}, mP, gDx * (0.75 + 0.6 * wCell), gDy * (0.75 + 0.6 * wCell), gTriN, gN, mc, mn, mh);
+          // Where the facing has fallen: big ragged patches (a slow noise along the wall and up it).
+          float fallen = texture2D(tDetail, vec2(gP.x * 0.006 + gP.z * 0.006, gP.y * 0.011) + 0.41).r;
+          fallen = smoothstep(0.58, 0.72, fallen + 0.12 * (texture2D(tDetail, gP.xz * 0.05 + gP.y * 0.03).r - 0.5));
+          // (And from afar the courses give way to the rock's own grain: past a couple of hundred metres
+          // the block grid was what read as a tiled texture across every wall in view.)
+          float mk = smoothstep(0.02, 0.45, gMason) * (1.0 - fallen) * (1.0 - 0.7 * smoothstep(140.0, 700.0, gDist));
+          vec3 stone = mc * mix(vec3(0.97, 0.92, 0.84), vec3(0.86, 0.9, 0.93), smoothstep(0.3, 0.7, texture2D(tDetail, gP.xz * 0.0013 + 0.6).r));
+          gAlb = mix(gAlb, stone, mk * 0.9);
           gNorm = mix(gNorm, mn, mk);
+          // Weathering on the whole wall, facing or rock: streaks where the rain runs down it...
+          float streakN = texture2D(tDetail, vec2((gP.x + gP.z) * 0.09, gP.y * 0.0035) + 0.27).r;
+          float streakK = smoothstep(0.55, 0.85, streakN) * smoothstep(0.02, 0.3, gMason);
+          gAlb *= 1.0 - 0.28 * streakK;
+          // ...and moss where it holds: at the wall's foot (near the land under it) and on its lip.
+          float mossN = texture2D(tDetail, gP.xz * 0.07 + gP.y * 0.05).r;
+          float lip = smoothstep(0.75, 0.95, gN.y + 0.25);
+          float moss = smoothstep(0.45, 0.75, mossN) * max(lip, 0.35 * (1.0 - smoothstep(0.0, 0.25, gSteep))) * smoothstep(0.02, 0.3, gMason);
+          gAlb = mix(gAlb, gAlb * vec3(0.62, 0.78, 0.48), moss * 0.6);
+          // A broad, slow drift of light and dark along the walls and up them (the ground's own
+          // variation runs over x and z only, and on a wall it is one value all the way up).
+          float wallDrift = texture2D(tDetail, vec2((gP.x - gP.z) * 0.0031, gP.y * 0.0052) + 0.73).r;
+          gAlb *= mix(1.0, 0.72 + 0.56 * wallDrift, smoothstep(0.02, 0.3, gMason));
         }
         gNorm = normalize(gNorm + gN * 1e-3);
         gRough = gSum > 1e-4 ? gRough / gSum : 0.9;
