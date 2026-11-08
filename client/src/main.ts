@@ -2184,7 +2184,7 @@ const creative = {
   /** What it was before (the user: "going creative doesnt [ruin] my save … going back rehides items
    * and … teleports me back to the spot where i enabled creative"): put back on leaving. Nothing is
    * saved while creative is on, and nothing is picked up or lit — creative never touches the save. */
-  before: null as null | { finds: string[]; seen: Uint8Array; pos: THREE.Vector3; yaw: number; safe: THREE.Vector3; camYaw: number; camPitch: number },
+  before: null as null | { finds: string[]; seen: Uint8Array; pos: THREE.Vector3; yaw: number; safe: THREE.Vector3; camYaw: number; camPitch: number; footed: boolean },
 }
 const creativeEl = document.createElement('div')
 creativeEl.id = 'creative'
@@ -2197,7 +2197,7 @@ function setCreative(on: boolean): void {
   creativeOnNow = on
   creativeEl.classList.toggle('on', on)
   if (on) {
-    creative.before = { finds: finds.save(), seen: worldMap.snapshot(), pos: wanderer.pos.clone(), yaw: wanderer.yaw, safe: lastSafe.clone(), camYaw: rig.yaw, camPitch: rig.pitch }
+    creative.before = { finds: finds.save(), seen: worldMap.snapshot(), pos: wanderer.pos.clone(), yaw: wanderer.yaw, safe: lastSafe.clone(), camYaw: rig.yaw, camPitch: rig.pitch, footed: (wanderer.grounded && !climber.active) || wanderer.swimming }
     worldMap.revealAll()
     // (Quietly: no "found" cards for tools handed over for the visit.)
     finds.load([...new Set([...finds.save(), 'bag', 'line', 'cloak', 'bow', 'horn', 'sight', 'glass'])])
@@ -2225,7 +2225,13 @@ function setCreative(on: boolean): void {
       // Back as you were: your finds, your map, where you stood.
       finds.load(b.finds)
       worldMap.restore(b.seen)
-      wanderer.place(b.pos.x, b.pos.y, b.pos.z)
+      // (Taken up from the air — a rope, a glide, a giant's side — you come back to the ground under
+      // that spot, not hung in the air: a drop from there was a fall that could kill.)
+      let y = b.pos.y
+      if (!b.footed) {
+        y = Math.max(terrain.heightAt(b.pos.x, b.pos.z), rocks.floorAt(b.pos.x, b.pos.y, b.pos.z, 0.6, 600) ?? -Infinity)
+      }
+      wanderer.place(b.pos.x, y, b.pos.z)
       wanderer.yaw = b.yaw
       wanderer.grounded = true
       lastSafe.copy(b.safe)
@@ -2508,7 +2514,7 @@ function simulate(dt: number): void {
   // (In the air, holding E is enough: gliding past at 15 m/s, a single press had to land in the
   // fraction of a second the rope was in reach.)
   const ropeWant = input.peek('KeyE') || (!wanderer.grounded && input.held('KeyE'))
-  if (!cables.ride && !climber.active && !cliff.active && !wanderer.swimming && !grapple.attached && ropeWant) {
+  if (!creative.on && !cables.ride && !climber.active && !cliff.active && !wanderer.swimming && !grapple.attached && ropeWant) {
     _cHand.copy(wanderer.pos).y += CABLE_HANG
     // (A little more reach in the air: a glide passes the rope rather than standing under it.)
     const n = cables.nearest(_cHand, wanderer.grounded ? 2.4 : 3.2)
