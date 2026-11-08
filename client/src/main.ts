@@ -960,9 +960,13 @@ const spots = (() => {
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, 0.13, 8).rotateZ(Math.PI / 2).translate(0.155, 0, 0), new THREE.MeshStandardMaterial({ color: 0x5a3e26, roughness: 0.8 }))
     gm.add(rim, lensM, handle)
     gm.rotation.x = -Math.PI / 2
-    gm.position.y = 0.02
+    // (On a flat stone, out of the grass: lying in it, it could not be seen at all.)
+    gm.position.y = 0.17
+    gm.rotation.z = 0.6
+    const slab = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.15, 9).translate(0, 0.075, 0), new THREE.MeshStandardMaterial({ color: 0x7d776c, roughness: 0.95 }))
+    slab.castShadow = slab.receiveShadow = true
     const wrap = new THREE.Group()
-    wrap.add(gm)
+    wrap.add(slab, gm)
     // (On the far side of the fire from the bag, clear of its reach: E there takes the bag first.)
     const gx = CAMP.x - 3.6
     const gz = CAMP.z - 2.2
@@ -3733,7 +3737,9 @@ function frameBody(now: number): void {
       // frame. Eased, and never while drawing the bow (the aim narrows it on purpose).
       const pitchWant = (THREE.MathUtils.smoothstep(Math.abs(rig.pitch), 0.12, 0.9) * (rig.pitch < 0 ? 9 : 7)) * (1 - bow.draw)
       pitchFov += (pitchWant - pitchFov) * Math.min(1, dt * 3)
-      const fov0 = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + pitchFov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
+      // (Capped: the long run, a giant's scale, looking up and the vertigo all widen it, and stacked
+      // they reached 79° at the first camp — a fish-eye stretch at every edge, the playtest.)
+      const fov0 = Math.min(70, 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + pitchFov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5)))
       // (Through the Burning-glass: far things come near — about ×3.)
       const fov = fov0 + (19 - fov0) * glassK
       if (Math.abs(camera.fov - fov) > 0.01) {
@@ -3742,6 +3748,14 @@ function frameBody(now: number): void {
       }
       // (The rig sets the camera afresh each frame: a roll added here is only ever this frame's.)
       if (vertigo > 0.01) camera.rotateZ(Math.sin(vertigoT * 0.7) * Math.sin(vertigoT * 0.29 + 1) * 0.016 * vertigo)
+    } else if (glassK > 0.01) {
+      // (The Burning-glass works while a giant wakes too — that is when you most want to look: the
+      // playtest raised it as the Walker came over the hill and the view stayed wide.)
+      const fov = camera.fov + (19 - camera.fov) * glassK
+      if (Math.abs(camera.fov - fov) > 0.01) {
+        camera.fov = fov
+        camera.updateProjectionMatrix()
+      }
     }
     // The opening: waking (the camera low on the stone, looking up at the light, rising as you
     // stand), the hall, and the reveal when you first step out onto the grass.

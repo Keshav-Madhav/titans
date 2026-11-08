@@ -60,6 +60,8 @@ export class Camp {
       this.group.add(this.smoke)
     }
     // The fire ring, cold.
+    // (Logs, poles, pot and bedroll at a dozen-plus sides, not 5–7: up close — where a new player first
+    // stands, at the first camp — they were blocky prisms, the playtest's 25th frame.)
     // (Rounded field stones, half sunk, sooted on the side to the fire: twelve flat facets in the pale
     // carved-stone finish read as crumpled white paper — screenshot review, 2026-11-06.)
     const ringMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
@@ -90,28 +92,28 @@ export class Camp {
       s.castShadow = true
       this.group.add(s)
     }
-    const ash = new THREE.Mesh(new THREE.CircleGeometry(0.62, 16).rotateX(-Math.PI / 2), char)
+    const ash = new THREE.Mesh(new THREE.CircleGeometry(0.62, 32).rotateX(-Math.PI / 2), char)
     ash.position.copy(at(0, 0, 0.03))
     this.group.add(ash)
     for (const r of [0.5, -0.7]) {
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 6).rotateZ(Math.PI / 2).rotateY(r), char)
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 14, 2).rotateZ(Math.PI / 2).rotateY(r), char)
       log.position.copy(at(0, 0, 0.12))
       this.group.add(log)
     }
     // The bedroll, half unrolled.
-    const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.9, 10).rotateZ(Math.PI / 2).scale(1, 0.45, 1).rotateY(0.4), roll)
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.9, 20).rotateZ(Math.PI / 2).scale(1, 0.45, 1).rotateY(0.4), roll)
     bed.position.copy(at(-1.8, 0.9, 0.14))
     this.group.add(bed)
     // A tall pole driven into the ground, leaning, a long strip of red cloth at its top
     // (user: "the flags are too less in height… hard to spot": it was 3.6 m, lost in the
     // grass from a hundred metres; now it stands well over a shrub and streams).
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, POLE, 7).translate(0, POLE / 2, 0), wood)
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, POLE, 12).translate(0, POLE / 2, 0), wood)
     pole.position.copy(at(1.9, -1.4))
     this.poleAt.copy(pole.position)
     pole.rotation.set(0.07, 0, -0.06)
     this.group.add(pole)
     // A crosspiece lashed near the top, for the cloth to hang from.
-    const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.2, 5).rotateZ(Math.PI / 2).translate(0.45, POLE - 0.4, 0), wood)
+    const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.2, 10).rotateZ(Math.PI / 2).translate(0.45, POLE - 0.4, 0), wood)
     pole.add(cross)
     const geo = new THREE.PlaneGeometry(CLOTH, 0.9, 20, 3).translate(CLOTH / 2, -0.25, 0)
     this.rest = (geo.getAttribute('position').array as Float32Array).slice()
@@ -121,19 +123,19 @@ export class Camp {
     // A tripod over the fire, a pot hanging from it: a shape no field grows.
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2 + 0.4
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 2.3, 5).translate(0, 1.15, 0), wood)
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 2.3, 10).translate(0, 1.15, 0), wood)
       leg.position.copy(at(Math.cos(a) * 0.85, Math.sin(a) * 0.85))
       leg.lookAt(this.fire.x, this.fire.y + 2.05, this.fire.z)
       leg.rotateX(Math.PI / 2)
       this.group.add(leg)
     }
-    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.7), char)
+    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 12, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.7), char)
     pot.position.copy(at(0, 0, 0.75))
     this.group.add(pot)
     // Hung from where the legs meet, on a cord.
     const top = this.fire.y + 2.05
     const cordLen = top - (pot.position.y + 0.12)
-    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen, 4), wood)
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen, 6), wood)
     cord.position.set(this.fire.x, pot.position.y + 0.12 + cordLen / 2, this.fire.z)
     this.group.add(cord)
     // The ground worn bare round the fire: trampled earth, the grass kept off it (see
@@ -142,10 +144,10 @@ export class Camp {
     this.group.add(bare)
     // The bag, by the bedroll.
     this.bag = new THREE.Group()
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8).scale(1, 0.85, 0.8), leather)
-    const flap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.15, 0.5, 0.95), leather)
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 22, 14).scale(1, 0.85, 0.8), leather)
+    const flap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.15, 0.5, 0.95), leather)
     flap.position.y = 0.14
-    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 4, 16, Math.PI), wood)
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 6, 24, Math.PI), wood)
     strap.position.y = 0.16
     this.bag.add(body, flap, strap)
     this.bagAt.copy(at(-0.9, 1.6, 0.2))

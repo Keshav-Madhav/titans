@@ -224,7 +224,9 @@ export class Spots {
       if (!g.sprite.visible || this.taking.some((k) => k.flash === g.sprite)) continue
       const d = g.sprite.position.distanceTo(camera.position)
       // Near, the thing itself is enough; very far, nothing would show.
-      const far = THREE.MathUtils.smoothstep(d, 12, 40) * (1 - THREE.MathUtils.smoothstep(d, 1800, 2600))
+      // (And a little up close too: a small thing lying in the grass — the Burning-glass by the first
+      // camp — was found in the playtest only by its prompt, the glint gone and the thing hidden.)
+      const far = Math.max(0.3 * (1 - THREE.MathUtils.smoothstep(d, 10, 16)), THREE.MathUtils.smoothstep(d, 12, 40)) * (1 - THREE.MathUtils.smoothstep(d, 1800, 2600))
       const tw = Math.pow(0.5 + 0.5 * Math.sin(this.time * 1.7 + g.phase), 6)
       // (Bright enough for the bloom to catch: against a pale sky a dim glint is invisible.)
       g.sprite.material.opacity = far * (0.4 + 0.6 * tw)
