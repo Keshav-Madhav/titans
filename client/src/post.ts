@@ -167,6 +167,10 @@ const GRADE = {
     under: { value: 0 },
     time: { value: 0 },
     aspect: { value: 1 },
+    /** Speed streaks (0 still … 1 a dive): how fast you are going, at the edges of the view. */
+    streak: { value: 0 },
+    /** The streaks' own clock: runs faster the faster you go (so they flow, not strobe). */
+    streakT: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -178,6 +182,8 @@ const GRADE = {
     uniform float bloomOn;
     uniform vec3 rayColor;
     uniform float rayStrength;
+    uniform float streak;
+    uniform float streakT;
     uniform float exposure;
     uniform float mood;
     uniform float flash;
@@ -243,6 +249,28 @@ const GRADE = {
       q.x *= aspect;
       c *= 1.0 - 0.32 * smoothstep(0.35, 1.05, length(q));
 
+      // Speed streaks (the user, 2026-11-08: "add speed streaks in general always … without a
+      // speedometer this will give clean idea of speed"): thin pale lines flowing out from the middle
+      // at the edges of the view — the air going past. Faint walking, plain running, strong in a dive.
+      // Never over the middle (the wanderer), never a pattern you can count.
+      if (streak > 0.004) {
+        vec2 sq = vUv - 0.5;
+        sq.x *= aspect;
+        float sr = length(sq);
+        float sa = atan(sq.y, sq.x);
+        // Many thin spokes, each its own length and phase; drifting outward.
+        float lanes = 220.0;
+        float lane = floor((sa / 6.2831853 + 0.5) * lanes);
+        float lh = fract(sin(lane * 91.17) * 4373.13);
+        float across = abs(fract((sa / 6.2831853 + 0.5) * lanes) - 0.5) * 2.0;
+        float thin = 1.0 - smoothstep(0.0, mix(0.25, 0.55, streak), across);
+        float run = fract(sr * (1.4 + lh * 1.6) - streakT * (0.6 + lh * 0.9) + lh * 7.0);
+        float dash = smoothstep(0.0, 0.08, run) * (1.0 - smoothstep(0.25 + 0.3 * lh, 0.6 + 0.3 * lh, run));
+        float on = step(1.0 - mix(0.18, 0.55, streak), lh);
+        float edge = smoothstep(mix(0.36, 0.22, streak), 0.8, sr);
+        float sk = thin * dash * on * edge * streak;
+        c = mix(c, vec3(0.92, 0.94, 0.96) * max(0.35, dot(c, vec3(0.3, 0.6, 0.1)) * 1.4 + 0.2), clamp(sk * 0.9, 0.0, 0.6));
+      }
       c = toSrgb(clamp(c, 0.0, 1.0));
       // Film grain, in display space.
       c += (hash(gl_FragCoord.xy + floor(fract(time * 7.13) * 97.0) * vec2(17.0, 31.0)) - 0.5) * 0.028;

@@ -2871,6 +2871,8 @@ function wallToClimb(): boolean {
 let vertigo = 0
 /** The view widened by how far up or down you look (degrees, eased). */
 let pitchFov = 0
+/** The speed streaks' strength now (eased). */
+let streakK = 0
 let vertigoT = 0
 let vertigoSeen = { at: 0, want: 0 }
 function vertigoWant(): number {
@@ -3362,6 +3364,15 @@ function frameBody(now: number): void {
   // (With the dusk too, not only the deep night: between sunset and the moon taking over the key
   // light, twilight measured ~20% darker than midnight — the darkest moment of the day.)
   post.grade.uniforms.exposure.value = 0.84 + 0.42 * Math.max(sky.night, sky.dusk * 0.85) + 0.34 * sky.glow
+  // Speed streaks: from how fast you are really going (on foot, falling, gliding, sliding, on a rope,
+  // reeled in by the line, riding a giant), eased; faint at a walk, full by ~40 m/s.
+  {
+    const v = cables.ride ? cables.ride.v : Math.hypot(wanderer.vel.x, wanderer.vel.y, wanderer.vel.z)
+    const want = rig.aiming || anyOpen() ? 0 : Math.pow(THREE.MathUtils.clamp((v - 1.2) / 32, 0, 1), 0.7)
+    streakK += (want - streakK) * Math.min(1, dt * (want > streakK ? 3 : 1.8))
+    post.grade.uniforms.streak.value = streakK
+    post.grade.uniforms.streakT.value = (post.grade.uniforms.streakT.value as number) + dt * (0.6 + v * 0.06)
+  }
   undercroft.update(sky.sun.intensity / 3)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
