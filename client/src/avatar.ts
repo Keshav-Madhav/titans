@@ -165,7 +165,9 @@ export class Avatar {
     if (inAir && this.wasGrounded && s.vy > 1) this.startT = 0
     if (!inAir && !this.wasGrounded) this.landT = 0
     this.wasGrounded = !inAir
-    this.air += ((inAir ? 1 : 0) - this.air) * Math.min(1, dt * 10)
+    // (Into the air a little slower than out of it: at 10/s the take-off pose took the hands ~0.4 m in
+    // four frames — the jumps' worst pops, playtest 2026-11-08.)
+    this.air += ((inAir ? 1 : 0) - this.air) * Math.min(1, dt * (inAir ? 7 : 10))
     this.startT += dt
     this.landT += dt
     this.swim += ((s.swimming ? 1 : 0) - this.swim) * Math.min(1, dt * 5)
@@ -177,7 +179,7 @@ export class Avatar {
     this.posedW = Math.min(1, this.modeW.climb + this.modeW.glide + this.modeW.slide + this.modeW.hang)
     const ground = (1 - this.air) * (1 - this.swim)
     // A landing: the clip's crouch, over the first 0.45 s of being down, then the run carries on.
-    const land = ground * Math.max(0, 1 - this.landT / 0.45) * Math.min(1, this.landT * 12)
+    const land = ground * Math.max(0, 1 - this.landT / 0.45) * ease(Math.min(1, this.landT * 9))
     const startK = Math.max(0, 1 - this.startT / 0.35)
     const start = this.air * startK
     // Crouched: down on the crouch's hold, the walk's stride only half over it as you creep.
