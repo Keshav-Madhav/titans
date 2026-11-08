@@ -11,6 +11,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
+import { tallAt } from './tallgrass'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
 import { inBasin, makeSimplex2, mulberry32, poolBowl, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
 import { LAYER } from './terrain-material'
@@ -944,7 +945,8 @@ export class Vegetation {
    * forest trees in open dunes. Gone by the time sand is a third of the ground.)
    */
   private notSand(x: number, z: number): number {
-    return 1 - THREE.MathUtils.smoothstep(this.biome.desert(x, z), 0.1, 0.35)
+    // (And none in the Tallgrass: the grass is the forest there — tallgrass.ts.)
+    return (1 - THREE.MathUtils.smoothstep(this.biome.desert(x, z), 0.1, 0.35)) * (1 - THREE.MathUtils.smoothstep(tallAt(x, z), 0.05, 0.4))
   }
 
   private wet(x: number, z: number, margin: number): boolean {

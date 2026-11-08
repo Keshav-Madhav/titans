@@ -113,6 +113,7 @@ import { PaintField } from './paint'
 import { Vegetation, cullSwitch } from './vegetation'
 import { foliageFocus, foliageMipLift, foliageNight } from './trees'
 import { Grass, grassQuality } from './grass'
+import { Tallgrass, TALL } from './tallgrass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
 import { Wake } from './wake'
@@ -1275,6 +1276,9 @@ const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CA
 // (Not on the beds of the Mire's pools, under the water: mireView is made below, and asked only once the game runs.)
 const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z) || mireView.wetAt(x, z))
 scene.add(grass.mesh)
+// The Tallgrass: grass three and four times your height, at the Grove's edge (tallgrass.ts).
+const tallgrass = new Tallgrass(terrain)
+scene.add(tallgrass.mesh)
 quality.vegetation = vegetation
 quality.refresh()
 terrainView.fresh = (x, z) => vegetation.isFresh(x, z)
@@ -1471,6 +1475,7 @@ const sites: Site[] = [
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
+  { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
   { id: 'sword', r: 420, at: placeAt('sword') },
   { id: 'colonnade', r: 600, at: placeAt('colonnade') },
@@ -3736,6 +3741,7 @@ function frameBody(now: number): void {
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
   skirts?.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
+  tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   rocks.update(camera.position)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)

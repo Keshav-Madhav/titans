@@ -12,6 +12,7 @@ import { makeSimplex2, poolBowl, smoothstep, type Noise2, type RegionWeights, ty
 import { makeDetailTexture } from './detail-texture'
 import type { Biome } from './biome'
 import { LAYER, makeTerrainMaterial, type TerrainTextures } from './terrain-material'
+import { tallAt } from './tallgrass'
 
 const ROOT = 65536
 const LEAF = 64
@@ -515,6 +516,13 @@ export class TerrainView {
     // (or ground that has greened again) only a little.
     // Wet ground darkens: all of the Mire a little, the pools' banks most.
     let dark = 1 - r.mire * (0.22 + 0.25 * poolBowl(x, z))
+    // Under the Tallgrass (tallgrass.ts): bare, shaded earth and old litter between the stalks, darker
+    // the deeper in — the lawn ran straight under blades four times your height.
+    const tg = tallAt(x, z)
+    if (tg > 0.01) {
+      this.toward(LAYER.forest, smoothstep(0.15, 0.6, tg) * 0.85)
+      dark *= 1 - 0.42 * smoothstep(0.2, 0.85, tg)
+    }
     if (delta !== 0) {
       const t = smoothstep(0.15, 1.8, Math.abs(delta)) * (this.fresh(x, z) ? 0.85 : 0.25)
       this.toward(r.desert > 0.5 ? LAYER.sand : LAYER.mud, t)

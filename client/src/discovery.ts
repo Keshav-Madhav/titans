@@ -59,6 +59,7 @@ export const CATALOGUE: Find[] = [
   f('place', 'green', 'The Green', 'Where you woke.', 'Grass to the horizon in every direction, and the long swells of it. Nothing here is in a hurry.'),
   f('place', 'sentinel', 'The Sentinel', 'North, on the rim of the Green.', 'It kneels with its sword before it, and it has knelt so long that moss has climbed to its knees. Whatever it was waiting for, it is still waiting.'),
   f('place', 'undercroft', 'The Undercroft', 'Under the Green, south of where you woke.', 'A hall under the grass, its roof held on pillars no person could have raised. Light falls through in shafts. Something was kept here once.'),
+  f('place', 'tallgrass', 'The Tallgrass', 'Beside the Grove, in the Old Wood.', 'The grass comes up to your knees, then your shoulders, then it closes over your head and keeps going. Blades as wide as you lean together far above, and the wind goes over the top like a hand over fur. You go under.'),
   f('place', 'grove', 'The Grove', 'Deep in the Old Wood, north-west.', 'Trees as tall as the giants, and older. Their crowns meet so far overhead that rain arrives here late.'),
   f('place', 'fallen', 'The Fallen', 'The Dune Sea, south.', 'Ribs the size of towers, and a skull half-buried a little way off. One of them, lying where it lay down. The sand is slowly taking it back.'),
   f('place', 'sword', 'The Sword', 'The Dune Sea, far to the south-west.', 'A blade standing in the sand, taller than most hills. No one who could lift it is anywhere near.'),
