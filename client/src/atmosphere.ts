@@ -190,7 +190,10 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   // Up into the cloud deck, a tall thing fades into it (no hard band where a cloud layer cuts it).
   // Never quite all the way, and over a deep band: a flat fog-coloured
   // cut-out reads as a hole in the picture, a faint form inside reads as cloud.
-  float cloudIn = smoothstep( cloudY - 15.0, cloudY + 220.0, vFogWorld.y ) * cloudCover * 0.86;
+  // (And out of its top: the deck is a few hundred metres thick, and the High Places stand above it —
+  // with no top, everything up there, the wanderer 7 m away included, was 83% cloud-colour in a storm,
+  // a grey ghost in the snow; high-storm review, 2026-11-08. Above it, clear: a sea of cloud below.)
+  float cloudIn = smoothstep( cloudY - 15.0, cloudY + 220.0, vFogWorld.y ) * ( 1.0 - smoothstep( cloudY + 320.0, cloudY + 460.0, vFogWorld.y ) ) * cloudCover * 0.86;
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor * vec3( 0.92, 0.95, 0.97 ), cloudIn );
 #endif`
 
