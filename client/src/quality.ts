@@ -34,10 +34,12 @@ interface Level {
   veg: [number, number, number]
 }
 
+// (Foliage farther, the user, 2026-11-08: "extend foliage distance" — trees to 1.4 km and grass to
+// 110 m at the top level; measured on the Green and in the Grove before raising it.)
 const LEVELS: Level[] = [
-  { splitK: 1.0, farSplitK: 3, res: 64, shadow: 4096, veg: [170, 750, 70] },
-  { splitK: 1.0, farSplitK: 2.5, res: 64, shadow: 2048, veg: [130, 550, 50] },
-  { splitK: 1.0, farSplitK: 1.5, res: 32, shadow: 1024, veg: [95, 380, 32] },
+  { splitK: 1.0, farSplitK: 3, res: 64, shadow: 4096, veg: [260, 1400, 110] },
+  { splitK: 1.0, farSplitK: 2.5, res: 64, shadow: 2048, veg: [180, 900, 75] },
+  { splitK: 1.0, farSplitK: 1.5, res: 32, shadow: 1024, veg: [110, 480, 40] },
 ]
 
 /** The frame time we hold (ms): 60 a second, a little slack. */

@@ -58,21 +58,21 @@ const GCELL = 24 // grass cells
 
 type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'pebble' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
-  coniferNear: 7000,
-  coniferMid: 12000,
-  coniferFar: 26000,
-  broadNear: 7000,
-  broadMid: 12000,
-  broadFar: 26000,
+  coniferNear: 10000,
+  coniferMid: 20000,
+  coniferFar: 80000,
+  broadNear: 10000,
+  broadMid: 20000,
+  broadFar: 80000,
   rock: 5000,
   rockA: 1500,
   rockB: 1500,
   rockC: 1500,
   pebble: 3000,
-  bush: 9000,
-  grass: 34000,
+  bush: 20000,
+  grass: 80000,
   reed: 6000,
-  shrub: 40000,
+  shrub: 90000,
   fern: 16000,
   stalk: 9000,
 }
@@ -330,9 +330,9 @@ const SWAY: Record<Kind, number> = { coniferNear: 0.01, coniferMid: 0.008, conif
 
 export class Vegetation {
   readonly group = new THREE.Group()
-  nearR = 240
-  midR = 750
-  grassR = 70
+  nearR = 260
+  midR = 1400
+  grassR = 110
   private readonly meshes = {} as Record<Kind, THREE.InstancedMesh>
   /** The distant kinds' wedges (the first is meshes[kind]). */
   private readonly sectors = new Map<Kind, THREE.InstancedMesh[]>()
