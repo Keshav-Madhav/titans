@@ -24,6 +24,9 @@ export type Layer = (typeof LAYERS)[number]
 export const LAYER = Object.fromEntries(LAYERS.map((l, i) => [l, i])) as Record<Layer, number>
 
 /** Metres per texture tile, up close. */
+/** How much of each layer's own half-metre blotching is taken out (the ground layers; not sand's ripples or the rocks'). */
+// grass, drygrass, forest, mud, sand, redrock, rock, snow, carved, relief, bone, bark, flagstone, moss, basalt, hide
+const FLAT = [0.9, 0.9, 0.8, 0.7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0, 0]
 const SCALE = [3.2, 3.4, 2.8, 3.0, 6.0, 24.0, 9.0, 7.0, 10, 14, 8, 6, 6, 4, 10, 8]
 /**
  * Art direction per layer: each texture's colour pulled toward the palette
@@ -150,6 +153,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         varying vec3 vGroundN;
         const float LSCALE[${LAYERS.length}] = float[${LAYERS.length}](${list(SCALE)});
         const float LROUGH[${LAYERS.length}] = float[${LAYERS.length}](${list(ROUGH)});
+        const float LFLAT[${LAYERS.length}] = float[${LAYERS.length}](${list(FLAT)});
         const vec3 LTINT[${LAYERS.length}] = vec3[${LAYERS.length}](${TINT.map((t) => `vec3(${list(t)})`).join(', ')});
 
         // A tangent-space normal from the packed texel (Y flipped: the arrays are
@@ -160,6 +164,14 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // grain on cliffs.
         uniform int uTerrainExp;
         ${TRAIL_GLSL}
+        // Value noise that never repeats (a hash without sin(): see post.ts).
+        float tHash(vec2 p) { p = mod(p, 4096.0); vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+        float tVNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(tHash(i), tHash(i + vec2(1.0, 0.0)), f.x), mix(tHash(i + vec2(0.0, 1.0)), tHash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
         vec3 unpackN(vec4 t) {
           vec2 xy = t.rg * 2.0 - 1.0;
           xy.y = -xy.y;
@@ -171,9 +183,29 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float s = 1.0 / LSCALE[i];
           vec2 uv = p.xz * s;
           vec4 c = textureGrad(tLayerColor, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s);
+          // (The ground layers' blotches flattened out: a photo tile has its own patches half a metre
+          // across — the grass a dark bare one — and at a 3 m repeat they lay over every meadow as a
+          // regular lattice of dark dots, from a walk and from the air alike (the user's flyover,
+          // 2026-11-08). The tile's own blur taken off and its mean put back: the fine leaf and blade
+          // stay, the patches go; the land's own large shading is the variation.)
+          if (LFLAT[i] > 0.0) {
+            vec3 blot = textureLod(tLayerColor, vec3(uv, float(i)), 6.5).rgb;
+            vec3 mean = textureLod(tLayerColor, vec3(uv, float(i)), 10.0).rgb;
+            c.rgb = max(c.rgb + (mean - blot) * LFLAT[i], vec3(0.0));
+          }
           // (Past ~650 m the relief is faded out to the surface normal anyway (gNorm, below): no
           // fetch for it — optimisation pass, 2026-11-04: the terrain was 3.1 of ~8 ms.)
           vec4 n = (distance(p, cameraPosition) < T_NRM_R && (uTerrainExp & 4) == 0) ? textureGrad(tLayerNormal, vec3(uv, float(i)), dpx.xz * s, dpy.xz * s) : vec4(0.5, 0.5, 0.5, 1.0);
+          // (And the same for its relief: the grass normal map's half-metre bumps, repeating every 3 m and
+          // caught by a low sun, WERE the lattice of dark dots over the meadows (bisected: gone with the
+          // normal maps off). The tile's own broad slopes taken off; the fine relief stays.)
+          if (LFLAT[i] > 0.0 && n.a > 0.0 && distance(p, cameraPosition) < T_NRM_R && (uTerrainExp & 4) == 0) {
+            // (.b too: the height the layers blend by — mud showed through in the grass height map's
+            // low spots, the same 3 m lattice, red-brown.)
+            vec3 nBlot = textureLod(tLayerNormal, vec3(uv, float(i)), 6.5).rgb;
+            vec3 nMean = textureLod(tLayerNormal, vec3(uv, float(i)), 10.0).rgb;
+            n.rgb += (nMean - nBlot) * LFLAT[i];
+          }
           if (farT > 0.0 && (uTerrainExp & 2) == 0) {
             float s2 = s * 0.19;
             vec2 uv2 = mat2(0.8, -0.6, 0.6, 0.8) * p.xz * s2 + 0.37;
@@ -451,7 +483,11 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float gFarG = smoothstep(30.0, 70.0, gDist) * (1.0 - smoothstep(260.0, 520.0, gDist));
           float gFarGK = gGrass * (1.0 - gRockW) * gFarG;
           if (gFarGK > 0.004) {
-            float gBlade = texture2D(tDetail, gP.xz * 1.7).r * 0.55 + texture2D(tDetail, gP.xz * 0.53 + 0.2).r * 0.45;
+            // (Value noise, not the detail texture: that repeats every 1.9 m at this scale, and from any
+            // height the repeat lay over every meadow as a regular lattice of dark dots — the user's
+            // flyover, 2026-11-08. The fine octave fades before it would alias.)
+            float gFine = 1.0 - smoothstep(90.0, 220.0, gDist);
+            float gBlade = 0.5 + 0.3 * ((tVNoise(gP.xz * 1.1) - 0.5) * 0.55 * gFine + (tVNoise(gP.xz * 0.31 + 17.0) - 0.5) * (0.45 + 0.55 * (1.0 - gFine)));
             gAlb *= mix(1.0, 0.78 + 0.4 * gBlade, gFarGK);
           }
           // …and their colour, at a scale that still reads from a crest: the blades are tinted per
