@@ -317,6 +317,20 @@ export class Climber {
     if (this.standing) _m.set(fx * move.y + rx * move.x, 0, fz * move.y + rz * move.x)
     else _m.set(rx * move.x, move.y, rz * move.x)
     _m.addScaledVector(n, -n.dot(_m))
+    // (Under an overhang — the underside of a foot, the sole's toes — "up" flattened onto a face that
+    // looks down is almost nothing, and what is left points anywhere: holding W there took you along
+    // the sole into the ground and you were stepped off it, a second after taking hold — the headed
+    // playtest. There, up goes round the curve: outward and up toward the side.)
+    if (!this.standing && n.y < -0.2 && move.y > 0) {
+      const hl = Math.hypot(n.x, n.z)
+      if (hl > 1e-3) {
+        _w.set(n.x / hl, 0, n.z / hl)
+        _w.addScaledVector(n, -n.dot(_w))
+        if (_w.y < 0) _w.negate()
+        const k = THREE.MathUtils.smoothstep(-n.y, 0.2, 0.6)
+        _m.multiplyScalar(1 - k).addScaledVector(_w.normalize(), k * move.y)
+      }
+    }
     this.moving = 0
     if (_m.lengthSq() > 1e-6) {
       const speed = this.standing ? TOP_SPEED : CLIMB_SPEED

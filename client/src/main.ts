@@ -2125,6 +2125,19 @@ function updateGlass(dt: number): void {
   }
 }
 
+/**
+ * A hold carried down into the land — you are low on a giant's foot and it plants: the hold slides up
+ * the leg ahead of the ground, as you would scramble up it (it threw you off at every step of a
+ * walking giant, the headed playtest). True if that found a hold above the land.
+ */
+function shiftHoldUp(): boolean {
+  for (let i = 0; i < 24; i++) {
+    climber.step(1 / 60, { x: 0, y: 1 }, rig.yaw, 0, false)
+    if (climber.world.y > terrain.heightAt(climber.world.x, climber.world.z) + 0.2) return true
+  }
+  return false
+}
+
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
 
 /**
@@ -2430,7 +2443,7 @@ function simulate(dt: number): void {
       narration.say('You lost your grip.')
       letGo(1.2)
       noCatchUntil = performance.now() + 1500
-    } else if (climber.world.y < terrain.heightAt(climber.world.x, climber.world.z) - 0.5 && Number.isNaN(waterAt(climber.world.x, climber.world.z))) {
+    } else if (climber.world.y < terrain.heightAt(climber.world.x, climber.world.z) - 0.5 && Number.isNaN(waterAt(climber.world.x, climber.world.z)) && !shiftHoldUp()) {
       // A hold carried down into the land — a giant's leg sunk in a dip (Q56: the adversary gate
       // once found the climber 16 m underground, still holding on): step off onto the ground.
       const gx = climber.world.x
