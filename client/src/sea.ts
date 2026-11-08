@@ -92,9 +92,14 @@ export class Sea {
           float inMap = step(0.0, sUv.x) * step(sUv.x, 1.0) * step(0.0, sUv.y) * step(sUv.y, 1.0);
           float sDepth = mix(200.0, -texture2D(uBed, sUv).r, inMap);
           float sDeep = smoothstep(0.2, 4.0, sDepth);
-          diffuseColor.rgb = mix(vec3(0.22, 0.44, 0.40), diffuseColor.rgb, sDeep);
+          // (The shelf off the beach is ~400 m of water under 4 m deep, and at 25–60% over pale sand it
+          // read as more sand: from the beach the whole sea in front of you was one cream-white sheet, and
+          // you swam in it — playtest 2026-11-08. Turquoise over the sand, mostly opaque past the first
+          // half-metre; still soft at the waterline itself. The colour is linear: the old 0.22–0.44 was a
+          // bright aqua that the desert sun clipped toward white, same as the sand.)
+          diffuseColor.rgb = mix(vec3(0.016, 0.15, 0.17), diffuseColor.rgb, sDeep);
           // (Opaque once deep: at 0.97 a swimmer's legs showed through as a pale ghost under them.)
-          diffuseColor.a = mix(0.25, 1.0, smoothstep(0.0, 3.0, sDepth));
+          diffuseColor.a = smoothstep(0.0, 0.4, sDepth) * mix(0.8, 1.0, smoothstep(0.4, 2.5, sDepth));
           // Surf: lines of foam rolling in over the shallows, breaking on the sand.
           float sN = sNoise(vSeaW.xz * 0.35 + uTime * 0.08) * 0.6 + sNoise(vSeaW.xz * 1.3 - uTime * 0.15) * 0.4;
           float sRoll = sin(sDepth * 2.2 + uTime * 1.3 + sN * 2.0);
