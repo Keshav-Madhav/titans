@@ -1269,7 +1269,7 @@ export class Wanderer {
         // slide on grass only runs where the bank is steep, and dies on the flat in a few metres
         // (it was ~0 friction everywhere, "as if even on grass its like polished glass" — the user).
         const sand = !snow && this.isSand(this.pos.x, this.pos.z)
-        const mu = snow ? 0.06 : sand ? 0.3 : 0.4
+        const mu = snow ? 0.06 : sand ? 0.16 : 0.3
         const cosT = 1 / Math.sqrt(1 + grade * grade)
         const hv1 = Math.hypot(this.vel.x, this.vel.z)
         if (hv1 > 1e-3) {
