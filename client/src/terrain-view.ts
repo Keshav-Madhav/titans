@@ -514,8 +514,10 @@ export class TerrainView {
     const alpine = smoothstep(140, 330, h) * 0.75
     // (In the Dune Sea only past ~54°: a dune's slip face, ~33°, is sand — it came out as red cliff
     // strata, whole faces of it; the mesas' walls are far steeper.)
-    const rockLo = 0.16 + 0.26 * r.desert
-    const rockT = Math.max(smoothstep(rockLo, rockLo + 0.22, slope + n * 0.04), alpine)
+    // (And past ~60°, not ~54°: the generated dunes' lips stand that steep in places and wore a red
+    // band of strata along their crests; the mesas' walls are near vertical — tour review 2026-11-08.)
+    const rockLo = 0.16 + 0.42 * r.desert
+    const rockT = Math.max(smoothstep(rockLo, rockLo + 0.18 - 0.06 * r.desert, slope + n * 0.04), alpine)
     if (rockT > 0) {
       const red = r.desert * (1 - alpine)
       this.toward(LAYER.rock, rockT * (1 - red))
