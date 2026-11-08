@@ -45,3 +45,23 @@ export function poolBowl(x: number, z: number): number {
   const t = Math.min(1, Math.max(0, (1.3 - d) / 0.5))
   return t * t * (3 - 2 * t)
 }
+
+/**
+ * How far out from its middle pool `p` (in cell cx, cz) is carved, along angle `a` (m): where
+ * poolBowl ends (its wobbled shore, or the cell's edge, which it never crosses). The water is laid
+ * to this outline, not a circle — a circle either hung past the bank or left the bowl dry.
+ */
+export function poolReach(p: Pool, cx: number, cz: number, a: number): number {
+  const ca = Math.cos(a)
+  const sa = Math.sin(a)
+  let last = 0.6 * p.r
+  for (let k = 0.6; k <= 1.8; k += 0.03) {
+    const x = p.x + ca * k * p.r
+    const z = p.z + sa * k * p.r
+    if (Math.floor(x / POOL_CELL) !== cx || Math.floor(z / POOL_CELL) !== cz) return last
+    const d = k + 0.28 * shore(x * 0.045, z * 0.045) + 0.1 * shore(x * 0.13 + 7, z * 0.13)
+    if (d >= 1.3) return last
+    last = k * p.r
+  }
+  return last
+}

@@ -6,16 +6,19 @@
 // gets a disc of still water at its rim's level, made for the cells near you.
 
 import * as THREE from 'three'
-import { mulberry32, POOL_CELL, poolInCell, type Terrain } from '@titans/shared'
+import { mulberry32, POOL_CELL, poolBowl, poolInCell, poolReach, type Terrain } from '@titans/shared'
 import { SOFT_GLSL, soft, softScene } from './soft'
 
 const NEAR = 1400
 const POOLS = 260
 const SNAGS = 220
+/** Spokes round a pool's outline. */
+const SPOKES = 28
 
 export class MireView {
   readonly group = new THREE.Group()
-  private readonly water: THREE.InstancedMesh
+  private readonly water: THREE.Mesh
+  private readonly wPos = new Float32Array(POOLS * (SPOKES + 1) * 3)
   private readonly snags: THREE.InstancedMesh
   private lastKey = ''
 
@@ -36,7 +39,7 @@ export class MireView {
       Object.assign(sh.uniforms, soft)
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vPoolW;')
-        .replace('#include <project_vertex>', '#include <project_vertex>\nvPoolW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvPoolW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
       sh.fragmentShader = sh.fragmentShader
         .replace('void main() {', '#include <packing>\nvarying vec3 vPoolW;\n' + SOFT_GLSL + '\nvoid main() {')
         .replace(
@@ -64,10 +67,22 @@ export class MireView {
           }`,
         )
     }
-    this.water = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), mat, POOLS)
+    // (Each pool's water is its own bowl's outline (shared poolReach), all in one mesh rebuilt when
+    // you move a cell: a circle either hung out past the bank over lower ground — black plates over
+    // the slopes, the user's screenshot — or, set low enough not to, left the bowls dry craters.)
+    const wGeo = new THREE.BufferGeometry()
+    wGeo.setAttribute('position', new THREE.BufferAttribute(this.wPos, 3))
+    wGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(POOLS * (SPOKES + 1) * 3).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3))
+    const idx: number[] = []
+    for (let p = 0; p < POOLS; p++) {
+      const b = p * (SPOKES + 1)
+      for (let k = 0; k < SPOKES; k++) idx.push(b, b + 1 + ((k + 1) % SPOKES), b + 1 + k)
+    }
+    wGeo.setIndex(idx)
+    wGeo.setDrawRange(0, 0)
+    this.water = new THREE.Mesh(wGeo, mat)
     this.water.frustumCulled = false
     this.water.receiveShadow = true
-    this.water.count = 0
     // A drowned tree: a grey trunk, snapped high, with two or three bare limbs.
     const wood = new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 1 })
     const parts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(0.22, 0.5, 11, 6).translate(0, 5.5, 0)]
@@ -106,7 +121,7 @@ export class MireView {
 
   /** The water surface over (x, z) in a marsh pool near you, or NaN. */
   levelAt(x: number, z: number): number {
-    for (const p of this.pools) if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && this.terrain.heightAt(x, z) < p.level) return p.level
+    for (const p of this.pools) if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && this.terrain.heightAt(x, z) < p.level && poolBowl(x, z) > 0) return p.level
     return NaN
   }
 
@@ -116,7 +131,8 @@ export class MireView {
     if (key === this.lastKey) return
     this.lastKey = key
     if (this.mire(cam.x, cam.z) < 0.01 && this.mire(cam.x + Math.sign(-cam.x) * NEAR, cam.z) < 0.01) {
-      this.water.count = this.snags.count = 0
+      this.water.geometry.setDrawRange(0, 0)
+      this.snags.count = 0
       this.pools.length = 0
       return
     }
@@ -141,11 +157,23 @@ export class MireView {
         const pool = poolInCell(cx, cz)
         const rand = mulberry32((cx * 92821) ^ (cz * 68917) ^ 0x7a1)
         if (pool && nw < POOLS) {
-          const rim = this.water0.level(cx, cz, pool) + 0.7
-          // (Wide enough to reach the wobbled shore everywhere: the ground cuts the real edge.)
-          m.compose(p.set(pool.x, rim - 0.7, pool.z), q.identity(), s.set(pool.r * 1.6, 1, pool.r * 1.6))
-          this.water.setMatrixAt(nw++, m)
-          this.pools.push({ x: pool.x, z: pool.z, r: pool.r * 1.6, level: rim - 0.7 })
+          const level = this.water0.level(cx, cz, pool)
+          const o = nw * (SPOKES + 1) * 3
+          this.wPos[o] = pool.x
+          this.wPos[o + 1] = level
+          this.wPos[o + 2] = pool.z
+          let far = 0
+          for (let k = 0; k < SPOKES; k++) {
+            const a = (k / SPOKES) * Math.PI * 2
+            // (A metre past the carved edge: the bank's rise hides the rim, no dry ring shows.)
+            const rr = poolReach(pool, cx, cz, a) + 1
+            far = Math.max(far, rr)
+            this.wPos[o + 3 + k * 3] = pool.x + Math.cos(a) * rr
+            this.wPos[o + 3 + k * 3 + 1] = level
+            this.wPos[o + 3 + k * 3 + 2] = pool.z + Math.sin(a) * rr
+          }
+          nw++
+          this.pools.push({ x: pool.x, z: pool.z, r: far, level })
         }
         // A drowned tree or two in or by the water.
         for (let k = 0; k < 2 && ns < SNAGS; k++) {
@@ -161,9 +189,9 @@ export class MireView {
         }
       }
     }
-    this.water.count = nw
+    this.water.geometry.setDrawRange(0, nw * SPOKES * 3)
+    ;(this.water.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true
     this.snags.count = ns
-    this.water.instanceMatrix.needsUpdate = true
     this.snags.instanceMatrix.needsUpdate = true
   }
 }
@@ -178,20 +206,17 @@ export function poolWater(terrain: Terrain, mire: (x: number, z: number) => numb
     const k = cx * 100003 + cz
     let l = levels.get(k)
     if (l === undefined) {
-      // The water stands a little below the LOWEST point round its bank, never above it. (It stood
-      // under the rim's average, and where the Mire runs onto the slopes at the cliffs' feet the
-      // downhill bank was metres below that: the disc hung out over the slope, a flat black plate
-      // with a hard edge — the user's screenshot, 2026-11-08. Taken round the disc's own edge too,
-      // so no part of it can stand out over lower ground; on a slope the water keeps to the hollow
-      // or sinks out of sight under it.)
+      // The water stands a little under the LOWEST point of its bowl's lip, never above it: on the
+      // flat Mire that is nearly brim-full; where the Mire runs onto the slopes at the cliffs' feet the
+      // downhill lip sets it, and the uphill side of the bowl stands dry (it hung out over the slope
+      // as a flat black plate when set from the rim's average — the user's screenshot, 2026-11-08).
       let rim = Infinity
-      for (const k of [1.3, 1.6]) {
-        for (let i = 0; i < 16; i++) {
-          const a = (i / 16) * Math.PI * 2
-          rim = Math.min(rim, terrain.heightAt(pool.x + Math.cos(a) * pool.r * k, pool.z + Math.sin(a) * pool.r * k))
-        }
+      for (let i = 0; i < SPOKES; i++) {
+        const a = (i / SPOKES) * Math.PI * 2
+        const rr = poolReach(pool, cx, cz, a) + 1
+        rim = Math.min(rim, terrain.heightAt(pool.x + Math.cos(a) * rr, pool.z + Math.sin(a) * rr))
       }
-      l = rim - 0.25
+      l = rim - 0.3
       if (levels.size > 6000) levels.clear()
       levels.set(k, l)
     }
@@ -202,7 +227,7 @@ export function poolWater(terrain: Terrain, mire: (x: number, z: number) => numb
     const cx = Math.floor(x / POOL_CELL)
     const cz = Math.floor(z / POOL_CELL)
     const pool = poolInCell(cx, cz)
-    if (!pool || (x - pool.x) ** 2 + (z - pool.z) ** 2 > (pool.r * 1.6) ** 2) return false
+    if (!pool || (x - pool.x) ** 2 + (z - pool.z) ** 2 > (pool.r * 1.8) ** 2 || poolBowl(x, z) <= 0) return false
     return terrain.heightAt(x, z) < level(cx, cz, pool) + 0.05
   }
   return { level, wetAt }
