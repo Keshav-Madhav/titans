@@ -14,13 +14,13 @@ export const TALL = { x: -4366, z: -589, r: 380 }
 
 const CELL = 16
 /** Full density within this of the camera; a thinner silhouette out to FAR. */
-const NEAR = 210
+const NEAR = 150
 const FAR = 650
-const PER_CELL = 22
-const PER_CELL_FAR = 4
-const CAP = 26000
-const BLADES = 12
-const SEGS = 5
+const PER_CELL = 15
+const PER_CELL_FAR = 5
+const CAP = 16000
+const BLADES = 9
+const SEGS = 4
 
 const edgeNoise = makeSimplex2(0x7a11)
 
@@ -221,7 +221,9 @@ export class Tallgrass {
           // (Far off, only the tall ones: the field's silhouette, not its rim.)
           if (d >= NEAR && h < 6) continue
           this.q.setFromAxisAngle(this.up, c[i * 5 + 4])
-          this.m.compose(this.p.set(c[i * 5], c[i * 5 + 1], c[i * 5 + 2]), this.q, this.s.set(h * 0.55, h, h * 0.55))
+          // (Far off, each clump stands for the ones not drawn: wider, so the field reads solid.)
+          const wide = d < NEAR ? 0.7 : 1.25
+          this.m.compose(this.p.set(c[i * 5], c[i * 5 + 1], c[i * 5 + 2]), this.q, this.s.set(h * wide, h, h * wide))
           this.mesh.setMatrixAt(n++, this.m)
         }
       }
