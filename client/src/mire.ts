@@ -178,10 +178,20 @@ export function poolWater(terrain: Terrain, mire: (x: number, z: number) => numb
     const k = cx * 100003 + cz
     let l = levels.get(k)
     if (l === undefined) {
-      // The water stands a little below the rim's average (the ground is nearly level here).
-      let rim = 0
-      for (let i = 0; i < 10; i++) rim += terrain.heightAt(pool.x + Math.cos(i * 0.628) * pool.r * 1.3, pool.z + Math.sin(i * 0.628) * pool.r * 1.3) / 10
-      l = rim - 0.7
+      // The water stands a little below the LOWEST point round its bank, never above it. (It stood
+      // under the rim's average, and where the Mire runs onto the slopes at the cliffs' feet the
+      // downhill bank was metres below that: the disc hung out over the slope, a flat black plate
+      // with a hard edge — the user's screenshot, 2026-11-08. Taken round the disc's own edge too,
+      // so no part of it can stand out over lower ground; on a slope the water keeps to the hollow
+      // or sinks out of sight under it.)
+      let rim = Infinity
+      for (const k of [1.3, 1.6]) {
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2
+          rim = Math.min(rim, terrain.heightAt(pool.x + Math.cos(a) * pool.r * k, pool.z + Math.sin(a) * pool.r * k))
+        }
+      }
+      l = rim - 0.25
       if (levels.size > 6000) levels.clear()
       levels.set(k, l)
     }
