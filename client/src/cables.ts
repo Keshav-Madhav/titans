@@ -138,7 +138,7 @@ export class Cables {
     const wood = new THREE.MeshStandardMaterial({ color: 0x5b4a38, roughness: 1 })
     for (const c of this.cables) {
       const curve = new THREE.CatmullRomCurve3(c.pts)
-      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, SEG * 2, 0.05, 6), rope)
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, SEG * 2, 0.03, 6), rope)
       m.castShadow = true
       this.group.add(m)
       // (And a hairline along it: a 7 cm rope is under a pixel past ~60 m and vanished — a line is

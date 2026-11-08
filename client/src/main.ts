@@ -2539,9 +2539,8 @@ function simulate(dt: number): void {
       wanderer.vel.set(_cDir.x * v, _cDir.y * v + 1.5, _cDir.z * v)
       fallTop = wanderer.pos.y
     } else {
-      wanderer.place(_cHand.x, _cHand.y - CABLE_HANG, _cHand.z)
+      wanderer.carry(_cHand.x, _cHand.y - CABLE_HANG, _cHand.z, Math.atan2(_cDir.x, _cDir.z))
       wanderer.vel.copy(_cDir).multiplyScalar(cables.ride.v)
-      wanderer.yaw = Math.atan2(_cDir.x, _cDir.z)
       wanderer.hanging = true
       wanderer.grounded = false
       fallTop = wanderer.pos.y

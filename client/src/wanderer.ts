@@ -1548,6 +1548,20 @@ export class Wanderer {
     this.vel.set(0, 0, 0)
   }
 
+  /**
+   * Carried along a path (a rope's pulley): moved for this step without the walking step, but the
+   * frame before kept, so the drawn body still slides between steps. (`place` dropped the frame
+   * before and step() never ran, so on a rope the body jumped a step at a time while the camera
+   * glided, and its facing blended from the yaw it had BEFORE the ride by a different fraction
+   * every frame: the twitch and wobble the user saw on the zip line.)
+   */
+  carry(x: number, y: number, z: number, yaw: number): void {
+    this.prev.copy(this.pos)
+    this.prevYaw = this.yaw
+    this.pos.set(x, y, z)
+    this.yaw = yaw
+  }
+
   /** Copy simulation state to the scene graph, `alpha` of the way from the previous step. */
   sync(alpha: number): void {
     this.climbing = false
