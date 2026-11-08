@@ -16,6 +16,9 @@ export interface CameraProfile {
 
 // (7 m, not 5.5: the user, 2026-11-08 — "a little farther away so the wanderer takes up a little
 // less space on the screen, further adding the small feeling".)
+/** How far (m) the camera's focus may trail what it follows. */
+const MAX_LAG = 3
+
 export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 7, focusHeight: 1.55, follow: 18 }
 /**
  * Climbing a giant: further out than on foot (QA Q14 — at 5.5 m the giant's skin filled the screen
@@ -143,6 +146,16 @@ export class CameraRig {
       this.focus.x += (subject.x - this.focus.x) * k
       this.focus.y += (fy - this.focus.y) * k
       this.focus.z += (subject.z - this.focus.z) * k
+      // (Never more than a few metres behind. The eased lag is speed / follow — 33 m in Creative's
+      // fast flight — and swung with every frame's length (6 to 33 m frame to frame): the body
+      // stuttered across the screen. Capped, the trail is steady however fast you go; at a walk,
+      // a glide or a fall it is well under the cap and nothing changes.)
+      const lx = this.focus.x - subject.x, ly = this.focus.y - fy, lz = this.focus.z - subject.z
+      const lag = Math.hypot(lx, ly, lz)
+      if (lag > MAX_LAG) {
+        const s = MAX_LAG / lag
+        this.focus.set(subject.x + lx * s, fy + ly * s, subject.z + lz * s)
+      }
     }
     // The focus is never under the ground.
     this.focus.y = Math.max(this.focus.y, terrain.heightAt(this.focus.x, this.focus.z) + 0.5)

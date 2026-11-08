@@ -2277,11 +2277,11 @@ function creativeFly(dt: number): void {
   const nx = p.x + creative.v.x * dt
   const nz = p.z + creative.v.z * dt
   const floor = Math.max(terrain.heightAt(nx, nz), -40) + 0.4
-  wanderer.place(nx, Math.max(floor, p.y + creative.v.y * dt), nz)
-  wanderer.vel.copy(creative.v)
-  // The body flies as in a glide: the cloak open, facing the way you go.
+  // The body flies as in a glide: the cloak open, facing the way you go. (Carried, not placed: placed
+  // each step, the body jumped a step at a time at flight speed while the camera glided.)
   const hs = Math.hypot(creative.v.x, creative.v.z)
-  if (hs > 0.5) wanderer.yaw = Math.atan2(creative.v.x, creative.v.z)
+  wanderer.carry(nx, Math.max(floor, p.y + creative.v.y * dt), nz, hs > 0.5 ? Math.atan2(creative.v.x, creative.v.z) : wanderer.yaw)
+  wanderer.vel.copy(creative.v)
   wanderer.gliding = hs > 1 || Math.abs(creative.v.y) > 1
   wanderer.grounded = wanderer.pos.y <= floor + 0.01 && !wanderer.gliding
   wanderer.swimming = false
@@ -2621,7 +2621,7 @@ function simulate(dt: number): void {
       wanderer.vel.set(0, 0, 0)
     } else {
       // The body rides along, for the camera and the moment we let go.
-      wanderer.place(climber.world.x, climber.world.y, climber.world.z)
+      wanderer.carry(climber.world.x, climber.world.y, climber.world.z, wanderer.yaw)
     }
   } else if (cliff.active) {
     if (input.pressed('KeyE')) letGoCliff(0.5)
@@ -2632,7 +2632,7 @@ function simulate(dt: number): void {
         narration.say('Your grip gave out.')
         letGoCliff(1)
       } else {
-        wanderer.place(cliff.world.x, cliff.world.y, cliff.world.z)
+        wanderer.carry(cliff.world.x, cliff.world.y, cliff.world.z, wanderer.yaw)
         // Up on top of a solid: stand on it.
         if (r === 'top') onRock()
       }
