@@ -3012,6 +3012,8 @@ function wallToClimb(): boolean {
 let vertigo = 0
 /** The view widened by how far up or down you look (degrees, eased). */
 let pitchFov = 0
+/** When you last turned the view yourself (ms). */
+let lastLookAt = 0
 /** The speed streaks' strength now (eased). */
 let streakK = 0
 let vertigoT = 0
@@ -3701,9 +3703,19 @@ function frameBody(now: number): void {
     // half a turn round set the camera orbiting at ~38 m/s from a standstill — the playtest's jolt.)
     {
       let dy = 0
+      if (Math.abs(look.dx) + Math.abs(look.dy) > 0.5) lastLookAt = performance.now()
       if (wanderer.gliding) {
         dy = wanderer.yaw + Math.PI - rig.yaw
         dy = Math.atan2(Math.sin(dy), Math.cos(dy))
+      } else if (climber.active && !climber.standing && performance.now() - lastLookAt > 1500) {
+        // Climbing, and you have left the view alone: it comes round to the open side of the wall,
+        // out along the hold, so you see yourself on it (playing: 30 m up a leg, the camera looked
+        // out over the plain and the climber was on the far side of the leg, out of sight).
+        const n = climber.normal
+        if (Math.hypot(n.x, n.z) > 0.2) {
+          dy = Math.atan2(n.x, n.z) - rig.yaw
+          dy = Math.atan2(Math.sin(dy), Math.cos(dy)) * 0.5
+        }
       }
       const W = 2.6
       flySwingV += (W * W * dy - 2 * W * flySwingV) * Math.min(dt, 1 / 30)

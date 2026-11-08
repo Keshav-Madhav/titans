@@ -19,6 +19,8 @@ const URL = process.argv[2] ?? 'http://127.0.0.1:4402/?offline'
 const OUT = process.argv[3] ?? 'shots/play'
 mkdirSync(OUT, { recursive: true })
 const browser = await chromium.launch({ channel: 'chrome', headless: false })
+// (Gone with its browser: a driver left listening with a dead page held the port and the next one could not start.)
+browser.on('disconnected', () => process.exit(0))
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await context.newPage()
 const log = []
