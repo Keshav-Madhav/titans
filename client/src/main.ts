@@ -1854,8 +1854,8 @@ function loadLocal(): boolean {
   // the earth over the hall and the screen was black — 2026-11-07, reproduced in a real window.)
   {
     const land = terrain.heightAt(d.player.x, d.player.z)
-    wanderer.place(d.player.x, d.player.y > land ? d.player.y + 0.05 : land, d.player.z)
-    lastSafe.copy(wanderer.pos)
+    lastSafe.set(d.player.x, Math.max(d.player.y, land), d.player.z)
+    wakeAtSafe()
   }
   // Time has passed: the rain has fallen. The lakes come back as they were,
   // brim-full (and settle whatever was still merging when you left).
@@ -1999,8 +1999,7 @@ function watchFalls(dt: number): void {
     narration.say(FALL_LINES[Math.floor(Math.random() * FALL_LINES.length)])
     // Wake at the last safe ground once it is dark.
     setTimeout(() => {
-      wanderer.place(lastSafe.x, terrain.heightAt(lastSafe.x, lastSafe.z), lastSafe.z)
-      onRock()
+      wakeAtSafe()
     }, 420)
     return
   }
@@ -2137,6 +2136,23 @@ function shiftHoldUp(): boolean {
     if (climber.world.y > terrain.heightAt(climber.world.x, climber.world.z) + 0.2) return true
   }
   return false
+}
+
+/**
+ * Wake at the last safe ground — at ITS height, not the land's under it (the user, 2026-11-08: saved
+ * by the edge of the Great Stair's platform, reloaded, fell, and woke 120 m down inside the stair's
+ * base, "lodged in the ground" between the last step and the platform). If that spot is inside stone,
+ * up to the first place with room to stand.
+ */
+function wakeAtSafe(): void {
+  const x = lastSafe.x
+  const z = lastSafe.z
+  const land = terrain.heightAt(x, z)
+  let y = Math.max(lastSafe.y, land)
+  for (let up = 0; up < 400 && rocks.sdfAt(x, y + 0.9, z) < 0.45; up += 0.5) y = Math.max(lastSafe.y, land) + up
+  wanderer.place(x, y + 0.05, z)
+  wanderer.vel.set(0, 0, 0)
+  onRock()
 }
 
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
