@@ -14,7 +14,9 @@ export interface CameraProfile {
   follow: number // focus smoothing, per second
 }
 
-export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 5.5, focusHeight: 1.55, follow: 18 }
+// (7 m, not 5.5: the user, 2026-11-08 — "a little farther away so the wanderer takes up a little
+// less space on the screen, further adding the small feeling".)
+export const WANDERER_CAM: CameraProfile = { minDist: 2.2, maxDist: 18, dist: 7, focusHeight: 1.55, follow: 18 }
 /**
  * Climbing a giant: further out than on foot (QA Q14 — at 5.5 m the giant's skin filled the screen
  * and you lost the giant: no silhouette, no ground below, no sense of where on it you were).

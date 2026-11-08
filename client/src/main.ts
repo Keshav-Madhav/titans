@@ -2869,6 +2869,8 @@ function wallToClimb(): boolean {
  * wind rises. 0 … 1, eased (it comes on over a couple of seconds, lets go a little faster).
  */
 let vertigo = 0
+/** The view widened by how far up or down you look (degrees, eased). */
+let pitchFov = 0
 let vertigoT = 0
 let vertigoSeen = { at: 0, want: 0 }
 function vertigoWant(): number {
@@ -3578,7 +3580,12 @@ function frameBody(now: number): void {
       const w = vertigoWant()
       vertigo += (w - vertigo) * Math.min(1, dt * (w > vertigo ? 0.6 : 1.2))
       vertigoT += dt
-      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
+      // Looking up or down widens the view (the user, 2026-11-08: "dynamically update fov too so looking
+      // more up or more down increases fov"): up at a giant or a cliff, down off a drop, more of it in
+      // frame. Eased, and never while drawing the bow (the aim narrows it on purpose).
+      const pitchWant = (THREE.MathUtils.smoothstep(Math.abs(rig.pitch), 0.12, 0.9) * (rig.pitch < 0 ? 9 : 7)) * (1 - bow.draw)
+      pitchFov += (pitchWant - pitchFov) * Math.min(1, dt * 3)
+      const fov = 58 + 7 * wanderer.lope - 14 * bow.draw + sc.fov + pitchFov + vertigo * (4 + 2 * Math.sin(vertigoT * 0.5))
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

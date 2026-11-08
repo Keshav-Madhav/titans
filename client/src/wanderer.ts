@@ -1168,6 +1168,13 @@ export class Wanderer {
     }
     this.tilt += ((this.stunned > 0 ? 1.25 : 0) - this.tilt) * Math.min(1, dt * (this.stunned > 0 ? 10 : 3))
     this.flyLean = THREE.MathUtils.clamp(this.flyLean + (this.gliding ? 1 : -1) * dt * 2.5, 0, 1)
+    // (The flight path's angle from the velocity itself, eased: what the eye reads as up or down.)
+    {
+      const hv = Math.hypot(this.vel.x, this.vel.z)
+      const g = this.gliding && hv + Math.abs(this.vel.y) > 1 ? Math.atan2(this.vel.y, Math.max(1, hv)) : 0
+      this.gammaVis += (g - this.gammaVis) * Math.min(1, dt * 4)
+      if (!Number.isFinite(this.gammaVis)) this.gammaVis = 0
+    }
     // Camera looks along -Z at yaw 0, so forward is (-sin, -cos).
     const fx = -Math.sin(camYaw)
     const fz = -Math.cos(camYaw)
@@ -1469,6 +1476,8 @@ export class Wanderer {
   private landedHolding = false
   /** In flight: how far the body has leaned into the flying pose (eased in and out). */
   private flyLean = 0
+  /** The flight path's angle as the body shows it (eased; + climbing). */
+  private gammaVis = 0
   /** A running leap is in the air: the cloak may open at its top (see the jump). */
   private leapGlide = false
   /** Swimming: how much the feet are held under the water (eased in and out). */
@@ -1553,7 +1562,10 @@ export class Wanderer {
     const fl = this.flyLean * this.flyLean * (3 - 2 * this.flyLean)
     if (fl > 0.002) {
       this.obj.quaternion.multiply(_tq.setFromAxisAngle(_fwd, this.bank * 0.9 * fl))
-      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, (0.9 - this.gamma * 0.5) * fl))
+      // (Nose with the flight path, for real: at 0.5 × the climb angle a steep dive and a climb looked
+      // the same — the user, 2026-11-08, "impossible to tell what direction i am going". Now the body
+      // follows it: head down past level in a dive, chest up into a climb.)
+      this.obj.quaternion.multiply(_tq.setFromAxisAngle(_side, THREE.MathUtils.clamp(1.0 - this.gammaVis * 1.5, 0.5, 2.05) * fl))
     }
   }
 
