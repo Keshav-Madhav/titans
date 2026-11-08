@@ -937,6 +937,16 @@ export class Vegetation {
     return false
   }
 
+  /**
+   * 1 where trees may stand, 0 on the Dune Sea's sand. (The ground turns to sand in step with the
+   * desert's weight, but trees only thinned out in step with it too: across the border band the
+   * ground already read as sand while half the wood still stood on it — the flyover, 2026-11-08,
+   * forest trees in open dunes. Gone by the time sand is a third of the ground.)
+   */
+  private notSand(x: number, z: number): number {
+    return 1 - THREE.MathUtils.smoothstep(this.biome.desert(x, z), 0.1, 0.35)
+  }
+
   private wet(x: number, z: number, margin: number): boolean {
     const ix = Math.round(x)
     const iz = Math.round(z)
@@ -968,7 +978,7 @@ export class Vegetation {
         const cp = this.biome.copse(x, z)
         // No trees in the Dune Sea.
         // (No living trees in the Mire: only the drowned ones, mire.ts.)
-        const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * (1 - this.biome.desert(x, z)) * (1 - this.biome.mire(x, z))
+        const p = (f > 0.45 ? 0.2 + f * 0.62 : (f * 0.06 + 0.011) * (1 - 0.9 * this.biome.open(x, z)) + cp * 0.42) * this.notSand(x, z) * (1 - this.biome.mire(x, z))
         if (rand() > p) continue
         const h = this.ground(x, z, 400)
         if (h === null || this.walled(x, z, h)) continue
@@ -1023,8 +1033,8 @@ export class Vegetation {
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
-      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * (1 - this.biome.desert(x, z)) * (1 - 0.85 * this.biome.mire(x, z))
-      const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 * (1 - this.biome.desert(x, z)) : 0
+      const edge = (f > 0.15 && f < 0.6 ? 0.45 : 0.12 + this.biome.copse(x, z) * 0.4) * this.notSand(x, z) * (1 - 0.85 * this.biome.mire(x, z))
+      const waterSide = this.wet(x, z, 3) ? 0 : this.wet(x + 4, z, 0.2) || this.wet(x - 4, z, 0.2) || this.wet(x, z + 4, 0.2) || this.wet(x, z - 4, 0.2) ? 0.7 * this.notSand(x, z) : 0
       if (rand() > edge + waterSide) continue
       const h = this.ground(x, z)
       if (h === null) continue
