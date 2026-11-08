@@ -1485,7 +1485,7 @@ export class Wanderer {
   /** The flight path's angle as the body shows it (eased; + climbing). */
   private gammaVis = 0
   /** A running leap is in the air: the cloak may open at its top (see the jump). */
-  private leapGlide = false
+  leapGlide = false
   /** Swimming: how much the feet are held under the water (eased in and out). */
   private swimLegW = 0
   /** The facing's turn rate (rad/s), sprung toward where you go. */

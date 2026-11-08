@@ -1785,6 +1785,7 @@ let wild = !toolMode || params.has('wild')
 let localSave = !toolMode
 const sound = new Sound(settings.sound)
 const tips = new Tips(!toolMode)
+const tipsEl = document.getElementById('tips')!
 const tipState = { moved: 0, climbed: false, high: 0, bag: false, looked: false, out: false, mapped: false, page2: false, found: 0 }
 let lastTip = 0
 
@@ -2430,11 +2431,19 @@ function simulate(dt: number): void {
     } else if (keySpace && climber.standing) {
       // Standing on a giant, Space is a jump — up, and on the way you are going — and you come
       // down on it again where there is footing (landOn), not thrown off it.
-      const fwd = climber.moving > 0 ? 3.2 : 0.6
+      // (Walking, with the cloak: a running leap OFF it — out, the cloak opening as you fall, as long
+      // as Space stays held. Playing: on top of the Walker's thigh at 128 m, every jump came back
+      // down onto the giant and walking on stepped you onto its side: no way to leap off and fly.)
+      const leap = climber.moving > 0 && finds.has('cloak')
+      const fwd = leap ? 9 : climber.moving > 0 ? 3.2 : 0.6
       letGo(0)
-      wanderer.vel.y = Math.max(wanderer.vel.y, 0) + 5.2
+      wanderer.vel.y = Math.max(wanderer.vel.y, 0) + (leap ? 6.5 : 5.2)
       wanderer.vel.x += Math.sin(wanderer.yaw) * fwd
       wanderer.vel.z += Math.cos(wanderer.yaw) * fwd
+      if (leap) {
+        wanderer.leapGlide = true
+        noCatchUntil = performance.now() + 900
+      }
       sound.scramble(0.4)
     } else if (keySpace) {
       letGo(4.5)
@@ -2642,7 +2651,8 @@ function simulate(dt: number): void {
         wanderer.hanging = grapple.attached && !wanderer.grounded
         // Coming down onto a giant: you stand on it (a jump on its back, a fall from a shoulder, a
         // glide onto its head).
-        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
+        // (Not while the cloak is open and held: you fly over it, not land on it at every shoulder.)
+        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && !(wanderer.gliding && input.held('Space')) && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
           grapple.release()
           wanderer.gliding = false
           fallTop = NaN
@@ -3969,6 +3979,7 @@ function frameBody(now: number): void {
     tipState.page2 = finds.has('page-2')
     tipState.found = finds.save().length
     tips.update(tipState)
+    tipsEl.classList.toggle('aside', wanderer.gliding || (climber.active && !climber.standing) || !!cables.ride)
   }
 }
 const birdSpots: Array<{ x: number; z: number; pale?: boolean }> = []

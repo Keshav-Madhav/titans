@@ -71,6 +71,8 @@ async function act(b) {
     if (b.look) await page.evaluate(([dx, dy]) => { const I = window.__g?.input; if (I) { I.lookX += dx; I.lookY += dy } }, [b.look[0] / steps, b.look[1] / steps])
     await page.waitForTimeout(ms / steps)
   }
+  let duringResult
+  if (b.during) duringResult = await page.evaluate((src) => { try { return new Function('g', src)(window.__g) } catch (e) { return 'threw: ' + e.message } }, b.during)
   for (const k of b.hold ?? []) await page.keyboard.up(k)
   if (b.wait) await page.waitForTimeout(b.wait)
   const [w, h] = b.size ?? [960, 600]
@@ -79,7 +81,7 @@ async function act(b) {
   await page.screenshot({ path: shot, scale: 'css' })
   // (Resized by the reader if needed; the full frame is kept.)
   const errs = log.splice(0)
-  return { shot, w, h, state: await state(), errors: errs, eval: evalResult }
+  return { shot, w, h, state: await state(), errors: errs, eval: evalResult, during: duringResult }
 }
 
 createServer((req, res) => {
