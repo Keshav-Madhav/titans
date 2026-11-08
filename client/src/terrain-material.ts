@@ -347,6 +347,8 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         float gSum = 0.0;
         ${[0,1,2,3,4,5,6,7].map(i => `if (gH${i} > -5.0) { float b = max(gH${i} - gTop + 0.18, 0.0); gAlb += gCol${i} * b; gNorm += gNrm${i} * b; gRough += LROUGH[${i}] * b; gSum += b; }`).join('\n        ')}
         gAlb = gSum > 1e-4 ? gAlb / gSum : vec3(0.3, 0.29, 0.27);
+        // (Tools, bits 256/512: the snow layer alone / its blend weight as grey.)
+        if ((uTerrainExp & 256) != 0 && gH7 > -5.0) gAlb = gCol7;
         // Cliffs in strata: bands lighter and darker, thick and thin together,
         // dipping and wandering across a wall (evenly ruled stripes read as a
         // layer cake, not as rock laid down over ages).
@@ -507,6 +509,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float gcs = texture2D(tDetail, gq * 0.00021).r * 0.65 + texture2D(tDetail, gq * 0.00069 + 0.37).r * 0.35;
           gAlb *= 1.0 - groundShade.w * smoothstep(groundShade.z - 0.05, groundShade.z + 0.05, gcs);
         }
+        if ((uTerrainExp & 512) != 0) gAlb = vec3(0.7);
         diffuseColor.rgb = gAlb;`,
       )
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = gRough;')
@@ -515,7 +518,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
         {
-          float sp = gSnowK * (1.0 - smoothstep(5.0, 45.0, gDist));
+          float sp = (uTerrainExp & 1024) != 0 ? 0.0 : gSnowK * (1.0 - smoothstep(5.0, 45.0, gDist));
           if (sp > 0.01) {
             vec3 cell = floor(gP * 24.0);
             // (A hash that holds up far from the origin: fract(sin(x)·43758) of cells ~250,000 out — the
