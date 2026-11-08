@@ -89,6 +89,40 @@ export class Colossi {
   readonly places = new Map<string, THREE.Vector3>()
   /** The free stones hanging in the sky, by place name (a sunken bell can call one down). */
   readonly skyStones = new Map<string, Formation>()
+  /** The Gate's door on the Great Stair (null until built): its stone, how far open (0 … 1). */
+  gateDoor: { f: Formation; y0: number; open: number; opening: boolean; front: THREE.Vector3; sink: number } | null = null
+
+  /** Push the Gate's door: it starts to sink (true if it was shut). */
+  openGate(): boolean {
+    const d = this.gateDoor
+    if (!d || d.opening || d.open > 0) return false
+    d.opening = true
+    return true
+  }
+
+  /** The Gate's door sinking (over ~7 s, slow at first). Returns 0 … 1 of the way. */
+  updateGate(dt: number): number {
+    const d = this.gateDoor
+    if (!d || !d.opening || d.open >= 1) return d ? d.open : 0
+    d.open = Math.min(1, d.open + dt / 7)
+    const k = d.open * d.open * (3 - 2 * d.open)
+    d.f.y = d.y0 - d.sink * k
+    if (d.f.mesh) {
+      d.f.mesh.position.y = d.f.y
+      d.f.mesh.updateMatrixWorld()
+    }
+    return d.open
+  }
+
+  /** Open at once (a save where it was opened). */
+  setGateOpen(): void {
+    const d = this.gateDoor
+    if (!d) return
+    d.opening = true
+    d.open = 0.9999
+    this.updateGate(1)
+  }
+
   /** The Old Wood's giant trees (a sunken bell raises a stair round one). */
   readonly giantTrees: Array<{ f: Formation; h: number }> = []
 
@@ -352,7 +386,9 @@ export class Colossi {
       d = Math.min(d, box(lx, ly - (top - 60) / 2, lz + depth + pd, W + 40, (top + 60) / 2, pd))
       for (const sx of [-1, 1]) d = Math.min(d, box(lx - sx * 70, ly - top - 150, lz + depth + pd, 26, 150, 30))
       d = Math.min(d, box(lx, ly - top - 290, lz + depth + pd, 100, 16, 34))
-      d = Math.min(d, box(lx, ly - top - 132, lz + depth + pd + 6, 44, 132, 10))
+      // (The door is its own stone now — it opens; see below. Behind it a wall closes the way between
+      // the towers: the gap is a deep doorway, a room with something left in it.)
+      d = Math.min(d, box(lx, ly - top - 145, lz + depth + pd + 24, 44, 145, 6))
       return d
     }
     const parts: THREE.BufferGeometry[] = []
@@ -360,7 +396,7 @@ export class Colossi {
     parts.push(block(0, (top - 60) / 2, -(depth + pd), W + 40, (top + 60) / 2, pd, 4))
     for (const sx of [-1, 1]) parts.push(block(sx * 70, top + 150, -(depth + pd), 26, 150, 30, 6))
     parts.push(block(0, top + 290, -(depth + pd), 100, 16, 34, 4))
-    parts.push(block(0, top + 132, -(depth + pd) + 6, 44, 132, 10, 6))
+    parts.push(block(0, top + 145, -(depth + pd) - 24, 44, 145, 6, 6))
     // Toward the valley.
     const rot = Math.atan2(-x, -z)
     // On the lowest ground under its foot, so no step floats.
@@ -374,6 +410,21 @@ export class Colossi {
     rocks.addBuilt(shape, merged(parts), { x, y, z, rot, layers: [LAYER.carved, LAYER.flagstone], scale: 26, tint: LIMESTONE })
     this.places.set('stair', new THREE.Vector3(x, y, z))
     this.places.set('gate', new THREE.Vector3(x - Math.sin(rot) * (depth + pd), y + top, z - Math.cos(rot) * (depth + pd)))
+    // The door: a slab between the towers, at the doorway's front (the user, 2026-11-08: "the giant
+    // stair's door is just there without anything to do, its collision is off, and the thing inside
+    // of it is impossible to reach"). Its own stone, so it can open: E at it and it sinks, grinding,
+    // into the platform. Collision and the stone you see are the same box.
+    {
+      const lz = -(depth + pd) + 24
+      const DH = 132
+      const doorField = (fx: number, fy: number, fz: number) => box(fx, fy - DH, fz, 44, DH, 6)
+      const dshape: Shape = { field: doorField, hx: 50, hy: DH + 4, hz: 12, cy: DH }
+      const dx = x + Math.sin(rot) * lz
+      const dz = z + Math.cos(rot) * lz
+      rocks.addBuilt(dshape, merged([block(0, DH, 0, 44, DH, 6, 6)]), { x: dx, y: y + top, z: dz, rot, layers: [LAYER.carved, LAYER.flagstone], scale: 26, tint: LIMESTONE })
+      const f = rocks.formations[rocks.formations.length - 1]
+      this.gateDoor = { f, y0: y + top, open: 0, opening: false, front: new THREE.Vector3(x + Math.sin(rot) * (lz + 12), y + top, z + Math.cos(rot) * (lz + 12)), sink: 2 * DH + 2 }
+    }
   }
 
   /** Iron chains, link by link, sagging between their two ends. */

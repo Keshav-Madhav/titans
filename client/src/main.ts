@@ -730,11 +730,16 @@ const spots = (() => {
     list.push(['shard-sword', 'trinket', guard ?? ground(sw.x + 16, sw.z + 10)])
   }
   const gate = P('gate')
-  if (gate) {
-    const y = rocks.floorAt(gate.x, gate.y + 4, gate.z, 0.6, 12) ?? gate.y
-    list.push(['lore-stair', 'stone', new THREE.Vector3(gate.x, y, gate.z)])
-    const y2 = rocks.floorAt(gate.x + 6, gate.y + 4, gate.z + 4, 0.6, 12) ?? y
-    list.push(['figure-stair', 'trinket', new THREE.Vector3(gate.x + 6, y2, gate.z + 4)])
+  const door = colossi.gateDoor
+  if (gate && door) {
+    // (The lore stone out on the platform before the door, where you can read it; the figure in the
+    // room behind the door — it was inside the door's own stone, out of reach.)
+    const ox = (door.front.x - gate.x) / Math.max(1, Math.hypot(door.front.x - gate.x, door.front.z - gate.z))
+    const oz = (door.front.z - gate.z) / Math.max(1, Math.hypot(door.front.x - gate.x, door.front.z - gate.z))
+    const lx = gate.x + ox * 48
+    const lz = gate.z + oz * 48
+    list.push(['lore-stair', 'stone', new THREE.Vector3(lx, rocks.floorAt(lx, gate.y + 4, lz, 0.6, 12) ?? gate.y, lz)])
+    list.push(['figure-stair', 'trinket', new THREE.Vector3(gate.x, rocks.floorAt(gate.x, gate.y + 4, gate.z, 0.6, 12) ?? gate.y, gate.z)])
   }
   let big = { x: 0, z: 0, h: -1 }
   for (let i = 1; i <= 30; i++) {
@@ -1856,6 +1861,8 @@ function loadLocal(): boolean {
   // (A save from before the line was its own find: it came with the bag.)
   if (finds.has('bag') && !finds.has('line')) finds.load([...finds.save(), 'line'])
   for (const id of ['wisp-green', 'wisp-wood', 'wisp-dunes']) if (finds.has(id)) wisps.finish(id)
+  // (The Gate stays open once what was behind it is yours.)
+  if (finds.has('figure-stair')) colossi.setGateOpen()
   for (const r of resonance.rings) if (finds.has(r.def.id)) resonance.open(r.def.id)
   for (const s of eyeSets) if (finds.has(s.id)) eyes.close(s.id)
   for (const t of glyphs.trails) if (finds.has(t.def.id)) glyphs.finish(t.def.id)
@@ -2001,6 +2008,14 @@ function freezeStatic(...roots: Array<THREE.Object3D | undefined | null>): void 
       o.matrixAutoUpdate = false
     })
   }
+}
+
+/** At the Gate's door, it still shut, standing on the platform before it. */
+function gateDoorNear(): boolean {
+  const d = colossi.gateDoor
+  if (!d || d.opening) return false
+  const p = wanderer.pos
+  return Math.hypot(p.x - d.front.x, p.z - d.front.z) < 16 && Math.abs(p.y - d.y0) < 6 && wanderer.grounded
 }
 
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
@@ -2364,6 +2379,12 @@ function simulate(dt: number): void {
       } else narration.say('Carved above the worn bowl: one small thing. You have nothing like it. Not yet.')
     } else if (sunkBells.near(wanderer.pos) && input.pressed('KeyE')) {
       sunkBells.strike(sunkBells.near(wanderer.pos)!)
+    } else if (gateDoorNear() && input.pressed('KeyE')) {
+      if (colossi.openGate()) {
+        sound.rubble(40)
+        rig.shake(0.35)
+        narration.say('You lean into it. For a long moment nothing — then, under your hands, the whole slab begins to sink.')
+      }
     } else if (lanterns.near(wanderer.pos) && input.pressed('KeyE')) {
       const path = lanterns.near(wanderer.pos)!
       if (lanterns.dark) {
@@ -3329,6 +3350,14 @@ function frameBody(now: number): void {
   birds.step(dt, camera.position, birdSpots, birdPerch(), wanderer.pos)
   birds.render()
   sky.tick(dt)
+  // The Gate's door, sinking: the stone grinds, the ground trembles while it goes.
+  if (colossi.gateDoor && colossi.gateDoor.opening && colossi.gateDoor.open < 1) {
+    const before = colossi.gateDoor.open
+    const now = colossi.updateGate(dt)
+    if (Math.floor(before * 6) !== Math.floor(now * 6)) sound.rubble(60)
+    rig.shake(0.08 * Math.sin(now * Math.PI))
+    if (now >= 1) narration.say('The door is gone into the floor. Beyond it, a room, and something left in it.')
+  }
   // The land's bounce up into undersides (rocks shader): the sun's strength off sunlit ground, a
   // warm green-grey; nothing once the sun is down or behind a storm's deck.
   {
@@ -3488,6 +3517,8 @@ function frameBody(now: number): void {
         ? `<kbd>E</kbd>Strike the stone`
         : free && sunkBells.near(wanderer.pos)
         ? `<kbd>E</kbd>Strike the bell`
+        : free && gateDoorNear()
+        ? `<kbd>E</kbd>Push the door`
         : free && lanterns.near(wanderer.pos)
         ? `<kbd>E</kbd>${lanterns.dark ? 'Light the lamp' : 'Look at the lamp'}`
         : spotNear
