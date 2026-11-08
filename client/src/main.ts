@@ -2545,6 +2545,14 @@ function simulate(dt: number): void {
       wanderer.hanging = true
       wanderer.grounded = false
       fallTop = wanderer.pos.y
+      // (Straight behind you, the lens sat on the rope: the stretch above your hands, edge-on, was a
+      // thick black bar down the middle of the screen for the whole ride (playtest). The view eases a
+      // little off the rope's line, to whichever side it already leans, and the rope runs out
+      // diagonally past the camera instead of through it.)
+      const head = Math.atan2(-_cDir.x, -_cDir.z)
+      const off = Math.atan2(Math.sin(rig.yaw - head), Math.cos(rig.yaw - head))
+      const want = 0.4
+      if (Math.abs(off) < want) rig.yaw += ((off < 0 ? -want : want) - off) * Math.min(1, dt * 2)
       return
     }
   }

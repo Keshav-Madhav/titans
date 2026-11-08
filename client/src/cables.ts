@@ -120,6 +120,20 @@ export class Cables {
     }
     // The ropes: one merged tube; a stake at each end.
     const rope = new THREE.MeshStandardMaterial({ color: 0x4a3b2c, roughness: 0.95 })
+    // (Riding it, the stretch above your hands runs right past the camera: a thick black bar down the
+    // middle of the screen for the whole ride. The camera rises over it (main.ts); what still passes
+    // within a couple of metres of the eye thins away.)
+    rope.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        {
+          float near = smoothstep(0.4, 2.2, length(vViewPosition));
+          float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+          if (near < ign) discard;
+        }`,
+      )
+    }
     const hair = new THREE.LineBasicMaterial({ color: 0x2a2219, transparent: true, opacity: 0.85 })
     const wood = new THREE.MeshStandardMaterial({ color: 0x5b4a38, roughness: 1 })
     for (const c of this.cables) {
