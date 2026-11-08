@@ -1881,6 +1881,8 @@ export class Wanderer {
 
   /** Climbing on the rig: weight eased in and out. */
   private climbW = 0
+  /** The climb's own cycle (0 … 1 a hand-over-hand), paced to the real climbing speed. */
+  private climbPh = 0
 
   /**
    * A climbing pose for the rigged body (the wall's frame is the body's: forward into the wall, up
@@ -1897,21 +1899,49 @@ export class Wanderer {
     const fwd = _cf.set(0, 0, 1).applyQuaternion(q)
     const right = _cr.set(-1, 0, 0).applyQuaternion(q)
     const up = _cu.set(0, 1, 0).applyQuaternion(q)
-    const ph = this.stride * 1.1
+    // (Holds that hold — the user, 2026-11-08: "climbing animation is really weird". The body went
+    // up 2.9 m/s while the hands swung a 0.42 m sine 1.3 times a second: they slid up the stone under
+    // you, never gripping. Now each hand takes a hold and stays on it, still in the world, while you
+    // pull up past it (the cycle paced to your real climbing speed, so the stroke is exactly the
+    // ground covered), then lets go and reaches up high in a quick arc off the stone for the next.
+    // The feet the same, on the diagonal with the other hand.)
+    const STROKE = 0.66
+    const HOLD = 0.64
+    this.climbPh += ((this.climbMoving * HOLD) / STROKE) * dt
     for (let i = 0; i < 2; i++) {
       const sd = i === 0 ? 'r' : 'l'
       const side = i === 0 ? 1 : -1 // +right
-      // Arm: from the shoulder joint, up the wall and a little in toward it.
-      const reach = 0.5 + 0.5 * Math.sin(ph + i * Math.PI)
+      // Arm: holding (planted, sliding down relative to the body as it rises), then the reach.
+      const t = (((this.climbPh + i * 0.5) % 1) + 1) % 1
+      let off: number
+      let lift: number
+      if (t < HOLD) {
+        off = 0.62 - STROKE * (t / HOLD)
+        lift = 0
+      } else {
+        const u = (t - HOLD) / (1 - HOLD)
+        off = 0.62 - STROKE + STROKE * (u * u * (3 - 2 * u))
+        lift = Math.sin(u * Math.PI)
+      }
       const sh = av.bone(`upperarm_${sd}`)!.getWorldPosition(_p0)
-      const hand = _p1.copy(sh).addScaledVector(up, 0.2 + 0.42 * reach).addScaledVector(right, side * (0.2 - 0.06 * reach)).addScaledVector(fwd, 0.24)
+      const hand = _p1.copy(sh).addScaledVector(up, off).addScaledVector(right, side * (0.2 - 0.04 * (off / 0.62))).addScaledVector(fwd, 0.26 - 0.16 * lift)
       // (Elbow out to the side and down.)
       const pole = _p2.copy(right).multiplyScalar(side).addScaledVector(up, -0.6)
       this.twoBone(`upperarm_${sd}`, `lowerarm_${sd}`, `hand_${sd}`, hand, pole, w)
-      // Leg: on the diagonal with the other arm — up as that hand reaches.
-      const step = 0.5 + 0.5 * Math.sin(ph + (1 - i) * Math.PI)
+      // Leg: on the diagonal with the other arm — its foot steps up as that hand reaches.
+      const tl = (((this.climbPh + (1 - i) * 0.5 + 0.08) % 1) + 1) % 1
+      let foff: number
+      let flift: number
+      if (tl < HOLD) {
+        foff = -0.42 - STROKE * (tl / HOLD)
+        flift = 0
+      } else {
+        const u = (tl - HOLD) / (1 - HOLD)
+        foff = -0.42 - STROKE + STROKE * (u * u * (3 - 2 * u))
+        flift = Math.sin(u * Math.PI)
+      }
       const hip = av.bone(`thigh_${sd}`)!.getWorldPosition(_p0)
-      const foot = _p1.copy(hip).addScaledVector(up, -0.78 + 0.34 * step).addScaledVector(right, side * (0.16 + 0.06 * step)).addScaledVector(fwd, 0.2 + 0.05 * step)
+      const foot = _p1.copy(hip).addScaledVector(up, foff).addScaledVector(right, side * (0.17 + 0.05 * flift)).addScaledVector(fwd, 0.22 - 0.12 * flift)
       const kpole = _p2.copy(fwd).addScaledVector(right, side * 0.8)
       this.twoBone(`thigh_${sd}`, `calf_${sd}`, `foot_${sd}`, foot, kpole, w)
     }
