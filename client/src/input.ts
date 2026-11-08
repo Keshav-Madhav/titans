@@ -6,6 +6,21 @@
 // default, and the default key, if moved elsewhere, does nothing. A pad's buttons and
 // sticks arrive the same way.
 
+/**
+ * Ask for the mouse (pointer lock), quietly: a browser may refuse — Firefox and Zen without a fresh
+ * click, inside a frame, or the user said no — and the refusal came back as an unhandled error on
+ * every click (the user's Zen console, and the playtest's first click). Refused, the view still
+ * turns by dragging with the right button.
+ */
+export function lockPointer(el: HTMLElement): void {
+  try {
+    const r = (el.requestPointerLock as unknown as (() => Promise<void> | void) | undefined)?.call(el)
+    if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {})
+  } catch {
+    /* refused: drag to look */
+  }
+}
+
 /** Every rebindable action: its default code (what the game asks about) and its name. */
 export const ACTIONS: ReadonlyArray<readonly [string, string]> = [
   ['KeyW', 'Forward'],
@@ -124,7 +139,7 @@ export class Input {
     })
 
     canvas.addEventListener('click', () => {
-      if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.()
+      if (document.pointerLockElement !== canvas) lockPointer(canvas)
     })
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
     canvas.addEventListener('mousedown', (e) => {

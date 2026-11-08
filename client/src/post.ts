@@ -269,7 +269,10 @@ const GRADE = {
         float on = step(1.0 - mix(0.18, 0.55, streak), lh);
         float edge = smoothstep(mix(0.36, 0.22, streak), 0.8, sr);
         float sk = thin * dash * on * edge * streak;
-        c = mix(c, vec3(0.92, 0.94, 0.96) * max(0.35, dot(c, vec3(0.3, 0.6, 0.1)) * 1.4 + 0.2), clamp(sk * 0.9, 0.0, 0.6));
+        // (A lift of what is there, not a paint of white: in the dark Undercroft at a walk they were
+        // bright white bars across a dim hall — the playtest's third frame. Now they are the scene, a
+        // little lighter and cooler, as moving air catches the light.)
+        c = mix(c, c * vec3(1.5, 1.55, 1.6), clamp(sk * 0.9, 0.0, 0.6));
       }
       c = toSrgb(clamp(c, 0.0, 1.0));
       // Film grain, in display space.

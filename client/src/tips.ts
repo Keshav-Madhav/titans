@@ -17,7 +17,7 @@ export interface TipState {
 }
 
 const TIPS: Array<{ text: string; done: (s: TipState) => boolean }> = [
-  { text: 'Click to look around. <kbd>W A S D</kbd> to walk.', done: (s) => s.moved > 25 },
+  { text: 'Click to look around. <kbd>W A S D</kbd> to walk.', done: (s) => s.moved > 8 },
   { text: 'There is light at the end of the hall. Find the way up, <kbd>Shift</kbd> to run.', done: (s) => s.out },
   { text: 'A strip of red cloth is snapping in the wind, near the stair. Someone camped there.', done: (s) => s.bag },
   { text: 'In the bag, a map and an empty notebook. <kbd>I</kbd> the bag · <kbd>J</kbd> what you have found · <kbd>M</kbd> the map.', done: (s) => s.looked },

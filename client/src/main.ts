@@ -40,7 +40,7 @@ import * as shared from '@titans/shared'
 import { TerrainView } from './terrain-view'
 import { loadTerrainTextures, LAYER, terrainExp } from './terrain-material'
 import { SkySystem } from './sky'
-import { Input, setBindings, watchKeycaps } from './input'
+import { Input, setBindings, watchKeycaps, lockPointer } from './input'
 import { MAX_SLOPE, Wanderer } from './wanderer'
 import { nearLods, setGiantSkin, Titan } from './titan'
 import { WaterView, shown as shownLevel } from './water-view'
@@ -3500,7 +3500,7 @@ function frameBody(now: number): void {
   // reeled in by the line, riding a giant), eased; faint at a walk, full by ~40 m/s.
   {
     const v = cables.ride ? cables.ride.v : Math.hypot(wanderer.vel.x, wanderer.vel.y, wanderer.vel.z)
-    const want = rig.aiming || anyOpen() ? 0 : Math.pow(THREE.MathUtils.clamp((v - 1.2) / 32, 0, 1), 0.7)
+    const want = rig.aiming || anyOpen() ? 0 : Math.pow(THREE.MathUtils.smoothstep(v, 3, 46), 1.2) * 0.9 + THREE.MathUtils.smoothstep(v, 3, 12) * 0.08
     streakK += (want - streakK) * Math.min(1, dt * (want > streakK ? 3 : 1.8))
     post.grade.uniforms.streak.value = streakK
     post.grade.uniforms.streakT.value = (post.grade.uniforms.streakT.value as number) + dt * (0.6 + v * 0.06)
@@ -3913,7 +3913,7 @@ function frameBody(now: number): void {
     if (opening === 'title')
       hud.titleReady(() => {
         hud.loaded()
-        canvas.requestPointerLock?.()
+        lockPointer(canvas)
         opening = 'waking'
         openT = 0
       })
@@ -4011,7 +4011,7 @@ pause.onToggle = (open) => {
   sound.ui(open ? 'open' : 'close')
 }
 pause.onUi = (k) => sound.ui(k)
-pause.onResume = () => canvas.requestPointerLock?.()
+pause.onResume = () => lockPointer(canvas)
 pause.onNewAdventure = () => {
   clearWorld()
   try {
