@@ -257,7 +257,18 @@ export class Colossi {
       const shape: Shape = {
         // (A broken one is hollow at its top, down to the rubble floor 19 m under the break: you
         // stand in the break, not on air over it.)
-        field: (lx, ly, lz) => Math.min(Math.max(Math.hypot(lx, lz) - r, Math.abs(ly - h / 2) - h / 2, broken ? -Math.max(Math.hypot(lx, lz) - r * 0.9, h - 19 - ly) : -Infinity), box(lx, ly - 11, lz, r * 1.45, 11, r * 1.45), broken ? Infinity : box(lx, ly - h - 14, lz, r * 1.5, 14, r * 1.5)),
+        // (The shape as drawn — the user, 2026-11-08: "the pillar's tops have weird collisions". The
+        // capital was one 28 m box 1.5 r square: 2 m of air above the slab you saw, and invisible stone
+        // out past the round flare's corners; the plinth one box over both its steps, an invisible
+        // ledge round the narrower upper one.)
+        field: (lx, ly, lz) =>
+          Math.min(
+            Math.max(Math.hypot(lx, lz) - r, Math.abs(ly - h / 2) - h / 2, broken ? -Math.max(Math.hypot(lx, lz) - r * 0.9, h - 19 - ly) : -Infinity),
+            box(lx, ly - 6, lz, r * 1.45, 6, r * 1.45),
+            box(lx, ly - 17, lz, r * 1.25, 5, r * 1.25),
+            broken ? Infinity : Math.max(Math.hypot(lx, lz) - r * (0.95 + 0.4 * THREE.MathUtils.clamp((ly - h) / 14, 0, 1)), Math.abs(ly - h - 7) - 7),
+            broken ? Infinity : box(lx, ly - h - 20, lz, r * 1.5, 6, r * 1.5),
+          ),
         hx: r * 1.6,
         hy: h / 2 + 30,
         hz: r * 1.6,
