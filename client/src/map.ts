@@ -143,6 +143,14 @@ export class WorldMap {
       this.clampView()
     })
     this.full.addEventListener('pointerup', () => (this.drag = null))
+    this.full.addEventListener('dblclick', (e) => {
+      if (!this.onPick) return
+      const r = this.full.getBoundingClientRect()
+      const x = this.view.x + ((e.clientX - r.left) / r.width - 0.5) * this.view.span
+      const z = this.view.z + ((e.clientY - r.top) / r.height - 0.5) * this.view.span
+      this.onPick(x, z)
+      if (this.open) this.toggle()
+    })
     this.drawFog()
     // Where to write each land's name: the middle of where it lies (sampled).
     const sum = new Map<RegionName, [number, number, number]>()
@@ -224,6 +232,25 @@ export class WorldMap {
     const above = Math.max(0, p.y - this.terrain.heightAt(p.x, p.z))
     this.uncover(p.x, p.z, Math.min(2600, 750 + above * 2.6))
   }
+
+  /** The seen-map as it is (creative mode keeps it to put back). */
+  snapshot(): Uint8Array {
+    return this.seen.slice()
+  }
+
+  restore(seen: Uint8Array): void {
+    this.seen.set(seen)
+    this.drawFog()
+  }
+
+  /** Creative mode: the whole map at once. */
+  revealAll(): void {
+    this.seen.fill(1)
+    this.drawFog()
+  }
+
+  /** Creative mode: double-click the map to go there (world x, z). Null when not allowed. */
+  onPick: ((x: number, z: number) => void) | null = null
 
   /** Uncover a circle of radius `r` round (x, z) (a lit cairn). */
   revealAround(x: number, z: number, r: number): void {

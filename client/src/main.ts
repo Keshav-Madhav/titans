@@ -1819,8 +1819,11 @@ function record(ev: GaitEvent | MountainRise): void {
   }
 }
 
+/** Creative mode is on (read by saveLocal, which may run before creative's own state is set up). */
+let creativeOnNow = false
 function saveLocal(): void {
-  if (!localSave || isBroken()) return
+  // (Never in creative mode: it must not touch your save.)
+  if (!localSave || isBroken() || creativeOnNow) return
   const data: SaveData = {
     v: 1,
     savedAt: Date.now(),
@@ -2167,6 +2170,121 @@ function wakeAtSafe(): void {
   onRock()
 }
 
+/**
+ * Creative mode (the user, 2026-11-08: "a creative mode which allows creative mode flight, unlocked
+ * map, super fast speed for flying and etc"). ` (backquote) toggles it. While on:
+ * - you fly freely: W A S D where you look, Space up, C down, Shift very fast (Shift+Ctrl faster still);
+ * - no fall hurts; the whole map is uncovered; every tool is in your bag;
+ * - double-click the map to be there.
+ * Off again, you drop from where you are (the cloak opens if Space is held).
+ */
+const creative = {
+  on: false,
+  v: new THREE.Vector3(),
+  /** What it was before (the user: "going creative doesnt [ruin] my save … going back rehides items
+   * and … teleports me back to the spot where i enabled creative"): put back on leaving. Nothing is
+   * saved while creative is on, and nothing is picked up or lit — creative never touches the save. */
+  before: null as null | { finds: string[]; seen: Uint8Array; pos: THREE.Vector3; yaw: number; safe: THREE.Vector3; camYaw: number; camPitch: number },
+}
+const creativeEl = document.createElement('div')
+creativeEl.id = 'creative'
+creativeEl.textContent = 'Creative — ` to leave'
+document.body.appendChild(creativeEl)
+
+function setCreative(on: boolean): void {
+  if (creative.on === on) return
+  creative.on = on
+  creativeOnNow = on
+  creativeEl.classList.toggle('on', on)
+  if (on) {
+    creative.before = { finds: finds.save(), seen: worldMap.snapshot(), pos: wanderer.pos.clone(), yaw: wanderer.yaw, safe: lastSafe.clone(), camYaw: rig.yaw, camPitch: rig.pitch }
+    worldMap.revealAll()
+    // (Quietly: no "found" cards for tools handed over for the visit.)
+    finds.load([...new Set([...finds.save(), 'bag', 'line', 'cloak', 'bow', 'horn', 'sight', 'glass'])])
+    worldMap.onPick = (x, z) => {
+      const y = Math.max(terrain.heightAt(x, z), rocks.topAt(x, z) ?? -Infinity) + 30
+      cables.ride = null
+      wanderer.place(x, y, z)
+      fallTop = NaN
+    }
+    if (climber.active) letGo(0)
+    if (grapple.busy) grapple.release()
+    cables.ride = null
+    wanderer.crouching = false
+    wanderer.sledding = false
+    creative.v.set(0, 0, 0)
+    narration.say('Creative. Fly with W A S D, Space and C; Shift to go fast; double-click the map to go anywhere. Nothing here is saved, and ` brings you back where you were.')
+  } else {
+    worldMap.onPick = null
+    const b = creative.before
+    creative.before = null
+    wanderer.gliding = false
+    wanderer.vel.set(0, 0, 0)
+    fallTop = NaN
+    if (b) {
+      // Back as you were: your finds, your map, where you stood.
+      finds.load(b.finds)
+      worldMap.restore(b.seen)
+      wanderer.place(b.pos.x, b.pos.y, b.pos.z)
+      wanderer.yaw = b.yaw
+      wanderer.grounded = true
+      lastSafe.copy(b.safe)
+      rig.yaw = b.camYaw
+      rig.pitch = b.camPitch
+      rig.reset()
+      onRock()
+    }
+    narration.say('Back where you were.')
+  }
+}
+
+let ctrlHeld = false
+addEventListener('keyup', (e) => {
+  if (e.code === 'ControlLeft' || e.code === 'ControlRight') ctrlHeld = false
+})
+addEventListener('blur', () => (ctrlHeld = false))
+addEventListener('keydown', (e) => {
+  if (e.code === 'ControlLeft' || e.code === 'ControlRight') ctrlHeld = true
+  if (e.code !== 'Backquote' || e.repeat || toolMode) return
+  if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
+  setCreative(!creative.on)
+})
+
+/** A step of free flight (creative mode). */
+function creativeFly(dt: number): void {
+  const ax = input.axes()
+  const fast = input.held('ShiftLeft') || input.held('ShiftRight')
+  const faster = fast && ctrlHeld
+  const speed = faster ? 600 : fast ? 160 : 24
+  // Where you look (horizontal heading from the view; up and down with Space and C).
+  camera.getWorldDirection(_cfFwd)
+  _cfFwd.normalize()
+  _cfRight.set(-_cfFwd.z, 0, _cfFwd.x).normalize()
+  _cfWant.set(0, 0, 0).addScaledVector(_cfFwd, ax.y).addScaledVector(_cfRight, ax.x)
+  if (input.held('Space')) _cfWant.y += 1
+  if (input.held('KeyC')) _cfWant.y -= 1
+  if (_cfWant.lengthSq() > 1) _cfWant.normalize()
+  _cfWant.multiplyScalar(speed)
+  // Eased, so it starts and stops smoothly.
+  creative.v.lerp(_cfWant, Math.min(1, dt * 5))
+  const p = wanderer.pos
+  const nx = p.x + creative.v.x * dt
+  const nz = p.z + creative.v.z * dt
+  const floor = Math.max(terrain.heightAt(nx, nz), -40) + 0.4
+  wanderer.place(nx, Math.max(floor, p.y + creative.v.y * dt), nz)
+  wanderer.vel.copy(creative.v)
+  // The body flies as in a glide: the cloak open, facing the way you go.
+  const hs = Math.hypot(creative.v.x, creative.v.z)
+  if (hs > 0.5) wanderer.yaw = Math.atan2(creative.v.x, creative.v.z)
+  wanderer.gliding = hs > 1 || Math.abs(creative.v.y) > 1
+  wanderer.grounded = wanderer.pos.y <= floor + 0.01 && !wanderer.gliding
+  wanderer.swimming = false
+  fallTop = NaN
+}
+const _cfFwd = new THREE.Vector3()
+const _cfRight = new THREE.Vector3()
+const _cfWant = new THREE.Vector3()
+
 const FALL_LINES = ['You fell a long way.', 'The ground came up hard.', 'Darkness, and then the grass again.', 'You wake where you last stood.']
 
 /**
@@ -2507,6 +2625,8 @@ function simulate(dt: number): void {
       }
     }
   } else {
+    // (In creative mode nothing is taken, lit or opened: it would be progress, and creative is a visit.)
+    if (creative.on) input.pressed('KeyE')
     const cairn = cairns.near(wanderer.pos)
     // (An unlit cairn comes before anything lying beside it: on the tallest pillar both share the top.)
     const spot = cairn ? null : spots.near(wanderer.pos, (id) => finds.has(id))
@@ -2622,7 +2742,8 @@ function simulate(dt: number): void {
         }
         // C: crouch, or stand (the slide comes only from a crouch).
         if (input.pressed('KeyC') && wanderer.grounded && !wanderer.swimming && !climber.active) wanderer.crouching = !wanderer.crouching
-        wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space') && !onLine, rig.yaw, terrain)
+        if (creative.on) creativeFly(dt)
+        else wanderer.step(dt, input.axes(), input.held('ShiftLeft') || input.held('ShiftRight'), input.held('Space') && !onLine, rig.yaw, terrain)
         if (grapple.busy) {
           const ev = grapple.step(dt, wanderer.pos, wanderer.vel, input.held('KeyG') && grapple.attached, wanderer.grounded)
           if (ev === 'caught') sound.ui('tick')
@@ -2680,7 +2801,7 @@ function simulate(dt: number): void {
         // Coming down onto a giant: you stand on it (a jump on its back, a fall from a shoulder, a
         // glide onto its head).
         // (Not while the cloak is open and held: you fly over it, not land on it at every shoulder.)
-        if (!wanderer.grounded && !wanderer.swimming && !grapple.attached && !(wanderer.gliding && input.held('Space')) && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
+        if (!creative.on && !wanderer.grounded && !wanderer.swimming && !grapple.attached && !(wanderer.gliding && input.held('Space')) && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
           grapple.release()
           wanderer.gliding = false
           fallTop = NaN
@@ -3659,7 +3780,7 @@ function frameBody(now: number): void {
   visitClock -= dt
   if (visitClock <= 0 && ready && opening !== 'title' && opening !== 'waking' && opening !== 'reveal' && (opening !== 'hall' || tipState.moved > 25)) {
     visitClock = 0.5
-    visit(sites, finds, wanderer.pos.x, wanderer.pos.z)
+    if (!creative.on) visit(sites, finds, wanderer.pos.x, wanderer.pos.z)
   }
   // What E would do here.
   const free = !climber.active && !cliff.active

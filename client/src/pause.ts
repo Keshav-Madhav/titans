@@ -32,6 +32,7 @@ const FIXED: Array<[string, string]> = [
   ['<kbd>Right mouse</kbd> · <kbd>Click</kbd>', 'Draw the bow · loose'],
   ['<kbd>Arrows</kbd>', 'Walk, as well'],
   ['<kbd>Esc</kbd> · <kbd>?</kbd>', 'This page'],
+  ['<kbd>`</kbd>', 'Creative: fly anywhere, the map open (not saved; ` again to come back)'],
 ]
 
 export class Pause {
