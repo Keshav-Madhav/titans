@@ -1286,7 +1286,7 @@ const rig = new CameraRig(camera)
 // (And the giant you hold: riding pulls the camera back, and it must not end up inside a leg.)
 rig.occluder = (x, y, z) => {
   const held = climber.active ? heldAwake() : undefined
-  let d = Math.min(rocks.sdfAt(x, y, z), held ? held.roughSdf(x, y, z) : Infinity)
+  let d = Math.min(rocks.sdfAt(x, y, z), held ? held.roughSdf(x, y, z) : Infinity, striders.sdf(x, y, z))
   // (Walking giants too: the camera went into their legs as they passed by you.)
   if (!held)
     for (const a of titans.values()) {

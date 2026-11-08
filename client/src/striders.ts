@@ -73,6 +73,24 @@ export class Striders {
    * a tapered pole from the knee (10 m thick) down to the foot (0.6 m); the thigh from the hip (13 m)
    * to the knee (8 m). Returns true if it moved.
    */
+  /** Distance from (x, y, z) to the nearest leg's surface (negative inside) — for the camera. */
+  sdf(x: number, y: number, z: number): number {
+    let best = Infinity
+    for (const s of this.striders) {
+      if (Math.abs(s.x - x) > THIGH + SHIN || Math.abs(s.z - z) > THIGH + SHIN) continue
+      for (const leg of s.legs) {
+        for (const [a, b, ra, rb] of [[leg.knee.position, leg.foot, 10, 0.6], [_hip.set(s.x, leg.knee.position.y, s.z), leg.knee.position, 13, 8]] as Array<[THREE.Vector3, THREE.Vector3, number, number]>) {
+          _sd.subVectors(b, a)
+          const l2 = _sd.lengthSq() || 1
+          const t = Math.min(1, Math.max(0, ((x - a.x) * _sd.x + (y - a.y) * _sd.y + (z - a.z) * _sd.z) / l2))
+          _sp.copy(a).addScaledVector(_sd, t)
+          best = Math.min(best, Math.hypot(x - _sp.x, y - _sp.y, z - _sp.z) - (ra + (rb - ra) * t))
+        }
+      }
+    }
+    return best
+  }
+
   pushOut(p: THREE.Vector3, r = 0.45): boolean {
     let moved = false
     for (const s of this.striders) {
