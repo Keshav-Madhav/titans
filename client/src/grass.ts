@@ -361,7 +361,9 @@ export class Grass {
     }
     if (view) {
       view.updateMatrixWorld()
-      turned = view.quaternion.angleTo(this.viewQ) > 0.12 || view.position.distanceToSquared(this.viewP) > 4
+      // (Every 4 m, not 2: at a run it re-laid four times a second, 3–4 ms each; the cells' 13 m view
+      // margin covers 4 m of travel.)
+      turned = view.quaternion.angleTo(this.viewQ) > 0.12 || view.position.distanceToSquared(this.viewP) > 16
     }
     if (k === this.lastKey && !this.dirty && !turned) return
     this.lastKey = k
