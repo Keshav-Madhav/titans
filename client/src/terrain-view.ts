@@ -435,13 +435,22 @@ export class TerrainView {
       }
     }
 
-    // Skirts hang below each edge to hide cracks between LOD levels.
-    const drop = step * 1.5 + 1
+    // Skirts hang below each edge to hide cracks between LOD levels — as deep as the land falls along
+    // the edge there: on a sheer cliff a coarse edge and its finer neighbour part by tens of metres, and
+    // a fixed 1.5 steps left the sky showing through as a bright white line down the rock (the golden-
+    // hour flyover; the long-open "white hairline").
+    const base = step * 1.5 + 1
     for (let e = 0; e < 4 * ROW; e++) {
       const src = grid.edges[e]
       const dst = GRID_VERTS + e
+      const k0 = e % ROW
+      const hy = P[src * 3 + 1]
+      let fall = 0
+      if (k0 > 0) fall = Math.max(fall, Math.abs(hy - P[grid.edges[e - 1] * 3 + 1]))
+      if (k0 < ROW - 1) fall = Math.max(fall, Math.abs(hy - P[grid.edges[e + 1] * 3 + 1]))
+      const drop = base + fall
       P[dst * 3] = P[src * 3]
-      P[dst * 3 + 1] = P[src * 3 + 1] - drop
+      P[dst * 3 + 1] = hy - drop
       P[dst * 3 + 2] = P[src * 3 + 2]
       for (let k = 0; k < 3; k++) {
         Nn[dst * 3 + k] = Nn[src * 3 + k]
