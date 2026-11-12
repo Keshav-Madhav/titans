@@ -180,9 +180,15 @@ export class AOPass extends Pass {
     this.needsSwap = true
   }
 
+  /** Its buffer's share of the frame (tools may set it; null: by the frame's size). */
+  static div: number | null = null
   setSize(width: number, height: number): void {
-    const w = Math.max(1, Math.round(width / 2))
-    const h = Math.max(1, Math.round(height / 2))
+    // (Half the frame — a quarter past ~2400 px across, i.e. at full resolution on a Retina panel:
+    // occlusion is soft and blurred anyway, and there the half-size buffer was as many pixels as the
+    // whole frame at ratio 1.)
+    const div = AOPass.div ?? (width > 2400 ? 4 : 2)
+    const w = Math.max(1, Math.round(width / div))
+    const h = Math.max(1, Math.round(height / div))
     this.aoRT.setSize(w, h)
     this.blurRT.setSize(w, h)
   }
