@@ -114,6 +114,7 @@ import { Vegetation, cullSwitch } from './vegetation'
 import { foliageFocus, foliageMipLift, foliageNight } from './trees'
 import { Grass, grassQuality } from './grass'
 import { Tallgrass, TALL, tallAt } from './tallgrass'
+import { GiantFerns } from './giantferns'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
 import { Wake } from './wake'
@@ -1306,6 +1307,9 @@ scene.add(grass.mesh)
 // The Tallgrass: grass three and four times your height, at the Grove's edge (tallgrass.ts).
 const tallgrass = new Tallgrass(terrain)
 scene.add(tallgrass.mesh)
+// Giant ferns round the Grove (giantferns.ts).
+const giantFerns = new GiantFerns(terrain, (x, z) => biome.forest(x, z), (x, z) => rocks.occupies(x, z) || tallAt(x, z) > 0.05)
+scene.add(giantFerns.mesh)
 quality.vegetation = vegetation
 quality.refresh()
 terrainView.fresh = (x, z) => vegetation.isFresh(x, z)
@@ -3781,6 +3785,7 @@ function frameBody(now: number): void {
   skirts?.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
   tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind)
+  giantFerns.update(dt, camera.position)
   rocks.update(camera.position)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
