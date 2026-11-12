@@ -285,7 +285,7 @@ const NAMES: Record<string, string> = {
 const mapPlaces: MapPlace[] = [
   ...[...colossi.places].filter(([k]) => k !== 'skull' && k !== 'stair' && k !== 'stranded-skull').map(([k, v]): MapPlace => ({
     name: NAMES[k] ?? null,
-    kind: k.startsWith('tree') ? 'tree' : k.startsWith('stone') ? 'stone' : 'colossus',
+    kind: k.startsWith('tree') || k.startsWith('log') ? 'tree' : k.startsWith('stone') ? 'stone' : 'colossus',
     x: v.x,
     z: v.z,
   })),
