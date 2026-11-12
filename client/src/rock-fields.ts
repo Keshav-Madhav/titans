@@ -757,7 +757,11 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
         d = Math.max(d, -y - 10)
         // Bark: furrows running along the trunk (it grew upright), and the wear of lying here.
         const furrow = Math.sin(Math.atan2(dy, z) * 22 + x * 0.006 + twist + n(x * 0.02, z * 0.05) * 3) * 1.4
-        return d + furrow + wear(x, y, z, 1.1)
+        // (On the outside only: inside the hollow they ate into the shell and left holes, grass showing
+        // through the roof.)
+        const ot = Math.min(1, Math.max(0, (Math.hypot(dy, z) - rr * 0.72) / (rr * 0.14)))
+        const outer = hollow ? ot * ot * (3 - 2 * ot) : 1
+        return d + (furrow + wear(x, y, z, 1.1)) * outer
       },
       hx: L / 2 + r * 6,
       hy: (r * 0.7 + R * 1.3 + 12) / 2,

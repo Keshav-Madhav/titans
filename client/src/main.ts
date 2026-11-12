@@ -994,7 +994,23 @@ const spots = (() => {
       const lx = -f.hx * 0.3
       const x = f.x + f.cos * lx
       const z = f.z - f.sin * lx
-      placed.push({ id: 'hollow-nest', kind: 'trinket', at: new THREE.Vector3(x, terrain.heightAt(x, z), z) })
+      // A low woven ring of bark strips and sticks, a cart wheel across, grey down caught in it.
+      const nest = new THREE.Group()
+      const bark = new THREE.MeshStandardMaterial({ color: 0x5c4a36, roughness: 1 })
+      const down = new THREE.MeshStandardMaterial({ color: 0x9a948a, roughness: 1 })
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.26, 7, 18).rotateX(Math.PI / 2).scale(1, 0.75, 1).translate(0, 0.2, 0), bark)
+      const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.42, 0.12, 14).translate(0, 0.08, 0), down)
+      nest.add(rim, bed)
+      const nr = mulberry32(4471)
+      for (let i = 0; i < 16; i++) {
+        const a = nr() * Math.PI * 2
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.9 + nr() * 0.8, 4), bark)
+        stick.position.set(Math.cos(a) * 0.62, 0.22 + nr() * 0.12, Math.sin(a) * 0.62)
+        stick.rotation.set(Math.PI / 2 + (nr() - 0.5) * 0.4, -a + (nr() - 0.5) * 0.9, (nr() - 0.5) * 0.3)
+        nest.add(stick)
+      }
+      nest.traverse((o) => ((o as THREE.Mesh).castShadow = (o as THREE.Mesh).receiveShadow = true))
+      placed.push({ id: 'hollow-nest', kind: 'trinket', at: new THREE.Vector3(x, terrain.heightAt(x, z), z), model: nest })
     }
   }
   // The eerie places: a stone at each, and something to take.
