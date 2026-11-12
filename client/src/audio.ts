@@ -206,6 +206,9 @@ export class Sound {
    * The weather and the world, for the score: how dark (0 … 1), how hard it
    * rains, how windy, and how close something enormous is (awe, 0 … 1).
    */
+  /** 0 … 1: how enclosed you are (a roof of stone or wood over you); main sets it each frame. */
+  enclosed = 0
+
   mood(dark: number, rain: number, wind: number, awe: number): void {
     this.state = { dark, rain, wind, awe }
     if (!this.ctx) return
@@ -1476,11 +1479,19 @@ export class Sound {
     const gn = this.ctx.createGain()
     gn.gain.value = vol
     src.connect(gn).connect(this.master)
+    // Under a roof (the Undercroft, a hollow fallen giant): the step comes back off the walls.
+    let echo: GainNode | null = null
+    if (this.enclosed > 0.02 && this.space) {
+      echo = this.ctx.createGain()
+      echo.gain.value = vol * 1.6 * this.enclosed
+      gn.connect(echo).connect(this.space)
+    }
     this.voices++
     src.onended = () => {
       this.voices--
       src.disconnect()
       gn.disconnect()
+      echo?.disconnect()
     }
     src.start(t)
     return true

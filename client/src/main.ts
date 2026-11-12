@@ -113,7 +113,7 @@ import { PaintField } from './paint'
 import { Vegetation, cullSwitch } from './vegetation'
 import { foliageFocus, foliageMipLift, foliageNight } from './trees'
 import { Grass, grassQuality } from './grass'
-import { Tallgrass, TALL } from './tallgrass'
+import { Tallgrass, TALL, tallAt } from './tallgrass'
 import { Sound, type Surface } from './audio'
 import { installSkin } from './ui-skin'
 import { Wake } from './wake'
@@ -3766,6 +3766,15 @@ function frameBody(now: number): void {
     thermals.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, weather.now.rain)
   }
   // (At a long drop the wind rises: vertigo is heard as much as seen; and in a seed river's air.)
+  // Under a roof (the Undercroft's, a hollow fallen giant's, the Tallgrass's blades): footsteps echo.
+  {
+    const p = wanderer.pos
+    // (Solid rock or wood somewhere 4–50 m straight over you, in clear air at head height.)
+    let inLog = false
+    if (rocks.sdfAt(p.x, p.y + 2, p.z) > 1) for (let h = 4; h <= 50 && !inLog; h += 3) inLog = rocks.sdfAt(p.x, p.y + h, p.z) < 0
+    const roof = inHall(p.x, p.z) && p.y < terrain.base.hallTop - 10 ? 1 : inLog ? 0.85 : tallAt(p.x, p.z) > 0.5 ? 0.25 : 0
+    sound.enclosed += (roof - sound.enclosed) * Math.min(1, dt * 2)
+  }
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
   skirts?.update(camera.position)
