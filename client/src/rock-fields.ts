@@ -726,6 +726,10 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       // [offset up, offset across, width, how far past the break]
       splinters.push([Math.sin(a) * r * 0.55, Math.cos(a) * r * 0.55, r * (0.18 + rand() * 0.14), r * (1.2 + rand() * 3.5)])
     }
+    // Hollow: rotted out inside, a
+    // bark tunnel ~30 m across down its length, open at the snapped end and closed by the root plate.
+    // Walk in under a roof of wood with daylight at the far end — the land's floor is its floor.
+    const hollow = true
     return {
       field: (x, y, z) => {
         const t = Math.max(-1, Math.min(1, x / (L / 2)))
@@ -747,6 +751,7 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
         for (const [x0, y0, z0, x1, y1, z1, w] of rootArcs) d = smin(d, capsule(x, y, z, x0, y0, z0, x1, y1, z1, w), r * 0.3)
         // The snapped end: long splinters standing out of the break.
         for (const [oy, oz, sw, out] of splinters) d = Math.min(d, capsule(x, y, z, L / 2 - r, ay + oy, oz, L / 2 + out, ay + oy * 0.7, oz * 0.6, sw))
+        if (hollow) d = Math.max(d, -Math.max(Math.hypot(dy, z) - rr * 0.74, -L / 2 + r * 2.2 - x, x - L / 2 - r * 4))
         d = Math.max(d, -y - 10)
         // Bark: furrows running along the trunk (it grew upright), and the wear of lying here.
         const furrow = Math.sin(Math.atan2(dy, z) * 22 + x * 0.006 + twist + n(x * 0.02, z * 0.05) * 3) * 1.4
