@@ -126,6 +126,7 @@ export class Sound {
     void this.loadBank(ctx)
     this.hall()
     this.wind()
+    this.rustleBed()
     this.pad()
     this.rainBed()
     this.presenceBed()
@@ -1200,6 +1201,49 @@ export class Sound {
     src.connect(band).connect(gain).connect(this.master!)
     src.start()
     lfo.start()
+  }
+
+  private rustleGain: GainNode | null = null
+  /**
+   * Blades taller than a house rubbing together over you: dry, high, swelling with the gusts. Silent
+   * except in the Tallgrass (`rustle`, 0 … 1, set each frame with the wind).
+   */
+  private rustleBed(): void {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    src.playbackRate.value = 0.83
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 1900
+    const pk = ctx.createBiquadFilter()
+    pk.type = 'peaking'
+    pk.frequency.value = 3600
+    pk.gain.value = 5
+    pk.Q.value = 0.8
+    const gain = ctx.createGain()
+    gain.gain.value = 0
+    this.rustleGain = gain
+    // Slow gusts and a quicker flutter on top: the swells going over the field.
+    const tremolo = ctx.createGain()
+    tremolo.gain.value = 0.6
+    for (const [hz, d] of [[0.13, 0.3], [1.7, 0.12]] as const) {
+      const lfo = ctx.createOscillator()
+      lfo.frequency.value = hz
+      const depth = ctx.createGain()
+      depth.gain.value = d
+      lfo.connect(depth).connect(tremolo.gain)
+      lfo.start()
+    }
+    src.connect(hp).connect(pk).connect(tremolo).connect(gain).connect(this.master!)
+    src.start()
+  }
+
+  /** How much of the Tallgrass is round you (0 … 1), and how windy it is. */
+  rustle(k: number, wind: number): void {
+    if (!this.ctx || !this.rustleGain) return
+    this.rustleGain.gain.setTargetAtTime(k * (0.025 + 0.05 * wind), this.ctx.currentTime, 1.2)
   }
 
   /** How loud something `d` metres away is, and when it arrives. */

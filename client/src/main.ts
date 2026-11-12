@@ -3774,6 +3774,7 @@ function frameBody(now: number): void {
     if (rocks.sdfAt(p.x, p.y + 2, p.z) > 1) for (let h = 4; h <= 50 && !inLog; h += 3) inLog = rocks.sdfAt(p.x, p.y + h, p.z) < 0
     const roof = inHall(p.x, p.z) && p.y < terrain.base.hallTop - 10 ? 1 : inLog ? 0.85 : tallAt(p.x, p.z) > 0.5 ? 0.25 : 0
     sound.enclosed += (roof - sound.enclosed) * Math.min(1, dt * 2)
+    sound.rustle(THREE.MathUtils.smoothstep(tallAt(p.x, p.z), 0.2, 0.7), weather.now.wind)
   }
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
