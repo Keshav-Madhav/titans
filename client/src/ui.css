@@ -284,9 +284,10 @@ kbd {
 }
 #pause-frame h1 { margin: 0; font: italic 38px/1 var(--serif-title); }
 /* The page scrolls between the title and the buttons; "Go on" is always in reach. The
-   edges fade where there is more above or below. */
+   edges fade where there is more above or below. (Room below the last line as deep as the fade: the
+   Creative line sat half in it, faint, at the end of the list.) */
 #pause-body {
-  flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0 -12px; padding: 0 12px 10px;
+  flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0 -12px; padding: 0 12px 30px;
   scrollbar-width: thin; scrollbar-color: rgba(90, 58, 32, 0.45) transparent;
   mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 26px), transparent);
 }

@@ -7,7 +7,7 @@ import { makeSimplex2, mulberry32, type Noise2, type RegionName } from '@titans/
 
 export type FormationKind = 'arch' | 'cave' | 'hoodoo' | 'overhang' | 'spire' | 'boulders'
 /** The colossi: the First Ones' remains and works, hundreds of metres across. */
-export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'reclining' | 'husk' | 'mourner' | 'head'
+export type ColossusKind = 'sentinel' | 'ribcage' | 'skull' | 'sword' | 'monolith' | 'trunk' | 'log' | 'reclining' | 'husk' | 'mourner' | 'head'
 export type ShapeKind = FormationKind | ColossusKind
 type THREE3 = [number, number, number]
 
@@ -370,7 +370,7 @@ export function meshShape(sh: Shape, res = 64): RockMesh {
 
 // --- the colossi ----------------------------------------------------------------
 
-const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'reclining', 'husk', 'mourner', 'head']
+const COLOSSI: ColossusKind[] = ['sentinel', 'ribcage', 'skull', 'sword', 'monolith', 'trunk', 'log', 'reclining', 'husk', 'mourner', 'head']
 export const isColossus = (k: ShapeKind): k is ColossusKind => (COLOSSI as string[]).includes(k)
 
 /** Capsule between two points. */
@@ -685,6 +685,59 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       hy: h / 2 + 8,
       hz: w + 8,
       cy: 0,
+    }
+  }
+  // A fallen giant (the user: "things should generally be huge"): one of the Grove's trees, down.
+  // A trunk ~40 m thick lying along x, a third sunk in the floor, sagging a little; at -x its root
+  // plate torn up out of the ground and standing on edge, a wall of roots and earth; at +x the top
+  // snapped off in long splinters. Walk along it, climb its flank, stand under the root plate.
+  if (kind === 'log') {
+    // (Thick for its length: at 25 m across and 350 m long it read as a pole from any height.)
+    const L = 250 + rand() * 50
+    const r = 19 + rand() * 4
+    const sag = 3 + rand() * 3
+    const twist = rand() * 6.28
+    const R = r * (2.6 + rand() * 0.5)
+    const rootArcs: Array<[number, number, number, number, number, number, number]> = []
+    const nroots = 9 + Math.floor(rand() * 4)
+    for (let i = 0; i < nroots; i++) {
+      const a = (i / nroots) * Math.PI * 2 + (rand() - 0.5) * 0.5
+      const reach = R * (0.85 + rand() * 0.35)
+      // Out across the plate's face and past its rim, drooping.
+      rootArcs.push([-L / 2 - r * 0.4, r * 0.7 + Math.sin(a) * reach, Math.cos(a) * reach, -L / 2 - r * (0.8 + rand() * 1.2), r * 0.7 + Math.sin(a) * reach * 1.15 - 6, Math.cos(a) * reach * 1.15, r * (0.18 + rand() * 0.1)])
+    }
+    const splinters: Array<[number, number, number, number]> = []
+    for (let i = 0; i < 7; i++) {
+      const a = rand() * Math.PI * 2
+      // [offset up, offset across, width, how far past the break]
+      splinters.push([Math.sin(a) * r * 0.55, Math.cos(a) * r * 0.55, r * (0.18 + rand() * 0.14), r * (1.2 + rand() * 3.5)])
+    }
+    return {
+      field: (x, y, z) => {
+        const t = Math.max(-1, Math.min(1, x / (L / 2)))
+        // The axis sags into the ground in the middle; a slight taper toward the top end.
+        const ay = r * 0.62 - sag * (1 - t * t)
+        const rr = r * (1.08 - 0.22 * (t * 0.5 + 0.5))
+        const dy = y - ay
+        let d = Math.max(Math.hypot(dy, z) - rr, Math.abs(x) - L / 2)
+        // The root plate: a thick disc on edge at the -x end, ragged at its rim.
+        const px = x + L / 2 + r * 0.3
+        const pr = Math.hypot(y - r * 0.7, z)
+        const rim = R * (1 + 0.12 * n(Math.atan2(y - r * 0.7, z) * 2.2, 3.1))
+        const plate = Math.max(Math.abs(px) - r * 0.9 - 2 * (1 - Math.min(1, pr / rim)), pr - rim)
+        d = smin(d, plate, r * 0.6)
+        for (const [x0, y0, z0, x1, y1, z1, w] of rootArcs) d = smin(d, capsule(x, y, z, x0, y0, z0, x1, y1, z1, w), r * 0.3)
+        // The snapped end: long splinters standing out of the break.
+        for (const [oy, oz, sw, out] of splinters) d = Math.min(d, capsule(x, y, z, L / 2 - r, ay + oy, oz, L / 2 + out, ay + oy * 0.7, oz * 0.6, sw))
+        d = Math.max(d, -y - 10)
+        // Bark: furrows running along the trunk (it grew upright), and the wear of lying here.
+        const furrow = Math.sin(Math.atan2(dy, z) * 22 + x * 0.006 + twist + n(x * 0.02, z * 0.05) * 3) * 1.4
+        return d + furrow + wear(x, y, z, 1.1)
+      },
+      hx: L / 2 + r * 6,
+      hy: (r * 0.7 + R * 1.3 + 12) / 2,
+      hz: R * 1.3 + 6,
+      cy: (r * 0.7 + R * 1.3 - 12) / 2,
     }
   }
   // A giant tree: a leaning, gnarled trunk; roots arching out of the ground

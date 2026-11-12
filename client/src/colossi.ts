@@ -236,6 +236,42 @@ export class Colossi {
       this.giantTrees.push({ f, h: (f.hy * 2 - 12) / 1.32 })
       place(`tree-${trees.length}`, x, z, lo)
     }
+    // Fallen ones: two of the giant trees lying down across the Old Wood near the Grove, each on ground
+    // level enough along its whole length, clear of the standing ones and of the Tallgrass. (Their own
+    // random stream, so the standing trees' crowns come out as before.)
+    {
+      const lr = mulberry32(seed ^ 0x10a5)
+      let placed = 0
+      const logsAt: Array<[number, number]> = []
+      for (let tries = 0; tries < 900 && placed < 2; tries++) {
+        const a = lr() * Math.PI * 2
+        const d = 700 + lr() * 900
+        const x = -0.866 * 4300 + Math.cos(a) * d
+        const z = -0.5 * 4300 + Math.sin(a) * d
+        const rot = lr() * 6.28
+        const c = Math.cos(rot)
+        const sn = Math.sin(rot)
+        let lo = Infinity
+        let hi = -Infinity
+        let ok = true
+        for (let k = -6; k <= 6 && ok; k++) {
+          const px = x + c * k * 30
+          const pz = z - sn * k * 30
+          if (terrain.base.regions.name(px, pz) !== 'forest' || Math.hypot(px + 4366, pz + 589) < 470 || logsAt.some(([lx, lz]) => Math.hypot(lx - px, lz - pz) < 420)) ok = false
+          if (trees.some((t) => Math.hypot(t.x - px, t.z - pz) < 70)) ok = false
+          const h = H(px, pz)
+          lo = Math.min(lo, h)
+          hi = Math.max(hi, h)
+        }
+        if (!ok || hi - lo > 14) continue
+        // (On the ground's middle height along it, not its lowest: from the lowest the trunk lay
+        // mostly buried, a strip of bark showing.)
+        rocks.addColossus({ kind: 'log', x, z, y: (lo + hi) / 2 - 3, rot, seed: 300 + placed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [2.7, 2.6, 2.4], res: 130 })
+        place(`log-${placed + 1}`, x, z, lo)
+        logsAt.push([x, z])
+        placed++
+      }
+    }
     // Their crowns: billows of leaf cards at every limb's end — and a smaller
     // one halfway along each limb, so the canopy reaches down to the trunk
     // and reads as one tree (tip crowns alone, over a hill that hid the trunk,

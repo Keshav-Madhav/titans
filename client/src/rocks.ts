@@ -787,7 +787,9 @@ export class Rocks {
       // Cheap reject, then the field itself near the ground.
       if (Math.abs(f.x - x) > f.hx + f.hz || Math.abs(f.z - z) > f.hx + f.hz) continue
       if (!f.always && Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) * 0.75) return true
-      if (f.always && this.sdf(f, x, this.terrain.heightAt(x, z) + 2, z) < 3) return true
+      // (A fallen giant keeps the wood off it by more: the crowns of trees beside it hung over and
+      // read as trees growing through the trunk.)
+      if (f.always && this.sdf(f, x, this.terrain.heightAt(x, z) + 2, z) < (f.kind === 'log' ? 16 : 3)) return true
     }
     return false
   }

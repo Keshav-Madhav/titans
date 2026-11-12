@@ -207,6 +207,17 @@ function addStoneDetail(mat: THREE.MeshStandardMaterial, layer: number): void {
           #endif
         }`,
       )
+      .replace(
+        '#include <fog_fragment>',
+        `#include <fog_fragment>
+        #ifdef USE_FOG
+        // (A giant in thick weather stays a darker shape in the murk, not a flat card of fog colour:
+        // in a storm the Sentinel at 800 m was the grey of the air round it, gone — storm tour. The
+        // air in front of it is darkened, the more the thicker; it fades out past a few km, so the far
+        // ones still go.)
+        gl_FragColor.rgb -= fogColor * fogFactor * 0.34 * (1.0 - smoothstep(1800.0, 4500.0, fogDist));
+        #endif`,
+      )
   }
 }
 
