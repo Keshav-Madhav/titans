@@ -61,6 +61,7 @@ export class Quality {
   private last = 0
   private goodFor = 0
   private badAtFloor = 0
+  private easyFor = 0
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -228,6 +229,15 @@ export class Quality {
       if (this.fixedRes === null && this.goodFor > 8000 && this.dpr < this.maxDpr - 1e-3) {
         this.setDpr(Math.min(this.maxDpr, this.dpr + DPR_STEP))
         this.goodFor = 0
+      }
+      // (Detail comes back too, after a long clear stretch: it was dropped "for good", and a few slow
+      // windows while the world built round you after a jump — a waystone, the map, a teleport — left
+      // the Grove at Medium for the rest of the session though it ran at 80 fps; the governor probe.)
+      if (med < BUDGET * 0.6) this.easyFor += span
+      else this.easyFor = 0
+      if (this.fixedDetail === null && this.level > 0 && this.easyFor > 20000) {
+        this.apply(this.level - 1)
+        this.easyFor = 0
       }
     }
   }
