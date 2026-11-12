@@ -1706,6 +1706,8 @@ const sysCost = { water: 0, streams: 0, map: 0, veg: 0, grass: 0, terrain: 0, la
 /** This frame's cost per system, and frames that ran long (> 40 ms) with what each part took in them. */
 const sysNow: Record<string, number> = {}
 const spikes: Array<Record<string, number>> = []
+/** What counts as a long frame for `spikes` (ms; tools lower it to see the hitches). */
+const spikeAt = { ms: 40 }
 function costNote(name: keyof typeof sysCost | 'render', ms: number): void {
   if (name !== 'render') sysCost[name] = Math.max(sysCost[name], ms)
   sysNow[name] = (sysNow[name] ?? 0) + ms
@@ -4084,7 +4086,7 @@ function frameBody(now: number): void {
   work.push(performance.now() - t0)
   {
     const total = performance.now() - t0
-    if (ready && total > 40) {
+    if (ready && total > spikeAt.ms) {
       let sum = 0
       for (const k in sysNow) sum += sysNow[k]
       spikes.push({ total: +total.toFixed(1), other: +(total - sum).toFixed(1), ...Object.fromEntries(Object.entries(sysNow).map(([k, v]) => [k, +v.toFixed(1)])) })
@@ -4377,6 +4379,7 @@ const g = {
   stepCost,
   sysCost,
   spikes,
+  spikeAt,
   trail,
   travel,
   noticeNear,

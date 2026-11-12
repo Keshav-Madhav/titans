@@ -276,7 +276,10 @@ export class Grass {
 
   /** The ground changed (a giant's foot, a lake): lay those cells again. */
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
-    for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) this.cells.delete(key(cx, cz))
+    for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
+      this.cells.delete(key(cx, cz))
+      this.cellY.delete(key(cx, cz))
+    }
     this.dirty = true
   }
 
@@ -333,6 +336,8 @@ export class Grass {
     return c
   }
 
+  private readonly cellY = new Map<number, number>()
+
   update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number, view?: THREE.Camera): void {
     const u = this.uniforms
     u.uTime.value += dt
@@ -384,7 +389,16 @@ export class Grass {
       // A cell outside the view (with a margin: the view turns before the next re-lay): skipped.
       if (view) {
         this.sphere.center.set((cx + 0.5) * CELL, cam.y, (cz + 0.5) * CELL)
-        this.sphere.center.y = this.terrain.heightAt(this.sphere.center.x, this.sphere.center.z)
+        // (The cell's ground height cached: sampled anew for ~225 cells at every re-lay — several a
+        // second at a run — it was most of the grass's 3–4 ms frames.)
+        const ck = key(cx, cz)
+        let cy = this.cellY.get(ck)
+        if (cy === undefined) {
+          cy = this.terrain.heightAt(this.sphere.center.x, this.sphere.center.z)
+          if (this.cellY.size > 4000) this.cellY.clear()
+          this.cellY.set(ck, cy)
+        }
+        this.sphere.center.y = cy
         this.sphere.radius = CELL * 0.75 + 4
         // (Widened: a re-lay waits for a 7° turn, so what is just outside must already be there.)
         if (!this.frustum.intersectsSphere(this.sphere) && Math.sqrt(d2) * CELL > CELL * 1.5) {

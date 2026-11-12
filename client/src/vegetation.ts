@@ -56,6 +56,8 @@ const SECTORED: Kind[] = ['coniferMid', 'coniferFar', 'broadMid', 'broadFar', 'b
 /** Seconds of game time before churned ground greens over. */
 const REGROW = 300
 const GCELL = 24 // grass cells
+/** How far you move before the trees, rocks and bushes are repacked (m). */
+const TREE_STEP = 48
 
 type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'pebble' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
@@ -660,8 +662,10 @@ export class Vegetation {
       }
     }
     this.since += dt
+    this.sinceLakes += dt
     // The lakes rose or spread: the shore plants move with them.
-    if (this.since > 2) {
+    if (this.sinceLakes > 2) {
+      this.sinceLakes = 0
       const sig = this.lakes.lakes.map((l) => `${l.id}.${l.version}.${Math.round(l.level * 4)}`).join(',')
       if (sig !== this.lakeSig) {
         this.lakeSig = sig
@@ -669,7 +673,12 @@ export class Vegetation {
       }
     }
     const k = key(Math.floor(cam.x / GCELL), Math.floor(cam.z / GCELL))
-    if (k === this.lastKey && !this.dirty && this.since < 1.5) return
+    // (Trees, rocks and bushes reach 1.4 km: repacking all of them — tens of thousands — every 24 m
+    // and every 1.5 s even standing still was the forest's hitches, 6–9 ms frames 1 in 20 at a run.
+    // Now the grass follows you cell by cell; the rest only every 48 m, or when something changed.)
+    const tk = key(Math.floor(cam.x / TREE_STEP), Math.floor(cam.z / TREE_STEP))
+    const trees = this.dirty || tk !== this.lastTreeKey
+    if (k === this.lastKey && !trees) return
     // The cells it will need, made a few milliseconds a frame first (a giant's footfall unmakes
     // several: made all at once, with the repack, they were 34 ms of a 117 ms hitch — the user,
     // 2026-11-05, "whenever giants take a step, there is big frame lag"). The old trees stay up
@@ -680,10 +689,16 @@ export class Vegetation {
     if (!this.prepare(cam, jumped ? 60 : 2.5)) return
     this.prepAt.copy(cam)
     this.lastKey = k
+    if (trees) this.lastTreeKey = tk
     this.since = 0
     this.dirty = false
-    this.rebuild(cam)
+    this.rebuild(cam, trees)
   }
+
+  private lastTreeKey = -1
+  /** The cell being made a few rows a frame. */
+  private making: { k: number; g: Generator<void, CellData, void> } | null = null
+  private sinceLakes = 0
 
   private readonly prepAt = new THREE.Vector3(1e9, 0, 1e9)
 
@@ -703,8 +718,16 @@ export class Vegetation {
           if (Math.hypot((cx + 0.5) * CELL - cam.x, (cz + 0.5) * CELL - cam.z) >= this.midR + CELL) continue
           const kk = key(cx, cz)
           if (this.cells.has(kk)) continue
-          if (performance.now() - t0 > budgetMs) return false
-          this.cells.set(kk, this.genCell(cx, cz))
+          if (!this.making || this.making.k !== kk) this.making = { k: kk, g: this.genCellSteps(cx, cz) }
+          for (;;) {
+            if (performance.now() - t0 > budgetMs) return false
+            const st = this.making.g.next()
+            if (st.done) {
+              this.cells.set(kk, st.value)
+              this.making = null
+              break
+            }
+          }
           done = false
         }
     }
@@ -726,7 +749,7 @@ export class Vegetation {
     return done || performance.now() - t0 < budgetMs * 0.3
   }
 
-  private rebuild(cam: THREE.Vector3): void {
+  private rebuild(cam: THREE.Vector3, trees = true): void {
     const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, pebble: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const sn = new Map<Kind, number[]>()
@@ -801,6 +824,7 @@ export class Vegetation {
       }
     }
     order.sort((a, b) => a[0] - b[0])
+    if (!trees) order.length = 0
     for (const [d, cx, cz] of order) {
       // Which wedge round you this cell lies in.
       const ang = Math.atan2((cz + 0.5) * CELL - cam.z, (cx + 0.5) * CELL - cam.x)
@@ -856,6 +880,8 @@ export class Vegetation {
       }
     }
     for (const k of Object.keys(n) as Kind[]) {
+      // (Grass only: the rest keeps what it holds.)
+      if (!trees && k !== 'grass') continue
       const list = this.sectors.get(k)
       if (list) {
         const counts = sn.get(k)!
@@ -877,13 +903,13 @@ export class Vegetation {
         this.cullDirty = true
       }
     }
-    for (const [k, casters] of this.shadeCast) {
+    if (trees) for (const [k, casters] of this.shadeCast) {
       casters.forEach((m, j) => {
         m.count = shadeN.get(k)![j]
         m.instanceMatrix.needsUpdate = true
       })
     }
-    this.stats = {
+    if (trees) this.stats = {
       trees: n.coniferNear + n.coniferMid + n.broadNear + n.broadMid,
       rocks: n.rock,
       bushes: n.bush,
@@ -965,7 +991,21 @@ export class Vegetation {
     b.n++
   }
 
+  /** A cell, made all at once. */
   private genCell(cx: number, cz: number): CellData {
+    const g = this.genCellSteps(cx, cz)
+    for (;;) {
+      const r = g.next()
+      if (r.done) return r.value
+    }
+  }
+
+  /**
+   * A cell, made a few rows at a time (`prepare` steps it within its budget). A whole one is ~8 ms —
+   * made at once, every new cell coming into view was a missed frame at a run (the forest's 1-in-20
+   * hitches, more with the trees reaching 1.4 km). Same random stream, so the same cell either way.
+   */
+  private *genCellSteps(cx: number, cz: number): Generator<void, CellData, void> {
     const rand = mulberry32((cx * 73856093) ^ (cz * 19349663) ^ 0x5bd1e995)
     const out: CellData = {}
     const batch = (k: keyof CellData) => (out[k] ??= { m: [], c: [], n: 0 })
@@ -973,6 +1013,7 @@ export class Vegetation {
     const z0 = cz * CELL
     // Trees on a jittered 7 m grid: dense in forests, the odd lone tree in the open.
     for (let gz = 0; gz < CELL; gz += 7) {
+      yield
       for (let gx = 0; gx < CELL; gx += 7) {
         const x = x0 + gx + rand() * 7
         const z = z0 + gz + rand() * 7
@@ -991,6 +1032,7 @@ export class Vegetation {
         this.add(batch(conifer ? 'conifer' : 'broad'), x, h - 0.3, z, rand() * 6.28, sc, sc * (0.85 + rand() * 0.35), this.col)
       }
     }
+    yield
     // Boulders: scattered everywhere, more on rough ground.
     for (let i = 0; i < 7; i++) {
       const x = x0 + rand() * CELL
@@ -1013,6 +1055,7 @@ export class Vegetation {
       const vk = (['rockA', 'rockB', 'rockC'] as const)[Math.abs(Math.floor(x * 7.31) + Math.floor(z * 3.17)) % 3]
       this.add(batch(vk), x, h - sc * 0.15, z, ry, sc, sy, this.col)
     }
+    yield
     // Small stones in the grass (graphics pass, 2026-11-04: ground with nothing on it but grass read
     // as a lawn): a couple of hundred a cell (one in ~40 m²), mostly a hand's width, now and then a
     // fist or a loaf. (At a third of that you never saw one.)
@@ -1030,6 +1073,7 @@ export class Vegetation {
       this.col.setRGB(t * (1.05 + 0.2 * d), t * (1.2 - 0.05 * d), t * (1.45 - 0.3 * d))
       this.add(batch('pebble'), x, h - sc * 0.08, z, rand() * 6.28, sc, sc * (0.75 + rand() * 0.5), this.col)
     }
+    yield
     // Bushes: along forest edges and near water.
     for (let i = 0; i < 30; i++) {
       const x = x0 + rand() * CELL
@@ -1045,6 +1089,7 @@ export class Vegetation {
       this.col.setRGB(t, t, t * 0.9)
       this.add(batch('bush'), x, h - 0.1, z, rand() * 6.28, sc, sc, this.col)
     }
+    yield
     // Scrub across the plain, thick in places, thin in others.
     for (let i = 0; i < 70; i++) {
       const x = x0 + rand() * CELL
@@ -1059,6 +1104,7 @@ export class Vegetation {
       this.col.setRGB(t * (1 + 0.75 * d), t * (0.95 + rand() * 0.1) * (1 + 0.35 * d), t * 0.85 * (1 + 0.45 * d))
       this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc * (1 - 0.35 * d), sc * (0.7 + rand() * 0.6) * (1 - 0.35 * d), this.col)
     }
+    yield
     // Ferns on the woods' floor; tall flowering stems out on the Green's meadows.
     for (let i = 0; i < 420; i++) {
       const x = x0 + rand() * CELL
@@ -1084,6 +1130,7 @@ export class Vegetation {
         this.add(batch('stalk'), x, h - 0.05, z, rand() * 6.28, sc, sc * (0.8 + rand() * 0.5), this.col)
       }
     }
+    yield
     // Reeds round the Mire's pools, thick on the banks.
     if (this.biome.mire(x0 + CELL / 2, z0 + CELL / 2) > 0.2) {
       for (let i = 0; i < 260; i++) {
@@ -1097,6 +1144,7 @@ export class Vegetation {
         this.add(batch('reed'), x, this.terrain.heightAt(x, z) - 0.1, z, rand() * 6.28, sc, sc, this.col)
       }
     }
+    yield
     // Reeds in the shallows of the Titans' lakes.
     for (const l of this.lakes.lakes) {
       const b = l.basin
