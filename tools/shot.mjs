@@ -1452,7 +1452,9 @@ const scenes = {
     await page.waitForTimeout(600)
     await shot('horn-ride')
     console.log(`page: ${got.page}, horn: ${got.horn}; called from ${call.d0} m → ${call.d} m (order ${call.order}); ride: ${JSON.stringify(ride)}`)
-    if (!got.horn || call.d > 300 || !ride.grabbed || ride.moved[0] < 60) throw new Error('horn gate failed')
+    // (Steered where the view looks; holding on, the climbing camera turns toward the body, so the
+    // giant walks wherever that is — the check is that it walked, not that it went east.)
+    if (!got.horn || call.d > 300 || !ride.grabbed || Math.hypot(ride.moved[0], ride.moved[1]) < 60) throw new Error('horn gate failed')
   },
   // More of play, as a player sees it: aiming from far off (you in the frame), an arrow in the
   // grass, a wisp darting away, the bag and the journal full.
