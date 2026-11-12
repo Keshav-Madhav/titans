@@ -1,4 +1,4 @@
-// Playtest driver: a real, headed browser on a fresh game (a new player), held open, driven one
+// Playtest driver: a browser (headless by default; HEADED=1 for a real window) on a fresh game (a new player), held open, driven one
 // step at a time over HTTP so a person (or Claude) can look at each frame and decide what to try
 // next. Real key presses held for real time; looking goes through the game's own mouse-look input.
 //
@@ -18,7 +18,7 @@ import { mkdirSync } from 'node:fs'
 const URL = process.argv[2] ?? 'http://127.0.0.1:4402/?offline'
 const OUT = process.argv[3] ?? 'shots/play'
 mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch({ args: ['--mute-audio'], channel: 'chrome', headless: false })
+const browser = await chromium.launch(process.env.HEADED ? { args: ['--mute-audio'], channel: 'chrome', headless: false } : { args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'], channel: 'chrome', headless: true })
 // (Gone with its browser: a driver left listening with a dead page held the port and the next one could not start.)
 browser.on('disconnected', () => process.exit(0))
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
