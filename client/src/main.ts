@@ -986,6 +986,17 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // Deep inside a hollow fallen giant, toward its closed root end: something that lived in there once.
+  {
+    const logs = rocks.formations.filter((f) => f.kind === 'log')
+    const f = logs[1] ?? logs[0]
+    if (f) {
+      const lx = -f.hx * 0.3
+      const x = f.x + f.cos * lx
+      const z = f.z - f.sin * lx
+      placed.push({ id: 'hollow-nest', kind: 'trinket', at: new THREE.Vector3(x, terrain.heightAt(x, z), z) })
+    }
+  }
   // The eerie places: a stone at each, and something to take.
   {
     // The Pit: find its fallen side (the highest ground part-way in); the coin

@@ -154,6 +154,7 @@ export const CATALOGUE: Find[] = [
   f('trinket', 'cache-grove', 'A wooden spinner', 'At the end of the marks that wind through the Grove.', 'A spinning top carved from root, worn smooth by small hands, long ago.', 'figure', '#8a6a48'),
   f('trinket', 'cache-green', 'A bone whistle', 'At the end of the marks that start at the first camp.', "A whistle cut from a bird's bone. It makes no sound you can hear; on the Green, the grass leans toward it.", 'horn', '#e4dccb'),
   f('trinket', 'cache-steps', 'A clay tablet', 'At the end of the marks among the terraces of the Steps.', 'A tablet of fired clay pressed with rows of marks like the ones you followed here. You can almost read it.', 'stone', '#b08a62'),
+  f('trinket', 'hollow-nest', 'A nest of bark and down', 'Deep inside a fallen giant, in the Old Wood.', 'A nest woven of bark fibre and grey down, as wide as a cart wheel, old and long empty. Whatever made it lived in here, in the dark at the far end of the tree, and was big enough to need the room.', 'stone', '#8a7a62'),
   f('trinket', 'kite-steps', "A kite's spool", 'At the top of the Hanging Steps.', 'A wooden spool wound with a long, long cord, its end frayed. Whatever was flown from up here is not coming back down.', 'stone', '#a07a4c'),
   // A land's cairns all lit: an ember from them.
   f('trinket', 'ember-forest', 'An ember of the Old Wood', "Light both of the Old Wood's cairns.", 'A coal from the cairns of the Old Wood, still warm, smelling of moss and rain. It has not gone out, and you do not think it will.', 'stone', '#c06a2e'),
