@@ -750,8 +750,10 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
         d = smin(d, face, r * 0.6)
         for (const [x0, y0, z0, x1, y1, z1, w] of rootArcs) d = smin(d, capsule(x, y, z, x0, y0, z0, x1, y1, z1, w), r * 0.3)
         // The snapped end: long splinters standing out of the break.
-        for (const [oy, oz, sw, out] of splinters) d = Math.min(d, capsule(x, y, z, L / 2 - r, ay + oy, oz, L / 2 + out, ay + oy * 0.7, oz * 0.6, sw))
-        if (hollow) d = Math.max(d, -Math.max(Math.hypot(dy, z) - rr * 0.74, -L / 2 + r * 2.2 - x, x - L / 2 - r * 4))
+        // (Hollowed before the splinters go on: carved after, the tunnel's mouth cut them into thin
+        // scraps that meshed as pale sliver triangles in the roof.)
+        if (hollow) d = Math.max(d, -Math.max(Math.hypot(dy, z) - rr * 0.64, -L / 2 + r * 2.2 - x, x - L / 2 - r * 4))
+        for (const [oy, oz, sw, out] of splinters) d = Math.min(d, capsule(x, y, z, L / 2 - r * 0.2, ay + oy * 1.25, oz * 1.25, L / 2 + out, ay + oy * 0.9, oz * 0.8, sw))
         d = Math.max(d, -y - 10)
         // Bark: furrows running along the trunk (it grew upright), and the wear of lying here.
         const furrow = Math.sin(Math.atan2(dy, z) * 22 + x * 0.006 + twist + n(x * 0.02, z * 0.05) * 3) * 1.4
