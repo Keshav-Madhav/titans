@@ -202,6 +202,10 @@ export class SkySystem {
       this.sun.color.copy(MOON_COLOUR)
       lb.sun = moonI
     }
+    // (A low light stretches each shadow-map texel into a long step along the ground: the desert's
+    // moon shadows came out as staircases — night flyover, 2026-11-08. The filter's radius widens as
+    // the key light goes low; same samples, so no cost.)
+    this.sun.shadow.radius = 1 + 2.5 * (1 - THREE.MathUtils.smoothstep(this.keyDir.y, 0.12, 0.5))
     // The air: warm toward sunset, deep blue at night.
     lb.fogColor.setRGB(0.8 - 0.06 * low, 0.79 - 0.01 * low, 0.76 + 0.03 * low).convertSRGBToLinear()
     lb.fogColor.lerp(new THREE.Color(0.85, 0.55, 0.42), 0.35 * (1 - low) * daylight).lerp(TWILIGHT_FOG, this.dusk).lerp(NIGHT_FOG, this.night)
