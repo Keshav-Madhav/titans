@@ -1372,7 +1372,16 @@ export class Wanderer {
     // back into the air and the glide went on along the ground at 30-40 m/s — the user, 2026-11-07,
     // "i was able to glide on the ground holding space and w reaching high speeds". Let go first.)
     if (!jump) this.landedHolding = false
-    if (jump && this.grounded && !this.landedHolding) {
+    // (A jump pressed a moment after the feet have left an edge still counts — "coyote time", 0.13 s:
+    // without it a running jump timed right at a gap's lip on the Hanging Steps did nothing and you
+    // dropped, playtest 2026-11-12. Only after walking off, never after a jump, a climb or a placing.)
+    const pressed = jump && !this.jumpWas
+    this.jumpWas = jump
+    if (this.grounded) this.offEdge = 0
+    else this.offEdge += dt
+    const coyote = !this.grounded && pressed && this.offEdge < 0.13 && this.vel.y <= 0.5
+    if (jump && (this.grounded || coyote) && !this.landedHolding) {
+      this.offEdge = 99
       this.vel.y = JUMP
       this.grounded = false
       // A running leap (the long run, or off a slide), cloak on your back: a bigger spring and the
@@ -1542,7 +1551,13 @@ export class Wanderer {
     }
   }
 
+  /** Seconds since the feet left the ground by walking off it (99: by a jump, or set down). */
+  private offEdge = 99
+  private jumpWas = true
+
   place(x: number, y: number, z: number): void {
+    this.offEdge = 99
+    this.jumpWas = true
     this.pos.set(x, y, z)
     this.prev.copy(this.pos)
     this.vel.set(0, 0, 0)
@@ -1556,6 +1571,8 @@ export class Wanderer {
    * every frame: the twitch and wobble the user saw on the zip line.)
    */
   carry(x: number, y: number, z: number, yaw: number): void {
+    this.offEdge = 99
+    this.jumpWas = true
     this.prev.copy(this.pos)
     this.prevYaw = this.yaw
     this.pos.set(x, y, z)
