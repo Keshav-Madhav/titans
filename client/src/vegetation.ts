@@ -178,7 +178,7 @@ const GEOMS: Record<Kind, () => THREE.BufferGeometry> = {
   // Small stones in the grass, near you (a scan replaces it: rock-scans.ts).
   pebble: () => rockLayers(colored(brokenRock(7, 1, [1, 0.7, 1], 0.5), 0xffffff)),
   // Bushes and scrub: clumps of leaf cards, as the trees are.
-  bush: () => bushGeometry(31, 12),
+  bush: () => bushGeometry(31, 14),
   // (Its normals mostly up, lit like the ground it grows from: four cards from the crown's centre
   // left half of each facing down, and a low shrub came out as a flat black cutout on sunny grass —
   // the tour, 2026-11-07.)

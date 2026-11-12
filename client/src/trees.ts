@@ -545,12 +545,15 @@ export function bushGeometry(seed: number, cards: number, size = 1): THREE.Buffe
   const rand = mulberry32(seed)
   const parts: THREE.BufferGeometry[] = []
   const centre = new THREE.Vector3(0, 0.55 * size, 0)
+  // (Cards spread evenly round the middle and only tipped part way over: at fully random angles
+  // the one shape every bush shares came out lopsided — a round clump on one side and a flat card of
+  // leaves on the other, "sliced in half" from most directions, tour review 2026-11-12.)
   for (let k = 0; k < cards; k++) {
-    const a = rand() * Math.PI * 2
-    const r = Math.sqrt(rand()) * 0.75 * size
+    const a = ((k + rand() * 0.6) / cards) * Math.PI * 2
+    const r = (0.35 + 0.45 * rand()) * 0.75 * size
     const q = card(1.5 * size, 1.5 * size, LEAVES)
-    q.rotateX(rand() * Math.PI).rotateY(rand() * Math.PI * 2)
-    q.translate(Math.cos(a) * r, (0.5 + rand() * 0.45) * size, Math.sin(a) * r)
+    q.rotateX((rand() - 0.5) * 1.3).rotateY(-a + (rand() - 0.5) * 0.9)
+    q.translate(Math.cos(a) * r, (0.5 + rand() * 0.4) * size, Math.sin(a) * r)
     parts.push(q)
   }
   const g = finish(parts)
