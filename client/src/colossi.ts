@@ -266,7 +266,7 @@ export class Colossi {
         if (!ok || hi - lo > 14) continue
         // (On the ground's middle height along it, not its lowest: from the lowest the trunk lay
         // mostly buried, a strip of bark showing.)
-        rocks.addColossus({ kind: 'log', x, z, y: (lo + hi) / 2 - 3, rot, seed: 300 + placed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [2.7, 2.6, 2.4], res: 130 })
+        rocks.addColossus({ kind: 'log', x, z, y: (lo + hi) / 2 - 3, rot, seed: 300 + placed, layers: [LAYER.bark, LAYER.moss], scale: 9, tint: [2.7, 2.6, 2.4], res: 200 })
         place(`log-${placed + 1}`, x, z, lo)
         logsAt.push([x, z])
         placed++

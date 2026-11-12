@@ -706,6 +706,20 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
       // Out across the plate's face and past its rim, drooping.
       rootArcs.push([-L / 2 - r * 0.4, r * 0.7 + Math.sin(a) * reach, Math.cos(a) * reach, -L / 2 - r * (0.8 + rand() * 1.2), r * 0.7 + Math.sin(a) * reach * 1.15 - 6, Math.cos(a) * reach * 1.15, r * (0.18 + rand() * 0.1)])
     }
+    // The plate's face: torn roots sticking out of it toward you, and pits where clods fell away
+    // (flat, it read as a wall of bark).
+    const stubs: Array<[number, number, number, number, number]> = []
+    for (let i = 0; i < 26; i++) {
+      const a = rand() * Math.PI * 2
+      const rr = Math.sqrt(rand()) * R * 0.9
+      stubs.push([r * 0.7 + Math.sin(a) * rr, Math.cos(a) * rr, r * (0.5 + rand() * 1.4), r * (0.13 + rand() * 0.1), (rand() - 0.5) * r * 0.8])
+    }
+    const pits: Array<[number, number, number]> = []
+    for (let i = 0; i < 9; i++) {
+      const a = rand() * Math.PI * 2
+      const rr = Math.sqrt(rand()) * R * 0.75
+      pits.push([r * 0.7 + Math.sin(a) * rr, Math.cos(a) * rr, r * (0.35 + rand() * 0.4)])
+    }
     const splinters: Array<[number, number, number, number]> = []
     for (let i = 0; i < 7; i++) {
       const a = rand() * Math.PI * 2
@@ -725,7 +739,11 @@ function colossus(kind: ColossusKind, rand: () => number, n: Noise2): Shape {
         const pr = Math.hypot(y - r * 0.7, z)
         const rim = R * (1 + 0.12 * n(Math.atan2(y - r * 0.7, z) * 2.2, 3.1))
         const plate = Math.max(Math.abs(px) - r * 0.9 - 2 * (1 - Math.min(1, pr / rim)), pr - rim)
-        d = smin(d, plate, r * 0.6)
+        // Pits in its face, then the roots torn out of it.
+        let face = plate
+        for (const [py, pz, pr2] of pits) face = Math.max(face, -(len3(px + r * 0.9, y - py, z - pz) - pr2))
+        for (const [sy, sz, sl, sw, sd] of stubs) face = smin(face, capsule(x, y, z, -L / 2 - r * 0.6, sy, sz, -L / 2 - r * 0.6 - sl, sy - sl * 0.25 + sd * 0.3, sz + sd, sw), r * 0.12)
+        d = smin(d, face, r * 0.6)
         for (const [x0, y0, z0, x1, y1, z1, w] of rootArcs) d = smin(d, capsule(x, y, z, x0, y0, z0, x1, y1, z1, w), r * 0.3)
         // The snapped end: long splinters standing out of the break.
         for (const [oy, oz, sw, out] of splinters) d = Math.min(d, capsule(x, y, z, L / 2 - r, ay + oy, oz, L / 2 + out, ay + oy * 0.7, oz * 0.6, sw))
