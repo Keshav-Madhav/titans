@@ -76,11 +76,11 @@ export const rockTools = {
   bounce: { value: new THREE.Color(0, 0, 0) },
 }
 
-export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }, weathered = false): THREE.MeshStandardMaterial {
+export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; uniforms: Record<string, THREE.IUniform>; key: string }, weathered = false, giant = false): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
   // (Weathered: the formations, which carry each point's height above the land, aAbove.)
   if (weathered) mat.defines = { ...(mat.defines ?? {}), ROCK_ABOVE: '' }
-  mat.customProgramCacheKey = () => 'rock' + (occlusion ? '-ao-' + occlusion.key : '') + (weathered ? '-w' : '')
+  mat.customProgramCacheKey = () => 'rock' + (occlusion ? '-ao-' + occlusion.key : '') + (weathered ? '-w' : '') + (giant ? '-g' : '')
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.tLayerColor = { value: tex.color }
     sh.uniforms.tLayerNormal = { value: tex.normal }
@@ -277,6 +277,17 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
       )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(rockN, 0.0)).xyz);')
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse += diffuseColor.rgb * uRockBounce * smoothstep(0.15, -0.85, rockN.y);')
+    // The colossi and the giant trees (their own copy): in thick weather they stay a darker shape in
+    // the murk, as the walking giants do (titan.ts), not a flat card of the air's colour — the
+    // Sentinel in a storm was the grey of the fog round it. Past a few km they still go.
+    if (giant)
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <fog_fragment>',
+        `#include <fog_fragment>
+        #ifdef USE_FOG
+        gl_FragColor.rgb -= fogColor * fogFactor * 0.34 * (1.0 - smoothstep(1800.0, 4500.0, fogDist));
+        #endif`,
+      )
   }
   return mat
 }
@@ -295,6 +306,8 @@ export class Rocks {
   readonly group = new THREE.Group()
   readonly formations: Formation[] = []
   private readonly material: THREE.MeshStandardMaterial
+  /** The colossi's and giant trees' copy (it keeps them dark in thick weather). */
+  private readonly giantMaterial: THREE.MeshStandardMaterial
   private readonly textures: TerrainTextures
   /** A small pool of meshing workers; each takes one formation at a time. */
   private readonly workers: Worker[] = []
@@ -311,6 +324,7 @@ export class Rocks {
     keepClear: (x: number, z: number, r: number) => boolean,
   ) {
     this.material = rockMaterial(textures, undefined, true)
+    this.giantMaterial = rockMaterial(textures, undefined, true, true)
     this.textures = textures
     const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1))
     for (let i = 0; i < n; i++) {
@@ -577,7 +591,7 @@ export class Rocks {
     }
     g.setIndex(new THREE.BufferAttribute(m.index, 1))
     g.computeBoundingSphere()
-    const mesh = new THREE.Mesh(g, this.material)
+    const mesh = new THREE.Mesh(g, f.always ? this.giantMaterial : this.material)
     mesh.position.set(f.x, f.y, f.z)
     mesh.rotation.y = f.rot
     mesh.castShadow = true
