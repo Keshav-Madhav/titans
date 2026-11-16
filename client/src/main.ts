@@ -2555,6 +2555,11 @@ function hornInput(id: string, t: Titan): GaitInput | null {
 }
 
 function simulate(dt: number): void {
+  simMs += dt * 1000
+  // (A deliberate dismount — E or Space off a giant — is not caught again on the way down until you
+  // land, however long the fall: 1.5 s ran out halfway down a 300 m giant and the falling body was
+  // grabbed again. Losing your grip keeps the short window: catching it as you slide past saves you.)
+  if (noCatchUntil === Infinity && (wanderer.grounded || wanderer.swimming || wanderer.gliding)) noCatchUntil = simMs + 400
   // (The cloak comes in the bag: a save from before that has the bag but not the cloak glides too.)
   wanderer.canGlide = finds.has('cloak') || finds.has('bag')
   watchProgress = watching(dt)
@@ -2658,11 +2663,11 @@ function simulate(dt: number): void {
       wanderer.vel.y = Math.max(wanderer.vel.y, 0) + 3.5
       wanderer.vel.x += Math.sin(wanderer.yaw) * 4.5
       wanderer.vel.z += Math.cos(wanderer.yaw) * 4.5
-      noCatchUntil = performance.now() + 1500
+      noCatchUntil = Infinity
       sound.scramble(0.4)
     } else if (keyE) {
       letGo(0.6)
-      noCatchUntil = performance.now() + 1500
+      noCatchUntil = Infinity
     } else if (keySpace && climber.standing) {
       // Standing on a giant, Space is a jump — up, and on the way you are going — and you come
       // down on it again where there is footing (landOn), not thrown off it.
@@ -2677,16 +2682,16 @@ function simulate(dt: number): void {
       wanderer.vel.z += Math.cos(wanderer.yaw) * fwd
       if (leap) {
         wanderer.leapGlide = true
-        noCatchUntil = performance.now() + 900
+        noCatchUntil = simMs + 900
       }
       sound.scramble(0.4)
     } else if (keySpace) {
       letGo(4.5)
-      noCatchUntil = performance.now() + 1500
+      noCatchUntil = Infinity
     } else if (!climber.step(dt, input.axes(), rig.yaw, heldAwake() ? heldAwake()!.gait.speed / heldAwake()!.gait.maxSpeed : 0, !!heldAwake()?.shrugging)) {
       narration.say('You lost your grip.')
       letGo(1.2)
-      noCatchUntil = performance.now() + 1500
+      noCatchUntil = simMs + 1500
     } else if (climber.world.y < terrain.heightAt(climber.world.x, climber.world.z) - 0.5 && Number.isNaN(waterAt(climber.world.x, climber.world.z)) && !shiftHoldUp()) {
       // A hold carried down into the land — a giant's leg sunk in a dip (Q56: the adversary gate
       // once found the climber 16 m underground, still holding on): step off onto the ground.
@@ -2891,7 +2896,7 @@ function simulate(dt: number): void {
         // Coming down onto a giant: you stand on it (a jump on its back, a fall from a shoulder, a
         // glide onto its head).
         // (Not while the cloak is open and held: you fly over it, not land on it at every shoulder.)
-        if (!creative.on && !wanderer.grounded && !wanderer.swimming && !grapple.attached && !(wanderer.gliding && input.held('Space')) && performance.now() > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
+        if (!creative.on && !wanderer.grounded && !wanderer.swimming && !grapple.attached && !(wanderer.gliding && input.held('Space')) && simMs > noCatchUntil && climber.landOn(wanderer.pos, wanderer.vel.y)) {
           grapple.release()
           wanderer.gliding = false
           fallTop = NaN
@@ -3029,7 +3034,11 @@ let firstClimbDone = false
 
 /** Let go of the giant: fall with its motion plus a push off the rock. */
 /** After letting go on purpose, a giant does not catch you again until this (ms). */
+// (In simulated time, not the wall clock: under a run of slow frames the wall-clock window ran out
+// while you had barely started falling.)
 let noCatchUntil = 0
+/** Simulated milliseconds since the start (advanced by simulate). */
+let simMs = 0
 let letGoAt = -1e9
 function letGo(push: number): void {
   letGoAt = performance.now()
