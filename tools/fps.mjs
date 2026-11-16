@@ -28,7 +28,9 @@ for (const hz of [30, 60, 144]) {
     g.weather.set('clear', true)
     g.teleport(-600, 400)
     g.setCam(0, 0.1)
-    await wait(2500)
+    // (Settled first: since a jump fills the far trees in over ~10 s after the near ones, the walk
+    // overlapped it at 2.5 s and the 144 Hz run fell to ~40 fps — the fill-in, not the physics.)
+    await wait(12000)
     const a = g.player()
     // Walk 3 s, run 3 s (game seconds: real time here is the same at every rate).
     g.input.press('KeyW')
