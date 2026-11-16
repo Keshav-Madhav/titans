@@ -609,6 +609,37 @@ export class Vegetation {
     return moved
   }
 
+  /**
+   * Distance across the ground from (x, z) to the nearest tree trunk's bark (negative inside), for
+   * the camera's lens alone (tour: the lens sat inside a trunk, the screen bark-brown). Trunks between
+   * you and the camera are left to the fade (trees.ts): pulled in for each, the camera jumped about
+   * in a wood. Only cells already grown; 99 with none near.
+   */
+  trunkSdf(x: number, y: number, z: number): number {
+    let best = 99
+    // (Only the cells within reach of the lens: this is asked a dozen times a frame.)
+    for (let cz = Math.floor((z - 4) / CELL); cz <= Math.floor((z + 4) / CELL); cz++)
+      for (let cx = Math.floor((x - 4) / CELL); cx <= Math.floor((x + 4) / CELL); cx++) {
+        const c = this.cells.get(key(cx, cz))
+        if (!c) continue
+        // The trunks as trees.ts makes them (unscaled): radius at the foot, at the top, height.
+        for (const [b, r0, r1, h] of [[c.conifer, 0.3, 0.08, 12.5], [c.broad, 0.62, 0.32, 6.6]] as const) {
+          if (!b) continue
+          const m = b.m
+          for (let i = 0; i < b.n; i++) {
+            const ex = x - m[i * 16 + 12]
+            const ez = z - m[i * 16 + 14]
+            if (Math.abs(ex) > 4 || Math.abs(ez) > 4) continue
+            const sc = Math.hypot(m[i * 16], m[i * 16 + 1], m[i * 16 + 2])
+            const t = (y - m[i * 16 + 13]) / (h * sc)
+            if (t < -0.1 || t > 1) continue
+            best = Math.min(best, Math.hypot(ex, ez) - (r0 + (r1 - r0) * Math.max(0, t)) * sc)
+          }
+        }
+      }
+    return best
+  }
+
   /** A kind's geometry's half-width across the ground (unscaled), measured once. */
   private halfWidth(k: Kind): number {
     let h = this.halfW.get(k)

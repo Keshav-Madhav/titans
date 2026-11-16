@@ -1355,6 +1355,7 @@ rig.occluder = (x, y, z) => {
     }
   return d
 }
+rig.lensOccluder = (x, y, z) => Math.min(vegetation.trunkSdf(x, y, z), mushrooms.stemSdf(x, y, z))
 rig.setProfile(WANDERER_CAM)
 sky.setShadowRadius(260)
 const hud = new Hud()

@@ -103,6 +103,8 @@ export class CameraRig {
 
   /** Signed distance to solid rock (negative inside), so the camera stays out of it. */
   occluder: ((x: number, y: number, z: number) => number) | null = null
+  /** Like the occluder, but kept out of by the lens alone (tree trunks, stems): see Vegetation.trunkSdf. */
+  lensOccluder: ((x: number, y: number, z: number) => number) | null = null
   /**
    * The near terrain mesh's grid step (m). The ground the camera keeps clear of is the mesh's, not the
    * true height: on a cliff a 1 m triangle bridges the drop, standing up to 3 m above the true height
@@ -235,6 +237,35 @@ export class CameraRig {
       d = this.held
     }
     cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
+    // A tree trunk or a stem where the lens would be (the screen all bark). In front of it if that
+    // leaves the camera a body's length off you; else slid sideways across the line of sight, so the
+    // trunk ends up beside the view. (Never pulled right in — your back to a thick trunk brought the
+    // lens to 0.6 m, the body faded out there and the view was all branches; nor pushed straight out
+    // of the trunk — from its far side that left the whole trunk between you and the lens.)
+    const lo = this.lensOccluder
+    // (Steps counted, not run till clear: with no distance yet (Infinity) an open loop never ended —
+    // the page hung before it was ever ready, the fps gate.)
+    if (lo && Number.isFinite(d) && lo(cam.x, cam.y, cam.z) < CAM_R) {
+      let t = d
+      for (let i = 0; i < 40 && t > 1.8 && lo(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t) < CAM_R; i++) t -= 0.15
+      if (t > 1.8) {
+        this.held = Math.min(this.held, t)
+        cam.set(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t)
+      } else {
+        const hl = Math.hypot(ux, uz) || 1
+        let px = -uz / hl
+        let pz = ux / hl
+        // (The side the trunk's own edge is nearer.)
+        if (lo(cam.x + px * 0.05, cam.y, cam.z + pz * 0.05) < lo(cam.x - px * 0.05, cam.y, cam.z - pz * 0.05)) {
+          px = -px
+          pz = -pz
+        }
+        let k = 0.1
+        while (k < 3 && lo(cam.x + px * k, cam.y, cam.z + pz * k) < CAM_R) k += 0.1
+        cam.x += px * k
+        cam.z += pz * k
+      }
+    }
     // Pulled all the way in and still no room — on a ledge against a cliff, a wall 10 cm from the lens
     // and the near plane cutting through it to the white beyond: up over your head instead, eased.
     let lift = 0

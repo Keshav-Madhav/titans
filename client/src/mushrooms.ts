@@ -158,6 +158,22 @@ export class Mushrooms {
       }
   }
 
+  /** Distance across the ground to the nearest stem (negative inside) — the camera's lens; 99 if none. */
+  stemSdf(x: number, y: number, z: number): number {
+    let best = 99
+    for (let cz = Math.floor((z - 8) / CELL); cz <= Math.floor((z + 8) / CELL); cz++)
+      for (let cx = Math.floor((x - 8) / CELL); cx <= Math.floor((x + 8) / CELL); cx++) {
+        const c = this.cells.get(cx * 100003 + cz)
+        if (!c) continue
+        for (let i = 0; i + 6 < c.length; i += 7) {
+          const h = c[i + 3]
+          if (y < c[i + 1] - 1 || y > c[i + 1] + h * 0.75) continue
+          best = Math.min(best, Math.hypot(x - c[i], z - c[i + 2]) - 0.15 * h)
+        }
+      }
+    return best
+  }
+
   private readonly _v = new THREE.Vector3()
   private readonly _iq = new THREE.Quaternion()
   /** (x, y, z) in mushroom `c[i…]`'s own unit frame (its 1 m model), lean and all. */
