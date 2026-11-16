@@ -105,6 +105,10 @@ export class CameraRig {
   occluder: ((x: number, y: number, z: number) => number) | null = null
   /** Like the occluder, but kept out of by the lens alone (tree trunks, stems): see Vegetation.trunkSdf. */
   lensOccluder: ((x: number, y: number, z: number) => number) | null = null
+  /** Trunks across the line of sight (all of them, thin ones too): see the trunk-on-the-line rule. */
+  lineOccluder: ((x: number, y: number, z: number) => number) | null = null
+  /** Which trunk rule moved the lens this frame (tools): 0 none, 1 eased, 2 in front, 3 sideways, 4 off the line. */
+  lensRule = 0
   /**
    * The near terrain mesh's grid step (m). The ground the camera keeps clear of is the mesh's, not the
    * true height: on a cliff a 1 m triangle bridges the drop, standing up to 3 m above the true height
@@ -245,11 +249,29 @@ export class CameraRig {
     const lo = this.lensOccluder
     // (Steps counted, not run till clear: with no distance yet (Infinity) an open loop never ended —
     // the page hung before it was ever ready, the fps gate.)
+    // (Ahead of that, eased: a trunk you have walked past comes at the trailing lens from the side,
+    // and the pull out of it at the last moment was a 1.3 m snap; started 0.6 m off the bark it is a
+    // glide in.)
+    this.lensRule = 0
+    if (lo && Number.isFinite(d) && !this.aiming) {
+      const e = lo(cam.x, cam.y, cam.z)
+      if (e >= CAM_R && e < CAM_R + 0.6) {
+        let t = d
+        for (let i = 0; i < 20 && t > 1.8 && lo(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t) < CAM_R + 0.6; i++) t -= 0.15
+        if (t > 1.8 && t < d) {
+          this.held = Math.max(t, d - dt * 12)
+          d = this.held
+          this.lensRule = 1
+          cam.set(this.focus.x + ux * d, this.focus.y + uy * d, this.focus.z + uz * d)
+        }
+      }
+    }
     if (lo && Number.isFinite(d) && lo(cam.x, cam.y, cam.z) < CAM_R) {
       let t = d
       for (let i = 0; i < 40 && t > 1.8 && lo(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t) < CAM_R; i++) t -= 0.15
       if (t > 1.8) {
         this.held = Math.min(this.held, t)
+        this.lensRule = 2
         cam.set(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t)
       } else {
         const hl = Math.hypot(ux, uz) || 1
@@ -261,9 +283,35 @@ export class CameraRig {
           pz = -pz
         }
         let k = 0.1
-        while (k < 3 && lo(cam.x + px * k, cam.y, cam.z + pz * k) < CAM_R) k += 0.1
+        for (let i = 0; i < 30 && lo(cam.x + px * k, cam.y, cam.z + pz * k) < CAM_R; i++) k += 0.1
         cam.x += px * k
         cam.z += pz * k
+        this.lensRule = 3
+      }
+    } else if (this.lineOccluder && Number.isFinite(d) && d > 2) {
+      const lo = this.lineOccluder
+      // A trunk across the line between you and the lens: a dark pole the height of the screen with
+      // you hidden behind it (Grove, ground-level shots — bark is never faded, trees.ts). In front of
+      // it, if that still leaves the camera a body's length off you; brought in over several frames,
+      // eased back out after. (Only trunks right on the line: one beside it hides nothing.)
+      let hit = -1
+      for (let i = 0, t = d - 0.25; i < 40 && t > 1.8; i++, t -= 0.25) {
+        if (lo(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t) < 0.05) {
+          hit = t
+          break
+        }
+      }
+      if (hit > 0) {
+        let t = hit
+        for (let i = 0; i < 20 && t > 1.8 && lo(this.focus.x + ux * t, this.focus.y + uy * t, this.focus.z + uz * t) < CAM_R; i++) t -= 0.15
+        if (t > 1.8) {
+          // (Gently: at 40 m/s, as for rock, a trunk crossing the line snapped the camera 1.3 m in a frame on a walk through the wood.)
+          // (At a steady 12 m/s, through the trunk if need be: a thin one dissolves round the lens (trees.ts),
+          // and a thick one is kept out of by the rules above.)
+          this.held = this.aiming ? t : Math.max(t, d - Math.min(dt, 1 / 30) * 12)
+          this.lensRule = 4
+          cam.set(this.focus.x + ux * this.held, this.focus.y + uy * this.held, this.focus.z + uz * this.held)
+        }
       }
     }
     // Pulled all the way in and still no room — on a ledge against a cliff, a wall 10 cm from the lens

@@ -615,7 +615,7 @@ export class Vegetation {
    * you and the camera are left to the fade (trees.ts): pulled in for each, the camera jumped about
    * in a wood. Only cells already grown; 99 with none near.
    */
-  trunkSdf(x: number, y: number, z: number): number {
+  trunkSdf(x: number, y: number, z: number, minR = 0): number {
     let best = 99
     // (Only the cells within reach of the lens: this is asked a dozen times a frame.)
     for (let cz = Math.floor((z - 4) / CELL); cz <= Math.floor((z + 4) / CELL); cz++)
@@ -633,7 +633,10 @@ export class Vegetation {
             const sc = Math.hypot(m[i * 16], m[i * 16 + 1], m[i * 16 + 2])
             const t = (y - m[i * 16 + 13]) / (h * sc)
             if (t < -0.1 || t > 1) continue
-            best = Math.min(best, Math.hypot(ex, ez) - (r0 + (r1 - r0) * Math.max(0, t)) * sc)
+            const r = (r0 + (r1 - r0) * Math.max(0, t)) * sc
+            // (minR: only the thick ones — bark dissolves within a metre of the lens (trees.ts), so a thin
+            // trunk the lens passes through is never seen from inside.)
+            if (r >= minR) best = Math.min(best, Math.hypot(ex, ez) - r)
           }
         }
       }
