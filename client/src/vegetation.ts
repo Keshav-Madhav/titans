@@ -58,6 +58,8 @@ const REGROW = 300
 const GCELL = 24 // grass cells
 /** How far you move before the trees, rocks and bushes are repacked (m). */
 const TREE_STEP = 48
+/** After a jump, cells within this are made at once (m); the rest after, at the walking budget. */
+const NEAR_FIRST = 420
 
 type Kind = 'coniferNear' | 'coniferMid' | 'coniferFar' | 'broadNear' | 'broadMid' | 'broadFar' | 'rock' | 'rockA' | 'rockB' | 'rockC' | 'pebble' | 'bush' | 'grass' | 'reed' | 'shrub' | 'fern' | 'stalk'
 const CAP: Record<Kind, number> = {
@@ -678,22 +680,41 @@ export class Vegetation {
     // Now the grass follows you cell by cell; the rest only every 48 m, or when something changed.)
     const tk = key(Math.floor(cam.x / TREE_STEP), Math.floor(cam.z / TREE_STEP))
     const trees = this.dirty || tk !== this.lastTreeKey
-    if (k === this.lastKey && !trees) return
+    if (k === this.lastKey && !trees && !this.partial) return
     // The cells it will need, made a few milliseconds a frame first (a giant's footfall unmakes
     // several: made all at once, with the repack, they were 34 ms of a 117 ms hitch — the user,
     // 2026-11-05, "whenever giants take a step, there is big frame lag"). The old trees stay up
     // until every new cell is ready.
     // (After a jump — loading, a waystone, a teleport — all of it at once, as before: nothing to
     // show meanwhile.)
+    // (Only the near rings at once, though: with trees out to 1.4 km a jump made ~670 cells at 60 ms a
+    // frame before showing any — five seconds of hitching after every waystone, and the test runs'
+    // load went past the guard. Within NEAR_FIRST now; the far ring fills in after at the walking
+    // budget, the trees out there appearing as their cells are made.)
     const jumped = Math.hypot(cam.x - this.prepAt.x, cam.z - this.prepAt.z) > 150
-    if (!this.prepare(cam, jumped ? 60 : 2.5)) return
+    if (jumped) {
+      if (!this.prepare(cam, 60, NEAR_FIRST)) return
+      this.partial = true
+    } else if (!this.prepare(cam, 2.5)) {
+      // The far ring still being made after a jump: show what is ready every so often.
+      if (!this.partial || this.since < 1.2) return
+      this.since = 0
+      this.rebuild(cam, true, true)
+      return
+    } else if (this.partial) {
+      this.partial = false
+      this.dirty = true
+    }
     this.prepAt.copy(cam)
     this.lastKey = k
-    if (trees) this.lastTreeKey = tk
+    if (trees || this.dirty) this.lastTreeKey = tk
     this.since = 0
+    this.rebuild(cam, trees || this.dirty, this.partial)
     this.dirty = false
-    this.rebuild(cam, trees)
   }
+
+  /** Since a jump, the far ring is still being made (rebuilds skip its missing cells). */
+  private partial = false
 
   private lastTreeKey = -1
   /** The cell being made a few rows a frame. */
@@ -703,9 +724,9 @@ export class Vegetation {
   private readonly prepAt = new THREE.Vector3(1e9, 0, 1e9)
 
   /** Make missing cells round `cam` (nearest first) for up to `budgetMs`; true when none is missing. */
-  private prepare(cam: THREE.Vector3, budgetMs: number): boolean {
+  private prepare(cam: THREE.Vector3, budgetMs: number, within = Infinity): boolean {
     const t0 = performance.now()
-    const r = Math.ceil(this.midR / CELL)
+    const r = Math.ceil(Math.min(this.midR, within) / CELL)
     const ccx = Math.floor(cam.x / CELL)
     const ccz = Math.floor(cam.z / CELL)
     let done = true
@@ -749,7 +770,7 @@ export class Vegetation {
     return done || performance.now() - t0 < budgetMs * 0.3
   }
 
-  private rebuild(cam: THREE.Vector3, trees = true): void {
+  private rebuild(cam: THREE.Vector3, trees = true, onlyReady = false): void {
     const n: Record<Kind, number> = { coniferNear: 0, coniferMid: 0, coniferFar: 0, broadNear: 0, broadMid: 0, broadFar: 0, rock: 0, rockA: 0, rockB: 0, rockC: 0, pebble: 0, bush: 0, grass: 0, reed: 0, shrub: 0, fern: 0, stalk: 0 }
     // Copy a whole cell's batch in one go (as much as still fits).
     const sn = new Map<Kind, number[]>()
@@ -831,6 +852,7 @@ export class Vegetation {
       sector = Math.min(SECTORS - 1, Math.floor(((ang + Math.PI) / (Math.PI * 2)) * SECTORS))
       let c = this.cells.get(key(cx, cz))
       if (!c) {
+        if (onlyReady) continue
         c = this.genCell(cx, cz)
         this.cells.set(key(cx, cz), c)
       }
