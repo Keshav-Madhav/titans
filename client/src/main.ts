@@ -3809,6 +3809,7 @@ function frameBody(now: number): void {
   tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   giantFerns.update(dt, camera.position)
   mushrooms.update(camera.position)
+  mushrooms.night.value = sky.night
   rocks.update(camera.position)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)

@@ -53,11 +53,21 @@ function mushroomGeometry(): THREE.BufferGeometry {
   }
   gills.computeVertexNormals()
   parts.push(paint(gills, () => [0.2, 0.15, 0.12]))
+  // Which parts glow at night: the gills (1), nothing else.
+  // (Brightest in by the stem, fading out to the rim: an even disc read as a neon sign.)
+  parts.forEach((g, k) => {
+    const p = g.getAttribute('position') as THREE.BufferAttribute
+    const a = new Float32Array(p.count)
+    if (k === 2) for (let i = 0; i < p.count; i++) a[i] = Math.pow(1 - Math.min(1, Math.hypot(p.getX(i), p.getZ(i)) / 0.62), 1.4)
+    g.setAttribute('aGlow', new THREE.BufferAttribute(a, 1))
+  })
   return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))!
 }
 
 export class Mushrooms {
   readonly mesh: THREE.InstancedMesh
+  /** 0 … 1: how much night it is (main sets it). */
+  readonly night = { value: 0 }
   private readonly cells = new Map<number, Float32Array>()
   private lastX = Infinity
   private lastZ = Infinity
@@ -75,6 +85,16 @@ export class Mushrooms {
     private readonly blocked: (x: number, z: number) => boolean,
   ) {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, side: THREE.DoubleSide })
+    // At night the gills glow, faint and cold: you find them across the marsh by it.
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uNight = this.night
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aGlow;\nvarying float vGlow;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = aGlow;')
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uNight;\nvarying float vGlow;')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(0.14, 0.5, 0.42) * vGlow * uNight * 0.55;')
+    }
     this.mesh = new THREE.InstancedMesh(mushroomGeometry(), mat, CAP)
     this.mesh.count = 0
     this.mesh.frustumCulled = false
