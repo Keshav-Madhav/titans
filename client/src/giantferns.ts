@@ -11,15 +11,18 @@ const CELL = 40
 /** Drawn within this of the camera. */
 const FAR = 420
 const CAP = 1600
+/** The fine look within this (m). */
+const NEAR_R = 110
 
 /** One fern, 1 m tall (scaled per instance): fronds from a crown, each a curling spine with leaflets. */
-function fernGeometry(): THREE.BufferGeometry {
+/** `fine`: folded leaflets and 30 segments a frond (near); otherwise 12 and one triangle a leaflet. */
+function fernGeometry(fine: boolean): THREE.BufferGeometry {
   const pos: number[] = []
   const col: number[] = []
   const nrm: number[] = []
   const rand = mulberry32(0xfe4)
   const FRONDS = 9
-  const SEG = 30
+  const SEG = fine ? 30 : 12
   const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, ca: number[], cb: number[], cc: number[]) => {
     const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize()
     // (Leaves lit from above whichever way they face: a frond's underside was black.)
@@ -77,10 +80,12 @@ function fernGeometry(): THREE.BufferGeometry {
         const e2 = kneeP.clone().addScaledVector(along, -W)
         const fold = kneeP.clone()
         fold.y += W * 0.6
-        tri(mid, e1, fold, g2, g, g3)
-        tri(mid, fold, e2, g2, g3, g)
-        tri(e1, tip, fold, g, g3, g3)
-        tri(fold, tip, e2, g3, g3, g)
+        if (fine) {
+          tri(mid, e1, fold, g2, g, g3)
+          tri(mid, fold, e2, g2, g3, g)
+          tri(e1, tip, fold, g, g3, g3)
+          tri(fold, tip, e2, g3, g3, g)
+        } else tri(a, b, tip, g2, g2, g)
       }
     }
   }
@@ -92,7 +97,9 @@ function fernGeometry(): THREE.BufferGeometry {
 }
 
 export class GiantFerns {
-  readonly mesh: THREE.InstancedMesh
+  readonly mesh = new THREE.Group()
+  private readonly near: THREE.InstancedMesh
+  private readonly far: THREE.InstancedMesh
   private readonly time = { value: 0 }
   private readonly cells = new Map<number, Float32Array>()
   private lastX = Infinity
@@ -121,11 +128,17 @@ export class GiantFerns {
         transformed.z += fs * 0.6;`,
       )
     }
-    this.mesh = new THREE.InstancedMesh(fernGeometry(), mat, CAP)
-    this.mesh.count = 0
-    this.mesh.frustumCulled = false
-    this.mesh.castShadow = true
-    this.mesh.receiveShadow = true
+    // (Two looks: the folded leaflets close by, a light one past NEAR_R — 2,400 triangles a fern for
+    // all ~230 round the Grove dropped it to Medium detail at the lowest resolution.)
+    this.near = new THREE.InstancedMesh(fernGeometry(true), mat, 300)
+    this.far = new THREE.InstancedMesh(fernGeometry(false), mat, CAP)
+    for (const m of [this.near, this.far]) {
+      m.count = 0
+      m.frustumCulled = false
+      m.receiveShadow = true
+      this.mesh.add(m)
+    }
+    this.near.castShadow = true
   }
 
   private cell(cx: number, cz: number): Float32Array {
@@ -160,6 +173,7 @@ export class GiantFerns {
     const c0x = Math.floor(cam.x / CELL)
     const c0z = Math.floor(cam.z / CELL)
     let n = 0
+    let nn = 0
     for (let dz = -r; dz <= r; dz++) {
       for (let dx = -r; dx <= r; dx++) {
         const cx = c0x + dx
@@ -169,12 +183,15 @@ export class GiantFerns {
         for (let i = 0; i + 4 < c.length && n < CAP; i += 5) {
           this.q.setFromAxisAngle(this.up, c[i + 4])
           this.m.compose(this.p.set(c[i], c[i + 1], c[i + 2]), this.q, this.s.set(c[i + 3], c[i + 3], c[i + 3]))
-          this.mesh.setMatrixAt(n++, this.m)
+          if (nn < 300 && Math.hypot(c[i] - cam.x, c[i + 2] - cam.z) < NEAR_R) this.near.setMatrixAt(nn++, this.m)
+          else this.far.setMatrixAt(n++, this.m)
         }
       }
     }
-    this.mesh.count = n
-    this.mesh.instanceMatrix.needsUpdate = true
+    this.far.count = n
+    this.near.count = nn
+    this.far.instanceMatrix.needsUpdate = true
+    this.near.instanceMatrix.needsUpdate = true
     if (this.cells.size > 3000) this.cells.clear()
   }
 }
