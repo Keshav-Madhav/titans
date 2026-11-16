@@ -242,6 +242,24 @@ scene.add(rocks.group)
 // Great Stair and the Gate, the giant trees, the stones hanging in the sky.
 const crownWind = { value: 0 }
 const colossi = new Colossi(terrain, rocks, WORLD_SEED, crownWind)
+// The floor under the fallen giants: leaf litter in the dark of their hollows (terrain-view).
+{
+  const logs = rocks.formations.filter((f) => f.kind === 'log')
+  terrainView.under = (x, z) => {
+    let k = 0
+    for (const f of logs) {
+      const dx = x - f.x
+      const dz = z - f.z
+      const lx = dx * f.cos - dz * f.sin
+      const lz = dx * f.sin + dz * f.cos
+      const along = 1 - THREE.MathUtils.smoothstep(Math.abs(lx), f.hx * 0.72, f.hx * 0.82)
+      const across = 1 - THREE.MathUtils.smoothstep(Math.abs(lz), 10, 16)
+      k = Math.max(k, along * across)
+    }
+    return k
+  }
+  for (const f of logs) terrainView.markDirty(f.x - f.hx, f.z - f.hx, f.x + f.hx, f.z + f.hx)
+}
 scene.add(colossi.group)
 // Striders: pale things on legs five hundred metres long, walking the far lands.
 const striders = new Striders(terrain, WORLD_SEED)

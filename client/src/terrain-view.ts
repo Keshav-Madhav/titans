@@ -160,6 +160,9 @@ export class TerrainView {
   }
 
   /** Mark every chunk overlapping the box (world metres) for rebuild. */
+  /** 0 … 1: how far under something lying on the land (x, z) is (main sets it: the fallen giants). */
+  under: ((x: number, z: number) => number) | null = null
+
   markDirty(x0: number, z0: number, x1: number, z1: number): void {
     for (const c of this.chunks.values()) {
       const m = c.size / this.grid.N
@@ -527,6 +530,13 @@ export class TerrainView {
     let dark = 1 - r.mire * (0.22 + 0.25 * poolBowl(x, z))
     // Under the Tallgrass (tallgrass.ts): bare, shaded earth and old litter between the stalks, darker
     // the deeper in — the lawn ran straight under blades four times your height.
+    // Under a fallen giant (the floor of its hollow): dark, damp, old leaf litter — the meadow ran
+    // straight through the tunnel, bright green in the dark (tour review).
+    const ug = this.under ? this.under(x, z) : 0
+    if (ug > 0.01) {
+      this.toward(LAYER.forest, ug)
+      dark *= 1 - 0.38 * ug
+    }
     const tg = tallAt(x, z)
     if (tg > 0.01) {
       this.toward(LAYER.forest, smoothstep(0.15, 0.6, tg) * 0.85)
