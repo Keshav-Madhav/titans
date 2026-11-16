@@ -2892,6 +2892,7 @@ function simulate(dt: number): void {
         // (And the small made things: stones with words, cairns, ringing stones, shrines.)
         keepOffProps(wanderer.pos)
         vegetation.trunkPush(wanderer.pos)
+        mushrooms.stemPush(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
         tryMantle(dt)

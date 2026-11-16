@@ -130,6 +130,33 @@ export class Mushrooms {
     return c
   }
 
+  /**
+   * Keep a walker out of the stems (they are more than a metre thick on a big one): each stem a circle
+   * of its own radius at the foot, plus the body's, pushed out of sideways. Only cells already made.
+   */
+  stemPush(p: THREE.Vector3): void {
+    const cx = Math.floor(p.x / CELL)
+    const cz = Math.floor(p.z / CELL)
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = this.cells.get((cx + dx) * 100003 + (cz + dz))
+        if (!c) continue
+        for (let i = 0; i + 6 < c.length; i += 7) {
+          const h = c[i + 3]
+          const r = 0.15 * h + 0.3
+          const ex = p.x - c[i]
+          const ez = p.z - c[i + 2]
+          const d = Math.hypot(ex, ez)
+          if (d >= r || p.y < c[i + 1] - 1 || p.y > c[i + 1] + h * 0.75) continue
+          if (d < 1e-4) p.x = c[i] + r
+          else {
+            p.x = c[i] + (ex / d) * r
+            p.z = c[i + 2] + (ez / d) * r
+          }
+        }
+      }
+  }
+
   update(cam: THREE.Vector3): void {
     if (Math.hypot(cam.x - this.lastX, cam.z - this.lastZ) < 25) return
     this.lastX = cam.x
