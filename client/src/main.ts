@@ -97,6 +97,7 @@ import { Toolbar } from './toolbar'
 import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
+import { CLOCKS, Dandelions } from './dandelions'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
 import { Dread } from './dread'
@@ -1132,6 +1133,8 @@ const arrowHit: ArrowHit = (a, b) => {
   const rung = bell.hit(a, b)
   if (rung) return { at: rung, stop: true }
   const h = terrain.heightAt(b.x, b.z)
+  // (Through a dandelion clock: its seeds go, the arrow flies on.)
+  dandelions.touch(b.x, b.y, b.z, 0.4)
   if (b.y < h) return { at: b.clone().setY(h), stop: false }
   if (rocks.sdfAt(b.x, b.y, b.z) < 0) return { at: a.clone(), stop: false }
   return null
@@ -1333,6 +1336,16 @@ const giantFerns = new GiantFerns(terrain, (x, z) => biome.forest(x, z), (x, z) 
 scene.add(giantFerns.mesh)
 // Giant mushrooms on the Mire's edges (mushrooms.ts).
 const mushrooms = new Mushrooms(terrain, (x, z) => biome.mire(x, z), (x, z) => rocks.occupies(x, z) || mireView.wetAt(x, z))
+// The Clock Meadow: dandelions gone to seed, twenty metres high (dandelions.ts).
+const dandelions = new Dandelions(terrain, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6))
+scene.add(dandelions.mesh)
+// The first clock you blow: a soft chime, and the seed you keep (one caught in your cloak).
+dandelions.onBlow = (_at, first) => {
+  if (!first) return
+  sound.chime()
+  setTimeout(() => finds.find('clock-seed'), 1800)
+}
+const _clockWind = new THREE.Vector2()
 scene.add(mushrooms.mesh)
 quality.vegetation = vegetation
 quality.refresh()
@@ -1356,7 +1369,7 @@ rig.occluder = (x, y, z) => {
   return d
 }
 rig.lensOccluder = (x, y, z) => Math.min(vegetation.trunkSdf(x, y, z, 0.5), mushrooms.stemSdf(x, y, z))
-rig.lineOccluder = (x, y, z) => Math.min(vegetation.trunkSdf(x, y, z), mushrooms.stemSdf(x, y, z))
+rig.lineOccluder = (x, y, z) => Math.min(vegetation.trunkSdf(x, y, z), mushrooms.stemSdf(x, y, z), dandelions.stemSdf(x, y, z))
 rig.setProfile(WANDERER_CAM)
 sky.setShadowRadius(260)
 const hud = new Hud()
@@ -1542,6 +1555,7 @@ const sites: Site[] = [
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
+  { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
   { id: 'sword', r: 420, at: placeAt('sword') },
   { id: 'colonnade', r: 600, at: placeAt('colonnade') },
@@ -3835,6 +3849,9 @@ function frameBody(now: number): void {
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
   tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind)
   giantFerns.update(dt, camera.position)
+  dandelions.update(dt, camera.position, _clockWind.set(0.916, 0.4).multiplyScalar(weather.now.wind))
+  // (Walked, climbed or glided into a clock: it lets its seeds go.)
+  dandelions.touch(wanderer.pos.x, wanderer.pos.y + 1, wanderer.pos.z, 0.8)
   mushrooms.update(camera.position)
   mushrooms.night.value = sky.night
   rocks.update(camera.position)
@@ -4544,6 +4561,7 @@ const g = {
   giantFerns,
   tallgrass,
   mushrooms,
+  dandelions,
   grass,
   paint,
   biome,
