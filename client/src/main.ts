@@ -4607,6 +4607,21 @@ const g = {
         }
       }
     }
+    // (Still in stone — a giant taller than the 60 m looked up, the tour's spot at the Sentinel stood
+    // you 13 m inside its leg and every frame was stone: out to the nearest open ground round it.)
+    if (y === undefined && rocks.sdfAt(x, terrain.heightAt(x, z) + 0.9, z) < 0) {
+      search: for (let r = 2; r <= 240; r += 2)
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2
+          const nx = x + Math.cos(a) * r
+          const nz = z + Math.sin(a) * r
+          if (rocks.sdfAt(nx, terrain.heightAt(nx, nz) + 0.9, nz) > 0.6) {
+            x = nx
+            z = nz
+            break search
+          }
+        }
+    }
     wanderer.place(x, y ?? terrain.heightAt(x, z), z)
     lastSafe.set(x, terrain.heightAt(x, z), z)
     fallTop = NaN

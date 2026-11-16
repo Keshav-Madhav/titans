@@ -324,6 +324,15 @@ export class CameraRig {
     // of the hall.)
     const roofed = inHall(this.focus.x, this.focus.z, 40)
     if (this.pitch > 0.02 && !this.aiming && !roofed) while (lift < 4 && !room(cam.x, cam.y + lift, cam.z)) lift += 0.25
+    // Pulled in close behind you — your back to a giant tree's buttress roots, the camera at 0.7 m, the
+    // body faded out there and the screen all bark (tour, the Old Wood's giants): up over your head the
+    // closer it is, looking down past you, where there is room.
+    if (this.pitch > 0.02 && !this.aiming && !roofed) {
+      const near = Math.hypot(cam.x - this.focus.x, cam.y - this.focus.y, cam.z - this.focus.z)
+      let up = Math.max(0, Math.min(1, (1.8 - near) / 1.1)) * 2.2
+      for (let i = 0; i < 10 && up > 0 && !room(cam.x, cam.y + up, cam.z); i++) up = Math.max(0, up - 0.25)
+      lift = Math.max(lift, up)
+    }
     // (And only if rising finds room: rising the full 4 m into solid stone — down a hollow under the
     // Sentinel's plinth, the camera already inside it — put the lens deeper in rock; tour in a real window.)
     if (lift >= 4 && !room(cam.x, cam.y + lift, cam.z)) lift = 0
