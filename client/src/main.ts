@@ -2927,6 +2927,7 @@ function simulate(dt: number): void {
         keepOffProps(wanderer.pos)
         vegetation.trunkPush(wanderer.pos)
         mushrooms.stemPush(wanderer.pos)
+        dandelions.stemPush(wanderer.pos)
         onRock()
         if (wanderer.grounded) cliff.rest(dt)
         tryMantle(dt)

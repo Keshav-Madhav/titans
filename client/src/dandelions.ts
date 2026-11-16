@@ -289,6 +289,24 @@ export class Dandelions {
     return best
   }
 
+  /** Keep a walker out of the stems (each a circle at its foot, plus the body's), pushed out sideways. */
+  stemPush(p: THREE.Vector3): void {
+    for (const i of this.shown) {
+      const c = this.all[i]
+      if (p.y < c.y - 1 || p.y > c.y + c.h * 0.8) continue
+      const r = c.h * 0.012 + 0.3
+      const ex = p.x - c.x
+      const ez = p.z - c.z
+      const d = Math.hypot(ex, ez)
+      if (d >= r) continue
+      if (d < 1e-4) p.x = c.x + r
+      else {
+        p.x = c.x + (ex / d) * r
+        p.z = c.z + (ez / d) * r
+      }
+    }
+  }
+
   private blow(idx: number, slot: number): void {
     const c = this.all[idx]
     const first = this.gone.size === 0
