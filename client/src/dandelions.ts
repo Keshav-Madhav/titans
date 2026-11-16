@@ -138,6 +138,8 @@ class Drift {
   private readonly vel: Float32Array
   private readonly life: Float32Array
   private next = 0
+  /** Seconds until the last seed in the air has settled (nothing to do once it has). */
+  private until = 0
   constructor(private readonly n = 3000) {
     this.pos = new Float32Array(n * 3).fill(-1e5)
     this.vel = new Float32Array(n * 3)
@@ -173,9 +175,13 @@ class Drift {
       this.vel[j * 3 + 1] = 0.25 + rand() * 0.4
       this.vel[j * 3 + 2] = Math.sin(a) * 0.6
       this.life[j] = 25 + rand() * 20
+      this.until = Math.max(this.until, this.life[j])
     }
   }
   update(dt: number, wind: THREE.Vector2, t: number): void {
+    // (Nothing in the air — nearly always: no walk over 3,000 slots a frame.)
+    if (this.until <= 0) return
+    this.until -= dt
     let any = false
     for (let j = 0; j < this.n; j++) {
       if (this.life[j] <= 0) continue
