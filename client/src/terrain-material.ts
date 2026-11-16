@@ -402,13 +402,25 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         if (gMason > 0.02) {
           // (Every terrace wall the same dressed stone at the same scale read as one tiled texture —
           // sandbox, developer-mode (the user, 2026-11-08, a view over the Steps). Now: each stretch of
-          // wall its own scale and offset of the courses; the facing fallen away in patches to the raw
+          // wall one of two scales and offsets of the courses; the facing fallen away in patches to the raw
           // rock behind; water-stain streaks down the face; moss at its foot and its lip; and a broad
           // warm/cool drift of colour across the terraces.)
-          float wCell = texture2D(tDetail, gP.xz * 0.0021 + 0.17).r;
-          vec3 mP = gP * (0.75 + 0.6 * wCell) + vec3(wCell * 137.0, wCell * 11.0, wCell * 59.0);
-          vec3 mc; vec3 mn; float mh;
-          triLayer(${LAYERS.indexOf('flagstone')}, mP, gDx * (0.75 + 0.6 * wCell), gDy * (0.75 + 0.6 * wCell), gTriN, gN, mc, mn, mh);
+          // (Two fixed looks crossfaded, not one look whose scale and offset drift with a noise: the
+          // drift, times the world position — hundreds of metres up a wall — sheared the courses into
+          // dense near-vertical lines, every Steps wall streaked like wood grain (tour, 2026-11-17).)
+          float wCell = smoothstep(0.42, 0.58, texture2D(tDetail, gP.xz * 0.0021 + 0.17).r);
+          vec3 mc = vec3(0.0); vec3 mn = vec3(0.0); float mh;
+          if (wCell < 0.99) {
+            vec3 c; vec3 n;
+            triLayer(${LAYERS.indexOf('flagstone')}, gP * 0.82 + vec3(37.0, 5.0, 91.0), gDx * 0.82, gDy * 0.82, gTriN, gN, c, n, mh);
+            mc += c * (1.0 - wCell); mn += n * (1.0 - wCell);
+          }
+          if (wCell > 0.01) {
+            vec3 c; vec3 n;
+            triLayer(${LAYERS.indexOf('flagstone')}, gP * 1.21 + vec3(113.0, 9.0, 23.0), gDx * 1.21, gDy * 1.21, gTriN, gN, c, n, mh);
+            mc += c * wCell; mn += n * wCell;
+          }
+          mn = normalize(mn);
           // Where the facing has fallen: big ragged patches (a slow noise along the wall and up it).
           float fallen = texture2D(tDetail, vec2(gP.x * 0.006 + gP.z * 0.006, gP.y * 0.011) + 0.41).r;
           fallen = smoothstep(0.58, 0.72, fallen + 0.12 * (texture2D(tDetail, gP.xz * 0.05 + gP.y * 0.03).r - 0.5));
