@@ -4542,6 +4542,8 @@ const g = {
   birds,
   vegetation,
   giantFerns,
+  tallgrass,
+  mushrooms,
   grass,
   paint,
   biome,
