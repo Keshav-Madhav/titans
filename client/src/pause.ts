@@ -50,6 +50,8 @@ export class Pause {
   onUi: (k: 'hover' | 'press' | 'toggle' | 'denied' | 'tick') => void = () => {}
 
   constructor(private settings: Settings) {
+    this.body.addEventListener('scroll', () => this.edges(), { passive: true })
+    addEventListener('resize', () => this.open && this.edges())
     // Every button and slider on the page answers with a sound (one listener for them all).
     let over: Element | null = null
     this.panel.addEventListener('pointerover', (e) => {
@@ -102,7 +104,18 @@ export class Pause {
     document.getElementById('pause-sure')!.style.display = 'none'
     document.getElementById('pause-new')!.style.display = ''
     this.panel.style.display = 'flex'
+    this.edges()
     this.onToggle(true)
+  }
+
+  /**
+   * The page's edges fade only where there is more to scroll to (ui.css): faded always, the last
+   * line — the Creative key — sat half in the fade with nothing below it but a little room.
+   */
+  private edges(): void {
+    const b = this.body
+    b.classList.toggle('more-below', b.scrollTop + b.clientHeight < b.scrollHeight - 8)
+    b.classList.toggle('more-above', b.scrollTop > 8)
   }
 
   resume(): void {
