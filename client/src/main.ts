@@ -2845,7 +2845,8 @@ function simulate(dt: number): void {
             _gTop.normalize()
             // In from the lip to the first flat footing (a terrace's riser runs on past its edge:
             // set down 0.9 m in, you stood on the slope and slid all the way back down).
-            const standAt = (x: number, z: number) => Math.max(terrain.heightAt(x, z), rocks.topAt(x, z) ?? -Infinity)
+            // (And a giant mushroom's cap: hooked under its rim, you pull up onto its top.)
+            const standAt = (x: number, z: number) => Math.max(terrain.heightAt(x, z), rocks.topAt(x, z) ?? -Infinity, mushrooms.capFloor(x, a.y + 1.5, z) ?? -Infinity)
             let tx = NaN
             let tz = NaN
             let top = -Infinity
@@ -3144,7 +3145,7 @@ function grappleRay(dir: THREE.Vector3): GrappleHit | null {
         return { at: p.clone(), follow: { obj: best, local: best.worldToLocal(p.clone()) } }
       }
     }
-    if (p.y < terrain.heightAt(p.x, p.z) || rocks.sdfAt(p.x, p.y, p.z) < 0) {
+    if (p.y < terrain.heightAt(p.x, p.z) || rocks.sdfAt(p.x, p.y, p.z) < 0 || mushrooms.solidAt(p.x, p.y, p.z)) {
       return p.distanceTo(wanderer.pos) <= GRAPPLE_RANGE ? { at: p.clone(), follow: null } : null
     }
   }
@@ -3384,7 +3385,10 @@ function onRock(): void {
   }
   wanderer.onStone = false
   if (wanderer.vel.y > 0.5) return // leaving the ground in a jump
-  const floor = rocks.floorAt(p.x, p.y, p.z)
+  // (Or a giant mushroom's cap: you can stand on them, cap to cap across the marsh.)
+  const rf = rocks.floorAt(p.x, p.y, p.z)
+  const mf = mushrooms.capFloor(p.x, p.y, p.z)
+  const floor = rf === null ? mf : mf === null ? rf : Math.max(rf, mf)
   if (floor !== null && floor > terrain.heightAt(p.x, p.z) - 0.05) {
     p.y = floor
     wanderer.vel.y = 0

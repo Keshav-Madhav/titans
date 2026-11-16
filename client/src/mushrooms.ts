@@ -157,6 +157,62 @@ export class Mushrooms {
       }
   }
 
+  private readonly _v = new THREE.Vector3()
+  private readonly _iq = new THREE.Quaternion()
+  /** (x, y, z) in mushroom `c[i…]`'s own unit frame (its 1 m model), lean and all. */
+  private local(c: Float32Array, i: number, x: number, y: number, z: number): THREE.Vector3 {
+    this._iq.setFromEuler(this.e.set(c[i + 5], c[i + 4], c[i + 6], 'YXZ')).invert()
+    return this._v.set(x - c[i], y - c[i + 1], z - c[i + 2]).applyQuaternion(this._iq).divideScalar(c[i + 3])
+  }
+
+  /** The cap's top over the model's (x, z) — 1 m model units — or NaN past its rim. */
+  private static capTop(lx: number, lz: number): number {
+    const d = Math.hypot(lx, lz)
+    return d < 0.62 ? 0.76 + 0.78 * Math.sqrt(0.65 * 0.65 - d * d) : NaN
+  }
+
+  private each(x: number, z: number, fn: (c: Float32Array, i: number) => boolean): boolean {
+    const cx = Math.floor(x / CELL)
+    const cz = Math.floor(z / CELL)
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = this.cells.get((cx + dx) * 100003 + (cz + dz))
+        if (!c) continue
+        for (let i = 0; i + 6 < c.length; i += 7) {
+          if (Math.abs(x - c[i]) > c[i + 3] || Math.abs(z - c[i + 2]) > c[i + 3]) continue
+          if (fn(c, i)) return true
+        }
+      }
+    return false
+  }
+
+  /** Inside a mushroom (its cap or its stem): the grappling line catches there. */
+  solidAt(x: number, y: number, z: number): boolean {
+    return this.each(x, z, (c, i) => {
+      const l = this.local(c, i, x, y, z)
+      const top = Mushrooms.capTop(l.x, l.z)
+      if (!Number.isNaN(top) && l.y > 0.8 && l.y < top) return true
+      return l.y > 0 && l.y < 0.85 && Math.hypot(l.x, l.z) < 0.13
+    })
+  }
+
+  /** The top of a cap under you, if you are on (or just over) one: world height, or null. */
+  capFloor(x: number, y: number, z: number): number | null {
+    let best: number | null = null
+    this.each(x, z, (c, i) => {
+      const l = this.local(c, i, x, y, z)
+      const top = Mushrooms.capTop(l.x, l.z)
+      if (Number.isNaN(top)) return false
+      const dy = (l.y - top) * c[i + 3]
+      if (dy < -0.9 || dy > 0.6) return false
+      // Back to the world: the cap's top straight under (x, z), near enough for a gentle dome.
+      const wy = y - dy
+      if (best === null || wy > best) best = wy
+      return false
+    })
+    return best
+  }
+
   update(cam: THREE.Vector3): void {
     if (Math.hypot(cam.x - this.lastX, cam.z - this.lastZ) < 25) return
     this.lastX = cam.x
