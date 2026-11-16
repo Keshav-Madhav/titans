@@ -654,6 +654,32 @@ export class Sound {
     this.rushFilter!.frequency.setTargetAtTime(280 + 1700 * v, t, 0.3)
   }
 
+  /**
+   * A dandelion clock letting go (dandelions.ts): a soft breathy rush of air, rising then falling away,
+   * high and airy — a hundred and fifty seeds lifting at once. `d` how far off (m).
+   */
+  seeds(d: number): void {
+    if (!this.ctx || !this.noise || !this.on) return
+    const t = this.ctx.currentTime
+    const src = this.ctx.createBufferSource()
+    src.buffer = this.noise
+    src.playbackRate.value = 0.8 + Math.random() * 0.3
+    const f = this.ctx.createBiquadFilter()
+    f.type = 'bandpass'
+    f.Q.value = 0.9
+    f.frequency.setValueAtTime(1400, t)
+    f.frequency.linearRampToValueAtTime(3200, t + 0.5)
+    f.frequency.exponentialRampToValueAtTime(1800, t + 2.6)
+    const g = this.ctx.createGain()
+    const v = 0.22 / (1 + Math.max(0, d - 8) / 25)
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(v, t + 0.35)
+    g.gain.exponentialRampToValueAtTime(0.0005, t + 2.8)
+    src.connect(f).connect(g).connect(this.master!)
+    src.start(t, Math.random() * 1.5)
+    src.stop(t + 3)
+  }
+
   /** Riding a rope: the hand-hold's hum running down it — a low, rough whirr that rises with speed. */
   private zipGain: GainNode | null = null
   private zipFilter: BiquadFilterNode | null = null

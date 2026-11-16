@@ -1340,7 +1340,8 @@ const mushrooms = new Mushrooms(terrain, (x, z) => biome.mire(x, z), (x, z) => r
 const dandelions = new Dandelions(terrain, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6))
 scene.add(dandelions.mesh)
 // The first clock you blow: a soft chime, and the seed you keep (one caught in your cloak).
-dandelions.onBlow = (_at, first) => {
+dandelions.onBlow = (at, first) => {
+  sound.seeds(at.distanceTo(camera.position))
   if (!first) return
   sound.chime()
   setTimeout(() => finds.find('clock-seed'), 1800)
