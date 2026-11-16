@@ -127,6 +127,9 @@ export class GiantFerns {
         transformed.x += fs;
         transformed.z += fs * 0.6;`,
       )
+      // The fronds' undersides are darker (a fern right over you, lantern-lit from below, read as
+      // flat bright yellow triangles — night tour).
+      sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gl_FrontFacing ? 1.0 : 0.5;')
     }
     // (Two looks: the folded leaflets close by, a light one past NEAR_R — 2,400 triangles a fern for
     // all ~230 round the Grove dropped it to Medium detail at the lowest resolution.)
