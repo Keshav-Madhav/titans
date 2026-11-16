@@ -6,6 +6,7 @@
 //   node tools/tour.mjs <out> [count=40] [seed=1]
 import { chromium } from 'playwright-core'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { loadavg } from 'node:os'
 const OUT = process.argv[2] ?? 'shots/tour'
 const COUNT = +(process.argv[3] ?? 40)
 const SEED = +(process.argv[4] ?? 1)
@@ -63,7 +64,12 @@ async function hunt(box) {
     console.log('hunt:', JSON.stringify(res))
   }
 if (ONLY >= 0) page.on('console', (m) => console.log('console:', m.type(), m.text().slice(0, 300)))
+// (Paced: each spot's world builds at 3-4 cores, and 84 back to back pushed the machine's load past 25
+// — the load guard killed the run. Before each spot, wait until the 1-minute load is under TOUR_LOAD.)
+const LOAD_CAP = +(process.env.TOUR_LOAD ?? 14)
+const cool = async () => { for (let k = 0; k < 60 && loadavg()[0] >= LOAD_CAP; k++) await new Promise((r) => setTimeout(r, 5000)) }
 for (const [i, sp] of spots.entries()) {
+  await cool()
   if (ONLY >= 0 && i !== ONLY) { n++; continue }
   const t = TIMES[i % TIMES.length]
   const w = WEATHER[(i * 3) % WEATHER.length]
