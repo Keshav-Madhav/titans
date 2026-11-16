@@ -1006,6 +1006,8 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // On the cap of the tallest mushroom near the Drowned One (placed once the mushrooms exist, below).
+  placed.push({ id: 'cap-feather', kind: 'trinket', at: new THREE.Vector3(0, -1000, 0), hidden: true })
   // Deep inside a hollow fallen giant, toward its closed root end: something that lived in there once.
   {
     const logs = rocks.formations.filter((f) => f.kind === 'log')
@@ -1392,6 +1394,15 @@ const toolbar = new Toolbar(finds)
 // The Mire: its pools' still water and its drowned trees, near you.
 const mireView = new MireView(terrain, (x, z) => biome.mire(x, z))
 scene.add(mireView.group)
+// The feather on the tallest mushroom's cap near the Drowned One: something the marsh's birds brought up.
+{
+  const d = colossi.places.get('drowned')
+  const top = d ? mushrooms.tallestNear(d.x, d.z, 1400) : null
+  if (top) {
+    spots.place('cap-feather', top)
+    spots.reveal('cap-feather')
+  }
+}
 // Small life: fireflies, butterflies, big birds circling the giants' heads; insects and birdsong.
 const lush = (x: number, z: number) => 1 - biome.desert(x, z)
 const wetland = (x: number, z: number) => biome.mire(x, z)

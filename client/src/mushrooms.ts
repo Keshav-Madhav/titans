@@ -213,6 +213,27 @@ export class Mushrooms {
     return best
   }
 
+  /** The tallest mushroom within `r` of (x, z): where its cap's top is (world), or null. */
+  tallestNear(x: number, z: number, r: number): THREE.Vector3 | null {
+    let best: { h: number; i: number; c: Float32Array } | null = null
+    const n = Math.ceil(r / CELL)
+    const c0x = Math.floor(x / CELL)
+    const c0z = Math.floor(z / CELL)
+    for (let dz = -n; dz <= n; dz++)
+      for (let dx = -n; dx <= n; dx++) {
+        const c = this.cell(c0x + dx, c0z + dz)
+        for (let i = 0; i + 6 < c.length; i += 7) {
+          if (Math.hypot(c[i] - x, c[i + 2] - z) > r) continue
+          if (!best || c[i + 3] > best.h) best = { h: c[i + 3], i, c }
+        }
+      }
+    if (!best) return null
+    // The cap's top centre, the lean applied.
+    const { c, i } = best
+    this.q.setFromEuler(this.e.set(c[i + 5], c[i + 4], c[i + 6], 'YXZ'))
+    return new THREE.Vector3(0, (0.76 + 0.78 * 0.65) * c[i + 3], 0).applyQuaternion(this.q).add(this.p.set(c[i], c[i + 1], c[i + 2]))
+  }
+
   update(cam: THREE.Vector3): void {
     if (Math.hypot(cam.x - this.lastX, cam.z - this.lastZ) < 25) return
     this.lastX = cam.x
