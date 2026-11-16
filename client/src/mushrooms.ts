@@ -34,9 +34,10 @@ function mushroomGeometry(): THREE.BufferGeometry {
   )
   stem.computeVertexNormals()
   parts.push(paint(stem, (y) => {
-    const k = Math.min(1, y / 0.25)
-    // (Damp grey-cream, not white: bare white stems read as plastic.)
-    return [0.22 + 0.32 * k, 0.2 + 0.29 * k, 0.17 + 0.22 * k]
+    // (Damp grey-tan, mud-dark at the foot and fading up the whole stem, a touch paler under the cap:
+    // the cream stems still read as plastic poles in full sun.)
+    const k = Math.pow(Math.min(1, y / 0.9), 0.6)
+    return [0.14 + 0.17 * k, 0.12 + 0.14 * k, 0.09 + 0.09 * k]
   }))
   // The cap: a dome, brown on top fading paler to the rim.
   const cap = new THREE.SphereGeometry(0.65, 20, 8, 0, Math.PI * 2, 0, Math.PI * 0.42).scale(1, 0.78, 1).translate(0, 0.76, 0)
