@@ -4212,7 +4212,14 @@ function frameBody(now: number): void {
             o.visible = true
           }
         })
+        // (Into the frame's own target, as it is drawn: compiled for the screen, every program was
+        // the screen's variant — sRGB out, tone-mapped — which the game never draws with (it draws
+        // into the composer's target, linear, tone-mapped later), so all of it compiled again on
+        // first sight: ten programs, 150 ms, the first approach to a giant.)
+        const prevTarget = renderer.getRenderTarget()
+        renderer.setRenderTarget(post.composer.renderTarget1)
         const done = renderer.compileAsync(root, camera, scene).catch(() => {})
+        renderer.setRenderTarget(prevTarget)
         for (const o of hidden) o.visible = false
         void done
       }
