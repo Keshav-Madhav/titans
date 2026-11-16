@@ -18,8 +18,8 @@ function fernGeometry(): THREE.BufferGeometry {
   const col: number[] = []
   const nrm: number[] = []
   const rand = mulberry32(0xfe4)
-  const FRONDS = 8
-  const SEG = 14
+  const FRONDS = 9
+  const SEG = 30
   const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, ca: number[], cb: number[], cc: number[]) => {
     const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize()
     // (Leaves lit from above whichever way they face: a frond's underside was black.)
@@ -55,16 +55,32 @@ function fernGeometry(): THREE.BufferGeometry {
       // The spine itself, a thin strip.
       const w = 0.012 * (1 - t)
       tri(a.clone().addScaledVector(side, -w), a.clone().addScaledVector(side, w), b, stem, stem, stem)
-      if (t < 0.08) continue
-      // A leaflet each side: longest a third of the way out, shrinking to the tip, drooping.
-      const L = 0.32 * Math.sin(Math.min(1, (t - 0.05) / 0.95) * Math.PI) * (1 - 0.35 * t)
-      // (Deep, shaded green: in the wood's light the first, brighter green read as paper.)
+      if (t < 0.06) continue
+      // Leaflets, both sides: long narrow strips (a fold down their middle, a pointed tip), longest a
+      // third of the way out, shortening and drooping toward the frond's tip. (Single fat triangles
+      // read as paper cones up close — the tour.)
+      const L = 0.34 * Math.sin(Math.min(1, (t - 0.04) / 0.96) * Math.PI) * (1 - 0.3 * t)
+      const W = 0.022 + 0.012 * (1 - t)
       const g = [0.11 + 0.07 * tint + 0.06 * t, 0.24 + 0.07 * tint + 0.05 * t, 0.06 + 0.03 * t]
-      const g2 = [g[0] * 0.75, g[1] * 0.78, g[2] * 0.8]
+      const g2 = [g[0] * 0.7, g[1] * 0.74, g[2] * 0.76]
+      const g3 = [g[0] * 1.15, g[1] * 1.12, g[2]]
+      const mid = a.clone().lerp(b, 0.5)
+      const along = new THREE.Vector3().subVectors(b, a).normalize()
       for (const sgn of [-1, 1]) {
-        const tip = a.clone().lerp(b, 0.5).addScaledVector(side, sgn * L).addScaledVector(dir, L * 0.25)
-        tip.y -= L * 0.45
-        tri(a, b, tip, g2, g2, g)
+        const out = side.clone().multiplyScalar(sgn).addScaledVector(dir, 0.35).normalize()
+        const tip = mid.clone().addScaledVector(out, L)
+        tip.y -= L * 0.5
+        const kneeP = mid.clone().addScaledVector(out, L * 0.55)
+        kneeP.y -= L * 0.12
+        // The leaflet's two edges either side of its fold, the fold a little raised.
+        const e1 = kneeP.clone().addScaledVector(along, W)
+        const e2 = kneeP.clone().addScaledVector(along, -W)
+        const fold = kneeP.clone()
+        fold.y += W * 0.6
+        tri(mid, e1, fold, g2, g, g3)
+        tri(mid, fold, e2, g2, g3, g)
+        tri(e1, tip, fold, g, g3, g3)
+        tri(fold, tip, e2, g3, g3, g)
       }
     }
   }
