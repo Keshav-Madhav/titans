@@ -98,6 +98,12 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
             reflectedLight.indirectDiffuse *= occ;
             reflectedLight.indirectSpecular *= occ;
             reflectedLight.directDiffuse *= mix(1.0, occ, 0.6);
+            #ifdef ROCK_WEATHER
+            // (The building's own weathering, if it has one: a tint on the stone, as an albedo would be.)
+            vec3 wtint = weather(vRockPos, normalize(vRockN));
+            reflectedLight.directDiffuse *= wtint;
+            reflectedLight.indirectDiffuse *= wtint;
+            #endif
           }`,
         )
     }

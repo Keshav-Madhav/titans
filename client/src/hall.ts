@@ -188,6 +188,30 @@ export class Undercroft {
             w *= 0.62;
           }
           return clamp(1.0 - 0.42 * o, 0.22, 1.0);
+        }
+        #define ROCK_WEATHER
+        float hallN(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          vec2 m = mod(i, 289.0);
+          float a = fract(sin(dot(m, vec2(12.9898, 78.233))) * 43758.5);
+          float b = fract(sin(dot(m + vec2(1.0, 0.0), vec2(12.9898, 78.233))) * 43758.5);
+          float c = fract(sin(dot(m + vec2(0.0, 1.0), vec2(12.9898, 78.233))) * 43758.5);
+          float d = fract(sin(dot(m + vec2(1.0, 1.0), vec2(12.9898, 78.233))) * 43758.5);
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+        // The plaza's top weathered (from the meadow it was a flat untextured grey sheet — the tour,
+        // 2026-11-17): broad patches of moss and damp, darker toward the rim where the grass creeps in,
+        // big enough to read from across the meadow, not a tile's grain.
+        vec3 weather(vec3 wp, vec3 n) {
+          vec3 p = wp - uHallO;
+          if (p.y < 0.4 || n.y < 0.7) return vec3(1.0);
+          vec2 q = p.xz;
+          // (Plaza coordinates kept small: the hash of big values lost its precision and gave one flat value.)
+          float m = hallN(q * 0.035 + 11.0) * 0.6 + hallN(q * 0.11 + 7.3) * 0.3 + hallN(q * 0.37 + 2.1) * 0.1;
+          float rim = 1.0 - smoothstep(0.0, 30.0, min(${f(HALL.hx)} - abs(p.x), ${f(HALL.hz)} - abs(p.z)));
+          float moss = smoothstep(0.28, 0.48, m + rim * 0.3);
+          float damp = smoothstep(0.35, 0.6, hallN(q * 0.05 + 3.7));
+          // (Strong: the stone's own grey is pale, and at a meadow's distance a light tint vanished.)
+          vec3 t = mix(vec3(1.0), vec3(0.42, 0.55, 0.26), moss * 0.9);
+          return t * mix(1.0, 0.72, damp * 0.7);
         }`,
     }
     rocks.addBuilt(shape, geo, { x: HALL.x, y: top, z: HALL.z, rot: 0, layers: [LAYER.carved, LAYER.flagstone], scale: 9, tint: [0.82, 0.82, 0.8], occlusion })
