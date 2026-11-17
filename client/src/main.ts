@@ -98,7 +98,7 @@ import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
-import { shellGeometry, shellShape } from './shells'
+import { shellAt, shellGeometry, shellShape } from './shells'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
 import { Dread } from './dread'
@@ -311,18 +311,14 @@ for (const [i, sh] of SHELLS.entries()) {
   const y = land - geo.boundingBox!.min.y - sh.R * 0.12
   rocks.addBuilt(shellShape(sh.R), geo, { x: sh.x, y, z: sh.z, rot: sh.rot, layers: [LAYER.bone, LAYER.sand], scale: 6, tint: [0.92, 0.88, 0.8] })
   if (i === 0) {
-    // On the floor just inside the mouth: the last stretch of the coil, at the bottom of its tube.
-    const thMax = 2.6 * Math.PI * 2
-    const t = 0.97
-    const rad = sh.R * Math.exp(0.18 * (t * thMax - thMax))
-    const lx = Math.cos(t * thMax) * rad
-    const lz = (thMax - t * thMax) * 0.09 * rad
+    // On the floor just inside the mouth: a little way back up the coil from it, at the bottom of the tube.
+    const { c: lc } = shellAt(0.965, sh.R)
     const c = Math.cos(sh.rot)
     const sn = Math.sin(sh.rot)
-    const wx = sh.x + lx * c + lz * sn
-    const wz = sh.z - lx * sn + lz * c
-    const floor = rocks.floorAt(wx, y + Math.sin(t * thMax) * rad, wz)
-    shellPearl.set(wx, floor ?? terrain.heightAt(wx, wz), wz)
+    const wx = sh.x + lc.x * c + lc.z * sn
+    const wz = sh.z - lc.x * sn + lc.z * c
+    const floor = rocks.floorAt(wx, y + lc.y, wz, 0.6, 8)
+    shellPearl.set(wx, Math.max(floor ?? -Infinity, terrain.heightAt(wx, wz)), wz)
   }
 }
 // The map: uncovered as you explore (more from up high); M opens it.

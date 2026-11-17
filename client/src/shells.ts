@@ -9,8 +9,12 @@
 import * as THREE from 'three'
 import type { Shape } from './rock-fields'
 
-/** Turns of the coil (apex to mouth). */
-const TURNS = 2.6
+/**
+ * Turns of the coil (apex to mouth). (Ending three quarters of the way round: the mouth at the bottom of
+ * the coil, opening sideways at the grass. At 2.6 it opened 54° down into the turf and you could not
+ * walk in.)
+ */
+const TURNS = 2.75
 /** Growth per radian (the shell triples about every turn). */
 const B = 0.18
 /** The tube's radius as a share of its distance from the coil's axis. */
@@ -22,7 +26,7 @@ const SPIRE = 0.09
 const SAMPLES = 90
 
 /** The coil's centre line and radius at parameter t (0 apex … 1 mouth), for a shell `R` at the mouth. */
-function at(t: number, R: number): { c: THREE.Vector3; r: number; th: number } {
+export function shellAt(t: number, R: number): { c: THREE.Vector3; r: number; th: number } {
   const thMax = TURNS * Math.PI * 2
   const th = t * thMax
   const rad = R * Math.exp(B * (th - thMax))
@@ -39,9 +43,9 @@ export function shellGeometry(R: number): THREE.BufferGeometry {
   const frames: Array<{ c: THREE.Vector3; n: THREE.Vector3; b: THREE.Vector3; r: number; th: number }> = []
   for (let i = 0; i <= SAMPLES; i++) {
     const t = 0.03 + (i / SAMPLES) * 0.97
-    const { c, r, th } = at(t, R)
-    const ahead = at(Math.min(1, t + 0.002), R).c
-    const behind = at(Math.max(0, t - 0.002), R).c
+    const { c, r, th } = shellAt(t, R)
+    const ahead = shellAt(Math.min(1, t + 0.002), R).c
+    const behind = shellAt(Math.max(0, t - 0.002), R).c
     const tan = ahead.sub(behind).normalize()
     // The ring's frame: outward from the axis (radial), and across it.
     const radial = new THREE.Vector3(c.x, c.y, 0).normalize()
@@ -96,7 +100,7 @@ export function shellShape(R: number): Shape {
   const cs: THREE.Vector3[] = []
   const rs: number[] = []
   for (let i = 0; i <= SAMPLES; i++) {
-    const { c, r } = at(0.03 + (i / SAMPLES) * 0.97, R)
+    const { c, r } = shellAt(0.03 + (i / SAMPLES) * 0.97, R)
     cs.push(c)
     rs.push(r)
   }
