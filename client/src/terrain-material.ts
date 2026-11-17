@@ -129,6 +129,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         varying vec4 vSplatA;
         varying vec4 vSplatB;
         varying vec3 vGroundPos;
+        varying vec3 vGroundRel;
         varying vec3 vGroundN;`,
       )
       .replace(
@@ -137,6 +138,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         vSplatA = aSplatA;
         vSplatB = aSplatB;
         vGroundPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vGroundRel = vGroundPos - cameraPosition;
         vGroundN = normalize(mat3(modelMatrix) * objectNormal);`,
       )
     shader.fragmentShader = shader.fragmentShader
@@ -150,6 +152,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         varying vec4 vSplatA;
         varying vec4 vSplatB;
         varying vec3 vGroundPos;
+        varying vec3 vGroundRel;
         varying vec3 vGroundN;
         const float LSCALE[${LAYERS.length}] = float[${LAYERS.length}](${list(SCALE)});
         const float LROUGH[${LAYERS.length}] = float[${LAYERS.length}](${list(ROUGH)});
@@ -320,8 +323,13 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // --- the splat -------------------------------------------------------
         vec3 gN = normalize(vGroundN);
         vec3 gP = vGroundPos;
-        vec3 gDx = dFdx(gP);
-        vec3 gDy = dFdy(gP);
+        // (The screen derivatives from the position relative to the camera, a few metres, not the world
+        // position: ~10 km out, in the High Places, a float steps ~1 mm, and with the ground half a metre
+        // from the lens neighbouring pixels are closer than that — the derivatives came out quantised, the
+        // facet normal from them pointed anywhere, random pixels were judged cliff and drawn as rock: the
+        // dark speckle over the near snow, the playtest, 2026-11-08; found 2026-11-17.)
+        vec3 gDx = dFdx(vGroundRel);
+        vec3 gDy = dFdy(vGroundRel);
         float gDist = distance(gP, cameraPosition);
         float gFar = smoothstep(25.0, 160.0, gDist);
         float gW[8] = float[8](vSplatA.x, vSplatA.y, vSplatA.z, vSplatA.w, vSplatB.x, vSplatB.y, vSplatB.z, vSplatB.w);
@@ -331,7 +339,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // The triangle's own slope (from screen derivatives), not only the smooth
         // vertex normal: a triangle spanning a cliff's foot is steep all over,
         // where the interpolated normal would leave a pale tooth of sand or grass.
-        vec3 gFlat = normalize(cross(gDx, gDy));
+        // (Guarded: a degenerate pixel's zero cross product would normalise to NaN.)
+        vec3 gFlatC = cross(gDx, gDy);
+        float gFlatL = length(gFlatC);
+        vec3 gFlat = gFlatL > 1e-12 ? gFlatC / gFlatL : gN;
         // (Smooth, so the projection does not jump at every triangle edge.)
         // (In the desert, sand holds to a much steeper face: a dune's slip face is sand, and the red
         // strata belong to the mesas' near-vertical walls — the tour, 2026-11-07, found whole dune
