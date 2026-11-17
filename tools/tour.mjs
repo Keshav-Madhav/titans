@@ -87,7 +87,7 @@ for (const [i, sp] of spots.entries()) {
     g.input.release('KeyW')
     await new Promise((r) => setTimeout(r, 2200))
     const p = g.wanderer.pos
-    return { x: Math.round(p.x), y: Math.round(p.y), z: Math.round(p.z), land: g.terrain.base.regions.name(p.x, p.z), swimming: g.wanderer.swimming }
+    return { x: Math.round(p.x), y: Math.round(p.y), z: Math.round(p.z), land: g.terrain.base.regions.name(p.x, p.z), swimming: g.wanderer.swimming, skyline: +(+g.skyline).toFixed(2) }
   }, [sp, t, w])
   const base = `${OUT}/tour-${String(n).padStart(3, '0')}-${sp.tag}`
   // (A fall while settling in — dropped at a terrace's lip — blacks the screen out for its 1.8 s; a

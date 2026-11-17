@@ -224,8 +224,11 @@ export class SkySystem {
     // the key light goes low; same samples, so no cost.)
     this.sun.shadow.radius = 1 + 2.5 * (1 - THREE.MathUtils.smoothstep(this.keyDir.y, 0.12, 0.5))
     // The air: warm toward sunset, deep blue at night.
+    // (The air goes dark faster than the twilight weight: with the sun on the horizon the colossi beyond
+    // the Wall and the far ranges, nearly all air, stood day-pale against a navy sky over a dark land —
+    // night tour 53. Twilight puts distant ranges dark against the horizon's glow.)
     lb.fogColor.setRGB(0.8 - 0.06 * low, 0.79 - 0.01 * low, 0.76 + 0.03 * low).convertSRGBToLinear()
-    lb.fogColor.lerp(_lowFog.setRGB(0.86 - 0.04 * this.morning, 0.55 + 0.17 * this.morning, 0.42 + 0.26 * this.morning), 0.35 * (1 - low) * daylight).lerp(_twiFog.copy(TWILIGHT_FOG).lerp(TWILIGHT_FOG_DAWN, this.morning), this.dusk).lerp(NIGHT_FOG, this.night)
+    lb.fogColor.lerp(_lowFog.setRGB(0.86 - 0.04 * this.morning, 0.55 + 0.17 * this.morning, 0.42 + 0.26 * this.morning), 0.35 * (1 - low) * daylight).lerp(_twiFog.copy(TWILIGHT_FOG).lerp(TWILIGHT_FOG_DAWN, this.morning), THREE.MathUtils.smoothstep(this.dusk, 0, 0.55)).lerp(NIGHT_FOG, this.night)
     // With the sun low, it lights the ground only at a glancing angle — but the whole sky
     // glows, warm: the land is lit from the sky then, not left in the dark under a bright one.
     const glow = (1 - low) * daylight
