@@ -35,6 +35,7 @@ function clumpGeometry(): THREE.BufferGeometry {
   const pos: number[] = []
   const nrm: number[] = []
   const col: number[] = []
+  const acr: number[] = []
   const idx: number[] = []
   const rand = mulberry32(0x7a1155)
   for (let b = 0; b < BLADES; b++) {
@@ -59,6 +60,8 @@ function clumpGeometry(): THREE.BufferGeometry {
       const cz = oz + Math.sin(a) * bend
       const ww = w * (1 - Math.pow(t, 1.4) * 0.94)
       pos.push(cx - fx * ww, y, cz - fz * ww, cx + fx * ww, y, cz + fz * ww)
+      // (Where across the blade: -1 one edge, 1 the other — veins, a midrib.)
+      acr.push(-1, 1)
       // Rounded across the blade: each edge's normal turned out a little (a flat strip read as paper).
       const nx = Math.cos(a) * (1 - t * 0.5)
       const ny = 0.35 + t * 0.6
@@ -83,6 +86,7 @@ function clumpGeometry(): THREE.BufferGeometry {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+  geo.setAttribute('aAcross', new THREE.Float32BufferAttribute(acr, 1))
   geo.setIndex(idx)
   return geo
 }
@@ -93,6 +97,8 @@ export class Tallgrass {
     uTime: { value: 0 },
     uWind: { value: 0.3 },
     uPlayer: { value: new THREE.Vector3() },
+    /** Toward the sun (world). */
+    uSun: { value: new THREE.Vector3(0, 1, 0) },
   }
   /** Per cell: its clumps, [x, y, z, height, turn] × PER_CELL (computed once, kept). */
   private readonly cells = new Map<number, Float32Array>()
@@ -109,7 +115,7 @@ export class Tallgrass {
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.uniforms)
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uWind;\nuniform vec3 uPlayer;\nvarying vec3 vTallW;\nvarying float vTallT;')
+        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uWind;\nuniform vec3 uPlayer;\nattribute float aAcross;\nvarying vec3 vTallW;\nvarying float vTallT;\nvarying float vAcross;')
         .replace(
           '#include <project_vertex>',
           `vec4 tw = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
@@ -129,11 +135,12 @@ export class Tallgrass {
           tw.y -= tpush * tH * 0.08;
           vTallW = tw.xyz;
           vTallT = th;
+          vAcross = aAcross;
           vec4 mvPosition = viewMatrix * tw;
           gl_Position = projectionMatrix * mvPosition;`,
         )
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform vec3 uPlayer;\nvarying vec3 vTallW;\nvarying float vTallT;')
+        .replace('#include <common>', '#include <common>\nuniform vec3 uPlayer;\nuniform vec3 uSun;\nvarying vec3 vTallW;\nvarying float vTallT;\nvarying float vAcross;')
         .replace(
           '#include <clipping_planes_fragment>',
           `#include <clipping_planes_fragment>
@@ -153,10 +160,28 @@ export class Tallgrass {
           }`,
         )
         .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          {
+            // Fine parallel veins down the blade, a paler midrib, edges a little darker and drier: a
+            // blade a metre wide read as a flat cut-out with nothing on it.
+            float ta = abs(vAcross);
+            // (Unevenly spaced: evenly ruled lines read as corduroy.)
+            float vein = 0.89 + 0.11 * sin(vAcross * 34.0 + sin(vAcross * 9.0) * 1.6);
+            float rib = 1.0 + 0.16 * (1.0 - smoothstep(0.0, 0.14, ta));
+            diffuseColor.rgb *= vein * rib;
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.05, 0.95, 0.7), smoothstep(0.75, 1.0, ta) * 0.6);
+          }`,
+        )
+        .replace(
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
-          // Light through the blades high up (thin, lit from behind), none down in the dark at the roots.
-          totalEmissiveRadiance += diffuseColor.rgb * 0.22 * smoothstep(0.3, 1.0, vTallT);`,
+          // Light through the blades high up (thin, lit from behind), none down in the dark at the roots;
+          // and much more looking toward the sun through them — the blades glow (they were flat dark paper
+          // against a bright sky, the tour, 2026-11-17).
+          vec3 tV = normalize(vTallW - cameraPosition);
+          float tBack = pow(max(dot(tV, normalize(uSun)), 0.0), 3.0) * smoothstep(-0.05, 0.25, uSun.y);
+          totalEmissiveRadiance += diffuseColor.rgb * (0.22 + 0.9 * tBack) * smoothstep(0.3, 1.0, vTallT);`,
         )
     }
     this.mesh = new THREE.InstancedMesh(clumpGeometry(), mat, CAP)
@@ -190,8 +215,9 @@ export class Tallgrass {
     return c
   }
 
-  update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number): void {
+  update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number, sun?: THREE.Vector3): void {
     this.uniforms.uTime.value += dt
+    if (sun) this.uniforms.uSun.value.copy(sun)
     this.uniforms.uWind.value = wind
     this.uniforms.uPlayer.value.copy(player)
     const far = Math.hypot(cam.x - TALL.x, cam.z - TALL.z) - TALL.r

@@ -3849,7 +3849,7 @@ function frameBody(now: number): void {
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
   skirts?.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
-  tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind)
+  tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind, sky.sunDir)
   giantFerns.update(dt, camera.position)
   dandelions.update(dt, camera.position, _clockWind.set(0.916, 0.4).multiplyScalar(weather.now.wind))
   // (Walked, climbed or glided into a clock: it lets its seeds go.)
