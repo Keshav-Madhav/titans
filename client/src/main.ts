@@ -99,6 +99,7 @@ import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
+import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
@@ -304,6 +305,31 @@ const SHELLS: Array<{ x: number; z: number; R: number; rot: number }> = [
   { x: 2600, z: 1800, R: 6, rot: 4.1 },
 ]
 const shellPearl = new THREE.Vector3()
+// Giant feathers on the High Places' snow (feathers.ts): two, dark against the white, on level ground.
+const featherBase = new THREE.Vector3()
+{
+  const fr = mulberry32(0xfea7)
+  let n = 0
+  for (let tries = 0; tries < 400 && n < 2; tries++) {
+    const d = 12750 + fr() * 1000
+    const a = HIGH.axis + (fr() - 0.5) * 0.18
+    const x = Math.sin(a) * d
+    const z = Math.cos(a) * d
+    const L = 18 + fr() * 6
+    const rot = fr() * Math.PI * 2
+    // Level along its length and across (a feather lying on a slope floated or sank).
+    const hs: number[] = []
+    for (const [u, v] of [[0, 0], [0.5, 0], [1, 0], [0.5, 0.17], [0.5, -0.17]]) hs.push(terrain.heightAt(x + Math.cos(rot) * u * L - Math.sin(rot) * v * L, z - Math.sin(rot) * u * L - Math.cos(rot) * v * L))
+    if (Math.max(...hs) - Math.min(...hs) > 1.2 || rocks.occupies(x, z)) continue
+    // (On the highest of the points under it: set at the lowest, the vanes sank into the snow.)
+    const y = Math.max(...hs) + 0.05
+    const f: Feather = { x, z, y, rot, L }
+    rocks.addBuilt(quillShape(L), quillGeometry(L), { x, y, z, rot, layers: [LAYER.bone, LAYER.bone], scale: 4, tint: [0.36, 0.36, 0.4] })
+    scene.add(featherVanes(f, 0xfe0 + n))
+    if (n === 0) featherBase.set(x - Math.cos(rot) * 1.2, y, z + Math.sin(rot) * 1.2)
+    n++
+  }
+}
 // Giant acorns fallen under the Old Wood's giant trees (acorns.ts), lying in the litter. The first
 // has a seedling sprouting from its top: something still growing.
 const acornSeedling = new THREE.Vector3()
@@ -1066,6 +1092,11 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // At the first feather's quill: one barb come loose.
+  if (featherBase.lengthSq() > 0) {
+    const barb = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.05).translate(0.35, 0.02, 0).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x22232a, roughness: 0.7, side: THREE.DoubleSide }))
+    placed.push({ id: 'feather-barb', kind: 'trinket', at: new THREE.Vector3(featherBase.x, terrain.heightAt(featherBase.x, featherBase.z), featherBase.z), model: barb })
+  }
   // On the first giant acorn: a seedling growing out of it.
   if (acornSeedling.lengthSq() > 0) {
     const sap = new THREE.Group()
@@ -1643,6 +1674,7 @@ const sites: Site[] = [
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
   { id: 'shells', r: 200, at: near(1500, -1950) },
+  { id: 'feathers', r: 80, at: () => (featherBase.lengthSq() > 0 ? { x: featherBase.x, z: featherBase.z } : null) },
   { id: 'acorns', r: 60, at: () => (acornSeedling.lengthSq() > 0 ? { x: acornSeedling.x, z: acornSeedling.z } : null) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
   { id: 'sword', r: 420, at: placeAt('sword') },
@@ -4663,6 +4695,7 @@ const g = {
   dandelions,
   shellPearl,
   acornSeedling,
+  featherBase,
   grass,
   paint,
   biome,
