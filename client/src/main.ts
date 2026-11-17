@@ -98,6 +98,7 @@ import { Ambience } from './ambience'
 import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
+import { shellGeometry, shellShape } from './shells'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
 import { Dread } from './dread'
@@ -294,6 +295,36 @@ const colossusAvoid = rocks.formations.filter((f) => f.always && !f.float).map((
 // The Undercroft: a hall of pillars under the valley floor.
 const undercroft = new Undercroft(terrain, rocks)
 scene.add(undercroft.group)
+// Giant snail shells, empty and bleached, lying half-sunk in the valley grass (shells.ts): a big one
+// with a smaller beside it, and one alone further east. Where the pearl lies: in the big one's mouth.
+const SHELLS: Array<{ x: number; z: number; R: number; rot: number }> = [
+  { x: 1500, z: -1950, R: 7, rot: 0.6 },
+  { x: 1548, z: -1898, R: 4.4, rot: 2.3 },
+  { x: 2600, z: 1800, R: 6, rot: 4.1 },
+]
+const shellPearl = new THREE.Vector3()
+for (const [i, sh] of SHELLS.entries()) {
+  const geo = shellGeometry(sh.R)
+  geo.computeBoundingBox()
+  // Resting on its lowest whorl, sunk a quarter of a metre per metre of its size into the turf.
+  const land = terrain.heightAt(sh.x, sh.z)
+  const y = land - geo.boundingBox!.min.y - sh.R * 0.12
+  rocks.addBuilt(shellShape(sh.R), geo, { x: sh.x, y, z: sh.z, rot: sh.rot, layers: [LAYER.bone, LAYER.sand], scale: 6, tint: [0.92, 0.88, 0.8] })
+  if (i === 0) {
+    // On the floor just inside the mouth: the last stretch of the coil, at the bottom of its tube.
+    const thMax = 2.6 * Math.PI * 2
+    const t = 0.97
+    const rad = sh.R * Math.exp(0.18 * (t * thMax - thMax))
+    const lx = Math.cos(t * thMax) * rad
+    const lz = (thMax - t * thMax) * 0.09 * rad
+    const c = Math.cos(sh.rot)
+    const sn = Math.sin(sh.rot)
+    const wx = sh.x + lx * c + lz * sn
+    const wz = sh.z - lx * sn + lz * c
+    const floor = rocks.floorAt(wx, y + Math.sin(t * thMax) * rad, wz)
+    shellPearl.set(wx, floor ?? terrain.heightAt(wx, wz), wz)
+  }
+}
 // The map: uncovered as you explore (more from up high); M opens it.
 const NAMES: Record<string, string> = {
   sentinel: 'The Sentinel',
@@ -1007,6 +1038,12 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // In the big shell's mouth: a pearl the size of a fist, the last thing it made.
+  {
+    const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12).translate(0, 0.11, 0), new THREE.MeshStandardMaterial({ color: 0xe9e3d6, roughness: 0.25, metalness: 0.15 }))
+    pearl.castShadow = true
+    placed.push({ id: 'shell-pearl', kind: 'trinket', at: shellPearl.clone(), model: pearl })
+  }
   // On the cap of the tallest mushroom near the Drowned One (placed once the mushrooms exist, below).
   placed.push({ id: 'cap-feather', kind: 'trinket', at: new THREE.Vector3(0, -1000, 0), hidden: true })
   // Deep inside a hollow fallen giant, toward its closed root end: something that lived in there once.
@@ -1563,6 +1600,7 @@ const sites: Site[] = [
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
+  { id: 'shells', r: 200, at: near(1500, -1950) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
   { id: 'sword', r: 420, at: placeAt('sword') },
   { id: 'colonnade', r: 600, at: placeAt('colonnade') },
@@ -4570,6 +4608,7 @@ const g = {
   tallgrass,
   mushrooms,
   dandelions,
+  shellPearl,
   grass,
   paint,
   biome,
