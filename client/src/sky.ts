@@ -18,6 +18,11 @@ const SUN_COLOUR = new THREE.Color(0xffe6c2)
 const MOON_COLOUR = new THREE.Color(0.62, 0.72, 1.0)
 const NIGHT_FOG = new THREE.Color(0.03, 0.04, 0.068)
 const TWILIGHT_FOG = new THREE.Color(0.15, 0.115, 0.14)
+/** The air before sunrise: cooler and greyer than after sunset. */
+const TWILIGHT_FOG_DAWN = new THREE.Color(0.13, 0.125, 0.155)
+const _lowSun = new THREE.Color()
+const _lowFog = new THREE.Color()
+const _twiFog = new THREE.Color()
 const NIGHT_FILL = new THREE.Color(0.32, 0.4, 0.62)
 /** The sky's light on the land at sunrise and sunset: warm, rose-gold. */
 const SUNSET_FILL = new THREE.Color(1.0, 0.74, 0.58)
@@ -40,6 +45,8 @@ export class SkySystem {
   sunLow = 0
   /** 0 day … 1 twilight and after (the sun at or under the horizon). */
   dusk = 0
+  /** 1 toward morning, 0 toward evening (0.5 at noon and midnight). */
+  morning = 0.5
   /**
    * The light as the time of day sets it, before the weather dims it
    * (weather.ts reads these each frame).
@@ -133,14 +140,19 @@ export class SkySystem {
     scene.add(this.moon)
     this.sky.material.uniforms.uNight = { value: 0 }
     this.sky.material.uniforms.uDusk = { value: 0 }
+    this.sky.material.uniforms.uMorning = { value: 0 }
     this.sky.material.uniforms.uSand = { value: 0 }
-    this.sky.material.fragmentShader = 'uniform float uNight;\nuniform float uDusk;\nuniform float uSand;\n' + this.sky.material.fragmentShader.replace(
+    this.sky.material.fragmentShader = 'uniform float uNight;\nuniform float uDusk;\nuniform float uSand;\nuniform float uMorning;\n' + this.sky.material.fragmentShader.replace(
       'gl_FragColor = vec4( skyC, 1.0 );',
       `// Twilight (the physical sky goes black once the sun is down): deep blue-violet
       // overhead, the horizon warm where the sun went, cooler elsewhere.
       float hz = 1.0 - smoothstep( 0.0, 0.35, max( direction.y, 0.0 ) );
       float toSun = pow( max( dot( normalize( vec3( direction.x, 0.0, direction.z ) ), normalize( vec3( vSunDirection.x, 0.0, vSunDirection.z ) ) ), 0.0 ), 3.0 );
-      vec3 duskC = mix( vec3( 0.05, 0.06, 0.13 ), mix( vec3( 0.16, 0.12, 0.17 ), vec3( 0.5, 0.26, 0.17 ), toSun ), hz );
+      // (Dawn is not dusk run backwards: a cooler, paler rose at the horizon where the sun comes up, a
+      // greyer violet round it; evening is warmer and deeper. They were the same picture — QA notes.)
+      vec3 sunHz = mix( vec3( 0.52, 0.25, 0.14 ), vec3( 0.46, 0.33, 0.34 ), uMorning );
+      vec3 offHz = mix( vec3( 0.16, 0.11, 0.15 ), vec3( 0.15, 0.15, 0.2 ), uMorning );
+      vec3 duskC = mix( vec3( 0.05, 0.06, 0.13 ), mix( offHz, sunHz, toSun ), hz );
       // (Overhead it darkens later than at the horizon: by the plain dusk weight the zenith was
       // already deep violet with stars out while the sun still sat on the horizon and the land and
       // fog were bright — night tour review, 2026-11-08.)
@@ -183,6 +195,8 @@ export class SkySystem {
     this.sky.material.uniforms.sunPosition.value.copy(this.sunDir)
     // The moon: across the sky from the sun, riding high through the night.
     this.moonDir.set(-this.sunDir.x, Math.max(0.25, -this.sunDir.y) + 0.15, -this.sunDir.z).normalize()
+    // 1 toward morning, 0 toward evening (0.5 at noon and midnight): dawn and dusk lit differently.
+    this.morning = 0.5 + 0.5 * Math.cos(2 * Math.PI * (t - 0.25))
     // Day → twilight (the sun at the horizon to 5° under) → night (well under).
     this.dusk = 1 - THREE.MathUtils.smoothstep(elev, -5, 4)
     this.night = 1 - THREE.MathUtils.smoothstep(elev, -16, -5)
@@ -197,7 +211,8 @@ export class SkySystem {
     const lb = this.lightBase
     if (sunI >= moonI) {
       this.keyDir.copy(this.sunDir)
-      this.sun.color.copy(SUN_COLOUR).lerp(new THREE.Color(1, 0.66, 0.42), 1 - low)
+      // (A low morning sun pale gold, a low evening one deep orange.)
+      this.sun.color.copy(SUN_COLOUR).lerp(_lowSun.setRGB(1, 0.6 + 0.16 * this.morning, 0.36 + 0.2 * this.morning), 1 - low)
       lb.sun = sunI
     } else {
       this.keyDir.copy(this.moonDir)
@@ -210,7 +225,7 @@ export class SkySystem {
     this.sun.shadow.radius = 1 + 2.5 * (1 - THREE.MathUtils.smoothstep(this.keyDir.y, 0.12, 0.5))
     // The air: warm toward sunset, deep blue at night.
     lb.fogColor.setRGB(0.8 - 0.06 * low, 0.79 - 0.01 * low, 0.76 + 0.03 * low).convertSRGBToLinear()
-    lb.fogColor.lerp(new THREE.Color(0.85, 0.55, 0.42), 0.35 * (1 - low) * daylight).lerp(TWILIGHT_FOG, this.dusk).lerp(NIGHT_FOG, this.night)
+    lb.fogColor.lerp(_lowFog.setRGB(0.86 - 0.04 * this.morning, 0.55 + 0.17 * this.morning, 0.42 + 0.26 * this.morning), 0.35 * (1 - low) * daylight).lerp(_twiFog.copy(TWILIGHT_FOG).lerp(TWILIGHT_FOG_DAWN, this.morning), this.dusk).lerp(NIGHT_FOG, this.night)
     // With the sun low, it lights the ground only at a glancing angle — but the whole sky
     // glows, warm: the land is lit from the sky then, not left in the dark under a bright one.
     const glow = (1 - low) * daylight
@@ -224,12 +239,14 @@ export class SkySystem {
     this.glow = glow
     lb.fillSky.set(0xc9c4b6).lerp(SUNSET_FILL, glow * 0.75).lerp(NIGHT_FILL, Math.max(this.dusk * 0.7, this.night))
     /** Haze thins under a high sun (the noon air was milky), thickens as it goes low. */
-    lb.haze = 0.62 + 0.38 * (1 - low)
+    // (And a morning mist with the sun low: dawn air hazier than evening's.)
+    lb.haze = 0.62 + 0.38 * (1 - low) + 0.14 * Math.max(0, this.morning - 0.5) * 2 * (1 - low)
     lb.env = 0.32 * (0.18 + 0.82 * daylight) + 0.12 * blue
     lb.counter = 0.26 * daylight
     this.counter.intensity = lb.counter
     this.sky.material.uniforms.uNight.value = this.night
     this.sky.material.uniforms.uDusk.value = this.dusk
+    this.sky.material.uniforms.uMorning.value = this.morning
     ;(this.stars.material as THREE.ShaderMaterial).uniforms.uNight.value = Math.max(this.night, THREE.MathUtils.smoothstep(this.dusk, 0.7, 1) * 0.35)
     this.moon.material.opacity = THREE.MathUtils.smoothstep(this.night, 0.05, 0.6)
     // The image light follows the sky, rebaked when the sun has moved a few degrees.
