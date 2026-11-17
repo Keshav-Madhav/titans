@@ -191,6 +191,8 @@ export class Grass {
     private readonly lakes: LakeSystem,
     /** Something stands here (rock, a colossus): no grass. */
     private readonly occupied: (x: number, z: number) => boolean,
+    /** On the Undercroft's plaza: the stone's top where grass can push up through it, else null. */
+    private readonly plaza: ((x: number, z: number) => number | null) | null = null,
   ) {
     const mat = new THREE.MeshStandardMaterial({ map: bladesTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95 })
     mat.alphaToCoverage = true
@@ -284,9 +286,10 @@ export class Grass {
   }
 
   /** How thick the grass is at (x, z): 0 … 1. */
-  private density(x: number, z: number, h: number): number {
+  private density(x: number, z: number, h: number, flat = false): number {
     const b = this.biome
-    const slope = Math.hypot(this.terrain.heightAt(x + 1, z) - h, this.terrain.heightAt(x, z + 1) - h)
+    // (flat: the plaza's stone, whose land underneath is the pit 70 m down — no slope from that.)
+    const slope = flat ? 0 : Math.hypot(this.terrain.heightAt(x + 1, z) - h, this.terrain.heightAt(x, z + 1) - h)
     if (slope > 0.75 || h > 330) return 0
     return (0.35 + 0.65 * b.meadow(x, z)) * (1 - 0.7 * b.forest(x, z)) * (1 - 0.97 * b.desert(x, z)) * (1 - slope * 1.2)
   }
@@ -316,9 +319,18 @@ export class Grass {
     for (let i = 0; i < PER_CELL; i++) {
       const x = cx * CELL + rand() * CELL
       const z = cz * CELL + rand() * CELL
-      const h = this.terrain.heightAt(x, z)
-      const d = this.density(x, z, h)
-      if (rand() > d || inHall(x, z, 2) || this.occupied(x, z) || this.wet(x, z) || (seaward(x, z) && this.terrain.heightAt(x, z) < SHORE.sea + 0.4)) continue
+      let h = this.terrain.heightAt(x, z)
+      let d = this.density(x, z, h)
+      // On the Undercroft's plaza: grass through the cracks, in patches (a bare stone sheet there read
+      // as an untextured grey floor from the meadow, the tour, 2026-11-17). (Its density from the plaza's
+      // height: the land under it is the pit's floor, 70 m down, where none grows.)
+      if (inHall(x, z, 2)) {
+        const top = this.plaza ? this.plaza(x, z) : null
+        if (top !== null) d = this.density(x, z, top, true)
+        const patch = Math.sin(x * 0.09 + Math.sin(z * 0.07) * 2) * Math.sin(z * 0.11 + Math.sin(x * 0.05) * 2)
+        if (top === null || rand() > d * Math.min(1, Math.max(0, (patch + 0.25) / 0.9))) continue
+        h = top
+      } else if (rand() > d || this.occupied(x, z) || this.wet(x, z) || (seaward(x, z) && this.terrain.heightAt(x, z) < SHORE.sea + 0.4)) continue
       // Clumps: taller in some places, cropped short in others.
       const clump = 0.8 + 0.55 * Math.max(0, Math.sin(x * 0.21 + Math.sin(z * 0.13) * 2) * Math.sin(z * 0.17 + Math.sin(x * 0.11) * 2))
       const sc = (0.65 + rand() * 0.5) * clump

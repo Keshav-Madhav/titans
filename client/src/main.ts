@@ -1326,7 +1326,13 @@ scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
 const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CAMP_BARE || travellerCamps.some((c) => Math.hypot(x - c.fire.x, z - c.fire.z) < CAMP_BARE)
 // (Not on the beds of the Mire's pools, under the water: mireView is made below, and asked only once the game runs.)
-const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z) || mireView.wetAt(x, z))
+// (And on the Undercroft's plaza, through the cracks: only where its flat top is — not over a skylight,
+// on the parapet or on a fallen block.)
+const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z) || mireView.wetAt(x, z), (x, z) => {
+  if (!inHall(x, z, -3)) return null
+  const t = rocks.topAt(x, z)
+  return t !== null && Math.abs(t - (terrain.base.hallTop + 1)) < 0.1 ? t : null
+})
 scene.add(grass.mesh)
 // The Tallgrass: grass three and four times your height, at the Grove's edge (tallgrass.ts).
 const tallgrass = new Tallgrass(terrain)
