@@ -18,7 +18,7 @@ import { mkdirSync } from 'node:fs'
 const URL = process.argv[2] ?? 'http://127.0.0.1:4402/?offline'
 const OUT = process.argv[3] ?? 'shots/play'
 mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch(process.env.HEADED ? { args: ['--mute-audio'], channel: 'chrome', headless: false } : { args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'], channel: 'chrome', headless: true })
+const browser = await chromium.launch(process.env.HEADED ? { args: ['--mute-audio'], channel: 'chrome', headless: true } : { args: ['--mute-audio', '--use-gl=angle', '--ignore-gpu-blocklist'], channel: 'chrome', headless: true })
 // (Gone with its browser: a driver left listening with a dead page held the port and the next one could not start.)
 browser.on('disconnected', () => process.exit(0))
 // (And the browser goes with the driver: killed, a headless one was left running, and guarded.sh
