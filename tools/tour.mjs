@@ -18,14 +18,15 @@ page.on('pageerror', (e) => errs.push(e.message))
 await page.goto(`${process.env.TITANS_URL ?? 'http://localhost:4317'}/?offline`, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction('window.__g && window.__g.ready === true', null, { timeout: 240000 })
 await page.addStyleTag({ content: '#narration, #tips, #hint, #found, #role { display: none !important; }' })
-const spots = await page.evaluate(([count, seed]) => {
+const spots = await page.evaluate(([count, seed, LANDS_ONLY]) => {
   const g = window.__g
   let s = seed * 9301 + 49297
   const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280)
   const out = []
-  for (const [name, p] of g.colossi.places) out.push({ tag: 'colossus-' + name, x: p.x + 40, z: p.z + 40 })
+  // (TOUR_LANDS_ONLY=1: skip the colossi — reviewed every tour — and go straight to the random spots.)
+  if (!LANDS_ONLY) for (const [name, p] of g.colossi.places) out.push({ tag: 'colossus-' + name, x: p.x + 40, z: p.z + 40 })
   let tries = 0
-  while (out.length < count + g.colossi.places.size && tries++ < 4000) {
+  while (out.length < count + (LANDS_ONLY ? 0 : g.colossi.places.size) && tries++ < 4000) {
     const a = rnd() * Math.PI * 2, r = 200 + rnd() * 5200
     const x = Math.sin(a) * r, z = Math.cos(a) * r
     const land = g.terrain.base.regions.name(x, z)
@@ -34,7 +35,7 @@ const spots = await page.evaluate(([count, seed]) => {
     out.push({ tag: land, x, z })
   }
   return out
-}, [COUNT, SEED])
+}, [COUNT, SEED, !!process.env.TOUR_LANDS_ONLY])
 // (TOUR_NIGHT=1: the same spots by night, dusk and dawn.)
 const TIMES = process.env.TOUR_NIGHT ? [0.95, 0.02, 0.9, 0.1, 0.98, 0.06] : [0.3, 0.42, 0.55, 0.68, 0.74, 0.36, 0.5, 0.62]
 // (TOUR_WEATHER=storm: every spot in that weather.)
