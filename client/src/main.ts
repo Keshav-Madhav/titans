@@ -1536,7 +1536,9 @@ scene.add(mireView.group)
   }
 }
 // Small life: fireflies, butterflies, big birds circling the giants' heads; insects and birdsong.
-const lush = (x: number, z: number) => 1 - biome.desert(x, z)
+// (Not the High Places' snow either: fireflies drifted over the snowfields at 800 m on a winter night —
+// night check of the giant feathers, 2026-11-18.)
+const lush = (x: number, z: number) => (1 - biome.desert(x, z)) * (1 - highSector(x, z) * THREE.MathUtils.smoothstep(terrain.heightAt(x, z), 300, 500))
 const wetland = (x: number, z: number) => biome.mire(x, z)
 const ambience = new Ambience(terrain, lush)
 scene.add(ambience.group)
