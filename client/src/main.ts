@@ -3461,6 +3461,10 @@ function onRock(): void {
     // window, 2026-11-07. Out onto the land's top instead.)
     p.set(body.x, Math.max(body.y - 0.9, terrain.heightAt(body.x, body.z)), body.z)
   }
+  // The head too, out sideways only (a giant tree's trunk leaning out over you: kept off at the waist,
+  // the head and shoulders went into the bark — 8 cm deep at its centre, probe trunkwalk). Never down.
+  body.set(p.x, p.y + 1.55, p.z)
+  if (rocks.pushOut(body, 0.32)) p.set(body.x, p.y, body.z)
   wanderer.onStone = false
   if (wanderer.vel.y > 0.5) return // leaving the ground in a jump
   // (Or a giant mushroom's cap: you can stand on them, cap to cap across the marsh.)
