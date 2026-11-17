@@ -99,6 +99,7 @@ import { Offerings } from './offerings'
 import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
+import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
 import { Dread } from './dread'
@@ -303,6 +304,37 @@ const SHELLS: Array<{ x: number; z: number; R: number; rot: number }> = [
   { x: 2600, z: 1800, R: 6, rot: 4.1 },
 ]
 const shellPearl = new THREE.Vector3()
+// Giant acorns fallen under the Old Wood's giant trees (acorns.ts), lying in the litter. The first
+// has a seedling sprouting from its top: something still growing.
+const acornSeedling = new THREE.Vector3()
+{
+  const ar = mulberry32(0xac04)
+  const trees = [...colossi.places].filter(([k]) => k.startsWith('tree-')).map(([, v]) => v)
+  let n = 0
+  for (const t of trees) {
+    if (n >= 7 || ar() > 0.5) continue
+    for (let tries = 0; tries < 6; tries++) {
+      const a = ar() * Math.PI * 2
+      // (Out past the root flares: closer in they lay jammed against the buttresses, half hidden.)
+      const d = 95 + ar() * 70
+      const x = t.x + Math.cos(a) * d
+      const z = t.z + Math.sin(a) * d
+      if (rocks.occupies(x, z) || rocks.sdfAt(x, terrain.heightAt(x, z) + 3, z) < 12) continue
+      const L = 5.5 + ar() * 3
+      const rot = ar() * Math.PI * 2
+      const y = terrain.heightAt(x, z) - 0.3
+      rocks.addBuilt(acornNutShape(L), acornNutGeometry(L), { x, y, z, rot, layers: [LAYER.bone, LAYER.mud], scale: 5, tint: [0.62, 0.42, 0.24] })
+      rocks.addBuilt(acornCupShape(L), acornCupGeometry(L), { x, y, z, rot, layers: [LAYER.hide, LAYER.mud], scale: 2, tint: [0.5, 0.4, 0.3] })
+      if (n === 0) {
+        // On top, at the nut's middle (laid down: -0.42 L along local x).
+        const lx = -0.42 * L
+        acornSeedling.set(x + lx * Math.cos(rot), y + acornTop(L), z - lx * Math.sin(rot))
+      }
+      n++
+      break
+    }
+  }
+}
 for (const [i, sh] of SHELLS.entries()) {
   const geo = shellGeometry(sh.R)
   geo.computeBoundingBox()
@@ -1034,6 +1066,20 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // On the first giant acorn: a seedling growing out of it.
+  if (acornSeedling.lengthSq() > 0) {
+    const sap = new THREE.Group()
+    const stemM = new THREE.MeshStandardMaterial({ color: 0x6b5a34, roughness: 0.9 })
+    const leafM = new THREE.MeshStandardMaterial({ color: 0x5f8a32, roughness: 0.8, side: THREE.DoubleSide })
+    sap.add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.022, 0.45, 6).translate(0, 0.225, 0), stemM))
+    for (const [a, y] of [[0, 0.3], [2.3, 0.38], [4.4, 0.44]] as const) {
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.08).translate(0.08, 0, 0), leafM)
+      leaf.rotation.set(-0.5, a, 0)
+      leaf.position.y = y
+      sap.add(leaf)
+    }
+    placed.push({ id: 'acorn-seedling', kind: 'trinket', at: acornSeedling.clone(), model: sap })
+  }
   // In the big shell's mouth: a pearl the size of a fist, the last thing it made.
   {
     const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12).translate(0, 0.11, 0), new THREE.MeshStandardMaterial({ color: 0xe9e3d6, roughness: 0.25, metalness: 0.15 }))
@@ -1597,6 +1643,7 @@ const sites: Site[] = [
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
   { id: 'shells', r: 200, at: near(1500, -1950) },
+  { id: 'acorns', r: 60, at: () => (acornSeedling.lengthSq() > 0 ? { x: acornSeedling.x, z: acornSeedling.z } : null) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
   { id: 'sword', r: 420, at: placeAt('sword') },
   { id: 'colonnade', r: 600, at: placeAt('colonnade') },
@@ -4615,6 +4662,7 @@ const g = {
   mushrooms,
   dandelions,
   shellPearl,
+  acornSeedling,
   grass,
   paint,
   biome,
