@@ -358,6 +358,17 @@ class Cloth {
   private ready = false
   /** How deep the folds it remembers are, at the hem (metres; 0: none). */
   pleats = 0
+  /**
+   * How much shorter its side columns hang than its middle (0: a straight hem). A cloak's hem curves up
+   * at the sides; cut straight across, from behind it was a red board with square corners.
+   */
+  hem = 0
+  /** Column c's segment length. */
+  private colSeg(c: number): number {
+    const half = (this.cols - 1) / 2
+    const e = half > 0 ? (c - half) / half : 0
+    return this.seg * (1 - this.hem * e * e)
+  }
   /** 0 moving … 1 at rest: how firmly it settles into its folds (and flare). */
   rest = 0
   /** The pinned spacing between neighbouring columns (set from the first pins). */
@@ -518,10 +529,10 @@ class Cloth {
           const w = this.taper(row)
           for (let c = 0; c < cols; c++) {
             const i = row * cols + c
-            if (row < rows - 1) this.keep(i, i + cols, this.seg, row === 0)
+            if (row < rows - 1) this.keep(i, i + cols, this.colSeg(c), row === 0)
             if (c < cols - 1) this.keep(i, i + 1, (this.widths[c] ?? this.seg) * w, row === 0)
             // Bend: two rows down, softly — it folds, it does not crumple up on itself.
-            if (row < rows - 2) this.keep(i, i + 2 * cols, this.seg * 2, row === 0, 0.35)
+            if (row < rows - 2) this.keep(i, i + 2 * cols, this.colSeg(c) * 2, row === 0, 0.35)
           }
         }
         for (let i = cols; i < cols * rows; i++) {
@@ -556,8 +567,8 @@ class Cloth {
       // And never further from its pin than the cloth between them reaches (a little
       // give): however hard it is yanked, it cannot stretch out into a streak.
       for (let row = 1; row < rows; row++) {
-        const max = row * this.seg * 1.06
         for (let c = 0; c < cols; c++) {
+          const max = row * this.colSeg(c) * 1.06
           const k = (row * cols + c) * 3
           const dx = p[k] - pins[c].x
           const dy = p[k + 1] - pins[c].y
@@ -1783,6 +1794,7 @@ export class Wanderer {
     this.scarf.mesh.visible = false
     // (Deeper folds: standing, it hung as a flat red rectangle.)
     this.cape.pleats = 0.17
+    this.cape.hem = 0.2
     this.followAvatar()
   }
 
