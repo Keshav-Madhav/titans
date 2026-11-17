@@ -96,6 +96,136 @@ function fernGeometry(fine: boolean): THREE.BufferGeometry {
   return geo
 }
 
+/**
+ * A frond's picture (near look): a dark midrib up the middle, leaflets out both sides angled toward the
+ * tip, each a long blade with toothed edges and its own midvein, longest a third of the way up, the
+ * gaps between them transparent. Painted once.
+ */
+function frondTexture(): THREE.CanvasTexture {
+  const W = 256
+  const H = 1024
+  const cv = document.createElement('canvas')
+  cv.width = W
+  cv.height = H
+  const c = cv.getContext('2d')!
+  c.clearRect(0, 0, W, H)
+  const rand = mulberry32(0xf20d)
+  const PAIRS = 26
+  for (let i = 0; i < PAIRS; i++) {
+    const t = (i + 0.6) / PAIRS
+    // v: 0 at the frond's foot (bottom of the canvas) … 1 at its tip (top).
+    const y = H * (1 - t)
+    const len = (W / 2 - 6) * Math.sin(Math.min(1, (t + 0.02) / 1.0) * Math.PI) ** 0.8 * (1 - 0.25 * t)
+    const wid = 13 + 8 * (1 - t)
+    for (const sgn of [-1, 1]) {
+      const g = 0.32 + 0.12 * rand() + 0.12 * t
+      c.save()
+      c.translate(W / 2, y)
+      // (Out from the midrib to its side — mirrored for the left — and angled up toward the tip: turned by
+      // a right angle less a little, every leaflet pointed down along the midrib and they lay on each
+      // other as one solid band, the first try.)
+      c.scale(sgn, 1)
+      c.rotate(-0.42)
+      // The leaflet: a long blade, toothed, along +x from the midrib (scaled to the side by the rotation).
+      c.beginPath()
+      c.moveTo(0, 0)
+      const teeth = 9
+      for (let k = 0; k <= teeth; k++) {
+        const u = k / teeth
+        const hw = wid * Math.sin(Math.PI * Math.min(1, u * 1.1 + 0.05)) * (1 - 0.6 * u) + (k % 2 ? 1.6 : 0)
+        c.lineTo(u * len, -hw)
+      }
+      for (let k = teeth; k >= 0; k--) {
+        const u = k / teeth
+        const hw = wid * Math.sin(Math.PI * Math.min(1, u * 1.1 + 0.05)) * (1 - 0.6 * u) + (k % 2 ? 1.6 : 0)
+        c.lineTo(u * len, hw)
+      }
+      c.closePath()
+      const grd = c.createLinearGradient(0, 0, len, 0)
+      // (Brighter than looks right on the canvas: sRGB, darkened again by the lighting under the trees.)
+      grd.addColorStop(0, `rgb(${Math.round(60 + 40 * g)},${Math.round(110 + 60 * g)},${Math.round(30 + 25 * g)})`)
+      grd.addColorStop(1, `rgb(${Math.round(110 + 50 * g)},${Math.round(160 + 50 * g)},${Math.round(55 + 30 * g)})`)
+      c.fillStyle = grd
+      c.fill()
+      // Its midvein.
+      c.strokeStyle = 'rgba(30,55,18,0.55)'
+      c.lineWidth = 1.4
+      c.beginPath()
+      c.moveTo(0, 0)
+      c.lineTo(len * 0.92, 0)
+      c.stroke()
+      c.restore()
+    }
+  }
+  // The midrib.
+  c.strokeStyle = 'rgb(58,62,24)'
+  for (let y = 0; y < H; y += 4) {
+    c.lineWidth = 7 - 5 * (1 - y / H)
+    c.beginPath()
+    c.moveTo(W / 2, y)
+    c.lineTo(W / 2, y + 4)
+    c.stroke()
+  }
+  const tex = new THREE.CanvasTexture(cv)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 4
+  return tex
+}
+
+/**
+ * The near fern as ribbons: each frond a curved strip along its spine, folded into a shallow V down its
+ * midrib, with the frond's picture on it (the leaflets' outline from the picture's transparency). The
+ * leaflets as triangles read as a comb of separately lit pale teeth up close, the tour.
+ */
+function fernRibbonGeometry(): THREE.BufferGeometry {
+  const pos: number[] = []
+  const nrm: number[] = []
+  const uv: number[] = []
+  const idx: number[] = []
+  const rand = mulberry32(0xfe4)
+  const FRONDS = 9
+  const SEG = 16
+  for (let f = 0; f < FRONDS; f++) {
+    const az = (f / FRONDS) * Math.PI * 2 + rand() * 0.5
+    const len = 0.85 + rand() * 0.3
+    const rise = 1.05 + rand() * 0.35
+    rand()
+    const dir = new THREE.Vector3(Math.cos(az), 0, Math.sin(az))
+    const side = new THREE.Vector3(-dir.z, 0, dir.x)
+    const spine = (t: number) => new THREE.Vector3(dir.x * len * t, rise * Math.sin(t * Math.PI * 0.62) - 0.25 * t * t, dir.z * len * t)
+    const base = pos.length / 3
+    for (let s = 0; s <= SEG; s++) {
+      const t = s / SEG
+      const a = spine(t)
+      const b = spine(Math.min(1, t + 0.01))
+      const along = b.sub(a).normalize()
+      const nUp = new THREE.Vector3().crossVectors(side, along).normalize()
+      if (nUp.y < 0) nUp.negate()
+      // Half-width: the leaflets' reach (the picture's), drooping at the edges.
+      const hw = 0.36 * Math.max(0.05, Math.sin(Math.min(1, t + 0.02) * Math.PI) ** 0.8 * (1 - 0.25 * t))
+      const droop = hw * 0.4
+      for (const k of [-1, 0, 1]) {
+        const p = a.clone().addScaledVector(side, k * hw)
+        if (k !== 0) p.y -= droop
+        pos.push(p.x, p.y, p.z)
+        const n = nUp.clone().addScaledVector(side, -k * 0.35).normalize()
+        nrm.push(n.x, n.y, n.z)
+        uv.push(0.5 + k * 0.5, t)
+      }
+      if (s < SEG) {
+        const i = base + s * 3
+        idx.push(i, i + 3, i + 1, i + 1, i + 3, i + 4, i + 1, i + 4, i + 2, i + 2, i + 4, i + 5)
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  return g
+}
+
 export class GiantFerns {
   readonly mesh = new THREE.Group()
   private readonly near: THREE.InstancedMesh
@@ -133,7 +263,25 @@ export class GiantFerns {
     }
     // (Two looks: the folded leaflets close by, a light one past NEAR_R — 2,400 triangles a fern for
     // all ~230 round the Grove dropped it to Medium detail at the lowest resolution.)
-    this.near = new THREE.InstancedMesh(fernGeometry(true), mat, 300)
+    // (Near: ribbons with the frond's picture; the leaflet triangles stay for the far look.)
+    const nearMat = new THREE.MeshStandardMaterial({ map: frondTexture(), roughness: 0.8, side: THREE.DoubleSide, alphaTest: 0.5 })
+    nearMat.alphaToCoverage = true
+    nearMat.onBeforeCompile = (sh, r) => {
+      mat.onBeforeCompile(sh, r)
+      // Far down the mip chain the leaflets' alpha averages with the gaps to under the cut, and the frond
+      // thins away: alpha lifted by how far down the chain this pixel reads (as the trees do).
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <alphatest_fragment>',
+        `{
+          vec2 fdx = dFdx(vMapUv) * 1024.0;
+          vec2 fdy = dFdy(vMapUv) * 1024.0;
+          float flod = max(0.0, 0.5 * log2(max(dot(fdx, fdx), dot(fdy, fdy))));
+          diffuseColor.a *= 1.0 + flod * 0.25;
+        }
+        #include <alphatest_fragment>`,
+      )
+    }
+    this.near = new THREE.InstancedMesh(fernRibbonGeometry(), nearMat, 300)
     this.far = new THREE.InstancedMesh(fernGeometry(false), mat, CAP)
     for (const m of [this.near, this.far]) {
       m.count = 0
