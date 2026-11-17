@@ -29,6 +29,15 @@ run() {
   shift
   # GATES_ONLY="walk climb …" runs just those gates.
   [ -n "${GATES_ONLY:-}" ] && [[ " $GATES_ONLY " != *" $name "* ]] && return
+  # (Paced: before each gate, wait until the 1-minute load is under GATES_LOAD (default 14) — at most
+  # 10 min. Checked only once at the start, a sweep ran on into the load spikes of the machine's other
+  # work, the load guard killed gate after gate's browser, and 11 gates "failed" on "Browser closed".)
+  local cap=${GATES_LOAD:-14}
+  for _i in $(seq 1 60); do
+    awk "BEGIN{exit !($(sysctl -n vm.loadavg | awk '{print $2}') < $cap)}" && break
+    [ "$_i" = 1 ] && echo "[gates] $name waits: load $(sysctl -n vm.loadavg | awk '{print $2}')" >&2
+    sleep 10
+  done
   local t0=$SECONDS
   if "$@" >"$out/$name.log" 2>&1; then
     echo "PASS  $name"
