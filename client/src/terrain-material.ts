@@ -381,7 +381,11 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           ${i === 5 || i === 6 ? `triLayer(${i}, gP, gDx, gDy, gTriN, gN, c, n, h);` : `topLayer(${i}, gP, gDx, gDy, gN, gFar, c, n, h);`}
           gCol${i} = c * LTINT[${i}];
           gNrm${i} = n;
-          gH${i} = h * 0.55 + gW[${i}];
+          // (Sand's own relief is its ripples: lifted by them in the height blend, at a dune's grassy edge the
+          // sand won on every crest and the grass in every trough, and the hill came out as green ripples —
+          // tour 41, (2598, 2100). Lifted by the ripples' mean instead, barely by the ripples: it keeps its share,
+          // and the edge goes in the grass's own patches. Not lifted at all, the sand lost every edge to grass.)
+          gH${i} = ${i === LAYER.sand ? 'h * 0.1 + 0.25' : 'h * 0.55'} + gW[${i}];
           gTop = max(gTop, gH${i});
         }`).join('\n        ')}
         vec3 gAlb = vec3(0.0);
