@@ -3888,6 +3888,12 @@ function frameBody(now: number): void {
     const roof = inHall(p.x, p.z) && p.y < terrain.base.hallTop - 10 ? 1 : inLog ? 0.85 : tallAt(p.x, p.z) > 0.5 ? 0.25 : 0
     sound.enclosed += (roof - sound.enclosed) * Math.min(1, dt * 2)
     sound.rustle(THREE.MathUtils.smoothstep(tallAt(p.x, p.z), 0.2, 0.7), weather.now.wind)
+    // (The great shells' low note: loudest at a mouth, heard out to ~60 m.)
+    {
+      let near = 0
+      for (const sh of SHELLS) near = Math.max(near, 1 - THREE.MathUtils.smoothstep(Math.hypot(p.x - sh.x, p.z - sh.z), sh.R * 1.2, sh.R * 1.2 + 60))
+      sound.shellNote(near, weather.now.wind)
+    }
   }
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }

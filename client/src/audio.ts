@@ -127,6 +127,7 @@ export class Sound {
     this.hall()
     this.wind()
     this.rustleBed()
+    this.shellBed()
     this.pad()
     this.rainBed()
     this.presenceBed()
@@ -1264,6 +1265,58 @@ export class Sound {
     }
     src.connect(hp).connect(pk).connect(tremolo).connect(gain).connect(this.master!)
     src.start()
+  }
+
+  /**
+   * The wind across a great shell's mouth (shells.ts): a low hollow note, like breath over a bottle — a
+   * fundamental and its fifth from the air in the coil, and breathy noise round them — swelling and
+   * falling with the gusts. The journal says it is there; now it is.
+   */
+  private shellGain: GainNode | null = null
+  private shellBed(): void {
+    const ctx = this.ctx!
+    const gain = ctx.createGain()
+    gain.gain.value = 0
+    this.shellGain = gain
+    const tremolo = ctx.createGain()
+    tremolo.gain.value = 0.55
+    for (const [hz, d] of [[0.09, 0.35], [0.31, 0.12]] as const) {
+      const lfo = ctx.createOscillator()
+      lfo.frequency.value = hz
+      const depth = ctx.createGain()
+      depth.gain.value = d
+      lfo.connect(depth).connect(tremolo.gain)
+      lfo.start()
+    }
+    for (const [hz, v] of [[58, 0.5], [87.2, 0.22], [116.5, 0.08]] as const) {
+      const o = ctx.createOscillator()
+      o.type = 'sine'
+      o.frequency.value = hz
+      const g = ctx.createGain()
+      g.gain.value = v
+      o.connect(g).connect(tremolo)
+      o.start()
+    }
+    if (this.noise) {
+      const src = ctx.createBufferSource()
+      src.buffer = this.noise
+      src.loop = true
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = 116
+      bp.Q.value = 6
+      const ng = ctx.createGain()
+      ng.gain.value = 1.4
+      src.connect(bp).connect(ng).connect(tremolo)
+      src.start()
+    }
+    tremolo.connect(gain).connect(this.master!)
+  }
+
+  /** How near a great shell's mouth you are (0 … 1), and how windy it is. */
+  shellNote(k: number, wind: number): void {
+    if (!this.ctx || !this.shellGain) return
+    this.shellGain.gain.setTargetAtTime(Math.max(0, Math.min(1, k)) * (0.05 + 0.07 * wind), this.ctx.currentTime, 1.5)
   }
 
   /** How much of the Tallgrass is round you (0 … 1), and how windy it is. */
