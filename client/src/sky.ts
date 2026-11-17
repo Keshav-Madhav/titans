@@ -157,6 +157,8 @@ export class SkySystem {
 
   /** Jump to a time of day (tools; also the start). */
   setTime(t: number): void {
+    // (Not a number: ignored — a NaN time ran on into the audio's parameters and stopped the game.)
+    if (!Number.isFinite(t)) return
     this.time = ((t % 1) + 1) % 1
     this.updateDay(true)
   }
