@@ -98,7 +98,8 @@ for (const [i, sp] of spots.entries()) {
   if (fell) await page.waitForTimeout(2500)
   await page.screenshot({ path: `${base}-a.png` })
   if (ONLY >= 0) console.log('atA:', JSON.stringify(await page.evaluate(() => { const g = window.__g, c = g.camera.position, w = g.wanderer; return { fall: g.fallState, fade: document.getElementById('fade')?.className, cam: [c.x, c.y, c.z].map((v) => +v.toFixed(1)), pos: [w.pos.x, w.pos.y, w.pos.z].map((v) => +v.toFixed(1)), ground: +g.terrain.heightAt(w.pos.x, w.pos.z).toFixed(1), swim: w.swimming, glide: w.gliding, climb: g.climbState && g.climbState() } })))
-  if (ONLY >= 0 && process.env.TOUR_HUNT_A) await hunt(process.env.TOUR_HUNT_A)
+  // (TOUR_HUNT_AT=n: hunt at that spot in a full run — for what only shows after the spots before it.)
+  if ((ONLY >= 0 || +(process.env.TOUR_HUNT_AT ?? -1) === i) && process.env.TOUR_HUNT_A) await hunt(process.env.TOUR_HUNT_A)
   if (ONLY >= 0 && process.env.TOUR_TOGGLES_A) {
     for (const k of ['noao', 'noshadow']) {
       await page.evaluate((k) => { const g = window.__g; g.aoSwitch.on = k !== 'noao'; g.renderer.shadowMap.enabled = k !== 'noshadow'; g.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true }); g.frames(1, 0) }, k)

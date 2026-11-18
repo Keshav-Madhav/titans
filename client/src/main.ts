@@ -1713,9 +1713,24 @@ travel.onGo = (d) => {
     lastSafe.set(a.x, top, a.z)
     onRock()
     narration.say(d.name === CAMP_NAME ? 'Back at the first camp. The ashes are cold.' : `${d.name}. The fire is still burning.`)
+    // (Dark until the land there is built: lifted at a fixed 1.25 s, a far waystone showed the old
+    // coarse cover kilometres wide for a second or two — the ground under you a flat pale sheet of
+    // fog with the grass standing out of it, tour 1118 spot 2. The terrain builds at the loader's
+    // pace meanwhile; never longer than 4 s.)
+    travelHold = true
+    const t0 = performance.now()
+    const lift = () => {
+      const t = performance.now() - t0
+      if ((t > 730 && terrainView.settled()) || t > 4000) {
+        travelHold = false
+        fadeEl.classList.remove('on')
+      } else setTimeout(lift, 80)
+    }
+    setTimeout(lift, 80)
   }, 520)
-  setTimeout(() => fadeEl.classList.remove('on'), 1250)
 }
+/** A waystone's fade is held while the land at the far end builds (the terrain at the loader's budget). */
+let travelHold = false
 const CAMP_NAME = 'The first camp'
 scene.add(camp.group)
 finds.onFind = (f) => {
@@ -4362,7 +4377,7 @@ function frameBody(now: number): void {
   if (wanderer.lantern.parent !== scene) scene.attach(wanderer.lantern)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
-  { const _t = performance.now(); terrainView.update(camera.position, ready ? 5 : 40); costNote('terrain', performance.now() - _t) }
+  { const _t = performance.now(); terrainView.update(camera.position, ready && !travelHold ? 5 : 40); costNote('terrain', performance.now() - _t) }
   sky.follow(focus, camera)
   renderer.info.reset()
   // Near plants and stones: only those in view (the camera is final for this frame now).
