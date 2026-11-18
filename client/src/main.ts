@@ -3,6 +3,7 @@
 // sleeping giants become mountains), and you explore, follow and climb them.
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   applyDrag,
   applyFootprint,
@@ -319,6 +320,10 @@ const lilyFlower = new THREE.Vector3()
     const leaf = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide })
     const petal = new THREE.MeshStandardMaterial({ color: 0xf1e6ee, roughness: 0.6, emissive: 0x1a1418 })
     const group = new THREE.Group()
+    // (Merged, one mesh of pads and one of flowers: as 54 meshes they were 27 draw calls a pass from
+    // as far off as the Dune Sea, 8 km away, 2026-11-18.)
+    const padGeos: THREE.BufferGeometry[] = []
+    const flowerGeos: THREE.BufferGeometry[] = []
     let pads = 0
     const c0x = Math.floor(dr.x / POOL_CELL)
     const c0z = Math.floor(dr.z / POOL_CELL)
@@ -343,26 +348,26 @@ const lilyFlower = new THREE.Vector3()
           if (!wet || !water.wetAt(x, z)) continue
           const notch = lr() * Math.PI * 2
           const y = level + 0.04
-          const geo = padGeometry(R, notch)
-          const m = new THREE.Mesh(geo, leaf)
-          m.position.set(x, y, z)
-          m.receiveShadow = true
-          m.castShadow = true
-          group.add(m)
+          padGeos.push(padGeometry(R, notch).translate(x, y, z))
           rocks.addBuilt(padShape(R), new THREE.CylinderGeometry(R, R, 0.2, 8), { x, y, z, rot: 0, layers: [LAYER.moss, LAYER.moss], scale: 2 })
           const f = rocks.formations[rocks.formations.length - 1]
           if (f.mesh) f.mesh.visible = false
           if (lr() < 0.25 || (pads === 0 && i === 0)) {
-            const fl = new THREE.Mesh(flowerGeometry(R), petal)
-            fl.position.set(x + R * 0.25, y, z - R * 0.2)
-            fl.castShadow = true
-            group.add(fl)
+            flowerGeos.push(flowerGeometry(R).translate(x + R * 0.25, y, z - R * 0.2))
             if (lilyFlower.lengthSq() === 0) lilyFlower.set(x - R * 0.3, y + 0.03 * R + 0.05, z + R * 0.25)
           }
           pads++
           i++
         }
       }
+    for (const [geos, mat] of [[padGeos, leaf], [flowerGeos, petal]] as const) {
+      if (!geos.length) continue
+      const m = new THREE.Mesh(mergeGeometries(geos)!, mat)
+      m.receiveShadow = true
+      m.castShadow = true
+      group.add(m)
+      for (const g of geos) g.dispose()
+    }
     scene.add(group)
   }
 }
