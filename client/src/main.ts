@@ -102,6 +102,7 @@ import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
+import { webObject } from './webs'
 import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
@@ -300,6 +301,19 @@ const colossusAvoid = rocks.formations.filter((f) => f.always && !f.float).map((
 // The Undercroft: a hall of pillars under the valley floor.
 const undercroft = new Undercroft(terrain, rocks)
 scene.add(undercroft.group)
+// The Web (webs.ts): between two pillars of the Undercroft, beside the skylight at (-40, -20) — an old
+// orb web forty metres across, empty, torn in places. Its plane runs between the pillars' facing sides
+// (x -82 … -38, z -30); its hub 38 m under the roof's top; the floor's top is 69 m down.
+const webAt = new THREE.Vector3(HALL.x - 60, terrain.base.hallTop - 38, HALL.z - 30)
+{
+  const web = webObject({
+    frame: [[-21.8, 14], [-7, 22.6], [9, 22.6], [21.8, 11], [21.8, -13], [5, -21], [-21.8, -10]],
+    guy: { at: [5, -21], down: 10 },
+    seed: 0x3eb,
+  })
+  web.position.copy(webAt)
+  scene.add(web)
+}
 // Giant snail shells, empty and bleached, lying half-sunk in the valley grass (shells.ts): a big one
 // with a smaller beside it, and one alone further east. Where the pearl lies: in the big one's mouth.
 const SHELLS: Array<{ x: number; z: number; R: number; rot: number }> = [
@@ -1163,6 +1177,13 @@ const spots = (() => {
     const drop = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8).scale(1, 1.3, 1).translate(0, 0.09, 0), new THREE.MeshStandardMaterial({ color: 0xd99a2b, roughness: 0.25, emissive: 0x2a1600 }))
     placed.push({ id: 'lily-amber', kind: 'trinket', at: lilyFlower.clone(), model: drop })
   }
+  // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
+  {
+    const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
+    bundle.rotation.y = 0.7
+    bundle.castShadow = true
+    placed.push({ id: 'web-bundle', kind: 'trinket', at: new THREE.Vector3(webAt.x - 8, terrain.base.hallTop - 69, webAt.z + 2), model: bundle })
+  }
   // At the first feather's quill: one barb come loose.
   if (featherBase.lengthSq() > 0) {
     const barb = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.05).translate(0.35, 0.02, 0).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x22232a, roughness: 0.7, side: THREE.DoubleSide }))
@@ -1758,6 +1779,7 @@ const sites: Site[] = [
   { id: 'drowned', r: 650, at: placeAt('drowned') },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
+  { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
@@ -4786,6 +4808,7 @@ const g = {
   acornSeedling,
   featherBase,
   lilyFlower,
+  webAt,
   grass,
   paint,
   biome,
