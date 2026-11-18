@@ -82,6 +82,24 @@ const CAP: Record<Kind, number> = {
   stalk: 9000,
 }
 
+/**
+ * Send a mesh's first n instances to the GPU, not its whole capacity: a bare needsUpdate re-sends
+ * every buffer at full size, ~34 MB of matrices and colours across the kinds, and each repack or
+ * cull froze the frame for 230-300 ms (the p95 frames everywhere, 2026-11-18).
+ */
+function sendInstances(mesh: THREE.InstancedMesh, n: number): void {
+  const m = mesh.instanceMatrix
+  m.clearUpdateRanges()
+  m.addUpdateRange(0, n * 16)
+  m.needsUpdate = true
+  const c = mesh.instanceColor
+  if (c) {
+    c.clearUpdateRanges()
+    c.addUpdateRange(0, n * 3)
+    c.needsUpdate = true
+  }
+}
+
 /** Instances of each kind in one cell: packed matrices + colours (number[] while generating, typed once done). */
 interface Batch {
   m: number[] | Float32Array
@@ -361,8 +379,7 @@ export class Vegetation {
           ;(mesh.instanceMatrix.array as Float32Array).set(f.m)
           ;(mesh.instanceColor!.array as Float32Array).set(f.c)
           mesh.count = f.n
-          mesh.instanceMatrix.needsUpdate = true
-          mesh.instanceColor!.needsUpdate = true
+          sendInstances(mesh, f.n)
         }
         this.cullStats.off = '1'
         this.cullDirty = true
@@ -397,8 +414,7 @@ export class Vegetation {
         v++
       }
       mesh.count = v
-      mesh.instanceMatrix.needsUpdate = true
-      mesh.instanceColor!.needsUpdate = true
+      sendInstances(mesh, v)
       this.cullStats[k] = `${v}/${f.n}`
     }
   }
@@ -943,8 +959,7 @@ export class Vegetation {
         const counts = sn.get(k)!
         list.forEach((mesh, s) => {
           mesh.count = counts[s]
-          mesh.instanceMatrix.needsUpdate = true
-          mesh.instanceColor!.needsUpdate = true
+          sendInstances(mesh, counts[s])
           // (Its bounds, for the culling: computed over the instances it holds now.)
           if (counts[s] > 0) mesh.computeBoundingSphere()
         })
@@ -952,8 +967,7 @@ export class Vegetation {
       }
       const mesh = this.meshes[k]
       mesh.count = n[k]
-      mesh.instanceMatrix.needsUpdate = true
-      mesh.instanceColor!.needsUpdate = true
+      sendInstances(mesh, n[k])
       if (CULLED[k]) {
         this.full.set(k, { m: (mesh.instanceMatrix.array as Float32Array).slice(0, n[k] * 16), c: (mesh.instanceColor!.array as Float32Array).slice(0, n[k] * 3), n: n[k] })
         this.cullDirty = true
@@ -962,7 +976,7 @@ export class Vegetation {
     if (trees) for (const [k, casters] of this.shadeCast) {
       casters.forEach((m, j) => {
         m.count = shadeN.get(k)![j]
-        m.instanceMatrix.needsUpdate = true
+        sendInstances(m, m.count)
       })
     }
     if (trees) this.stats = {
