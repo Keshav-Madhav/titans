@@ -2138,6 +2138,9 @@ const scenes = {
         g.rig.setProfile({ minDist: 2, maxDist: 4000, dist: 9, focusHeight: 1.5, follow: 10 })
         g.setCam(Math.atan2(ax, az), kind === 'spire' || kind === 'hoodoo' ? -0.25 : -0.05, 9)
         while (!f.mesh) await new Promise((r) => setTimeout(r, 100))
+        // (And the land there built: a long jump shows the old coarse cover for a second or two — a
+        // straight sand slab across the Husk's shot, 2026-11-18 review.)
+        for (let k = 0; k < 100 && !g.terrainView.settled(); k++) await new Promise((r) => setTimeout(r, 80))
       }, [v.id, kind])
       await shot(`rock-${kind}`)
     }
