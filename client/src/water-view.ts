@@ -4,6 +4,7 @@
 // geometry is rebuilt when the basin's shape changes (lake.version).
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { makeSimplex2, type Lake, type LakeSystem } from '@titans/shared'
 
 /**
@@ -80,7 +81,8 @@ const levelKey = (level: number): number => Math.round(level * 100)
 export class WaterView {
   readonly group = new THREE.Group()
   private readonly entries = new Map<number, Entry>()
-  private readonly streams = new Map<number, { mesh: THREE.Mesh; sig: string }>()
+  private readonly streams = new Map<number, { geo: THREE.BufferGeometry; sig: string }>()
+  private streamMesh: THREE.Mesh | null = null
   private streamCheck = 0
   private streamSig = ''
   private readonly ripples = rippleNormals()
@@ -120,6 +122,7 @@ export class WaterView {
     if (sig === this.streamSig) return
     this.streamSig = sig
     const live = new Set<number>()
+    let changed = false
     for (const s of lakes.streams()) {
       // (Q36: a run of a few metres that soaks into the first hollow is no stream — drawn, it is a
       // little hard slab of water standing on a slope with nothing feeding it.)
@@ -127,22 +130,31 @@ export class WaterView {
       live.add(s.id)
       const e = this.streams.get(s.id)
       if (e && e.sig === s.sig) continue
-      if (e) {
-        this.group.remove(e.mesh)
-        e.mesh.geometry.dispose()
-      }
-      const mesh = new THREE.Mesh(ribbon(s.cells, heightAt), this.material)
-      mesh.renderOrder = 1
-      mesh.receiveShadow = true
-      this.group.add(mesh)
-      this.streams.set(s.id, { mesh, sig: s.sig })
+      if (e) e.geo.dispose()
+      this.streams.set(s.id, { geo: ribbon(s.cells, heightAt), sig: s.sig })
+      changed = true
     }
     for (const [id, e] of this.streams) {
       if (live.has(id)) continue
-      this.group.remove(e.mesh)
-      e.mesh.geometry.dispose()
+      e.geo.dispose()
       this.streams.delete(id)
+      changed = true
     }
+    // (All the streams one mesh, rebuilt when one changes: 36 ribbons of one material were 25 draw
+    // calls a pass over the Dune Sea alone, 2026-11-18. Each ribbon's own geometry is kept, never drawn.)
+    if (!changed) return
+    if (this.streamMesh) {
+      this.group.remove(this.streamMesh)
+      this.streamMesh.geometry.dispose()
+      this.streamMesh = null
+    }
+    if (this.streams.size === 0) return
+    const merged = mergeGeometries([...this.streams.values()].map((e) => e.geo))
+    if (!merged) return
+    this.streamMesh = new THREE.Mesh(merged, this.material)
+    this.streamMesh.renderOrder = 1
+    this.streamMesh.receiveShadow = true
+    this.group.add(this.streamMesh)
   }
 
   /**
