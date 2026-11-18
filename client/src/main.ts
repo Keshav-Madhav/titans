@@ -103,6 +103,7 @@ import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
+import { urchinMesh, urchinShape, urchinSink } from './urchin'
 import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
@@ -458,6 +459,42 @@ for (const [i, sh] of SHELLS.entries()) {
     const floor = rocks.floorAt(wx, y + lc.y, wz, 0.6, 8)
     shellPearl.set(wx, Math.max(floor ?? -Infinity, terrain.heightAt(wx, wz)), wz)
   }
+}
+// The Urchin (urchin.ts): on the Shore, west of the beach camp, a sea urchin's test bleached on the
+// sand, fourteen metres across, broken open at the sand on one side. The first spot of dry, level
+// beach found walking the coast west from due south.
+const urchinAt = new THREE.Vector3()
+{
+  const R = 7
+  search: for (let a = -0.06; a > -0.3; a -= 0.008)
+    for (let r = 9300; r < 9800; r += 15) {
+      const x = Math.sin(a) * r
+      const z = Math.cos(a) * r
+      const h = terrain.heightAt(x, z)
+      if (h < 0.6 || h > 4) continue
+      // Level enough under its whole width, and clear of stone.
+      let lo = Infinity
+      let hi = -Infinity
+      for (let k = 0; k < 8; k++) {
+        const hk = terrain.heightAt(x + Math.cos(k * 0.785) * R, z + Math.sin(k * 0.785) * R)
+        lo = Math.min(lo, hk)
+        hi = Math.max(hi, hk)
+      }
+      if (hi - lo > 1.6 || lo < 0.2 || rocks.occupies(x, z)) continue
+      const rot = Math.atan2(-x, -z) + 0.4 // the break faces back up the beach, a little aside
+      const y = lo - urchinSink(R) + R * 0.58
+      // (Through addBuilt for the standing, climbing and grappling only: its rock-textured mesh painted
+      // over the test's own colours and pattern — it read as a boulder. Drawn with its own material.)
+      rocks.addBuilt(urchinShape(R), new THREE.SphereGeometry(R, 12, 8).scale(1, 0.58, 1), { x, y, z, rot, layers: [LAYER.bone, LAYER.sand], scale: 5, tint: [1, 1, 1] })
+      const f = rocks.formations[rocks.formations.length - 1]
+      if (f.mesh) f.mesh.visible = false
+      const um = urchinMesh(R)
+      um.position.set(x, y, z)
+      um.rotation.y = rot
+      scene.add(um)
+      urchinAt.set(x, h, z)
+      break search
+    }
 }
 // The map: uncovered as you explore (more from up high); M opens it.
 const NAMES: Record<string, string> = {
@@ -1177,6 +1214,13 @@ const spots = (() => {
     const drop = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8).scale(1, 1.3, 1).translate(0, 0.09, 0), new THREE.MeshStandardMaterial({ color: 0xd99a2b, roughness: 0.25, emissive: 0x2a1600 }))
     placed.push({ id: 'lily-amber', kind: 'trinket', at: lilyFlower.clone(), model: drop })
   }
+  // Inside the Urchin, on the sand: one tooth of the jaw that was underneath.
+  if (urchinAt.lengthSq() > 0) {
+    const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 6).rotateZ(Math.PI / 2 - 0.25).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.55 }))
+    tooth.rotation.y = 1.1
+    tooth.castShadow = true
+    placed.push({ id: 'urchin-tooth', kind: 'trinket', at: new THREE.Vector3(urchinAt.x + 1.2, terrain.heightAt(urchinAt.x + 1.2, urchinAt.z - 0.8), urchinAt.z - 0.8), model: tooth })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -1779,6 +1823,7 @@ const sites: Site[] = [
   { id: 'drowned', r: 650, at: placeAt('drowned') },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
+  { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
@@ -4809,6 +4854,7 @@ const g = {
   featherBase,
   lilyFlower,
   webAt,
+  urchinAt,
   grass,
   paint,
   biome,
