@@ -224,8 +224,12 @@ export class Undercroft {
         varying float vY;
         varying vec3 vN;
         varying vec3 vView;
+        varying vec2 vUv;
+        varying float vCap;
         void main() {
           vY = position.y;
+          vUv = uv;
+          vCap = abs(normal.y);
           vec4 w = modelMatrix * vec4(position, 1.0);
           vN = normalize(mat3(modelMatrix) * normal);
           vView = normalize(cameraPosition - w.xyz);
@@ -236,10 +240,17 @@ export class Undercroft {
         varying float vY;
         varying vec3 vN;
         varying vec3 vView;
+        varying vec2 vUv;
+        varying float vCap;
         void main() {
           // Faces seen edge-on are the soft sides of the beam.
           float edge = pow(1.0 - abs(dot(vN, vView)), 1.5);
-          float a = (1.0 - edge * 0.7) * smoothstep(-${D.toFixed(1)}, 0.0, vY) * 0.16 * strength;
+          // (And each face fades out to its own sides — the caps to all four: the stair's row of boxes,
+          // seen down the stair from its head, stacked into hard grey rectangles, stepped and blocky —
+          // the undercroft gate's stair shot, 2026-11-18. Light through an opening has no hard edge.)
+          float sides = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x);
+          sides *= mix(1.0, smoothstep(0.0, 0.3, vUv.y) * smoothstep(1.0, 0.7, vUv.y), step(0.5, vCap));
+          float a = (1.0 - edge * 0.7) * sides * smoothstep(-${D.toFixed(1)}, 0.0, vY) * 0.16 * strength;
           gl_FragColor = vec4(vec3(1.0, 0.95, 0.85) * a, a);
         }`,
       transparent: true,
