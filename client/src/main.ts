@@ -104,6 +104,7 @@ import { featherVanes, quillGeometry, quillShape, type Feather } from './feather
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
+import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
 import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
@@ -495,6 +496,79 @@ const urchinAt = new THREE.Vector3()
       urchinAt.set(x, h, z)
       break search
     }
+}
+// The Board (gameboard.ts): in the Ruins, a game the giants left unfinished — eight by eight squares
+// six metres wide on a low plinth, stone pieces taller than you on the dark ones, one tipped on its
+// edge, one rolled off into the grass; and, on a light square, a small piece. On the flattest terrace
+// found for it (qa/cycle7/boardspot.mjs).
+const boardAt = new THREE.Vector3()
+const boardPiece = new THREE.Vector3()
+{
+  const BX = 706
+  const BZ = -3039
+  const rot = 0.32
+  let lo = Infinity
+  let hi = -Infinity
+  for (let i = -5; i <= 5; i++)
+    for (let j = -5; j <= 5; j++) {
+      const h = terrain.heightAt(BX + i * 5.4, BZ + j * 5.4)
+      lo = Math.min(lo, h)
+      hi = Math.max(hi, h)
+    }
+  const top = hi + 0.35
+  const depth = top - lo + 1.5
+  const pl = plinth(depth)
+  rocks.addBuilt(pl.shape, pl.geo, { x: BX, y: top, z: BZ, rot, layers: [LAYER.carved, LAYER.flagstone], scale: 8, tint: [1.02, 0.98, 0.9] })
+  // Two broad steps all round: the dais you walk up onto (half buried on the high side).
+  for (const [k, inner] of [[1, PLINTH], [2, PLINTH + 2.2]] as const) {
+    const st = stepCourse(inner, 2.2, 0.45 * k, depth)
+    rocks.addBuilt(st.shape, st.geo, { x: BX, y: top, z: BZ, rot, layers: [LAYER.carved, LAYER.flagstone], scale: 8, tint: [0.96, 0.93, 0.86] })
+  }
+  const ds = darkSquares()
+  rocks.addBuilt(ds.shape, ds.geo, { x: BX, y: top, z: BZ, rot, layers: [LAYER.flagstone, LAYER.flagstone], scale: 6, tint: [0.42, 0.4, 0.4] })
+  boardAt.set(BX, top, BZ)
+  const c = Math.cos(rot)
+  const sn = Math.sin(rot)
+  const world = (lx: number, lz: number): [number, number] => [BX + lx * c + lz * sn, BZ - lx * sn + lz * c]
+  const PR = 2.1
+  const PH = 1.2
+  const T = 0.06
+  const pieces = layout()
+  for (const [k, p] of pieces.entries()) {
+    const lx = -HALF + (p.i + 0.5) * CELL
+    const lz = -HALF + (p.j + 0.5) * CELL
+    const tint: [number, number, number] = p.dark ? [0.36, 0.35, 0.37] : [1.08, 1.03, 0.94]
+    const layers: [number, number] = p.dark ? [LAYER.rock, LAYER.rock] : [LAYER.carved, LAYER.carved]
+    if (k === 2) {
+      // Tipped onto its edge where it stood, leaning: the geometry turned, and its field turned with it.
+      const tilt = 1.25
+      const g = pieceGeometry(PR, PH).translate(0, -PH / 2, 0).rotateX(tilt).translate(0, PR * Math.sin(tilt) * 0.98, 0)
+      const base = pieceShape(PR, PH)
+      const ct = Math.cos(tilt)
+      const st = Math.sin(tilt)
+      const lift = PR * st * 0.98
+      const field = (x: number, y: number, z: number) => {
+        const yy = y - lift
+        // (Undo the turn about x: (y, z) → (y·cos + z·sin, −y·sin + z·cos).)
+        return base.field(x, yy * ct + z * st + PH / 2, -yy * st + z * ct)
+      }
+      const [wx, wz] = world(lx, lz)
+      rocks.addBuilt({ field, hx: PR + 1.5, hy: PR + 1.5, hz: PR + 1.5, cy: lift }, g, { x: wx, y: top + T, z: wz, rot: rot + 0.6, layers, scale: 4, tint })
+      continue
+    }
+    const [wx, wz] = world(lx, lz)
+    rocks.addBuilt(pieceShape(PR, PH), pieceGeometry(PR, PH), { x: wx, y: top + T, z: wz, rot: rot + k, layers, scale: 4, tint })
+  }
+  // One rolled off the board, lying flat in the grass beyond the lip.
+  {
+    const [wx, wz] = world(HALF + 9, -HALF * 0.4)
+    rocks.addBuilt(pieceShape(PR, PH), pieceGeometry(PR, PH), { x: wx, y: terrain.heightAt(wx, wz) - 0.35, z: wz, rot: 0.9, layers: [LAYER.carved, LAYER.grass], scale: 4, tint: [1.08, 1.03, 0.94] })
+  }
+  // The small piece: on a light square near the near corner.
+  {
+    const [wx, wz] = world(-HALF + 1.5 * CELL, -HALF + 0.5 * CELL)
+    boardPiece.set(wx, top, wz)
+  }
 }
 // The map: uncovered as you explore (more from up high); M opens it.
 const NAMES: Record<string, string> = {
@@ -1214,6 +1288,12 @@ const spots = (() => {
     const drop = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8).scale(1, 1.3, 1).translate(0, 0.09, 0), new THREE.MeshStandardMaterial({ color: 0xd99a2b, roughness: 0.25, emissive: 0x2a1600 }))
     placed.push({ id: 'lily-amber', kind: 'trinket', at: lilyFlower.clone(), model: drop })
   }
+  // On the Board, on a light square: a piece small enough for your hand, carved like the great ones.
+  if (boardPiece.lengthSq() > 0) {
+    const small = new THREE.Mesh(pieceGeometry(0.07, 0.04), new THREE.MeshStandardMaterial({ color: 0xd8d0c0, roughness: 0.8 }))
+    small.castShadow = true
+    placed.push({ id: 'board-piece', kind: 'trinket', at: boardPiece.clone(), model: small })
+  }
   // Inside the Urchin, on the sand: one tooth of the jaw that was underneath.
   if (urchinAt.lengthSq() > 0) {
     const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 6).rotateZ(Math.PI / 2 - 0.25).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.55 }))
@@ -1823,6 +1903,7 @@ const sites: Site[] = [
   { id: 'drowned', r: 650, at: placeAt('drowned') },
   { id: 'sentinel', r: 520, at: placeAt('sentinel') },
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
+  { id: 'board', r: 90, at: () => (boardAt.lengthSq() > 0 ? { x: boardAt.x, z: boardAt.z } : null) },
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
@@ -4855,6 +4936,8 @@ const g = {
   lilyFlower,
   webAt,
   urchinAt,
+  boardAt,
+  boardPiece,
   grass,
   paint,
   biome,
