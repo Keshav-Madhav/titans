@@ -4059,7 +4059,7 @@ function frameBody(now: number): void {
   dandelions.touch(wanderer.pos.x, wanderer.pos.y + 1, wanderer.pos.z, 0.8)
   mushrooms.update(camera.position)
   mushrooms.night.value = sky.night
-  rocks.update(camera.position)
+  rocks.update(camera.position, camera.fov)
   cairns.update(dt)
   lanterns.update(dt, sky.night, camera, renderer.domElement.height)
   sunkBells.update(dt)

@@ -26,6 +26,8 @@ export interface Formation extends Shape {
   queued: boolean
   /** A colossus's coarse twin, shown from afar (null until built; undefined: none needed). */
   far?: THREE.Mesh | null
+  /** A built work too small to see from here: its layer mask while it is culled (see update). */
+  culled?: number
   farQueued?: boolean
   /** Mesh resolution (cells across its longest side). */
   res: number
@@ -512,8 +514,27 @@ export class Rocks {
   }
 
   /** Mesh formations coming near (in the worker, nearest first); drop far ones. */
-  update(cam: THREE.Vector3): void {
+  update(cam: THREE.Vector3, fov = 58): void {
+    // A built work under ~2 px across (at DPR 2; 58°) is not drawn: the acorns, shells and lantern
+    // posts round the giant trees were 9,600-vertex meshes drawn 8-10 km off, a third of a pixel
+    // each — 40 draw calls a pass from the Dune Sea, 2026-11-18. By layer mask, not `visible`,
+    // so what is hidden on purpose stays hidden. (A narrower lens, zoomed, sees smaller.)
+    const minRatio = (1 / 1500) * (Math.tan(THREE.MathUtils.degToRad(fov) / 2) / Math.tan(THREE.MathUtils.degToRad(29)))
     for (const f of this.formations) {
+      if (f.kind === 'built' && f.mesh) {
+        const m = f.mesh
+        const bs = m.geometry.boundingSphere!
+        _c.copy(bs.center).applyMatrix4(m.matrixWorld)
+        const small = bs.radius < minRatio * _c.distanceTo(cam)
+        if (small && f.culled === undefined) {
+          f.culled = m.layers.mask
+          m.layers.mask = 0
+        } else if (!small && f.culled !== undefined) {
+          m.layers.mask = f.culled
+          f.culled = undefined
+        }
+        continue
+      }
       const d = Math.hypot(f.x - cam.x, f.z - cam.z)
       // A big colossus seen from afar: its coarse twin (built first — it is quick), the
       // detailed mesh only within LOD_R. (At 2 km a 200-cell mesh was ~half a million
@@ -814,3 +835,5 @@ export class Rocks {
     return false
   }
 }
+
+const _c = new THREE.Vector3()
