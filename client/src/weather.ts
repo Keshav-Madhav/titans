@@ -436,6 +436,12 @@ export class Weather {
     const b = this.base
     const lb = sky.lightBase
     const day = 1 - sky.night
+    // How lit the air is now, from the time of day's own fog colour (0.56 at noon): the weather's
+    // tints follow it through dusk. (By 1 − night alone they stayed at noon's brightness until the
+    // stars were out: a sandstorm at sunset glowed twice as bright as a clear sky at that hour —
+    // night tour 1118n, spot 2.)
+    const fc = lb.fogColor
+    const lit = Math.min(1, (0.2126 * fc.r + 0.7152 * fc.g + 0.0722 * fc.b) / 0.56)
     // (And the sun all but gone in a sandstorm: the dunes kept crisp sunlit ripples and hard shadows
     // under it — a fine day with a brown sky. The sky's own light takes over.)
     sky.sun.intensity = lb.sun * (1 - 0.82 * w.dark) * (1 - 0.75 * this.sand)
@@ -445,17 +451,17 @@ export class Weather {
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
     sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 24) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
-    sky.sky.material.uniforms.uSand.value = this.sand * (0.15 + 0.85 * (1 - sky.night))
+    sky.sky.material.uniforms.uSand.value = this.sand * Math.max(0.15, lit)
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
     // In a flash the cloud goes thin for an instant: whatever stands in it
     // (and beyond the Wall) shows as a shape, then is gone again.
     sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
     sky.fog.base = w.base
-    sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(0.12 + 0.88 * day), w.dark)
+    sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(Math.max(0.12, lit)), w.dark)
     // The Mire's air: green-grey and close.
-    sky.fog.color.lerp(new THREE.Color(0.42, 0.47, 0.4).multiplyScalar(0.12 + 0.88 * day), this.mireK * 0.6)
+    sky.fog.color.lerp(new THREE.Color(0.42, 0.47, 0.4).multiplyScalar(Math.max(0.12, lit)), this.mireK * 0.6)
     // A sandstorm: the air thick and ochre (dimmer as the day goes).
-    sky.fog.color.lerp(new THREE.Color(0.62, 0.46, 0.29).multiplyScalar(0.15 + 0.85 * day), this.sand * 0.92)
+    sky.fog.color.lerp(new THREE.Color(0.62, 0.46, 0.29).multiplyScalar(Math.max(0.15, lit)), this.sand * 0.92)
     // After rain, with the sun back low behind you: a rainbow opposite it.
     this.wet = Math.max(this.wet - dt / 150, w.rain > 0.3 && this.sand < 0.3 ? 1 : 0)
     const sunUp = sky.sunDir.y
