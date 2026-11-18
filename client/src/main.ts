@@ -100,6 +100,8 @@ import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
+import { flowerGeometry, padGeometry, padShape } from './lilypads'
+import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
 import { loadRockScans } from './rock-scans'
 import { StatueSkirts } from './statue-skirts'
@@ -305,6 +307,65 @@ const SHELLS: Array<{ x: number; z: number; R: number; rot: number }> = [
   { x: 2600, z: 1800, R: 6, rot: 4.1 },
 ]
 const shellPearl = new THREE.Vector3()
+// Giant lily pads on the Mire's pools round the Drowned One (lilypads.ts): leaves you can stand on,
+// pad to pad across the black water; a few with a closed flower. (Their own leaf material — through
+// addBuilt for the standing only, its rock-textured mesh hidden.)
+const lilyFlower = new THREE.Vector3()
+{
+  const dr = colossi.places.get('drowned')
+  if (dr) {
+    const water = poolWater(terrain, (x, z) => biome.mire(x, z))
+    const lr = mulberry32(0x111e)
+    const leaf = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide })
+    const petal = new THREE.MeshStandardMaterial({ color: 0xf1e6ee, roughness: 0.6, emissive: 0x1a1418 })
+    const group = new THREE.Group()
+    let pads = 0
+    const c0x = Math.floor(dr.x / POOL_CELL)
+    const c0z = Math.floor(dr.z / POOL_CELL)
+    for (let dz = -12; dz <= 12 && pads < 40; dz++)
+      for (let dx = -12; dx <= 12 && pads < 40; dx++) {
+        const cx = c0x + dx
+        const cz = c0z + dz
+        const pool = poolInCell(cx, cz)
+        if (!pool || pool.r < 18 || biome.mire(pool.x, pool.z) < 0.5) continue
+        const level = water.level(cx, cz, pool)
+        if (Number.isNaN(level)) continue
+        const n = 2 + Math.floor(lr() * 3)
+        for (let i = 0, tries = 0; i < n && tries < 30; tries++) {
+          const a = lr() * Math.PI * 2
+          const d = lr() * pool.r * 0.7
+          const x = pool.x + Math.cos(a) * d
+          const z = pool.z + Math.sin(a) * d
+          const R = 2 + lr() * 1.6
+          // On open water all round (not over the bank).
+          let wet = true
+          for (let k = 0; k < 8 && wet; k++) wet = water.wetAt(x + Math.cos(k * 0.785) * (R + 0.5), z + Math.sin(k * 0.785) * (R + 0.5))
+          if (!wet || !water.wetAt(x, z)) continue
+          const notch = lr() * Math.PI * 2
+          const y = level + 0.04
+          const geo = padGeometry(R, notch)
+          const m = new THREE.Mesh(geo, leaf)
+          m.position.set(x, y, z)
+          m.receiveShadow = true
+          m.castShadow = true
+          group.add(m)
+          rocks.addBuilt(padShape(R), new THREE.CylinderGeometry(R, R, 0.2, 8), { x, y, z, rot: 0, layers: [LAYER.moss, LAYER.moss], scale: 2 })
+          const f = rocks.formations[rocks.formations.length - 1]
+          if (f.mesh) f.mesh.visible = false
+          if (lr() < 0.25 || (pads === 0 && i === 0)) {
+            const fl = new THREE.Mesh(flowerGeometry(R), petal)
+            fl.position.set(x + R * 0.25, y, z - R * 0.2)
+            fl.castShadow = true
+            group.add(fl)
+            if (lilyFlower.lengthSq() === 0) lilyFlower.set(x - R * 0.3, y + 0.03 * R + 0.05, z + R * 0.25)
+          }
+          pads++
+          i++
+        }
+      }
+    scene.add(group)
+  }
+}
 // Giant feathers on the High Places' snow (feathers.ts): two, dark against the white, on level ground.
 const featherBase = new THREE.Vector3()
 {
@@ -1092,6 +1153,11 @@ const spots = (() => {
     placed.push({ id: 'glass', kind: 'trinket', at: new THREE.Vector3(gx, terrain.heightAt(gx, gz), gz), model: wrap })
   }
   placed.push({ id: 'kite-steps', kind: 'trinket', at: stepsTop.clone() })
+  // On the first lily pad with a flower: a drop of the flower's nectar, hardened like amber.
+  if (lilyFlower.lengthSq() > 0) {
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8).scale(1, 1.3, 1).translate(0, 0.09, 0), new THREE.MeshStandardMaterial({ color: 0xd99a2b, roughness: 0.25, emissive: 0x2a1600 }))
+    placed.push({ id: 'lily-amber', kind: 'trinket', at: lilyFlower.clone(), model: drop })
+  }
   // At the first feather's quill: one barb come loose.
   if (featherBase.lengthSq() > 0) {
     const barb = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.05).translate(0.35, 0.02, 0).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x22232a, roughness: 0.7, side: THREE.DoubleSide }))
@@ -1676,6 +1742,7 @@ const sites: Site[] = [
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
   { id: 'clocks', r: 240, at: near(CLOCKS.x, CLOCKS.z) },
   { id: 'shells', r: 200, at: near(1500, -1950) },
+  { id: 'lilies', r: 60, at: () => (lilyFlower.lengthSq() > 0 ? { x: lilyFlower.x, z: lilyFlower.z } : null) },
   { id: 'feathers', r: 80, at: () => (featherBase.lengthSq() > 0 ? { x: featherBase.x, z: featherBase.z } : null) },
   { id: 'acorns', r: 60, at: () => (acornSeedling.lengthSq() > 0 ? { x: acornSeedling.x, z: acornSeedling.z } : null) },
   { id: 'fallen', r: 650, at: placeAt('ribcage') },
@@ -4698,6 +4765,7 @@ const g = {
   shellPearl,
   acornSeedling,
   featherBase,
+  lilyFlower,
   grass,
   paint,
   biome,
