@@ -474,7 +474,10 @@ export class Weather {
       ;(this.rainbow.material as THREE.ShaderMaterial).uniforms.uA.value = bow * 0.5
     }
     u.uNight.value = Math.max(sky.night, sky.dusk * 0.75)
-    this.rainUniforms.uNight.value = u.uNight.value
+    // (What falls dims with the light too, not only with night: at sunset in a sandstorm the haze had
+    // gone a dim brown but the streaks stayed near-white, snow slashed across the dusk — night colossi
+    // tour 1118gn, the Husk. The deck keeps its own night look.)
+    this.rainUniforms.uNight.value = Math.max(u.uNight.value, 1 - lit)
     u.uFog.value.copy(sky.fog.color)
     const su = sky.sky.material.uniforms
     su.cloudCoverage.value = 0.32 + 0.6 * w.cover
