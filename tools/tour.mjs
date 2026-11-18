@@ -95,6 +95,9 @@ for (const [i, sp] of spots.entries()) {
   const base = `${OUT}/tour-${String(n).padStart(3, '0')}-${sp.tag}`
   // (A fall while settling in — dropped at a terrace's lip — blacks the screen out for its 1.8 s; a
   // shot then is the fade, not the land. Wait it out.)
+  // (Still in the air — walked off a terrace lip, the blackout only starts on landing: a shot then is
+  // the fall, the camera looking down the cliff at a speck, tour 1118e spot 9. Wait for the ground.)
+  await page.waitForFunction(() => { const w = window.__g.wanderer; return w.grounded || w.swimming || w.gliding || window.__g.climbState?.().active }, null, { timeout: 6000 }).catch(() => {})
   const fell = await page.evaluate(() => window.__g.fallState.blackout > 0)
   await page.waitForFunction(() => !(window.__g.fallState.blackout > 0), null, { timeout: 8000 }).catch(() => {})
   // (And the fade back in, and getting up off the ground.)

@@ -5,6 +5,7 @@
 
 import * as THREE from 'three'
 import { sendInstances } from './instances'
+import { foliageFocus } from './trees'
 import { mulberry32, type Terrain } from '@titans/shared'
 
 const GROVE = { x: -0.866 * 4300, z: -0.5 * 4300, r: 1900 }
@@ -271,13 +272,26 @@ export class GiantFerns {
       mat.onBeforeCompile(sh, r)
       // Far down the mip chain the leaflets' alpha averages with the gaps to under the cut, and the frond
       // thins away: alpha lifted by how far down the chain this pixel reads (as the trees do).
-      sh.fragmentShader = sh.fragmentShader.replace(
+      sh.uniforms.uFocus = foliageFocus
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uFocus;').replace(
         '#include <alphatest_fragment>',
         `{
           vec2 fdx = dFdx(vMapUv) * 1024.0;
           vec2 fdy = dFdy(vMapUv) * 1024.0;
           float flod = max(0.0, 0.5 * log2(max(dot(fdx, fdx), dot(fdy, fdy))));
           diffuseColor.a *= 1.0 + flod * 0.25;
+          // (As the trees' leaves: thinned right at the lens, and in a tube round the line to the
+          // wanderer — zoomed out in the Grove, a frond by the camera was a wall of flat green slabs
+          // over the screen and the wanderer, tour 1118e spot 3. Through coverage: a soft thinning.)
+          float fadeK = smoothstep(1.6, 3.2, length(vViewPosition));
+          vec3 sp = (viewMatrix * vec4(uFocus, 1.0)).xyz;
+          vec3 fp = -vViewPosition;
+          float along = clamp(dot(fp, sp) / dot(sp, sp), 0.0, 1.0);
+          if (along < 0.97) {
+            float r = 1.4 + 2.2 * along;
+            fadeK *= smoothstep(r * 0.7, r * 1.05, length(fp - sp * along));
+          }
+          diffuseColor.a *= fadeK;
         }
         #include <alphatest_fragment>`,
       )
