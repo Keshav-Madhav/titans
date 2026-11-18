@@ -6,6 +6,7 @@
 // formation's top, a lower one's top within a few hundred metres.
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Rocks } from './rocks'
 import type { Terrain } from '@titans/shared'
 import { mulberry32 } from '@titans/shared'
@@ -136,24 +137,38 @@ export class Cables {
     }
     const hair = new THREE.LineBasicMaterial({ color: 0x2a2219, transparent: true, opacity: 0.85 })
     const wood = new THREE.MeshStandardMaterial({ color: 0x5b4a38, roughness: 1 })
+    // (Merged per material: 60 cables were 240 meshes — a tube, a hairline and two stakes each — 60
+    // draw calls over the Dune Sea alone, 2026-11-18. They are small (~58K triangles all told), so
+    // one rope, one set of hairlines and one set of stakes draw in 3 calls wherever you are.)
+    const tubes: THREE.BufferGeometry[] = []
+    const stakes: THREE.BufferGeometry[] = []
+    const hairPts: number[] = []
+    const o = new THREE.Object3D()
     for (const c of this.cables) {
       const curve = new THREE.CatmullRomCurve3(c.pts)
-      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, SEG * 2, 0.03, 6), rope)
-      m.castShadow = true
-      this.group.add(m)
+      tubes.push(new THREE.TubeGeometry(curve, SEG * 2, 0.03, 6))
       // (And a hairline along it: a 7 cm rope is under a pixel past ~60 m and vanished — a line is
       // always at least one, so the rope reads across a valley as a thin dark stroke.)
-      const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(SEG * 2)), hair)
-      this.group.add(ln)
+      const pts = curve.getPoints(SEG * 2)
+      for (let i = 1; i < pts.length; i++) hairPts.push(pts[i - 1].x, pts[i - 1].y, pts[i - 1].z, pts[i].x, pts[i].y, pts[i].z)
       for (const end of [c.a, c.b]) {
         // (A post driven into the ground, the rope tied near its top.)
         const H = end.y - terrain.heightAt(end.x, end.z) + 0.3
-        const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, H, 6).translate(0, H / 2, 0), wood)
-        stake.position.set(end.x, end.y - H + 0.3, end.z)
-        stake.rotation.z = (rand() - 0.5) * 0.25
-        stake.castShadow = true
-        this.group.add(stake)
+        o.position.set(end.x, end.y - H + 0.3, end.z)
+        o.rotation.set(0, 0, (rand() - 0.5) * 0.25)
+        o.updateMatrix()
+        stakes.push(new THREE.CylinderGeometry(0.07, 0.11, H, 6).translate(0, H / 2, 0).applyMatrix4(o.matrix))
       }
+    }
+    if (tubes.length) {
+      const m = new THREE.Mesh(mergeGeometries(tubes)!, rope)
+      m.castShadow = true
+      const hairGeo = new THREE.BufferGeometry()
+      hairGeo.setAttribute('position', new THREE.Float32BufferAttribute(hairPts, 3))
+      const s = new THREE.Mesh(mergeGeometries(stakes)!, wood)
+      s.castShadow = true
+      this.group.add(m, new THREE.LineSegments(hairGeo, hair), s)
+      for (const g of [...tubes, ...stakes]) g.dispose()
     }
   }
 
