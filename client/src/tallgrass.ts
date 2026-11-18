@@ -7,6 +7,7 @@
 // inside it rather than a wall of green.
 
 import * as THREE from 'three'
+import { sendInstances } from './instances'
 import { makeSimplex2, mulberry32, type Terrain } from '@titans/shared'
 
 /** Where it is: a clearing on the Grove's north-east side. */
@@ -255,6 +256,6 @@ export class Tallgrass {
       }
     }
     this.mesh.count = n
-    this.mesh.instanceMatrix.needsUpdate = true
+    sendInstances(this.mesh, n)
   }
 }

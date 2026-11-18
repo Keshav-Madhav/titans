@@ -10,6 +10,7 @@
 // the forest. Everything is instanced and sways a little in the wind.
 
 import * as THREE from 'three'
+import { sendInstances } from './instances'
 import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import { tallAt } from './tallgrass'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
@@ -80,24 +81,6 @@ const CAP: Record<Kind, number> = {
   shrub: 90000,
   fern: 16000,
   stalk: 9000,
-}
-
-/**
- * Send a mesh's first n instances to the GPU, not its whole capacity: a bare needsUpdate re-sends
- * every buffer at full size, ~34 MB of matrices and colours across the kinds, and each repack or
- * cull froze the frame for 230-300 ms (the p95 frames everywhere, 2026-11-18).
- */
-function sendInstances(mesh: THREE.InstancedMesh, n: number): void {
-  const m = mesh.instanceMatrix
-  m.clearUpdateRanges()
-  m.addUpdateRange(0, n * 16)
-  m.needsUpdate = true
-  const c = mesh.instanceColor
-  if (c) {
-    c.clearUpdateRanges()
-    c.addUpdateRange(0, n * 3)
-    c.needsUpdate = true
-  }
 }
 
 /** Instances of each kind in one cell: packed matrices + colours (number[] while generating, typed once done). */

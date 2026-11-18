@@ -7,6 +7,7 @@
 // so nothing pops.
 
 import * as THREE from 'three'
+import { sendInstances } from './instances'
 import { TRAIL_GLSL, trailU } from './trail'
 import { cullSwitch } from './vegetation'
 import { inHall, mulberry32, type LakeSystem, type Terrain, SHORE, seaward } from '@titans/shared'
@@ -460,13 +461,11 @@ export class Grass {
         b++
       }
       this.blades.count = b
-      this.blades.instanceMatrix.needsUpdate = true
-      this.blades.instanceColor!.needsUpdate = true
+      sendInstances(this.blades, b)
       this.bladeCount = b
     }
     this.count = n
-    this.mesh.instanceMatrix.needsUpdate = true
-    this.mesh.instanceColor!.needsUpdate = true
+    sendInstances(this.mesh, n)
     // Forget cells long out of range.
     if (this.cells.size > 600) {
       for (const [ck] of this.cells) {

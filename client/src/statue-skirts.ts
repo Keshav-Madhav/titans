@@ -8,6 +8,7 @@
 // the formation's own shape (rocks.sdfAt): walk out from its middle until you leave the stone.
 
 import * as THREE from 'three'
+import { sendInstances } from './instances'
 import { mulberry32, type Terrain } from '@titans/shared'
 
 const NEAR_R = 90
@@ -219,12 +220,10 @@ export class StatueSkirts {
     }
     this.near.forEach((m, k) => {
       m.count = counts[k]
-      m.instanceMatrix.needsUpdate = true
-      m.instanceColor!.needsUpdate = true
+      sendInstances(m, counts[k])
     })
     this.far.count = farN
-    this.far.instanceMatrix.needsUpdate = true
-    this.far.instanceColor!.needsUpdate = true
+    sendInstances(this.far, farN)
     // The plants: only near (they are small).
     for (const p of this.plants) {
       let n = 0
@@ -233,7 +232,7 @@ export class StatueSkirts {
         if (d2 < 220 * 220) p.mesh!.setMatrixAt(n++, p.list[j])
       }
       p.mesh!.count = n
-      p.mesh!.instanceMatrix.needsUpdate = true
+      sendInstances(p.mesh!, n)
     }
     this.stats.near = counts.reduce((a, b) => a + b, 0)
     this.stats.far = farN

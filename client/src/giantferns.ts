@@ -4,6 +4,7 @@
 // up and over, with leaflets in pairs down both sides that droop and shorten toward the tip.
 
 import * as THREE from 'three'
+import { sendInstances } from './instances'
 import { mulberry32, type Terrain } from '@titans/shared'
 
 const GROVE = { x: -0.866 * 4300, z: -0.5 * 4300, r: 1900 }
@@ -341,8 +342,8 @@ export class GiantFerns {
     }
     this.far.count = n
     this.near.count = nn
-    this.far.instanceMatrix.needsUpdate = true
-    this.near.instanceMatrix.needsUpdate = true
+    sendInstances(this.far, n)
+    sendInstances(this.near, nn)
     if (this.cells.size > 3000) this.cells.clear()
   }
 }
