@@ -79,6 +79,9 @@ for (const [i, sp] of spots.entries()) {
     g.weather.set(w, true)
     g.sky.setTime(t)
     g.teleport(sp.x, sp.z)
+    // (Until the land there is built: a long jump shows the old coarse cover for a second or two —
+    // a flat pale sheet of fog under the grass, which a review then reads as a defect. Tour 1118.)
+    for (let k = 0; k < 75 && !g.terrainView.settled(); k++) await new Promise((r) => setTimeout(r, 80))
     g.wanderer.yaw = ((sp.x * 12.9898 + sp.z * 78.233) % 6.283 + 6.283) % 6.283 // (from the spot: the same view each run)
     g.setCam(g.wanderer.yaw + Math.PI, 0.18, 7)
     // Walk a few steps, so the body is in its stride and the camera has followed.
