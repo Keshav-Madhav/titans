@@ -512,6 +512,10 @@ Each phase ends playable. Phases are in PLAN.md §6.
       straight up, never looking for easier rock) varies with the giant's path: 205–240 m over two
       runs, once standing on the shoulders (it was 185–220, never)
 - [ ] Still to look at: GPU-side frame spikes on real hardware
+  - [x] 2026-11-18: one cause found and gone — instance buffers re-sent at full capacity (~34 MB a
+        vegetation repack or cull) froze the render 230-300 ms, 3-4 times in 300 frames standing on the
+        Green (000cedc, e8058e5: sendInstances uploads the drawn part only). Headless p95 there 35-39 →
+        25 ms. Left: confirm on the user's machine; what remains headless is ~2-frame misses, not work.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
