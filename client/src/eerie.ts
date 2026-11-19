@@ -15,6 +15,7 @@
 // each (for its sound).
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { mulberry32, PIT, type Terrain } from '@titans/shared'
 
 export class Eerie {
@@ -62,10 +63,15 @@ export class Eerie {
       const drop = 30 + rand() * 50
       const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, drop, 5).translate(0, -drop / 2, 0), iron)
       // A long bone: a shaft, a knob at each end.
-      const b = new THREE.Group()
-      b.add(new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, len, 8), bone))
-      b.add(new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 8).scale(1, 0.8, 1.2).translate(0, len / 2, 0), bone))
-      b.add(new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8).scale(1.2, 0.8, 1).translate(0, -len / 2, 0), bone))
+      // (One mesh, not three: the Hanged were 15 bone draws a pass and 15 more into the shadow map.)
+      const b = new THREE.Mesh(
+        mergeGeometries([
+          new THREE.CylinderGeometry(0.9, 1.1, len, 8),
+          new THREE.SphereGeometry(1.9, 10, 8).scale(1, 0.8, 1.2).translate(0, len / 2, 0),
+          new THREE.SphereGeometry(1.7, 10, 8).scale(1.2, 0.8, 1).translate(0, -len / 2, 0),
+        ])!,
+        bone,
+      )
       b.rotation.z = Math.PI / 2 + (rand() - 0.5) * 0.6
       b.position.y = -drop
       g.add(chain, b)
