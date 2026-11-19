@@ -1805,6 +1805,31 @@ export class Wanderer {
    * stays the bed.
    */
   private clothGround: (x: number, z: number) => number = () => -Infinity
+  /** The cloth's ground: the grid corners of this frame, cached (see animate). */
+  private gridFrame = 0
+  private readonly gridCache = new Map<number, number>()
+  private gridCacheFrame = -1
+  private gridGround(ground: (x: number, z: number) => number): (x: number, z: number) => number {
+    return (x: number, z: number) => {
+      if (this.gridCacheFrame !== this.gridFrame) {
+        this.gridCache.clear()
+        this.gridCacheFrame = this.gridFrame
+      }
+      const x0 = Math.floor(x)
+      const z0 = Math.floor(z)
+      const fx = x - x0
+      const fz = z - z0
+      const at = (ix: number, iz: number) => {
+        const k = (ix + 32768) * 65536 + (iz + 32768)
+        let h = this.gridCache.get(k)
+        if (h === undefined) this.gridCache.set(k, (h = ground(ix, iz)))
+        return h
+      }
+      const a = at(x0, z0) + (at(x0 + 1, z0) - at(x0, z0)) * fx
+      const b = at(x0, z0 + 1) + (at(x0 + 1, z0 + 1) - at(x0, z0 + 1)) * fx
+      return a + (b - a) * fz
+    }
+  }
   private readonly soakedFloor = (x: number, z: number): number => {
     const g = this.clothGround(x, z)
     const w = this.waterLevel
@@ -2819,11 +2844,16 @@ export class Wanderer {
     // — user, 2026-11-05. Gliding the wing carries it; otherwise at most a little over the shoulders.)
     this.cape.ceil = this.gliding ? Infinity : this.vel.y < -6 ? 0.15 : 0.1
     this.clothGround = ground
-    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, this.swimming ? this.soakedFloor : ground, this.avatar ? this.limbCaps : this.legCaps)
+    // (The cloth's floor from the ground's 1 m grid corners, each looked up once a frame and eased
+    // between — the land is drawn on that grid anyway. Asked per particle it was ~86 full height
+    // lookups a frame, most of the cloth's 1.2 ms in the frame profile, 2026-11-19.)
+    this.gridFrame++
+    const g = this.gridGround(ground)
+    this.cape.step(dt, this.capePins, this.hangDir, this.windV, this.axisA, this.axisB, this.avatar ? 0.2 : 0.23, this.swimming ? this.soakedFloor : g, this.avatar ? this.limbCaps : this.legCaps)
     this.windV.multiplyScalar(1.25)
     // (The scarf too: falling, and in the water, it stood up over the hood like a red stalk.)
     this.scarf.ceil = this.gliding ? Infinity : 0.05
-    this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, ground)
+    this.scarf.step(dt, this.scarfPins, this.hangDir, this.windV, this.axisA, this.axisB, 0.2, g)
 
     // The lantern: brighter in the dark, a slow flicker.
     const flicker = 0.9 + 0.1 * Math.sin(this.t * 11) * Math.sin(this.t * 7.3)
