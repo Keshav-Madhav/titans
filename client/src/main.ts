@@ -2502,6 +2502,35 @@ function freezeStatic(...roots: Array<THREE.Object3D | undefined | null>): void 
   }
 }
 
+// Giants out of sight are not drawn at all: one sphere test for the whole giant, not one per part. Each is
+// ~40-60 parts, and with a dozen in the world most of them kilometres off or behind you, the renderer
+// walked and tested ~500 parts a frame to draw few of them (projectObject alone 2 ms a frame, frame
+// profile 2026-11-19). Still drawn when its shadow can fall where you are (the shadow map's reach, about a
+// kilometre round you, plus its height). Posing and gait go on regardless — only the drawing is skipped.
+const _giantSphere = new THREE.Sphere()
+const _giantFrustum = new THREE.Frustum()
+const _giantPV = new THREE.Matrix4()
+const SHADOW_REACH = 1100
+function cullGiants(): void {
+  _giantPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+  _giantFrustum.setFromProjectionMatrix(_giantPV)
+  const one = (t: Titan) => {
+    const want = t.group.userData.skyOk !== false
+    if (!want) {
+      t.group.visible = false
+      return
+    }
+    _giantSphere.center.set(t.gait.x, t.pelvis.y, t.gait.z)
+    _giantSphere.radius = t.H
+    t.group.visible = _giantFrustum.intersectsSphere(_giantSphere) || Math.hypot(t.gait.x - wanderer.pos.x, t.gait.z - wanderer.pos.z) < SHADOW_REACH + t.H
+  }
+  for (const [, a] of titans) one(a.titan)
+  for (const t of farGiants) one(t)
+  for (const t of herd.giants) one(t)
+  one(wader)
+  one(frozen.titan)
+}
+
 /** At the Gate's door, it still shut, standing on the platform before it. */
 function gateDoorNear(): boolean {
   const d = colossi.gateDoor
@@ -3997,7 +4026,7 @@ function frameBody(now: number): void {
       m.color.copy(base).multiplyScalar(sk)
       m.emissive.copy(sky.fog.color).multiplyScalar(0.9 * (1 - sk))
     }
-    for (const t of farGiants) t.group.visible = sk > 0
+    for (const t of farGiants) t.group.userData.skyOk = sk > 0
   }
   if (Math.abs(camera.position.z - SHORE.waderD) < 9000) stepWader(dt)
   wader.showArmor(Math.hypot(camera.position.x - wader.gait.x, camera.position.z - wader.gait.z) < 3000)
@@ -4541,6 +4570,7 @@ function frameBody(now: number): void {
   // Near plants and stones: only those in view (the camera is final for this frame now).
   camera.updateMatrixWorld()
   vegetation.cull(camera)
+  cullGiants()
   quality.gpuBegin()
   { const _t = performance.now(); post.render(dt, sky.sunDir); costNote('render', performance.now() - _t) }
   quality.gpuEnd()
