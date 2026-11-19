@@ -4042,7 +4042,10 @@ function frameBody(now: number): void {
       const want = Number.isFinite(near) ? THREE.MathUtils.clamp(HUG_GAP - near, -1.8, 2.5) : 0
       // (Eased, and no faster than 2.5 m/s: where the hold crosses to another part the stone it
       // measures jumps.)
-      hugPush += THREE.MathUtils.clamp((want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 8)), -2.5 * dt, 2.5 * dt)
+      // (In toward the stone up to 4 m/s: on a walking giant's shin the stone swings away faster than
+      // 2.5 m/s and the body hung up to 0.57 m off it for a moment — qa/cycle7/climbstrip.mjs. Out stays
+      // at 2.5: that is the direction a part crossing would snap.)
+      hugPush += THREE.MathUtils.clamp((want - hugPush) * Math.min(1, dt * (want > hugPush ? 14 : 12)), -4 * dt, 2.5 * dt)
       // Every other part of the giant (a thigh above the shin you hold, the armour): its lumps.
       let deep = 0
       for (const lp of CLIP_PTS) deep = Math.max(deep, climber.depth(_clipW.copy(lp).applyMatrix4(M), climber.part))
