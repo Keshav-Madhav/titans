@@ -179,6 +179,10 @@ const GRADE = {
     streak: { value: 0 },
     /** The streaks' own clock: runs faster the faster you go (so they flow, not strobe). */
     streakT: { value: 0 },
+    /** Sharpening (FSR's RCAS) when rendering below the screen's own resolution: 0 off … 1 most. */
+    sharpen: { value: 0 },
+    /** One texel of the frame being graded. */
+    texel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -192,6 +196,8 @@ const GRADE = {
     uniform float rayStrength;
     uniform float streak;
     uniform float streakT;
+    uniform float sharpen;
+    uniform vec2 texel;
     uniform float exposure;
     uniform float mood;
     uniform float flash;
@@ -227,6 +233,27 @@ const GRADE = {
       // Under water the picture wavers.
       vec2 uv = vUv + under * 0.006 * vec2(sin(vUv.y * 38.0 + time * 2.1), cos(vUv.x * 31.0 + time * 1.7));
       vec3 c = texture2D(tDiffuse, uv).rgb;
+      // Below the screen's own resolution (the governor lowers it to hold the frame time), the browser
+      // stretches the frame with a plain bilinear filter and it goes soft. Sharpened here first, by
+      // AMD FSR's RCAS: a cross of four neighbours, the sharpening limited so it never rings past the
+      // neighbours' own range. Worked in a reversible tone curve (x / (1 + x)): RCAS wants 0 … 1.
+      if (sharpen > 0.001) {
+        vec3 e = c / (1.0 + c);
+        vec3 b = texture2D(tDiffuse, uv + vec2(0.0, -texel.y)).rgb;
+        vec3 d = texture2D(tDiffuse, uv + vec2(-texel.x, 0.0)).rgb;
+        vec3 f = texture2D(tDiffuse, uv + vec2(texel.x, 0.0)).rgb;
+        vec3 h = texture2D(tDiffuse, uv + vec2(0.0, texel.y)).rgb;
+        b /= 1.0 + b; d /= 1.0 + d; f /= 1.0 + f; h /= 1.0 + h;
+        vec3 mn4 = min(min(b, d), min(f, h));
+        vec3 mx4 = max(max(b, d), max(f, h));
+        vec3 hitMin = mn4 / (4.0 * mx4 + 1e-5);
+        vec3 hitMax = (1.0 - mx4) / (4.0 * mn4 - 4.0 - 1e-5);
+        vec3 lobeRGB = max(-hitMin, hitMax);
+        float lobe = max(-0.1875, min(max(lobeRGB.r, max(lobeRGB.g, lobeRGB.b)), 0.0)) * sharpen;
+        vec3 s = (lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0);
+        s = clamp(s, 0.0, 0.999);
+        c = s / (1.0 - s);
+      }
       // (Not a number anywhere — one bad pixel, spread by the bloom's blur over the whole frame — is
       // dropped, not drawn: the frame stays visible.)
       if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
@@ -290,6 +317,8 @@ const GRADE = {
 }
 
 class GradePass extends Pass {
+  /** Tools: a fixed sharpening strength (null: follow the resolution). */
+  static sharpenOverride: number | null = null
   readonly uniforms = THREE.UniformsUtils.clone(GRADE.uniforms) as typeof GRADE.uniforms
   private readonly quad: FullScreenQuad
 
@@ -308,6 +337,16 @@ class GradePass extends Pass {
     this.uniforms.tRays.value = this.rays.target.texture
     this.uniforms.tBloom.value = this.bloom.renderTargetsHorizontal[0].texture
     this.uniforms.bloomOn.value = this.bloom.enabled && SizedBloom.fold ? 1 : 0
+    this.uniforms.texel.value.set(1 / read.width, 1 / read.height)
+    // How far under the screen's own resolution the frame is drawn: none at full, rising to 0.8 (about
+    // FSR's own default; at 1 the far canopies went a little crunchy, the Grove at ratio 1.25) by
+    // a 25 % shortfall. (`sharpenOverride` for tools: a fixed strength.)
+    // Measured, the Grove at ratio 1.25 on a 2× screen: edge detail 5.1 plain, 9.8 sharpened, 10.1 at
+    // full resolution.
+    const pr = renderer.getPixelRatio()
+    const native = Math.min(globalThis.devicePixelRatio ?? 1, 2)
+    const under = Math.max(0, native / pr - 1)
+    this.uniforms.sharpen.value = GradePass.sharpenOverride ?? Math.min(0.8, under * 2.4)
     renderer.setRenderTarget(this.renderToScreen ? null : write)
     this.quad.render(renderer)
   }
