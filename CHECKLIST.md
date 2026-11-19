@@ -516,6 +516,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
         vegetation repack or cull) froze the render 230-300 ms, 3-4 times in 300 frames standing on the
         Green (000cedc, e8058e5: sendInstances uploads the drawn part only). Headless p95 there 35-39 →
         25 ms. Left: confirm on the user's machine; what remains headless is ~2-frame misses, not work.
+  - [x] 2026-11-19: the frame is fill-bound (Mire, full res: 16-18 ms; half res 10.7; shadows, MSAA
+        and every single layer within noise) — so resolution is the lever. e5b1dd7: RCAS sharpening in
+        the grade pass below native (edge detail at 0.625: 5.1 plain → 9.8, full 10.1). 442feb9: the
+        canvas stays at the screen's ratio and only the frame inside scales — each governor step was a
+        110-220 ms freeze (canvas drawing-buffer realloc), now 0 ms. Left: grass/vegetation re-lay
+        costs on frames while running (5-13 ms on a loaded machine) — re-measure on a quiet one.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
