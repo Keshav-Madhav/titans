@@ -955,9 +955,12 @@ const spots = (() => {
   const H = (x: number, z: number) => terrain.heightAt(x, z)
   const ground = (x: number, z: number) => new THREE.Vector3(x, H(x, z), z)
   /** The top of the rock at (x, z) if it is level enough to stand on (else null: you would slide off). */
-  const flatTop = (x: number, z: number) => {
+  // (`above`: only a top higher than this is wanted — the four flatness checks are skipped for a centre
+  // that cannot win. Same answer; topNear's search was 415 ms of the start-up, five full marches down
+  // through a giant's height per grid point, most of them for points that could never be chosen.)
+  const flatTop = (x: number, z: number, above = -Infinity) => {
     const y = rocks.topAt(x, z)
-    if (y === null) return null
+    if (y === null || y <= above) return null
     for (const [dx, dz] of [[0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8]]) {
       const n = rocks.topAt(x + dx, z + dz)
       if (n === null || Math.abs(n - y) > 0.45) return null
@@ -970,7 +973,7 @@ const spots = (() => {
     const step = Math.max(1.5, r / 8)
     for (let dz = -r; dz <= r; dz += step) {
       for (let dx = -r; dx <= r; dx += step) {
-        const y = flatTop(x + dx, z + dz)
+        const y = flatTop(x + dx, z + dz, best ? best.y : -Infinity)
         if (y !== null && (!best || y > best.y)) best = new THREE.Vector3(x + dx, y, z + dz)
       }
     }
