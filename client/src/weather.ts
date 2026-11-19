@@ -13,7 +13,7 @@
 // the numbers; rain falls entirely on the GPU.
 
 import * as THREE from 'three'
-import { groundShade } from './terrain-material'
+import { groundShade, sandNight } from './terrain-material'
 import { HALL, mulberry32 } from '@titans/shared'
 import type { SkySystem } from './sky'
 import type { Post } from './post'
@@ -486,6 +486,7 @@ export class Weather {
     // Cloud shadows sliding over the land: with the sun out and scattered cloud (none under a full deck).
     this.shadeDrift.x += dt * (6 + 14 * w.wind)
     this.shadeDrift.y += dt * (2.5 + 6 * w.wind)
+    sandNight.value = sky.night
     groundShade.value.set(this.shadeDrift.x, this.shadeDrift.y, 0.7 - w.cover * 0.32, 0.42 * (1 - THREE.MathUtils.smoothstep(w.dark, 0.3, 0.65)) * (1 - sky.dusk) * (1 - this.sand))
     // The grade and the sun's shafts.
     if (this.post) {

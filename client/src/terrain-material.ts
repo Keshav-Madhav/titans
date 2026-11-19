@@ -106,6 +106,13 @@ const list = (a: number[]) => a.map((v) => v.toFixed(3)).join(', ')
  * w the strength (0 under a full overcast — no sun to cast them). weather.ts sets it.
  */
 export const groundShade = { value: new THREE.Vector4(0, 0, 0.6, 0) }
+/**
+ * 0 by day … 1 at full night (weather.ts): the sand's albedo goes down at night. (A night tour,
+ * 2026-11-19: under the same moon the Dune Sea's sand came out 2.5× the brightness of every other
+ * land's ground — it read as dusk beside a black forest. Moonlit sand stays the brightest ground,
+ * at about 1.7×.)
+ */
+export const sandNight = { value: 0 }
 
 /** The ground material: MeshStandardMaterial with the splat patched in. */
 /** Tools: switches for measuring the terrain shader's parts (uTerrainExp). */
@@ -120,6 +127,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
     shader.uniforms.uTerrainExp = terrainExp.u
     Object.assign(shader.uniforms, trailU)
     shader.uniforms.groundShade = groundShade
+    shader.uniforms.uSandNight = sandNight
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -149,6 +157,7 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         uniform highp sampler2DArray tLayerNormal;
         uniform sampler2D tDetail;
         uniform vec4 groundShade;
+        uniform float uSandNight;
         varying vec4 vSplatA;
         varying vec4 vSplatB;
         varying vec3 vGroundPos;
@@ -532,6 +541,11 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
           float gStraw = smoothstep(0.44, 0.58, gClump * 0.5 + gSwath * 0.5);
           gAlb = mix(gAlb, gAlb * mix(vec3(0.74, 0.8, 0.78), vec3(1.24, 1.1, 0.66), gStraw), gFar2 * 0.85);
           }
+        }
+        // Sand at night: down toward half its albedo (uSandNight above).
+        if (uSandNight > 0.001) {
+          float nSandK = gW[4] / max(1e-4, gW[0] + gW[1] + gW[2] + gW[3] + gW[4] + gW[5] + gW[6] + gW[7]) * (1.0 - gRockW);
+          gAlb *= 1.0 - 0.5 * uSandNight * nSandK;
         }
         // The Shore: sand the sea reaches is wet, darker, a band above the waterline.
         {
