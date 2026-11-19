@@ -1861,12 +1861,15 @@ travel.onGo = (d) => {
     // (Dark until the land there is built: lifted at a fixed 1.25 s, a far waystone showed the old
     // coarse cover kilometres wide for a second or two — the ground under you a flat pale sheet of
     // fog with the grass standing out of it, tour 1118 spot 2. The terrain builds at the loader's
-    // pace meanwhile; never longer than 4 s.)
+    // pace meanwhile.)
     travelHold = true
     const t0 = performance.now()
     const lift = () => {
       const t = performance.now() - t0
-      if ((t > 730 && terrainView.settled()) || t > 4000) {
+      // (At most 10 s: a far trip into cliffy Ruins still had 195 chunks queued after 8 s on a slow
+      // machine, and lifted at 4 s it showed the old coarse cover over a terrace — the camera under it,
+      // a white hole, tour 1119a spot 12.)
+      if ((t > 730 && terrainView.settled()) || t > 10000) {
         travelHold = false
         fadeEl.classList.remove('on')
       } else setTimeout(lift, 80)

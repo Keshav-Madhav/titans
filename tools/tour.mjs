@@ -81,7 +81,7 @@ for (const [i, sp] of spots.entries()) {
     g.teleport(sp.x, sp.z)
     // (Until the land there is built: a long jump shows the old coarse cover for a second or two —
     // a flat pale sheet of fog under the grass, which a review then reads as a defect. Tour 1118.)
-    for (let k = 0; k < 75 && !g.terrainView.settled(); k++) await new Promise((r) => setTimeout(r, 80))
+    for (let k = 0; k < 190 && !g.terrainView.settled(); k++) await new Promise((r) => setTimeout(r, 80))
     g.wanderer.yaw = ((sp.x * 12.9898 + sp.z * 78.233) % 6.283 + 6.283) % 6.283 // (from the spot: the same view each run)
     g.setCam(g.wanderer.yaw + Math.PI, 0.18, 7)
     // Walk a few steps, so the body is in its stride and the camera has followed.
@@ -89,6 +89,9 @@ for (const [i, sp] of spots.entries()) {
     await new Promise((r) => setTimeout(r, 900))
     g.input.release('KeyW')
     await new Promise((r) => setTimeout(r, 2200))
+    // (And again after the walk: a few steps off a terrace edge dropped into land not yet built, and the
+    // shot caught the old coarse cover there — a white hole with grass floating on it, tour 1119a spot 12.)
+    for (let k = 0; k < 100 && !g.terrainView.settled(); k++) await new Promise((r) => setTimeout(r, 80))
     const p = g.wanderer.pos
     return { x: Math.round(p.x), y: Math.round(p.y), z: Math.round(p.z), land: g.terrain.base.regions.name(p.x, p.z), swimming: g.wanderer.swimming, skyline: +(+g.skyline).toFixed(2) }
   }, [sp, t, w])
