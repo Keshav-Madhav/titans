@@ -107,7 +107,7 @@ const list = (a: number[]) => a.map((v) => v.toFixed(3)).join(', ')
  */
 export const groundShade = { value: new THREE.Vector4(0, 0, 0.6, 0) }
 /**
- * 0 by day … 1 at full night (weather.ts): the sand's albedo goes down at night. (A night tour,
+ * 0 by day … 1 at full night (weather.ts; also under a grey sky): the sand's albedo goes down. (A night tour,
  * 2026-11-19: under the same moon the Dune Sea's sand came out 2.5× the brightness of every other
  * land's ground — it read as dusk beside a black forest. Moonlit sand stays the brightest ground,
  * at about 1.7×.)
