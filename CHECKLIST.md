@@ -521,7 +521,8 @@ Each phase ends playable. Phases are in PLAN.md §6.
         the grade pass below native (edge detail at 0.625: 5.1 plain → 9.8, full 10.1). 442feb9: the
         canvas stays at the screen's ratio and only the frame inside scales — each governor step was a
         110-220 ms freeze (canvas drawing-buffer realloc), now 0 ms. Left: grass/vegetation re-lay
-        costs on frames while running (5-13 ms on a loaded machine) — re-measure on a quiet one.
+        costs on frames while running (5-13 ms on a loaded machine) — re-measured: vegetation repacks while
+        running are 0.2-2.9 ms; the heavy ones (20-28 ms) are only the far-ring fill right after a jump.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
