@@ -4,7 +4,7 @@
 // the wind (so you see it from where you start) — and the bag.
 
 import * as THREE from 'three'
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { mulberry32, type Terrain } from '@titans/shared'
 
 /**
@@ -65,6 +65,7 @@ export class Camp {
     // (Rounded field stones, half sunk, sooted on the side to the fire: twelve flat facets in the pale
     // carved-stone finish read as crumpled white paper — screenshot review, 2026-11-06.)
     const ringMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 })
+    const ringStones: THREE.BufferGeometry[] = []
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + rand() * 0.2
       const r = 0.2 + rand() * 0.09
@@ -86,12 +87,14 @@ export class Camp {
       }
       g.computeVertexNormals()
       g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-      const s = new THREE.Mesh(g, ringMat)
-      s.position.copy(at(Math.cos(a) * 0.75, Math.sin(a) * 0.75, r * 0.15))
-      s.rotation.y = rand() * 0.6
-      s.castShadow = true
-      this.group.add(s)
+      // (Placed into the geometry, the nine merged into one stone mesh: nine draws a pass, and a
+      // second nine into the shadow map, at every camp within the shadow's reach — 2026-11-19.)
+      g.applyMatrix4(new THREE.Matrix4().compose(at(Math.cos(a) * 0.75, Math.sin(a) * 0.75, r * 0.15), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 0.6), new THREE.Vector3(1, 1, 1)))
+      ringStones.push(g)
     }
+    const ring = new THREE.Mesh(mergeGeometries(ringStones)!, ringMat)
+    ring.castShadow = true
+    this.group.add(ring)
     const ash = new THREE.Mesh(new THREE.CircleGeometry(0.62, 32).rotateX(-Math.PI / 2), char)
     ash.position.copy(at(0, 0, 0.03))
     this.group.add(ash)
