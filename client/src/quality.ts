@@ -46,7 +46,10 @@ const LEVELS: Level[] = [
 const BUDGET = 17.6
 /** Resolution steps, and its floor (as a pixel ratio). */
 const DPR_STEP = 0.125
-const DPR_FLOOR = 0.875
+// (0.67: FSR's "Quality" ratio — the grade pass upscales and sharpens (RCAS) what the scene drew. At
+// 0.875 a 1x screen — most Windows laptops, external monitors — had one step of resolution to give
+// before the governor fell back on detail, which pops the land and never comes back that session.)
+const DPR_FLOOR = 0.67
 /** How long a window of frames is judged over (ms). */
 const WINDOW = 2500
 

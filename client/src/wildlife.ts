@@ -134,11 +134,20 @@ export class Wildlife {
 
   /** One fixed step. `threats`: Titans (and the Wanderer) the herds should keep clear of. */
   step(dt: number, threats: readonly Threat[]): void {
-    for (const h of this.herds) {
+    this.tick++
+    this.herds.forEach((h, i) => {
       this.think(h, dt, threats)
-      this.steer(h, dt)
-    }
+      // (A herd far from you finds the ground under its feet every 4th step, not every one — ~200
+      // exact land heights a step was the steady frame's biggest caller of the terrain noise. A
+      // twentieth of a metre of walking between them, unseen at that distance.)
+      const v = this.viewer
+      const far = v !== null && Math.hypot(h.animals[0].x - v.x, h.animals[0].z - v.z) > 150
+      this.steer(h, dt, !far || (this.tick + i) % 4 === 0)
+    })
   }
+  private tick = 0
+  /** Where you are (main sets it): herds far from it are tended more coarsely. */
+  viewer: { x: number; z: number } | null = null
 
   // --- the herd's mind -------------------------------------------------------
 
@@ -277,7 +286,7 @@ export class Wildlife {
 
   // --- each animal's legs ----------------------------------------------------
 
-  private steer(h: Herd, dt: number): void {
+  private steer(h: Herd, dt: number, ground = true): void {
     const [cx, cz] = centre(h)
     let mvx = 0
     let mvz = 0
@@ -338,7 +347,7 @@ export class Wildlife {
       }
       a.x = nx
       a.z = nz
-      a.y = this.terrain.heightAt(a.x, a.z)
+      if (ground) a.y = this.terrain.heightAt(a.x, a.z)
       const sp = Math.hypot(a.vx, a.vz)
       if (sp > 0.15) {
         let dh = Math.atan2(a.vx, a.vz) - a.heading

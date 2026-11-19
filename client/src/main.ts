@@ -1967,6 +1967,7 @@ const sites: Site[] = [
 let visitClock = 0
 
 const wanderer = new Wanderer(0xa8291f)
+wildlife.viewer = wanderer.pos
 // The rigged body (avatar.ts; the user, 2026-11-05: a free rigged character, heavily customised).
 // ?oldbody keeps the old jointed one (to compare).
 if (!params.has('oldbody'))

@@ -116,6 +116,7 @@ export class CameraRig {
    * land's back faces to the sky — tour review, 2026-11-06, a ledge at the Old Wood's cliffs).
    */
   meshStep = 1
+  private readonly corners = new Map<number, number>()
   /** How far the camera is raised over the focus where there is no room for it (eased). */
   private lift = 0
   /** Set while a bow is drawn: the camera holds still under the aim (no rising, see update). */
@@ -171,13 +172,25 @@ export class CameraRig {
     // ground, the screen white; nor the grid's highest corner — over-cautious, it pulled the camera in at
     // every hollow, and the bow's aim was 33° off at the bell.)
     const s = this.meshStep
+    // (The grid's corners, each worked out once a frame: the probes below ask for the same few
+    // corners over and over — ~140 calls of the land's noise a frame, the second-biggest caller.)
+    const memo = this.corners
+    memo.clear()
+    const corner = (x: number, z: number): number => {
+      const k = (x + 40000) * 80000 + (z + 40000)
+      let h = memo.get(k)
+      if (h === undefined) memo.set(k, (h = terrain.heightAt(x, z)))
+      return h
+    }
     const drawn = (x: number, z: number): number => {
       const x0 = Math.floor(x / s) * s
       const z0 = Math.floor(z / s) * s
       const fx = (x - x0) / s
       const fz = (z - z0) / s
-      const a = terrain.heightAt(x0, z0) + (terrain.heightAt(x0 + s, z0) - terrain.heightAt(x0, z0)) * fx
-      const b = terrain.heightAt(x0, z0 + s) + (terrain.heightAt(x0 + s, z0 + s) - terrain.heightAt(x0, z0 + s)) * fx
+      const h00 = corner(x0, z0)
+      const h01 = corner(x0, z0 + s)
+      const a = h00 + (corner(x0 + s, z0) - h00) * fx
+      const b = h01 + (corner(x0 + s, z0 + s) - h01) * fx
       return a + (b - a) * fz
     }
     const pitch = Math.max(this.pitch, -0.08)
