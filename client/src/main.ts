@@ -3,6 +3,7 @@
 // sleeping giants become mountains), and you explore, follow and climb them.
 
 import * as THREE from 'three'
+import './matrix-dirty'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   applyDrag,

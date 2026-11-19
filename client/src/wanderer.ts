@@ -586,7 +586,38 @@ class Cloth {
     const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute
     this.refine(pos.array as Float32Array)
     pos.needsUpdate = true
-    this.mesh.geometry.computeVertexNormals()
+    this.gridNormals(pos.array as Float32Array)
+  }
+
+  /**
+   * Normals of the drawn grid from its neighbours down the rows and across them (one cross product a
+   * vertex, not three.js's pass over every triangle and a normalize — a third of the time), turned as
+   * three's are for the triangles (a, a + RC, a + 1).
+   */
+  private gridNormals(v: Float32Array): void {
+    const g = this.mesh.geometry
+    let attr = g.getAttribute('normal') as THREE.BufferAttribute | undefined
+    if (!attr) g.setAttribute('normal', (attr = new THREE.BufferAttribute(new Float32Array(v.length), 3)))
+    const n = attr.array as Float32Array
+    const RC = (this.cols - 1) * Cloth.SUB + 1
+    const RR = (this.rows - 1) * Cloth.SUB + 1
+    for (let y = 0; y < RR; y++) {
+      const y0 = (y > 0 ? y - 1 : y) * RC
+      const y1 = (y < RR - 1 ? y + 1 : y) * RC
+      for (let x = 0; x < RC; x++) {
+        const x0 = x > 0 ? x - 1 : x
+        const x1 = x < RC - 1 ? x + 1 : x
+        const d = (y1 + x) * 3, u = (y0 + x) * 3, r = (y * RC + x1) * 3, l = (y * RC + x0) * 3
+        const ax = v[d] - v[u], ay = v[d + 1] - v[u + 1], az = v[d + 2] - v[u + 2]
+        const bx = v[r] - v[l], by = v[r + 1] - v[l + 1], bz = v[r + 2] - v[l + 2]
+        let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz)
+        if (len > 1e-12) { nx /= len; ny /= len; nz /= len } else { nx = 0; ny = 1; nz = 0 }
+        const k = (y * RC + x) * 3
+        n[k] = nx; n[k + 1] = ny; n[k + 2] = nz
+      }
+    }
+    attr.needsUpdate = true
   }
 
   static readonly SUB = 3
