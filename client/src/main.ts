@@ -209,6 +209,7 @@ const post = new Post(renderer, scene, camera)
 // switching it off with the quality level changed the whole picture in one frame.)
 quality.onApply = () => {
   post.enabled = params.get('post') !== '0'
+  post.internalRatio = quality.dpr
   post.resize()
 }
 quality.onApply(quality.level)
@@ -4181,7 +4182,7 @@ function frameBody(now: number): void {
   {
     const cx = camera.position.x
     const cz = camera.position.z
-    motes.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, {
+    motes.update(dt, camera, post.sceneHeight, sky.sun, sky.sunDir, sky.fog.color, {
       desert: biome.desert(cx, cz),
       forest: biome.forest(cx, cz),
       open: biome.open(cx, cz),
@@ -4194,8 +4195,8 @@ function frameBody(now: number): void {
       indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
     })
     // (Seeds fly on dry days; rain beats them down.)
-    seeds.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, 1 - weather.now.rain)
-    thermals.update(dt, camera, renderer.domElement.height, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, weather.now.rain)
+    seeds.update(dt, camera, post.sceneHeight, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, 1 - weather.now.rain)
+    thermals.update(dt, camera, post.sceneHeight, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, weather.now.rain)
   }
   // (At a long drop the wind rises: vertigo is heard as much as seen; and in a seed river's air.)
   // Under a roof (the Undercroft's, a hollow fallen giant's, the Tallgrass's blades): footsteps echo.
@@ -4227,7 +4228,7 @@ function frameBody(now: number): void {
   mushrooms.night.value = sky.night
   rocks.update(camera.position, camera.fov)
   cairns.update(dt)
-  lanterns.update(dt, sky.night, camera, renderer.domElement.height)
+  lanterns.update(dt, sky.night, camera, post.sceneHeight)
   sunkBells.update(dt)
   bellDescent.run?.update(dt)
   duneHead?.update(dt)

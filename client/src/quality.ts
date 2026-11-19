@@ -116,8 +116,14 @@ export class Quality {
 
   private setDpr(dpr: number): void {
     this.dpr = dpr
-    this.renderer.setPixelRatio(dpr)
-    this.renderer.setSize(innerWidth, innerHeight, false)
+    // (The canvas stays at the screen's own ratio; only the frame drawn inside it changes — post.ts
+    // renders the scene at `dpr` and the grade pass scales it up to the canvas. Resizing the canvas
+    // itself reallocated the browser's drawing buffer: 110-220 ms, a hitch at every governor step,
+    // measured 2026-11-19 at ratio 2.)
+    if (this.renderer.getPixelRatio() !== this.maxDpr) {
+      this.renderer.setPixelRatio(this.maxDpr)
+      this.renderer.setSize(innerWidth, innerHeight, false)
+    }
     this.onApply(this.level)
   }
 

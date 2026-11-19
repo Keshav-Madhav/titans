@@ -343,9 +343,9 @@ class GradePass extends Pass {
     // a 25 % shortfall. (`sharpenOverride` for tools: a fixed strength.)
     // Measured, the Grove at ratio 1.25 on a 2× screen: edge detail 5.1 plain, 9.8 sharpened, 10.1 at
     // full resolution.
-    const pr = renderer.getPixelRatio()
-    const native = Math.min(globalThis.devicePixelRatio ?? 1, 2)
-    const under = Math.max(0, native / pr - 1)
+    // (The frame is drawn at the governor's ratio and scaled up here onto the canvas: the shortfall is
+    // the canvas's width over the frame's.)
+    const under = Math.max(0, renderer.domElement.width / read.width - 1)
     this.uniforms.sharpen.value = GradePass.sharpenOverride ?? Math.min(0.8, under * 2.4)
     renderer.setRenderTarget(this.renderToScreen ? null : write)
     this.quad.render(renderer)
@@ -430,11 +430,17 @@ export class Post {
   /** Follow the renderer's size and pixel ratio (the quality governor changes them). */
   /** Multisampling for the frame (tools may set it; null: by the pixel ratio). */
   static samples: number | null = null
+  /** The pixel ratio the frame is drawn at inside the canvas (the governor's; the canvas is the screen's). */
+  internalRatio: number | null = null
+  /** The scene's drawn height in pixels (point sizes: motes, seeds, lanterns, thermals). */
+  get sceneHeight(): number {
+    return this.composer.renderTarget1.height
+  }
   resize(): void {
     // (At a high pixel ratio the pixels are already small enough to hide most stair-steps, and 4x
     // multisampling of a full-size half-float frame is the costliest thing at full resolution —
     // measured on the M-series at pixel ratio 2: the frame's memory traffic, not its shading.)
-    const pr = this.renderer.getPixelRatio()
+    const pr = Math.min(this.internalRatio ?? this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     const want = Post.samples ?? (pr >= 1.7 ? 2 : 4)
     for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) {
       if (t.samples !== want) {
