@@ -30,6 +30,11 @@ export class Camp {
   readonly bagAt = new THREE.Vector3()
   private readonly poleAt = new THREE.Vector3()
   private time = 0
+  /** Is the bag still lying here (not taken)? */
+  private bagHere: boolean
+  /** The camp's small things (all but the pole and its flag, the smoke and the bare ground): drawn only within NEAR_R. */
+  private small: THREE.Object3D[] = []
+  private shown = true
 
   /** At `where` (the first, with the bag, by default); `withBag` false for the traveller's later camps. */
   constructor(terrain: Terrain, where: { x: number; z: number } = CAMP, withBag = true) {
@@ -158,10 +163,12 @@ export class Camp {
     this.bag.rotation.y = 0.7
     this.group.add(this.bag)
     this.bag.visible = withBag
+    this.bagHere = withBag
     this.group.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true
     })
     bare.castShadow = false
+    this.small = this.group.children.filter((o) => o !== pole && o !== this.smoke && o !== this.bag && o !== bare)
   }
 
   /**
@@ -189,11 +196,12 @@ export class Camp {
 
   /** Close enough to take the bag (and it is still there). */
   near(p: THREE.Vector3): boolean {
-    return this.bag.visible && p.distanceTo(this.bagAt) < 2.6
+    return this.bagHere && p.distanceTo(this.bagAt) < 2.6
   }
 
   /** It is in your hands now. */
   take(): void {
+    this.bagHere = false
     this.bag.visible = false
   }
 
@@ -224,6 +232,18 @@ export class Camp {
       // (One colour throughout: the order the puffs blend in hardly shows. Past 9 km, not at all.)
       this.smoke.visible = camera.position.distanceTo(this.fire) < 9000
     }
+    // (From afar only the pole and its flag — the landmark — the smoke and the bare ground (a 12 m
+    // patch: it would show going): the ring, the tripod, the pot and the bedroll were ~14 draws at
+    // every camp in view, from kilometres off, a few pixels each. And the flag stops snapping where
+    // it is a stroke of red.)
+    const d = camera ? camera.position.distanceTo(this.fire) : 0
+    const near = d < NEAR_R
+    if (near !== this.shown) {
+      this.shown = near
+      for (const o of this.small) o.visible = near
+      this.bag.visible = this.bagHere && near
+    }
+    if (d > 700) return
     const pos = this.cloth.geometry.getAttribute('position') as THREE.BufferAttribute
     const a = pos.array as Float32Array
     for (let i = 0; i < pos.count; i++) {
@@ -238,6 +258,8 @@ export class Camp {
 }
 
 const POLE = 7.5
+/** Beyond this (metres) a camp is its pole and flag (and smoke). */
+const NEAR_R = 450
 const CLOTH = 4
 /** How far round a camp's fire the ground is worn bare (m): grass keeps off it. */
 export const CAMP_BARE = 5.5

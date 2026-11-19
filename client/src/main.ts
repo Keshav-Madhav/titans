@@ -4273,7 +4273,7 @@ function frameBody(now: number): void {
     woodStair.update(dt)
     if (!woodStair.running && !finds.has('stair-wood')) spots.reveal('stair-wood')
   }
-  camp.update(dt, weather.now.wind)
+  camp.update(dt, weather.now.wind, camera)
   for (const c of travellerCamps) c.update(dt, weather.now.wind, camera)
   spots.update(dt, camera)
   prints.update(dt)
