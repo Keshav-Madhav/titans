@@ -5,6 +5,7 @@
 // spots.ts reveals it).
 
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { carvedStone } from './spots'
 
 export interface EyeSet {
@@ -42,12 +43,13 @@ export class Eyes {
       const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-1.9, 0, 0), new THREE.Vector3(0, up * 1.75, 0), new THREE.Vector3(1.9, 0, 0))
       return new THREE.TubeGeometry(curve, 16, up > 0 ? 0.26 : 0.17, 6)
     }
-    const lidUp = lid(1)
-    const lidDown = lid(-0.8)
+    // (The stone and its two lids one mesh — they never move apart: six draws an eye were three of
+    // stone, and three more into the shadow map.)
+    const stone = mergeGeometries([disc, lid(1).translate(0, 0, 0.5), lid(-0.8).translate(0, 0, 0.5)])!
     for (const set of sets) {
       set.eyes.forEach((e, k) => {
         const g = new THREE.Group()
-        const body = new THREE.Mesh(disc, carvedStone())
+        const body = new THREE.Mesh(stone, carvedStone())
         body.castShadow = body.receiveShadow = true
         // (Amber, not so far over 1 that the bloom took it to white.)
         const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 0.95, 0.22) })
@@ -55,14 +57,6 @@ export class Eyes {
         i.position.z = 0.46
         const r = new THREE.Mesh(pupil, new THREE.MeshBasicMaterial({ color: 0x140f0a }))
         r.position.z = 0.47
-        const lids = new THREE.Group()
-        for (const lg of [lidUp, lidDown]) {
-          const m = new THREE.Mesh(lg, body.material)
-          m.castShadow = true
-          lids.add(m)
-        }
-        lids.position.z = 0.5
-        g.add(lids)
         // A soft amber glow over the open iris, so an eye reads from far off.
         // (fog: false — a sprite's shader has no 'transformed' for the patched fog to read: it would not compile.)
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture(), color: new THREE.Color(1.6, 0.9, 0.3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
