@@ -230,6 +230,9 @@ export class Spots {
       const tw = Math.pow(0.5 + 0.5 * Math.sin(this.time * 1.7 + g.phase), 6)
       // (Bright enough for the bloom to catch: against a pale sky a dim glint is invisible.)
       g.sprite.material.opacity = far * (0.4 + 0.6 * tw)
+      // (Not drawn at all where it has faded out — past 2.6 km, and where the thing itself shows —
+      // rather than drawn clear. By the material: the sprite's own `visible` says taken or hidden.)
+      g.sprite.material.visible = far > 0.003
       const s = 0.022 + 0.034 * tw
       g.sprite.scale.set(s, s, 1)
     }
