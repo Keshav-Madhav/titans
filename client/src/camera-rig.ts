@@ -352,7 +352,13 @@ export class CameraRig {
     if (this.aiming) this.lift = 0
     this.lift += (lift - this.lift) * Math.min(1, dt * (lift > this.lift ? 12 : 2))
     cam.y += this.lift
-    const floor = drawn(cam.x, cam.z) + 0.45
+    // (The floor under the whole lens, not the point under it: on a ledge at a cliff's foot the drawn
+    // ground there is a near-vertical sheet — 20 m up in a metre — and 0.45 m above the point under
+    // the lens was 2 cm off the wall: the near plane cut through it and the screen went white with the
+    // sky beyond. A golden-hour tour, 2026-11-20, a Dune Sea mesa.)
+    let floor = -Infinity
+    for (const [ox, oz] of RING) floor = Math.max(floor, drawn(cam.x + ox * CAM_R, cam.z + oz * CAM_R))
+    floor += 0.45
     if (cam.y < floor) cam.y = floor
 
     if (this.trauma > 0.002) {
