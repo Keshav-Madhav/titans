@@ -19,3 +19,14 @@ export function sendInstances(mesh: THREE.InstancedMesh, n: number): void {
     c.needsUpdate = true
   }
 }
+
+/**
+ * Set how many instances a mesh draws, and send them. None: not drawn at all — an instanced mesh at
+ * count 0 still went through the renderer's program and uniform set-up every frame, then drew
+ * nothing (six such in the Grove, 2026-11-20). For meshes whose `visible` nothing else drives.
+ */
+export function setInstances(mesh: THREE.InstancedMesh, n: number): void {
+  mesh.count = n
+  mesh.visible = n > 0
+  sendInstances(mesh, n)
+}

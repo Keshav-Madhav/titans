@@ -10,7 +10,7 @@
 // the forest. Everything is instanced and sways a little in the wind.
 
 import * as THREE from 'three'
-import { sendInstances } from './instances'
+import { setInstances } from './instances'
 import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import { tallAt } from './tallgrass'
 import { broadleafGeometry, bushGeometry, coniferGeometry, foliageMaterial, foliageTexture } from './trees'
@@ -361,8 +361,7 @@ export class Vegetation {
           const mesh = this.meshes[k]
           ;(mesh.instanceMatrix.array as Float32Array).set(f.m)
           ;(mesh.instanceColor!.array as Float32Array).set(f.c)
-          mesh.count = f.n
-          sendInstances(mesh, f.n)
+          setInstances(mesh, f.n)
         }
         this.cullStats.off = '1'
         this.cullDirty = true
@@ -396,8 +395,7 @@ export class Vegetation {
         }
         v++
       }
-      mesh.count = v
-      sendInstances(mesh, v)
+      setInstances(mesh, v)
       this.cullStats[k] = `${v}/${f.n}`
     }
   }
@@ -483,6 +481,7 @@ export class Vegetation {
       const cap = sectored ? Math.ceil(CAP[k] / 3) : CAP[k]
       const mesh = new THREE.InstancedMesh(geo, mat, cap)
       mesh.count = 0
+      mesh.visible = false
       mesh.frustumCulled = sectored
       mesh.castShadow = k === 'coniferNear' || k === 'broadNear' || k === 'rock' || k === 'rockA' || k === 'rockB' || k === 'rockC'
       mesh.receiveShadow = k !== 'coniferMid' && k !== 'broadMid' && k !== 'coniferFar' && k !== 'broadFar'
@@ -494,6 +493,7 @@ export class Vegetation {
         for (let s = 1; s < SECTORS; s++) {
           const m2 = new THREE.InstancedMesh(geo, mat, cap)
           m2.count = 0
+          m2.visible = false
           m2.frustumCulled = true
           m2.castShadow = mesh.castShadow
           m2.receiveShadow = mesh.receiveShadow
@@ -510,6 +510,7 @@ export class Vegetation {
       const caster = (src: THREE.InstancedMesh) => {
         const m = new THREE.InstancedMesh(src.geometry, src.material, CAP[nearK])
         m.count = 0
+        m.visible = false
         m.frustumCulled = false
         m.castShadow = true
         m.layers.set(SHADOW_ONLY)
@@ -941,16 +942,14 @@ export class Vegetation {
       if (list) {
         const counts = sn.get(k)!
         list.forEach((mesh, s) => {
-          mesh.count = counts[s]
-          sendInstances(mesh, counts[s])
+          setInstances(mesh, counts[s])
           // (Its bounds, for the culling: computed over the instances it holds now.)
           if (counts[s] > 0) mesh.computeBoundingSphere()
         })
         continue
       }
       const mesh = this.meshes[k]
-      mesh.count = n[k]
-      sendInstances(mesh, n[k])
+      setInstances(mesh, n[k])
       if (CULLED[k]) {
         this.full.set(k, { m: (mesh.instanceMatrix.array as Float32Array).slice(0, n[k] * 16), c: (mesh.instanceColor!.array as Float32Array).slice(0, n[k] * 3), n: n[k] })
         this.cullDirty = true
@@ -958,8 +957,7 @@ export class Vegetation {
     }
     if (trees) for (const [k, casters] of this.shadeCast) {
       casters.forEach((m, j) => {
-        m.count = shadeN.get(k)![j]
-        sendInstances(m, m.count)
+        setInstances(m, shadeN.get(k)![j])
       })
     }
     if (trees) this.stats = {
