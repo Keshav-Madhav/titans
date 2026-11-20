@@ -19,9 +19,10 @@ const STEP_TIME = 5 // seconds a foot is in the air
 const REACH = 210 // how far out from the body a foot rests
 
 interface Leg {
-  thigh: THREE.Mesh
-  shin: THREE.Mesh
-  knee: THREE.Mesh
+  /** Posed here, drawn by the shared instanced meshes (Striders.legMeshes). */
+  thigh: THREE.Object3D
+  shin: THREE.Object3D
+  knee: THREE.Object3D
   foot: THREE.Vector3
   from: THREE.Vector3
   to: THREE.Vector3
@@ -53,7 +54,7 @@ const _k = new THREE.Vector3()
 const _h = new THREE.Vector3()
 
 /** Point a unit-length, base-at-origin bone from a to b. */
-function bone(m: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3): void {
+function bone(m: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3): void {
   _d.subVectors(b, a)
   const len = _d.length()
   m.position.copy(a)
@@ -148,6 +149,16 @@ export class Striders {
       spines.push(s)
     }
     const neckGeo = new THREE.CylinderGeometry(2.5, 9, 1, 8, 1).translate(0, 0.5, 0)
+    // Every leg part of every strider drawn at once: one instanced mesh each for thighs, shins and
+    // knees (36 meshes were 36 draws a pass and as many into the shadow map — the Dune Sea's census,
+    // 2026-11-20). Posed as plain objects; their matrices written in after (update).
+    this.legMeshes = [thighGeo, shinGeo, kneeGeo].map((geo) => {
+      const m = new THREE.InstancedMesh(geo, pale, count * LEGS)
+      m.castShadow = true
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+      this.group.add(m)
+      return m
+    })
     for (let s = 0; s < count; s++) {
       const group = new THREE.Group()
       const body = new THREE.Mesh(mergeAll(spines), pale)
@@ -167,11 +178,9 @@ export class Striders {
       group.add(threads)
       const legs: Leg[] = []
       for (let l = 0; l < LEGS; l++) {
-        const thigh = new THREE.Mesh(thighGeo, pale)
-        const shin = new THREE.Mesh(shinGeo, pale)
-        const knee = new THREE.Mesh(kneeGeo, pale)
-        thigh.castShadow = shin.castShadow = knee.castShadow = true
-        group.add(thigh, shin, knee)
+        const thigh = new THREE.Object3D()
+        const shin = new THREE.Object3D()
+        const knee = new THREE.Object3D()
         legs.push({ thigh, shin, knee, foot: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), swing: -1, angle: (l / LEGS) * Math.PI * 2 + Math.PI / LEGS })
       }
       body.castShadow = neck.castShadow = true
@@ -289,7 +298,22 @@ export class Striders {
       }
       s.group.updateMatrixWorld(true)
     }
+    // The legs into their instanced meshes (world space: the striders' groups stand at the origin).
+    const [thighs, shins, knees] = this.legMeshes
+    this.striders.forEach((s, si) => {
+      s.legs.forEach((leg, li) => {
+        const i = si * LEGS + li
+        thighs.setMatrixAt(i, leg.thigh.matrix.compose(leg.thigh.position, leg.thigh.quaternion, leg.thigh.scale))
+        shins.setMatrixAt(i, leg.shin.matrix.compose(leg.shin.position, leg.shin.quaternion, leg.shin.scale))
+        knees.setMatrixAt(i, leg.knee.matrix.compose(leg.knee.position, leg.knee.quaternion, leg.knee.scale))
+      })
+    })
+    for (const m of this.legMeshes) {
+      m.instanceMatrix.needsUpdate = true
+      m.computeBoundingSphere()
+    }
   }
+  private legMeshes: THREE.InstancedMesh[] = []
 }
 
 const _hip = new THREE.Vector3()
