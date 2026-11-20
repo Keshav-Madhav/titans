@@ -252,6 +252,8 @@ export class SkySystem {
     this.sky.material.uniforms.uMorning.value = this.morning
     ;(this.stars.material as THREE.ShaderMaterial).uniforms.uNight.value = Math.max(this.night, THREE.MathUtils.smoothstep(this.dusk, 0.7, 1) * 0.35)
     this.moon.material.opacity = THREE.MathUtils.smoothstep(this.night, 0.05, 0.6)
+    // (By day it was still drawn, clear: not at all.)
+    this.moon.visible = this.moon.material.opacity > 0.003
     // The image light follows the sky, rebaked when the sun has moved a few degrees.
     if (force || this.sunDir.angleTo(this.bakedAt) > THREE.MathUtils.degToRad(3)) {
       this.bakedAt.copy(this.sunDir)
