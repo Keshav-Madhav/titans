@@ -81,6 +81,7 @@ export class MireView {
     wGeo.setIndex(idx)
     wGeo.setDrawRange(0, 0)
     this.water = new THREE.Mesh(wGeo, mat)
+    this.water.visible = false
     this.water.frustumCulled = false
     this.water.receiveShadow = true
     // A drowned tree: a grey trunk, snapped high, with two or three bare limbs.
@@ -100,6 +101,7 @@ export class MireView {
     this.snags.frustumCulled = false
     this.snags.castShadow = true
     this.snags.count = 0
+    this.snags.visible = this.snags.count > 0
     this.group.add(this.snags)
     // (With the soft layers: see the material.)
     this.water.renderOrder = 1
@@ -132,7 +134,9 @@ export class MireView {
     this.lastKey = key
     if (this.mire(cam.x, cam.z) < 0.01 && this.mire(cam.x + Math.sign(-cam.x) * NEAR, cam.z) < 0.01) {
       this.water.geometry.setDrawRange(0, 0)
+      this.water.visible = false
       this.snags.count = 0
+      this.snags.visible = this.snags.count > 0
       this.pools.length = 0
       return
     }
@@ -190,8 +194,11 @@ export class MireView {
       }
     }
     this.water.geometry.setDrawRange(0, nw * SPOKES * 3)
+    // (No pools near: not drawn — at an empty range the mesh still cost the renderer its set-up.)
+    this.water.visible = nw > 0
     ;(this.water.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true
     this.snags.count = ns
+    this.snags.visible = this.snags.count > 0
     this.snags.instanceMatrix.needsUpdate = true
   }
 }

@@ -156,6 +156,7 @@ export class Ambience {
     this.flushed = new THREE.InstancedMesh(bird, new THREE.MeshBasicMaterial({ color: 0x4a3f33, side: THREE.DoubleSide }), FLUSH)
     this.flushed.frustumCulled = false
     this.flushed.count = 0
+    this.flushed.visible = false
     for (let i = 0; i < FLUSH; i++) this.flushState.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), age: 99, size: 0.12 })
     this.group.add(this.flushed)
     // A hare: a round body, a smaller head, two tall ears, a white scut.
@@ -239,6 +240,8 @@ export class Ambience {
       this.flushed.setMatrixAt(fk++, _m)
     }
     this.flushed.count = fk
+    // (None in the air: not drawn — at count 0 a mesh still costs the renderer its whole set-up.)
+    this.flushed.visible = fk > 0
     this.flushed.instanceMatrix.needsUpdate = true
     // Fireflies: wrap round the camera, sit 0.4–2.6 m over the ground, drift.
     const on = dusk * (1 - rain)
@@ -315,6 +318,7 @@ export class Ambience {
       }
     }
     this.circlers.count = k
+    this.circlers.visible = k > 0
     this.circlers.instanceMatrix.needsUpdate = true
   }
 }

@@ -8,7 +8,7 @@
 // the formation's own shape (rocks.sdfAt): walk out from its middle until you leave the stone.
 
 import * as THREE from 'three'
-import { sendInstances } from './instances'
+import { setInstances } from './instances'
 import { mulberry32, type Terrain } from '@titans/shared'
 
 const NEAR_R = 90
@@ -95,6 +95,7 @@ export class StatueSkirts {
       const m = new THREE.InstancedMesh(n.geo, n.mat, CAP)
       m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
       m.count = 0
+      m.visible = false
       m.castShadow = true
       m.receiveShadow = true
       m.frustumCulled = false
@@ -104,6 +105,7 @@ export class StatueSkirts {
     for (const p of this.plants) {
       p.mesh = new THREE.InstancedMesh(p.geo, p.mat, Math.max(1, p.list.length))
       p.mesh.count = 0
+      p.mesh.visible = false
       p.mesh.frustumCulled = false
       p.mesh.receiveShadow = true
       const col = new Float32Array(Math.max(1, p.list.length) * 3)
@@ -114,6 +116,7 @@ export class StatueSkirts {
     this.far = new THREE.InstancedMesh(farGeo, near[0].mat, CAP)
     this.far.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
     this.far.count = 0
+    this.far.visible = false
     this.far.receiveShadow = true
     this.far.frustumCulled = false
     this.group.add(this.far)
@@ -219,11 +222,9 @@ export class StatueSkirts {
       }
     }
     this.near.forEach((m, k) => {
-      m.count = counts[k]
-      sendInstances(m, counts[k])
+      setInstances(m, counts[k])
     })
-    this.far.count = farN
-    sendInstances(this.far, farN)
+    setInstances(this.far, farN)
     // The plants: only near (they are small).
     for (const p of this.plants) {
       let n = 0
@@ -231,8 +232,7 @@ export class StatueSkirts {
         const d2 = (p.xz[j * 2] - cam.x) ** 2 + (p.xz[j * 2 + 1] - cam.z) ** 2
         if (d2 < 220 * 220) p.mesh!.setMatrixAt(n++, p.list[j])
       }
-      p.mesh!.count = n
-      sendInstances(p.mesh!, n)
+      setInstances(p.mesh!, n)
     }
     this.stats.near = counts.reduce((a, b) => a + b, 0)
     this.stats.far = farN

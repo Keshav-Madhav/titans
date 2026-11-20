@@ -4,7 +4,7 @@
 // up and over, with leaflets in pairs down both sides that droop and shorten toward the tip.
 
 import * as THREE from 'three'
-import { sendInstances } from './instances'
+import { setInstances } from './instances'
 import { foliageFocus } from './trees'
 import { mulberry32, type Terrain } from '@titans/shared'
 
@@ -300,6 +300,7 @@ export class GiantFerns {
     this.far = new THREE.InstancedMesh(fernGeometry(false), mat, CAP)
     for (const m of [this.near, this.far]) {
       m.count = 0
+      m.visible = false
       m.frustumCulled = false
       m.receiveShadow = true
       this.mesh.add(m)
@@ -354,10 +355,8 @@ export class GiantFerns {
         }
       }
     }
-    this.far.count = n
-    this.near.count = nn
-    sendInstances(this.far, n)
-    sendInstances(this.near, nn)
+    setInstances(this.far, n)
+    setInstances(this.near, nn)
     if (this.cells.size > 3000) this.cells.clear()
   }
 }
