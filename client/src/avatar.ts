@@ -10,6 +10,7 @@
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 /** The figure's height (m, to the hood's top) — the old wanderer's. */
 const HEIGHT = 1.74
@@ -75,6 +76,7 @@ export class Avatar {
         m.visible = false
         return
       }
+      m.userData.sourceMaterial = m.material
       if (/Hood/.test(m.name)) m.material = red
       else {
         // The outfit's own colours, pulled toward the wanderer's: a worn, dark, warm brown.
@@ -83,6 +85,7 @@ export class Avatar {
         m.material = mat
       }
     })
+    this.mergeParts()
     // Where a face would be: a dark hollow, deep in the hood.
     const head = this.bones.get('Head')
     if (head) {
@@ -112,6 +115,50 @@ export class Avatar {
       a.setEffectiveWeight(0)
       a.play()
       this.act.set(c.name, a)
+    }
+  }
+
+  /**
+   * The outfit's parts that share one source material and one skeleton drawn as one skinned mesh:
+   * arms, bracers, body, belts, legs and boots were seven draws a pass and seven into the shadow map,
+   * each with its own copy of the same material (2026-11-20). Only where the skeletons list the same
+   * bones in the same order and bind alike — the skin weights index into that list; anything else
+   * is left as it was.
+   */
+  private mergeParts(): void {
+    // (By material and by the set of vertex attributes: the merge needs the same set throughout.)
+    const groups = new Map<string, THREE.SkinnedMesh[]>()
+    for (const m of this.meshes) {
+      if (!m.visible || /Hood/.test(m.name)) continue
+      const src = m.userData.sourceMaterial as THREE.Material | undefined
+      if (!src) continue
+      const key = src.uuid + '|' + Object.keys(m.geometry.attributes).sort().join(',')
+      const list = groups.get(key) ?? []
+      list.push(m)
+      groups.set(key, list)
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue
+      const first = list[0]
+      const bones = first.skeleton.bones
+      const same = list.every((m) => m.parent === first.parent && m.bindMatrix.equals(first.bindMatrix) && m.matrix.equals(first.matrix) && m.skeleton.bones.length === bones.length && m.skeleton.bones.every((b, i) => b === bones[i] && m.skeleton.boneInverses[i].equals(first.skeleton.boneInverses[i])))
+      if (!same) continue
+      const geo = mergeGeometries(list.map((m) => m.geometry))
+      if (!geo) continue
+      const merged = new THREE.SkinnedMesh(geo, first.material)
+      merged.name = list.map((m) => m.name).join('+')
+      merged.position.copy(first.position)
+      merged.quaternion.copy(first.quaternion)
+      merged.scale.copy(first.scale)
+      merged.castShadow = merged.receiveShadow = true
+      merged.frustumCulled = false
+      merged.bind(first.skeleton, first.bindMatrix)
+      first.parent!.add(merged)
+      for (const m of list) {
+        m.removeFromParent()
+        this.meshes.splice(this.meshes.indexOf(m), 1)
+      }
+      this.meshes.push(merged)
     }
   }
 
