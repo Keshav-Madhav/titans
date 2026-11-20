@@ -105,6 +105,7 @@ import { featherVanes, quillGeometry, quillShape, type Feather } from './feather
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
+import { RING_R, ringMesh, ringRise, ringSeat, ringShape, ringStandIn } from './ring'
 import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
 import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
@@ -496,6 +497,51 @@ const urchinAt = new THREE.Vector3()
       um.rotation.y = rot
       scene.add(um)
       urchinAt.set(x, h, z)
+      break search
+    }
+}
+// The Ring (ring.ts): in the Dune Sea, a giant's ring standing on its edge in the sand, half sunk,
+// leaning — thirty metres across, its setting empty. One idea for its stretch of dunes: the first spot
+// found well away from every colossus, the sand under it even enough and clear of stone, its arch
+// turned to face back toward the valley.
+const ringAt = new THREE.Vector3()
+const ringChip = new THREE.Vector3()
+{
+  const far = [...colossi.places.values()]
+  search: for (let r = 3400; r < 6400; r += 70)
+    for (let a = 0; a < Math.PI * 2; a += 0.05) {
+      const x = Math.sin(a + r * 0.0007) * r
+      const z = Math.cos(a + r * 0.0007) * r
+      if (terrain.base.regions.name(x, z) !== 'desert' || far.some((p) => Math.hypot(p.x - x, p.z - z) < 600)) continue
+      const rot = Math.atan2(x, z)
+      const cx = Math.cos(rot)
+      const sx = -Math.sin(rot)
+      // Its footprint: across the ring (local x, ±R) and along its axis (local z, ±3 m).
+      let lo = Infinity
+      let hi = -Infinity
+      let clear = true
+      for (let i = -4; i <= 4 && clear; i++)
+        for (const w of [-3, 0, 3]) {
+          const lx = (i / 4) * RING_R
+          const px = x + lx * cx + w * Math.sin(rot)
+          const pz = z + lx * sx + w * Math.cos(rot)
+          const h = terrain.heightAt(px, pz)
+          lo = Math.min(lo, h)
+          hi = Math.max(hi, h)
+          if (rocks.occupies(px, pz)) clear = false
+        }
+      if (!clear || hi - lo > 5 || lo < 2) continue
+      const y = lo + ringRise()
+      // (Through addBuilt for the standing, climbing and grappling only; drawn by its own mesh.)
+      rocks.addBuilt(ringShape(), ringStandIn(), { x, y, z, rot, layers: [LAYER.bone, LAYER.sand], scale: 5, tint: [0.5, 0.35, 0.18] })
+      const f = rocks.formations[rocks.formations.length - 1]
+      if (f.mesh) f.mesh.visible = false
+      const rm = ringMesh()
+      rm.position.set(x, y, z)
+      rm.rotation.y = rot
+      scene.add(rm)
+      ringAt.set(x, lo, z)
+      ringChip.copy(ringSeat()).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
       break search
     }
 }
@@ -1299,6 +1345,13 @@ const spots = (() => {
     small.castShadow = true
     placed.push({ id: 'board-piece', kind: 'trinket', at: boardPiece.clone(), model: small })
   }
+  // In the Ring's empty setting, on top: one chip of the stone that was there.
+  if (ringChip.lengthSq() > 0) {
+    const chip = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0).scale(1, 0.7, 0.85).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0x8e1c2c, roughness: 0.18, metalness: 0.1, emissive: new THREE.Color(0.08, 0.005, 0.01) }))
+    chip.rotation.set(0.4, 0.9, 0.2)
+    chip.castShadow = true
+    placed.push({ id: 'ring-chip', kind: 'trinket', at: ringChip.clone(), model: chip })
+  }
   // Inside the Urchin, on the sand: one tooth of the jaw that was underneath.
   if (urchinAt.lengthSq() > 0) {
     const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 6).rotateZ(Math.PI / 2 - 0.25).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.55 }))
@@ -1913,6 +1966,7 @@ const sites: Site[] = [
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'board', r: 90, at: () => (boardAt.lengthSq() > 0 ? { x: boardAt.x, z: boardAt.z } : null) },
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
+  { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
@@ -4978,6 +5032,8 @@ const g = {
   lilyFlower,
   webAt,
   urchinAt,
+  ringAt,
+  ringChip,
   boardAt,
   boardPiece,
   grass,
