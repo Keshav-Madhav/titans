@@ -523,6 +523,16 @@ Each phase ends playable. Phases are in PLAN.md §6.
         110-220 ms freeze (canvas drawing-buffer realloc), now 0 ms. Left: grass/vegetation re-lay
         costs on frames while running (5-13 ms on a loaded machine) — re-measured: vegetation repacks while
         running are 0.2-2.9 ms; the heavy ones (20-28 ms) are only the far-ring fill right after a jump.
+  - [x] 2026-11-19/20: the CPU side, for slower machines. Main-thread JS ~4.3 ms/frame at quarter res
+        on the M5 (the profiler's "10 ms in uniformMatrix4fv" was GPU back-pressure charged to the
+        blocking call). Cut: dirty-checked matrices (scene walk 0.69 → 0.32 ms), cloth ground from a
+        per-frame grid (1.22 → 0.40 ms), grid cape normals (11x), camera ground corners once a frame,
+        far herds' ground every 4th step, governor floor 0.875 → 0.67 (1x screens had no room);
+        draws merged or culled — camp stones, far camps, the Hanged, stone eyes, faded glints, strider
+        legs (instanced), the wanderer's outfit (9 → 5): Grove 281 + 121 shadow → 231 + 90. With
+        Chrome's CPU throttle at 3x: Green ~60 fps, Dune Sea ~52, Grove ~38 (its draw count is the
+        floor). Left: the Grove on a slow CPU — terrain chunks, vegetation tiles and the giant trees'
+        crowns are the remaining draws.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
