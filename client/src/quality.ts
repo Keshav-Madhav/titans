@@ -39,7 +39,7 @@ interface Level {
 const LEVELS: Level[] = [
   { splitK: 1.0, farSplitK: 3, res: 64, shadow: 4096, veg: [260, 1400, 110] },
   { splitK: 1.0, farSplitK: 2.5, res: 64, shadow: 2048, veg: [180, 900, 75] },
-  { splitK: 1.0, farSplitK: 1.5, res: 32, shadow: 1024, veg: [110, 480, 40] },
+  { splitK: 1.0, farSplitK: 2.0, res: 32, shadow: 1024, veg: [110, 480, 40] },
 ]
 
 /** The frame time we hold (ms): 60 a second, a little slack. */
