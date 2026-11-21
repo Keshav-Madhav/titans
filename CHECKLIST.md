@@ -543,6 +543,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         Grove profile after all of it (quarter res, M5): 8.6 ms/frame main thread (13.7 this morning) —
         render 6.6 of it, nearly all per-draw driver work (drawElements 2.7, VAO binds 1.6); the game's
         own systems (animation, cloth, physics, land sampling) ~1.5 ms together. Draw count is the floor.
+        Then the far land in one batch (BatchedMesh, 640 slots): terrain draws Green 101 → 26, Dune Sea
+        157 → 36, from 300 m up 131 → 21 (all draws −23-30 %); main thread at 3x throttle Green 10.5 →
+        9.4 ms, Dune Sea 11.3 → 10.0. Next lever if wanted: the near chunks (25-35 draws) the same way.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
