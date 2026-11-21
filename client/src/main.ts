@@ -3739,6 +3739,8 @@ let vertigo = 0
 let pitchFov = 0
 /** When you last turned the view yourself (ms). */
 let lastLookAt = 0
+/** The pitch the view had before the scale director's drift tilted it up (null: not drifted). */
+let driftFrom: number | null = null
 /** The speed streaks' strength now (eased). */
 let streakK = 0
 let vertigoT = 0
@@ -4520,8 +4522,17 @@ function frameBody(now: number): void {
     // (Only on your feet, and never so far that you leave the frame: at its -0.48 the gaze went ~55°
     // up and the wanderer fell off the bottom of the screen — gliding down off a giant you flew blind,
     // playtest 2026-11-08. -0.22 looks ~19° up: the giant above, you in the lower third.)
-    if (sc.pitch !== null && !awakening.active && !climber.active && !cliff.active && wanderer.grounded && performance.now() - lastLookAt > 5000)
+    // (And it gives the view back: once the giant no longer holds the gaze — it walked on, or you turned
+    // away from it — the tilt eases back to where you had it, unless you have moved the view since. Left
+    // tilted, the camera stared at empty sky after the Walker passed: playtest 2026-11-21.)
+    if (performance.now() - lastLookAt < 5000) driftFrom = null
+    if (sc.pitch !== null && !awakening.active && !climber.active && !cliff.active && wanderer.grounded && performance.now() - lastLookAt > 5000) {
+      if (driftFrom === null) driftFrom = rig.pitch
       rig.pitch += (Math.max(sc.pitch, -0.22) - rig.pitch) * Math.min(1, dt * 0.55)
+    } else if (driftFrom !== null && !climber.active && !awakening.active) {
+      rig.pitch += (driftFrom - rig.pitch) * Math.min(1, dt * 0.55)
+      if (Math.abs(rig.pitch - driftFrom) < 0.005) driftFrom = null
+    }
     // A giant near you casts its shadow over you: the shadow map reaches out to it.
     const dom = scaleDir.dominant
     const wantR = dom && dom.dist < 1400 ? Math.min(1100, Math.max(260, dom.dist + (dom.thing.top - dom.thing.base) * 1.4)) : 260
