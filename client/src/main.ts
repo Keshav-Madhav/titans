@@ -106,6 +106,7 @@ import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
 import { RING_R, ringMesh, ringRise, ringSeat, ringShape, ringStandIn } from './ring'
+import { LANTERN_HALF, LANTERN_HALF_LEN, LANTERN_RISE, lanternCandle, lanternGlass, lanternIron, lanternShape, lanternStandIn } from './lantern'
 import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
 import { POOL_CELL, poolInCell } from '@titans/shared'
 import { acornCupGeometry, acornCupShape, acornNutGeometry, acornNutShape, acornTop } from './acorns'
@@ -1345,6 +1346,13 @@ const spots = (() => {
     small.castShadow = true
     placed.push({ id: 'board-piece', kind: 'trinket', at: boardPiece.clone(), model: small })
   }
+  // Beside the Lantern's candle: a drop of its wax. (Placed when the Lantern is, once the Mire's pools are
+  // known, below; hidden till then.)
+  {
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8).scale(1.3, 0.55, 1).translate(0, 0.05, 0), new THREE.MeshStandardMaterial({ color: 0xe9dfc6, roughness: 0.6 }))
+    drop.castShadow = true
+    placed.push({ id: 'lantern-wax', kind: 'trinket', at: new THREE.Vector3(0, -1e4, 0), model: drop, hidden: true })
+  }
   // In the Ring's empty setting, on top: one chip of the stone that was there.
   if (ringChip.lengthSq() > 0) {
     const chip = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0).scale(1, 0.7, 0.85).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0x8e1c2c, roughness: 0.18, metalness: 0.1, emissive: new THREE.Color(0.08, 0.005, 0.01) }))
@@ -1800,6 +1808,60 @@ const toolbar = new Toolbar(finds)
 // The Mire: its pools' still water and its drowned trees, near you.
 const mireView = new MireView(terrain, (x, z) => biome.mire(x, z))
 scene.add(mireView.group)
+// The Lantern (lantern.ts): in the Mire, a giant's lantern lying on its side on a dry rise between the
+// pools, its candle inside burnt down, an ember on the wick by night. The first dry, level stretch found
+// walking out from the Mire's heart, well clear of the colossi and the stone.
+const lanternAt = new THREE.Vector3()
+let lanternEmber: THREE.Mesh | null = null
+{
+  const keep = [...colossi.places.values()]
+  search: for (let r = 300; r < 1600; r += 30)
+    for (let a = 0; a < Math.PI * 2; a += 0.06) {
+      const x = -5150 + Math.sin(a + r * 0.003) * r
+      const z = -2760 + Math.cos(a + r * 0.003) * r
+      if (biome.mire(x, z) < 0.55 || keep.some((p) => Math.hypot(p.x - x, p.z - z) < 350)) continue
+      const rot = a * 1.7
+      const ax = Math.cos(rot)
+      const az = -Math.sin(rot)
+      let lo = Infinity
+      let hi = -Infinity
+      let ok = true
+      for (let i = -3; i <= 3 && ok; i++)
+        for (const w of [-1, 0, 1]) {
+          const px = x + ax * (i / 3) * LANTERN_HALF_LEN + Math.sin(rot) * w * LANTERN_HALF
+          const pz = z + az * (i / 3) * LANTERN_HALF_LEN + Math.cos(rot) * w * LANTERN_HALF
+          const h = terrain.heightAt(px, pz)
+          lo = Math.min(lo, h)
+          hi = Math.max(hi, h)
+          if (mireView.wetAt(px, pz) || rocks.occupies(px, pz)) ok = false
+        }
+      if (!ok || hi - lo > 3) continue
+      const y = lo + LANTERN_RISE - 0.4
+      rocks.addBuilt(lanternShape(), lanternStandIn(), { x, y, z, rot, layers: [LAYER.bone, LAYER.mud], scale: 5, tint: [0.2, 0.18, 0.16] })
+      const f = rocks.formations[rocks.formations.length - 1]
+      if (f.mesh) f.mesh.visible = false
+      const group = new THREE.Group()
+      const iron = new THREE.Mesh(lanternIron(), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.45, roughness: 0.7, envMapIntensity: 0.7 }))
+      iron.castShadow = iron.receiveShadow = true
+      const glass = new THREE.Mesh(lanternGlass(), new THREE.MeshStandardMaterial({ color: 0x8f8a74, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }))
+      const c = lanternCandle()
+      const wax = new THREE.Mesh(c.wax, new THREE.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.75 }))
+      wax.castShadow = wax.receiveShadow = true
+      // The ember: a coal on the wick, dark by day, glowing faintly by night (frame: sky.night).
+      lanternEmber = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10).translate(c.ember.x, c.ember.y, c.ember.z), new THREE.MeshStandardMaterial({ color: 0x1a0d06, emissive: new THREE.Color(2.2, 0.55, 0.1), emissiveIntensity: 0 }))
+      group.add(iron, glass, wax, lanternEmber)
+      group.position.set(x, y, z)
+      group.rotation.y = rot
+      scene.add(group)
+      lanternAt.set(x, lo, z)
+      // The wax: on the ground beside the candle's foot.
+      const w = new THREE.Vector3(c.ember.x - 6.2, 0, c.ember.z - 2.9).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, 0, z))
+      w.y = terrain.heightAt(w.x, w.z)
+      spots.place('lantern-wax', w)
+      spots.reveal('lantern-wax')
+      break search
+    }
+}
 // The feather on the tallest mushroom's cap near the Drowned One: something the marsh's birds brought up.
 {
   const d = colossi.places.get('drowned')
@@ -1967,6 +2029,7 @@ const sites: Site[] = [
   { id: 'board', r: 90, at: () => (boardAt.lengthSq() > 0 ? { x: boardAt.x, z: boardAt.z } : null) },
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
+  { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
   { id: 'grove', r: 950, at: near(-0.866 * 4300, -0.5 * 4300) },
   { id: 'tallgrass', r: 260, at: near(TALL.x, TALL.z) },
@@ -4183,6 +4246,8 @@ function frameBody(now: number): void {
   } else hud.news(false, false)
   {
     camera.getWorldDirection(_bl)
+    // The Lantern's ember: alive only in the dark, breathing slowly.
+    if (lanternEmber) (lanternEmber.material as THREE.MeshStandardMaterial).emissiveIntensity = sky.night * (0.55 + 0.25 * Math.sin(now * 0.0011) + 0.1 * Math.sin(now * 0.0037))
     wanderer.backlit = THREE.MathUtils.smoothstep(_bl.x * sky.sunDir.x + _bl.z * sky.sunDir.z, 0.15, 0.75) * (1 - sky.night)
   }
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
@@ -5050,6 +5115,7 @@ const g = {
   grassQuality,
   ringAt,
   ringChip,
+  lanternAt,
   boardAt,
   boardPiece,
   grass,
