@@ -2531,6 +2531,8 @@ addEventListener('resize', () => {
 let acc = 0
 let last = performance.now()
 let ready = false
+/** The far ring of land built at least once since loading (till then it builds at the loading rate). */
+let farBuilt = false
 /** Simulation speed multiplier — tools fast-forward the giants with it. */
 const clock = { scale: 1 }
 /** Tools can walk giant 1 by hand. */
@@ -4700,7 +4702,7 @@ function frameBody(now: number): void {
   if (wanderer.lantern.parent !== scene) scene.attach(wanderer.lantern)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
-  { const _t = performance.now(); terrainView.update(camera.position, ready && !travelHold ? 5 : 40); costNote('terrain', performance.now() - _t) }
+  { const _t = performance.now(); terrainView.update(camera.position, ready && !travelHold && farBuilt ? 5 : 40); costNote('terrain', performance.now() - _t) }
   sky.follow(focus, camera)
   renderer.info.reset()
   // Near plants and stones: only those in view (the camera is final for this frame now).
@@ -4750,7 +4752,11 @@ function frameBody(now: number): void {
   }
   if (work.length > 1200) work.shift()
 
-  if (!ready && terrainView.settled()) {
+  // (Ready once the land round you is built — the far ring finishes behind the title, at the loading
+  // rate, a second or two: you wake underground, in the dark, where none of it can be seen. It was
+  // 1.6 s of a 5.7 s start: qa/cycle7/bootsplit.mjs, 2026-11-22.)
+  if (ready && !farBuilt && terrainView.settled()) farBuilt = true
+  if (!ready && terrainView.nearSettled()) {
     ready = true
     // Fixed in place for good: their matrices made once, not every frame (a CPU profile of a run
     // in the valley: updateMatrixWorld + multiplyMatrices ~1 ms a frame, 2,618 objects

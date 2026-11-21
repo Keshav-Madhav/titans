@@ -280,6 +280,11 @@ export class TerrainView {
     return this.stats.queued === 0 && this.desired.every((k) => this.shown.has(k))
   }
 
+  /** True when every desired chunk under FAR_CHUNK is shown: the land round you, if not yet the far ring. */
+  nearSettled(): boolean {
+    return this.desired.length > 0 && this.desired.every((k) => this.shown.has(k) || this.chunks.get(k)!.size >= FAR_CHUNK)
+  }
+
   private collect(level: number, ix: number, iz: number, cam: THREE.Vector3, out: number[]): void {
     const size = ROOT / (1 << level)
     const x0 = -ROOT / 2 + ix * size
