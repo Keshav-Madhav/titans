@@ -21,6 +21,18 @@ const MAX_LEVEL = Math.round(Math.log2(ROOT / LEAF))
 const FAR_CHUNK = 1024
 /** Chunks this size (metres) and up split by farSplitK. */
 const FAR_SPLIT_FROM = 2048
+/**
+ * The far chunks (FAR_CHUNK and up) are drawn together, one batch: the ring of land and mountains out to
+ * the horizon was 80-120 draw calls a frame on its own — most of the land's draws (2026-11-21; ~2 ms a
+ * frame here, ~5 on a slow CPU). Slots are sized for the finest far grid (32 quads) so a coarser one fits
+ * the same slot; up to FAR_SLOTS of them (some 420-430 are shown at once, more are kept for coming back).
+ */
+const FAR_SLOTS = 640
+const FAR_MAX_N = 32
+interface FarSlot {
+  geom: number
+  inst: number
+}
 
 /** Everything that depends on the chunk resolution N (quads per side). */
 interface Grid {
@@ -39,6 +51,8 @@ function makeGrid(N: number): Grid {
   const edges = edgeOrder(N)
   return { N, ROW, GRID_VERTS, VERTS: GRID_VERTS + 4 * ROW, H_ROW: N + 3, index: buildIndex(N, edges), edges }
 }
+/** The finest far grid: what a far slot is sized for. */
+const FAR_GRID_MAX = makeGrid(FAR_MAX_N)
 
 interface Chunk {
   key: number
@@ -47,6 +61,8 @@ interface Chunk {
   z0: number
   size: number
   mesh: THREE.Mesh | null
+  /** A far chunk is drawn from a slot in the far batch (TerrainView.farBatch), not a mesh of its own. */
+  far: FarSlot | null
   dirty: boolean
   lastSeen: number
   /** Its base heights (the noise: the expensive part), kept — a giant's step changes only the delta. */
@@ -110,6 +126,53 @@ export class TerrainView {
   private readonly detail: Noise2
   private readonly centreH = new Map<number, number>()
   private shown = new Set<number>()
+  /** The far chunks' batch, its free slots, and the scratch geometry a far chunk is built in. */
+  private farBatch: THREE.BatchedMesh | null = null
+  private farFree: FarSlot[] = []
+  private farSlots = 0
+  private farScratch: THREE.BufferGeometry | null = null
+  /** Has something to draw (a mesh, or a far slot). */
+  private has(c: Chunk): boolean {
+    return !!c.mesh || !!c.far
+  }
+  private setShown(c: Chunk, v: boolean): void {
+    if (c.mesh) c.mesh.visible = v
+    else if (c.far) this.farBatch!.setVisibleAt(c.far.inst, v)
+  }
+  /** A slot for a far chunk: a free one, a new one, or the longest-unseen one not on screen (null: none). */
+  private takeFarSlot(want: Set<number> | null): FarSlot | null {
+    const free = this.farFree.pop()
+    if (free) return free
+    // (Sizes from the finest far grid itself: its skirts are drawn both ways, 12 indices a quad.)
+    const top = FAR_GRID_MAX
+    const VERTS = top.VERTS
+    const INDEX = top.index.count
+    if (!this.farBatch) {
+      this.farBatch = new THREE.BatchedMesh(FAR_SLOTS, FAR_SLOTS * VERTS, FAR_SLOTS * INDEX, this.material)
+      this.farBatch.frustumCulled = false
+      this.farBatch.receiveShadow = true
+      this.farBatch.name = 'terrain-far'
+      this.group.add(this.farBatch)
+    }
+    if (this.farSlots < FAR_SLOTS) {
+      const geom = this.farBatch.addGeometry(this.farScratch!, VERTS, INDEX)
+      const inst = this.farBatch.addInstance(geom)
+      this.farBatch.setVisibleAt(inst, false)
+      this.farSlots++
+      return { geom, inst }
+    }
+    let victim: Chunk | null = null
+    for (const c of this.chunks.values()) {
+      if (!c.far || this.shown.has(c.key) || (want && want.has(c.key))) continue
+      if (!victim || c.lastSeen < victim.lastSeen) victim = c
+    }
+    if (!victim) return null
+    const slot = victim.far!
+    victim.far = null
+    this.farBatch.setVisibleAt(slot.inst, false)
+    return slot
+  }
+  private want: Set<number> | null = null
   private frame = 0
   private desired: number[] = []
   stats = { shown: 0, built: 0, queued: 0, buildMs: 0 }
@@ -177,6 +240,7 @@ export class TerrainView {
     desired.length = 0
     this.collect(0, 0, 0, cam, desired)
     const want = new Set(desired)
+    this.want = want
 
     // Build queue: missing or dirty desired chunks, nearest first.
     const queue: Chunk[] = []
@@ -187,7 +251,7 @@ export class TerrainView {
         this.chunks.set(key, c)
       }
       c.lastSeen = this.frame
-      if (!c.mesh || c.dirty) queue.push(c)
+      if (!this.has(c) || c.dirty) queue.push(c)
     }
     const cx = cam.x
     const cz = cam.z
@@ -249,7 +313,7 @@ export class TerrainView {
     const ix = rest % 1048576
     const level = (rest - ix) / 1048576
     const size = ROOT / (1 << level)
-    return { key, level, x0: -ROOT / 2 + ix * size, z0: -ROOT / 2 + iz * size, size, mesh: null, dirty: false, lastSeen: 0 }
+    return { key, level, x0: -ROOT / 2 + ix * size, z0: -ROOT / 2 + iz * size, size, mesh: null, far: null, dirty: false, lastSeen: 0 }
   }
 
   private isAncestor(a: Chunk, b: Chunk): boolean {
@@ -267,14 +331,14 @@ export class TerrainView {
     for (const key of this.shown) {
       if (want.has(key)) continue
       const s = this.chunks.get(key)
-      if (!s || !s.mesh) continue
+      if (!s || !this.has(s)) continue
       let ready = true
       const under: number[] = []
       for (const k of this.desired) {
         const d = this.chunks.get(k)!
         if (this.isAncestor(d, s) || this.isAncestor(s, d)) {
           under.push(k)
-          if (!d.mesh) ready = false
+          if (!this.has(d)) ready = false
         }
       }
       if (!ready || under.length === 0) {
@@ -284,9 +348,9 @@ export class TerrainView {
     }
     for (const k of this.desired) {
       const c = this.chunks.get(k)!
-      if (c.mesh && !blocked.has(k)) show.add(k)
+      if (this.has(c) && !blocked.has(k)) show.add(k)
     }
-    for (const c of this.chunks.values()) if (c.mesh) c.mesh.visible = show.has(c.key)
+    for (const c of this.chunks.values()) if (this.has(c)) this.setShown(c, show.has(c.key))
     this.shown = show
     this.stats.shown = show.size
   }
@@ -298,6 +362,11 @@ export class TerrainView {
       if (c.mesh) {
         this.group.remove(c.mesh)
         c.mesh.geometry.dispose()
+      }
+      if (c.far) {
+        this.farBatch!.setVisibleAt(c.far.inst, false)
+        this.farFree.push(c.far)
+        c.far = null
       }
       this.chunks.delete(c.key)
     }
@@ -392,19 +461,34 @@ export class TerrainView {
       }
     }
 
+    const newGeo = () => {
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
+      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
+      g.setAttribute('aSplatA', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
+      g.setAttribute('aSplatB', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
+      g.setIndex(grid.index)
+      return g
+    }
+    const isFar = c.size >= FAR_CHUNK
+    let slot: FarSlot | null = null
     let geo: THREE.BufferGeometry
-    if (c.mesh && c.mesh.geometry.getAttribute('position').count === VERTS) {
+    if (isFar) {
+      // Built in the scratch geometry, then copied into the chunk's slot in the far batch.
+      if (!this.farScratch || this.farScratch.getAttribute('position').count !== VERTS) {
+        this.farScratch?.dispose()
+        this.farScratch = newGeo()
+      }
+      geo = this.farScratch!
+      slot = c.far ?? this.takeFarSlot(this.want)
+      if (!slot) return // (the pool is full of what is on screen: built when one frees up)
+    } else if (c.mesh && c.mesh.geometry.getAttribute('position').count === VERTS) {
       geo = c.mesh.geometry
     } else {
       // New chunk, or the resolution changed: fresh buffers.
       c.mesh?.geometry.dispose()
-      geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
-      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
-      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3))
-      geo.setAttribute('aSplatA', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
-      geo.setAttribute('aSplatB', new THREE.BufferAttribute(new Uint8Array(VERTS * 4), 4, true))
-      geo.setIndex(grid.index)
+      geo = newGeo()
       if (c.mesh) c.mesh.geometry = geo
     }
     this.fitDiagonals(geo, step, grid)
@@ -473,6 +557,13 @@ export class TerrainView {
     geo.computeBoundingSphere()
     geo.computeBoundingBox()
 
+    if (slot) {
+      this.farBatch!.setGeometryAt(slot.geom, geo)
+      c.far = slot
+      c.dirty = false
+      this.stats.built++
+      return
+    }
     if (!c.mesh) {
       const mesh = new THREE.Mesh(geo, this.material)
       mesh.receiveShadow = true
