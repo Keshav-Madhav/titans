@@ -533,6 +533,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         Chrome's CPU throttle at 3x: Green ~60 fps, Dune Sea ~52, Grove ~38 (its draw count is the
         floor). Left: the Grove on a slow CPU — terrain chunks, vegetation tiles and the giant trees'
         crowns are the remaining draws.
+        2026-11-21: on a CPU-bound machine the governor now drops detail and keeps the resolution (it
+        blurred to 0.67 for nothing before the detail drop that helps); empty and fully-clear draws
+        gone (~14 a frame in every land).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
