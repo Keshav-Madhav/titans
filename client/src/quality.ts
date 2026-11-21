@@ -60,6 +60,10 @@ export class Quality {
   private readonly maxDpr: number
   private readonly pinned: boolean
   private times: number[] = []
+  /** Each frame's main-thread time over the window (main.ts measures it). */
+  private cpu: number[] = []
+  /** The last judged window (tools). */
+  lastWindow = { med: 0, cpu: 0, cpuBound: false }
   private since = performance.now()
   private last = 0
   private goodFor = 0
@@ -203,25 +207,37 @@ export class Quality {
   }
 
   /** Call once per rendered frame (not while the loading veil is up). */
-  frame(now: number): void {
+  frame(now: number, cpuMs = 0): void {
     // The frame's cost: the longer of its interval and its measured GPU time — the GPU reading only
     // while it is believable. (On the M-series in Chrome the query reads ~2.5x the real cost — 36–44 ms
     // for frames that ran steadily at 14–17 ms uncapped — and held the game at a ratio of 1.125 where
     // 2 ran at 60. The case it was added for, 23 ms read against a 16.7 ms interval, is within 1.6x.)
     const iv = now - this.last
     if (this.last) this.times.push(Math.max(iv, this.gpuLast <= iv * 1.6 ? this.gpuLast : 0))
+    if (this.last) this.cpu.push(cpuMs)
     this.last = now
     const span = now - this.since
     if (span < WINDOW) return
     this.since = now
     const t = this.times.sort((a, b) => a - b)
     this.times = []
+    const c = this.cpu.sort((a, b) => a - b)
+    this.cpu = []
     if (this.pinned || t.length < 20 || (this.fixedRes !== null && this.fixedDetail !== null)) return
     // The median frame: what the game is running at, not its worst moments.
     const med = t[t.length >> 1]
+    // Held back by the processor, not the pixels: the main thread's own work fills most of each frame.
+    // Fewer pixels would only blur the picture for nothing — go to detail (less to draw) instead.
+    // (The GPU's queue costs the main thread a little too, but a frame bound by the GPU leaves its
+    // thread mostly idle: ~40 % of the frame on the M-series at full resolution; bound by the CPU, ~95 %.)
+    // (Also by its own length: the screen's refresh rounds a frame up — 26 ms of work shows as a 33 ms
+    // frame, 0.79 of it — and main-thread work past ~15 ms cannot fit a 60 Hz frame whatever the GPU does.)
+    const cpuMed = c.length > 0 ? c[c.length >> 1] : 0
+    const cpuBound = cpuMed > med * 0.8 || cpuMed > BUDGET * 0.85
+    this.lastWindow = { med, cpu: cpuMed, cpuBound }
     if (med > BUDGET) {
       this.goodFor = 0
-      if (this.fixedRes === null && this.dpr > DPR_FLOOR + 1e-3) {
+      if (this.fixedRes === null && this.dpr > DPR_FLOOR + 1e-3 && !cpuBound) {
         // Further over budget, a bigger step.
         const steps = med > BUDGET * 1.5 ? 2 : 1
         this.setDpr(Math.max(DPR_FLOOR, this.dpr - DPR_STEP * steps))

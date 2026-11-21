@@ -3955,12 +3955,16 @@ function frame(now: number): void {
   if (isBroken()) return
   requestAnimationFrame(frame)
   if (manual.on) return
+  const t0 = performance.now()
   try {
     frameBody(now)
   } catch (err) {
     crash(err, `frame (${opening})`)
   }
+  frameCpu = performance.now() - t0
 }
+/** The last frame's main-thread time (ms): the quality governor tells a slow CPU from a slow GPU by it. */
+let frameCpu = 0
 
 // QA (?qa=throw): a frame breaks on purpose 8 s into play (from ready: from the page's start, a
 // slow start under load broke the title's frame before the game was ever ready), to prove the card
@@ -4738,7 +4742,7 @@ function frameBody(now: number): void {
     else hud.loaded()
   }
   hud.frame(now, renderer, terrainView, focus, camera, quality.level)
-  if (ready) quality.frame(now)
+  if (ready) quality.frame(now, frameCpu)
   if (saveDirty && now - lastSave > 5000) {
     lastSave = now
     saveLocal()
