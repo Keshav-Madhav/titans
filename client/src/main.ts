@@ -1707,6 +1707,11 @@ let skirts: StatueSkirts | null = null
 void loadRockScans().then((s) => {
   if (!s) return
   vegetation.useScannedRocks(s.near, s.far, s.pebble)
+  // (Their textures to the GPU now, as they arrive (with the world still loading): left to first sight,
+  // the scans' 1024² maps went up — decoded and all — in the frame you first turned toward a boulder,
+  // ~300 ms; qa/cycle7/firstsightprof.mjs, 2026-11-22.)
+  for (const m of [...s.near.map((n) => n.mat), ...(s.pebble ? [s.pebble.mat] : [])])
+    for (const v of Object.values(m as unknown as Record<string, unknown>)) if (v instanceof THREE.Texture) renderer.initTexture(v)
   // (The made figures — not the giant trees' trunks, which are colossus shapes too, nor the bones,
   // which lie in sand that drifts over them instead.)
   const STATUES = new Set(['sentinel', 'sword', 'monolith', 'reclining', 'husk', 'mourner'])
@@ -4771,7 +4776,8 @@ function frameBody(now: number): void {
     // never warmed: the first storm stalled 200 ms), and what is hidden now too (rain on a clear
     // day, the sand's wisps): shown for the compile call only, which builds every program before
     // it returns; hidden again before any frame is drawn.
-    const warm = () => {
+    const warm = (): Promise<unknown> => {
+      const compiles: Promise<unknown>[] = []
       for (const root of [scene, softScene]) {
         const hidden: THREE.Object3D[] = []
         root.traverse((o) => {
@@ -4789,7 +4795,7 @@ function frameBody(now: number): void {
         const done = renderer.compileAsync(root, camera, scene).catch(() => {})
         renderer.setRenderTarget(prevTarget)
         for (const o of hidden) o.visible = false
-        void done
+        compiles.push(done)
       }
       // …and every texture uploaded now, not on first sight (QA Q23: stepping out into the daylight
       // reveal stalled one frame 83–167 ms with the CPU idle — the land's big textures going up to
@@ -4808,9 +4814,11 @@ function frameBody(now: number): void {
           }
         })
       for (const t of seen) if (!(t as THREE.Texture & { isRenderTargetTexture?: boolean }).isRenderTargetTexture) renderer.initTexture(t)
+      return Promise.all(compiles)
     }
     if (!params.has('nowarm')) {
-      warm()
+      // (And once compiled, everything drawn once, behind the title — firstDraw.)
+      void warm().then(() => firstDraw())
       setTimeout(warm, 15000)
       setTimeout(warm, 60000)
     }
@@ -4835,6 +4843,39 @@ function frameBody(now: number): void {
     tipState.found = finds.save().length
     tips.update(tipState)
     tipsEl.classList.toggle('aside', wanderer.gliding || (climber.active && !climber.standing) || !!cables.ride)
+  }
+}
+/**
+ * Draw the whole scene once — in view or not, hidden or not, shadows too — into a 1 × 1 target, behind
+ * the title: three sends a mesh's buffers to the GPU the first time it draws it, and does each program's
+ * first-use set-up (uniform lookup, the driver finishing its compile) then too. Left to first sight, the
+ * first look somewhere new did it all in one frame — turning round on the Green after arriving: 54
+ * buffers, 32 MB, and a dozen programs' first use, one frame of 300-590 ms (qa/cycle7/firstbuf.mjs,
+ * firstprog.mjs, 2026-11-22). (Half-float, as the frame's own target: the same program variants.)
+ */
+const uploadTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType })
+function firstDraw(): void {
+  const culled: THREE.Object3D[] = []
+  const hidden: THREE.Object3D[] = []
+  scene.traverse((o) => {
+    if (o.frustumCulled) {
+      culled.push(o)
+      o.frustumCulled = false
+    }
+    if (!o.visible && ((o as THREE.Mesh).isMesh || (o as THREE.Group).isGroup)) {
+      hidden.push(o)
+      o.visible = true
+    }
+  })
+  const prevTarget = renderer.getRenderTarget()
+  renderer.setRenderTarget(uploadTarget)
+  try {
+    renderer.render(scene, camera)
+    renderer.render(softScene, camera)
+  } finally {
+    renderer.setRenderTarget(prevTarget)
+    for (const o of culled) o.frustumCulled = true
+    for (const o of hidden) o.visible = false
   }
 }
 const birdSpots: Array<{ x: number; z: number; pale?: boolean }> = []
