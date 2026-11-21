@@ -5047,6 +5047,7 @@ const g = {
   lilyFlower,
   webAt,
   urchinAt,
+  grassQuality,
   ringAt,
   ringChip,
   boardAt,

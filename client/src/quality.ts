@@ -105,8 +105,10 @@ export class Quality {
     const L = LEVELS[level]
     // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
     aoSwitch.quality = level < 2
-    // Real grass blades round you (grass.ts): 16 m at High, 10 at Medium, none at Low.
-    grassQuality.bladeR = [16, 10, 0][level]
+    // Real grass blades round you (grass.ts): 16 m at High, 10 at Medium and Low. (None at Low left the
+    // Grove's floor bare tufts — and cost nothing measurable: Low at full resolution in the Grove ran
+    // 15.7 ms a frame with a 10 m ring and 15.8 without, eight runs each; qa/cycle7/bladecost.mjs.)
+    grassQuality.bladeR = [16, 10, 10][level]
     // Ambient occlusion (ao.ts): on at High and Medium, off at Low (a full-screen pass at half size).
     aoSwitch.quality = level < 2
     this.terrain.splitK = L.splitK
