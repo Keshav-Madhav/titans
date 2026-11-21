@@ -545,7 +545,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
         own systems (animation, cloth, physics, land sampling) ~1.5 ms together. Draw count is the floor.
         Then the far land in one batch (BatchedMesh, 640 slots): terrain draws Green 101 → 26, Dune Sea
         157 → 36, from 300 m up 131 → 21 (all draws −23-30 %); main thread at 3x throttle Green 10.5 →
-        9.4 ms, Dune Sea 11.3 → 10.0. Next lever if wanted: the near chunks (25-35 draws) the same way.
+        9.4 ms, Dune Sea 11.3 → 10.0. The near chunks the same way was tried (2026-11-22) and not kept:
+        33 → 2 draws but no measurable gain (per-instance culling over ~960 slots ate it) and ~100 MB
+        more held. CORRECTION: the Grove's "11-17 ms at 3x" was measured while its land was still
+        building after the teleport (settled() is stale for ~800 ms); properly it is ~9.7 ms, like the
+        Green — every land holds ~60 fps or better on a CPU a third as fast.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
