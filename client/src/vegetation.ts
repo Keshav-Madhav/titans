@@ -758,6 +758,8 @@ export class Vegetation {
   private readonly prepAt = new THREE.Vector3(1e9, 0, 1e9)
 
   /** Make missing cells round `cam` (nearest first) for up to `budgetMs`; true when none is missing. */
+  /** What a grass cell has been costing to make (ms, a running mean). */
+  private grassMs = 1.5
   private prepare(cam: THREE.Vector3, budgetMs: number, within = Infinity): boolean {
     const t0 = performance.now()
     const r = Math.ceil(Math.min(this.midR, within) / CELL)
@@ -796,8 +798,13 @@ export class Vegetation {
         if (Math.hypot((cx + 0.5) * GCELL - cam.x, (cz + 0.5) * GCELL - cam.z) > this.grassR + GCELL) continue
         const kk = key(cx, cz)
         if (this.grassCells.has(kk)) continue
-        if (performance.now() - t0 > budgetMs) return false
+        // (Not one that will not fit: begun with the budget all but spent, a grass cell (~1.8 ms) ran past
+        // it; qa/cycle7/vegcost.mjs, 2026-11-23. When nothing else was done this frame, it goes anyway.)
+        const spent = performance.now() - t0
+        if (spent > budgetMs || (spent > 0.3 && spent + this.grassMs > budgetMs)) return false
+        const tg = performance.now()
         this.grassCells.set(kk, this.genGrass(cx, cz))
+        this.grassMs += (performance.now() - tg - this.grassMs) * 0.2
         done = false
       }
     // (Made some this frame: the repack waits for the next, so both are not in one frame.)
@@ -1111,6 +1118,9 @@ export class Vegetation {
     // as a lawn): a couple of hundred a cell (one in ~40 m²), mostly a hand's width, now and then a
     // fist or a loaf. (At a third of that you never saw one.)
     for (let i = 0; i < 220; i++) {
+      // (A step every 64: the 220 in one were the slowest step of a cell, ~5 ms past the budget at a run;
+      // qa/cycle7/vegcost.mjs, 2026-11-23. The same stones — only the work is spread.)
+      if ((i & 63) === 63) yield
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const h = this.ground(x, z, 400)
@@ -1158,6 +1168,7 @@ export class Vegetation {
     yield
     // Ferns on the woods' floor; tall flowering stems out on the Green's meadows.
     for (let i = 0; i < 420; i++) {
+      if ((i & 63) === 63) yield
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
