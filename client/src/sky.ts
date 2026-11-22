@@ -69,14 +69,17 @@ export class SkySystem {
     // up), not the physical model's saturated cobalt: pull what we see of it
     // toward grey. (The environment bake keeps the full colour for lighting.)
     this.sky.material.uniforms.uOvercast = { value: 0 }
-    this.sky.material.fragmentShader = 'uniform float uOvercast;\n' + this.sky.material.fragmentShader.replace(
+    this.sky.material.uniforms.uGreyLit = { value: 1 }
+    this.sky.material.fragmentShader = 'uniform float uOvercast;\nuniform float uGreyLit;\n' + this.sky.material.fragmentShader.replace(
       'gl_FragColor = vec4( texColor, 1.0 );',
       `float skyL = dot( texColor, vec3( 0.2126, 0.7152, 0.0722 ) );
       vec3 skyC = mix( vec3( skyL ), texColor, 0.55 );
       // Pale only in a band at the horizon; deep, muted blue above it.
       skyC *= mix( 1.0, 0.42, smoothstep( 0.02, 0.38, max( direction.y, 0.0 ) ) );
       // Under cloud (weather.ts): a flat, heavy grey, darker overhead.
-      vec3 grey = vec3( 0.36, 0.40, 0.42 ) * mix( 1.15, 0.75, smoothstep( 0.0, 0.6, max( direction.y, 0.0 ) ) );
+      // (Lit as the hour is (weather.ts): a fixed grey was a pale noon deck over a dusk land, the sky at
+      // 0.9 twice a clear one's — night tour 1122n.)
+      vec3 grey = vec3( 0.36, 0.40, 0.42 ) * uGreyLit * mix( 1.15, 0.75, smoothstep( 0.0, 0.6, max( direction.y, 0.0 ) ) );
       // (The sun's disk is thousands of times brighter: clamp it, or it burns through the deck.)
       // (Clamped first, then mixed: mixed first, the tenth of the disk left was still hundreds of
       // times the deck and the clamp made it a hard white coin in the storm sky — storm tour review.

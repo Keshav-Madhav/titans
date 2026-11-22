@@ -116,6 +116,8 @@ export class Weather {
     uCover: { value: 0.8 },
     uDark: { value: 0.5 },
     uNight: { value: 0 },
+    /** How lit the air is (1 by day, toward 0 as the sun goes): an overcast deck dims with it. */
+    uLit: { value: 1 },
     uSand: { value: 0 },
     uSun: { value: new THREE.Vector3() },
     uFog: { value: new THREE.Color() },
@@ -182,7 +184,7 @@ export class Weather {
         fragmentShader: /* glsl */ `
           #include <packing>
           ${SOFT_GLSL}
-          uniform float uTime, uCover, uDark, uLayer, uFlash, uNight, uSand;
+          uniform float uTime, uCover, uDark, uLayer, uFlash, uNight, uSand, uLit;
           uniform vec3 uSun, uFog;
           uniform vec2 uFlashAt, uWind;
           uniform sampler2D uNoise;
@@ -208,6 +210,10 @@ export class Weather {
             vec3 toCam = normalize(vWorld - cameraPosition);
             float sunward = pow(max(dot(toCam, normalize(uSun)), 0.0), 8.0);
             c += vec3(1.0, 0.93, 0.8) * sunward * (1.0 - d) * 0.9 * (1.0 - uNight);
+            // (A grey deck dims as the sun goes: lit as at noon until the stars, a storm at sunset was a
+            // pale day sky over a dark land — night tour 1122n. Scattered fair-weather cloud keeps its
+            // sunset glow: by how heavy the weather is.)
+            c *= mix(1.0, uLit, uDark);
             // At night the deck is a dark mass, its thin edges silvered by the moon.
             c = mix(c, vec3(0.05, 0.06, 0.09) + vec3(0.1, 0.12, 0.16) * (1.0 - d), uNight);
             // Lightning inside the cloud.
@@ -448,12 +454,18 @@ export class Weather {
     // stars were out: a sandstorm at sunset glowed twice as bright as a clear sky at that hour —
     // night tour 1118n, spot 2.)
     const fc = lb.fogColor
-    const lit = Math.min(1, (0.2126 * fc.r + 0.7152 * fc.g + 0.0722 * fc.b) / 0.56)
+    const lit0 = Math.min(1, (0.2126 * fc.r + 0.7152 * fc.g + 0.0722 * fc.b) / 0.56)
+    // (And how much sun there still is: the sunset's own fog is bright and warm, and a storm's grey air
+    // and fill light scaled by that alone came out BRIGHTER than a clear sky at the same hour from 0.86
+    // on — ground 93 vs 67, sky 148 vs 65 at 0.9; qa/cycle7/sanddusk.mjs, night tour 1122n spot 2.
+    // Under cloud the sunset is gone: the storm darkens with the sun.)
+    const sunK = Math.min(1, lb.sun / 2.4)
+    const lit = Math.min(lit0, 0.2 + 0.8 * sunK)
     // (And the sun all but gone in a sandstorm: the dunes kept crisp sunlit ripples and hard shadows
     // under it — a fine day with a brown sky. The sky's own light takes over.)
     sky.sun.intensity = lb.sun * (1 - 0.82 * w.dark) * (1 - 0.75 * this.sand)
-    sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
-    sky.fill.color.copy(lb.fillSky).lerp(STORM_FILL, w.dark * day)
+    sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day * sunK) + flash * 2.2
+    sky.fill.color.copy(lb.fillSky).lerp(STORM_FILL, w.dark * day * sunK)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
     sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 24) * (1 + this.mireK * 2.2)
@@ -490,6 +502,8 @@ export class Weather {
     su.cloudCoverage.value = 0.32 + 0.6 * w.cover
     su.cloudDensity.value = 0.55 + 0.4 * w.dark
     su.uOvercast.value = w.dark
+    su.uGreyLit.value = Math.max(0.2, lit)
+    u.uLit.value = Math.max(0.2, lit)
     // Cloud shadows sliding over the land: with the sun out and scattered cloud (none under a full deck).
     this.shadeDrift.x += dt * (6 + 14 * w.wind)
     this.shadeDrift.y += dt * (2.5 + 6 * w.wind)
