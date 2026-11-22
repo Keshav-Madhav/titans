@@ -19,6 +19,13 @@ import type { SkySystem } from './sky'
 import type { Post } from './post'
 import { soft, SOFT_GLSL } from './soft'
 
+// The storm's, the Mire's and a sandstorm's colours (made once: they were four new Colors a frame).
+const STORM_FILL = new THREE.Color(0.62, 0.68, 0.72)
+const STORM_FOG = new THREE.Color(0.37, 0.41, 0.43)
+const MIRE_FOG = new THREE.Color(0.42, 0.47, 0.4)
+const SAND_FOG = new THREE.Color(0.62, 0.46, 0.29)
+const _fogK = new THREE.Color()
+
 export type WeatherName = 'clear' | 'overcast' | 'storm' | 'breaking'
 
 interface State {
@@ -446,7 +453,7 @@ export class Weather {
     // under it — a fine day with a brown sky. The sky's own light takes over.)
     sky.sun.intensity = lb.sun * (1 - 0.82 * w.dark) * (1 - 0.75 * this.sand)
     sky.fill.intensity = lb.fill * (1 + 0.9 * w.dark * day) + flash * 2.2
-    sky.fill.color.copy(lb.fillSky).lerp(new THREE.Color(0.62, 0.68, 0.72), w.dark * day)
+    sky.fill.color.copy(lb.fillSky).lerp(STORM_FILL, w.dark * day)
     this.scene.environmentIntensity = lb.env * (1 - 0.35 * w.dark)
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
     sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 24) * (1 + this.mireK * 2.2)
@@ -457,11 +464,11 @@ export class Weather {
     // (and beyond the Wall) shows as a shape, then is gone again.
     sky.fog.cloud = Math.max(0, Math.min(0.97, (w.cover - 0.3) * 1.45)) * (1 - 0.85 * flash)
     sky.fog.base = w.base
-    sky.fog.color.copy(lb.fogColor).lerp(new THREE.Color(0.37, 0.41, 0.43).multiplyScalar(Math.max(0.12, lit)), w.dark)
+    sky.fog.color.copy(lb.fogColor).lerp(_fogK.copy(STORM_FOG).multiplyScalar(Math.max(0.12, lit)), w.dark)
     // The Mire's air: green-grey and close.
-    sky.fog.color.lerp(new THREE.Color(0.42, 0.47, 0.4).multiplyScalar(Math.max(0.12, lit)), this.mireK * 0.6)
+    sky.fog.color.lerp(_fogK.copy(MIRE_FOG).multiplyScalar(Math.max(0.12, lit)), this.mireK * 0.6)
     // A sandstorm: the air thick and ochre (dimmer as the day goes).
-    sky.fog.color.lerp(new THREE.Color(0.62, 0.46, 0.29).multiplyScalar(Math.max(0.15, lit)), this.sand * 0.92)
+    sky.fog.color.lerp(_fogK.copy(SAND_FOG).multiplyScalar(Math.max(0.15, lit)), this.sand * 0.92)
     // After rain, with the sun back low behind you: a rainbow opposite it.
     this.wet = Math.max(this.wet - dt / 150, w.rain > 0.3 && this.sand < 0.3 ? 1 : 0)
     const sunUp = sky.sunDir.y
