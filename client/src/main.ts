@@ -102,6 +102,7 @@ import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
+import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
@@ -415,6 +416,51 @@ const featherBase = new THREE.Vector3()
     scene.add(featherVanes(f, 0xfe0 + n))
     if (n === 0) featherBase.set(x - Math.cos(rot) * 1.2, y, z + Math.sin(rot) * 1.2)
     n++
+  }
+}
+// The Snowshoe (snowshoe.ts): out on the High Places' snow, a giant's snowshoe, lost and half drifted
+// over — the frame in bark, the net in hide, snow on what faces up. On level snow, well clear of the
+// feathers.
+const snowshoeAt = new THREE.Vector3()
+const snowshoeFind = new THREE.Vector3()
+let snowshoeRot = 0
+{
+  const sr = mulberry32(0x5e0e)
+  for (let tries = 0; tries < 600; tries++) {
+    const d = 12900 + sr() * 900
+    const a = HIGH.axis + (sr() - 0.5) * 0.4
+    const x = Math.sin(a) * d
+    const z = Math.cos(a) * d
+    if (featherBase.lengthSq() > 0 && Math.hypot(x - featherBase.x, z - featherBase.z) < 260) continue
+    const rot = sr() * Math.PI * 2
+    const c = Math.cos(rot)
+    const sn = Math.sin(rot)
+    const hs: number[] = []
+    for (const u of [-0.5, -0.25, 0, 0.25, 0.5])
+      for (const v of [-0.5, 0, 0.5]) {
+        const lx = u * 2 * SNOWSHOE_FOOT
+        const lz = v * SNOWSHOE_W
+        hs.push(terrain.heightAt(x + lx * c + lz * sn, z - lx * sn + lz * c))
+      }
+    const hi = Math.max(...hs)
+    if (hi - Math.min(...hs) > 1.2 || rocks.occupies(x, z)) continue
+    const y = (hi + Math.min(...hs)) / 2
+    const { geo, netFrom } = snowshoeGeometry()
+    rocks.addBuilt(snowshoeShape(), geo, { x, y, z, rot, layers: [LAYER.bark, LAYER.snow], scale: 3, tint: [1, 1, 1] })
+    // (Its two parts in their own stuff: addBuilt gives every vertex the same layers and tint.)
+    const n = geo.getAttribute('position').count
+    const layer = geo.getAttribute('aLayer') as THREE.BufferAttribute
+    const col = geo.getAttribute('color') as THREE.BufferAttribute
+    for (let i = 0; i < n; i++) {
+      const net = i >= netFrom
+      layer.setXYZ(i, net ? LAYER.hide : LAYER.bark, LAYER.snow, net ? 2 : 3)
+      if (net) col.setXYZ(i, 1.05, 0.95, 0.8)
+      else col.setXYZ(i, 0.62, 0.52, 0.42)
+    }
+    snowshoeAt.set(x, hi, z)
+    snowshoeRot = rot
+    snowshoeFind.copy(SNOWSHOE_BINDING).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
+    break
   }
 }
 // Giant acorns fallen under the Old Wood's giant trees (acorns.ts), lying in the litter. The first
@@ -1419,6 +1465,12 @@ const spots = (() => {
     wad.castShadow = true
     placed.push({ id: 'flute-wad', kind: 'trinket', at: fluteFind.clone(), model: wad })
   }
+  // On the Snowshoe's net, in the tangle of its binding: a thong, knotted.
+  if (snowshoeAt.lengthSq() > 0) {
+    const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.022, 40, 6, 2, 3).translate(0, 0.07, 0), new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.9 }))
+    knot.castShadow = true
+    placed.push({ id: 'snowshoe-thong', kind: 'trinket', at: snowshoeFind.clone(), model: knot })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -2146,6 +2198,7 @@ const sites: Site[] = [
   { id: 'board', r: 90, at: () => (boardAt.lengthSq() > 0 ? { x: boardAt.x, z: boardAt.z } : null) },
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
   { id: 'flute', r: 70, at: () => (fluteAt.lengthSq() > 0 ? { x: fluteAt.x, z: fluteAt.z } : null) },
+  { id: 'snowshoe', r: 70, at: () => (snowshoeAt.lengthSq() > 0 ? { x: snowshoeAt.x, z: snowshoeAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -5316,6 +5369,11 @@ const g = {
   urchinAt,
   fluteAt,
   fluteFind,
+  snowshoeAt,
+  snowshoeFind,
+  get snowshoeRot() {
+    return snowshoeRot
+  },
   get fluteRot() {
     return fluteRot
   },
