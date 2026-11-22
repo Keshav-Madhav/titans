@@ -720,10 +720,35 @@ export class Rocks {
   }
 
   /** Formations near (x, z) within `r`. */
+  // A grid over the formations (256 m cells, each holding every formation whose box, grown by
+  // GRID_MARGIN, reaches into it — in formation order), so a point query reads one cell instead of
+  // filtering them all: near() and occupies() ran over every formation in the world for each grass
+  // blade, each sdfAt, each floor test (~3 ms of every 9 ms grass re-lay at a run; 2026-11-22).
+  // Rebuilt when formations are added; they never move in x/z (floaters only bob).
+  private readonly grid = new Map<number, Formation[]>()
+  private gridN = -1
+  private cellOf(x: number, z: number): Formation[] {
+    if (this.gridN !== this.formations.length) {
+      this.grid.clear()
+      for (const f of this.formations) {
+        const e = f.hx + f.hz + GRID_MARGIN
+        for (let gx = Math.floor((f.x - e) / GRID); gx <= Math.floor((f.x + e) / GRID); gx++)
+          for (let gz = Math.floor((f.z - e) / GRID); gz <= Math.floor((f.z + e) / GRID); gz++) {
+            const k = (gx + 4096) * 8192 + (gz + 4096)
+            let l = this.grid.get(k)
+            if (!l) this.grid.set(k, (l = []))
+            l.push(f)
+          }
+      }
+      this.gridN = this.formations.length
+    }
+    return this.grid.get((Math.floor(x / GRID) + 4096) * 8192 + (Math.floor(z / GRID) + 4096)) ?? NONE
+  }
+
   private near(x: number, z: number, r: number): Formation[] {
     // (A stone held still — a chained one, float with no drift — is solid
     // like any other: you can climb it and stand on it.)
-    return this.formations.filter((f) => (!f.float || (f.float.amp === 0 && f.float.spin === 0)) && Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
+    return this.cellOf(x, z).filter((f) => (!f.float || (f.float.amp === 0 && f.float.spin === 0)) && Math.abs(f.x - x) < f.hx + f.hz + r && Math.abs(f.z - z) < f.hx + f.hz + r)
   }
 
   /**
@@ -827,7 +852,7 @@ export class Rocks {
 
   /** Is (x, z) under or inside a formation's footprint (plants keep off)? */
   occupies(x: number, z: number): boolean {
-    for (const f of this.formations) {
+    for (const f of this.cellOf(x, z)) {
       if (f.float) continue
       // Cheap reject, then the field itself near the ground.
       if (Math.abs(f.x - x) > f.hx + f.hz || Math.abs(f.z - z) > f.hx + f.hz) continue
@@ -841,3 +866,7 @@ export class Rocks {
 }
 
 const _c = new THREE.Vector3()
+/** The formations' grid: cell size (m), and how far past a box it is entered (near()'s largest r). */
+const GRID = 256
+const GRID_MARGIN = 4
+const NONE: Formation[] = []
