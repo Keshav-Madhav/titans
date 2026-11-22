@@ -72,7 +72,14 @@ export function setFogSun(d: THREE.Vector3): void {
   fogSun.z = d.z / l
 }
 
-export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number; pit?: { x: number; z: number; r: number; top: number } } = {}): void {
+/** Another dark place (the Flute's bore): GLSL dimming gl_FragColor by vFogWorld, and its live uniform. */
+export interface DarkPlace {
+  glsl: string
+  uniform: string
+  value: object
+}
+
+export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: number; hall?: DarkHall; cloudBase?: number; pit?: { x: number; z: number; r: number; top: number }; dark?: DarkPlace[] } = {}): void {
   const cloudBase = (opts.cloudBase ?? 255).toFixed(1)
   const H = (opts.heightScale ?? 380).toFixed(1)
   const f = (v: number) => v.toFixed(2)
@@ -113,6 +120,13 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
   const lib = THREE.ShaderLib as unknown as Record<string, { uniforms: Record<string, THREE.IUniform> }>
   for (const k of Object.keys(lib)) if (lib[k].uniforms?.fogColor) lib[k].uniforms.fogSunDir = { value: fogSun }
   ;(THREE.UniformsLib.fog as Record<string, THREE.IUniform>).fogSunDir = { value: fogSun }
+  // (The other dark places' uniforms the same way: one plain object shared by every fogged material.)
+  for (const d of opts.dark ?? []) {
+    for (const k of Object.keys(lib)) if (lib[k].uniforms?.fogColor) lib[k].uniforms[d.uniform] = { value: d.value }
+    ;(THREE.UniformsLib.fog as Record<string, THREE.IUniform>)[d.uniform] = { value: d.value }
+  }
+  const darkPlaces = (opts.dark ?? []).map((d) => d.glsl).join('\n')
+  const darkUniforms = (opts.dark ?? []).map((d) => `uniform vec4 ${d.uniform};`).join('\n  ')
   const sun = 'fogSunDir'
   const C = THREE.ShaderChunk as unknown as Record<string, string>
 
@@ -136,6 +150,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
 #ifdef USE_FOG
   uniform vec3 fogColor;
   uniform vec3 fogSunDir;
+  ${darkUniforms}
   varying float vFogDepth;
   varying vec3 vFogWorld;
   #ifdef FOG_EXP2
@@ -152,6 +167,7 @@ export function installAtmosphere(sunDir: THREE.Vector3, opts: { heightScale?: n
 #ifdef USE_FOG
   ${darkHall}
   ${pit}
+  ${darkPlaces}
   vec3 fogRay = vFogWorld - cameraPosition;
   float fogDist = length( fogRay );
   // The air's thickness averaged along the ray (exact for density falling

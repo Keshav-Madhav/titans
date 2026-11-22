@@ -1319,6 +1319,58 @@ export class Sound {
     this.shellGain.gain.setTargetAtTime(Math.max(0, Math.min(1, k)) * (0.05 + 0.07 * wind), this.ctx.currentTime, 1.5)
   }
 
+  /** The Flute, `d` metres off, sounding in the wind: one long, low, breathy note (`k` picks which —
+   *  the wind finds a different hole each time), swelling and dying away. */
+  fluteBreath(d: number, wind: number, k: number): void {
+    const t = this.at(d * 0.45, 0.55 + 0.4 * wind) // a low note carries along the beach
+    if (!t || !this.noise) return
+    const ctx = this.ctx!
+    // Low and hollow: a few notes of a pentatonic, two octaves below the bells.
+    const f0 = [73.4, 82.4, 98, 110, 65.4][Math.floor(k * 5) % 5]
+    const len = 5 + 3 * wind
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t.when)
+    g.gain.exponentialRampToValueAtTime(0.16 * t.vol, t.when + 1.6)
+    g.gain.setValueAtTime(0.16 * t.vol, t.when + len - 2.4)
+    g.gain.exponentialRampToValueAtTime(0.0001, t.when + len)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 700
+    lp.connect(g).connect(this.master!)
+    // The tone (a little wavering, as breath does) …
+    const wob = ctx.createOscillator()
+    wob.frequency.value = 0.35
+    const wobDepth = ctx.createGain()
+    wobDepth.gain.value = f0 * 0.006
+    wob.connect(wobDepth)
+    for (const [mul, v] of [[1, 0.55], [2, 0.16], [3, 0.06]] as const) {
+      const o = ctx.createOscillator()
+      o.type = 'sine'
+      o.frequency.value = f0 * mul
+      wobDepth.connect(o.frequency)
+      const og = ctx.createGain()
+      og.gain.value = v
+      o.connect(og).connect(lp)
+      o.start(t.when)
+      o.stop(t.when + len + 0.1)
+    }
+    wob.start(t.when)
+    wob.stop(t.when + len + 0.1)
+    // … and the air through it.
+    const src = ctx.createBufferSource()
+    src.buffer = this.noise
+    src.loop = true
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = f0 * 2
+    bp.Q.value = 3
+    const ng = ctx.createGain()
+    ng.gain.value = 0.9
+    src.connect(bp).connect(ng).connect(lp)
+    src.start(t.when)
+    src.stop(t.when + len + 0.1)
+  }
+
   /** How much of the Tallgrass is round you (0 … 1), and how windy it is. */
   rustle(k: number, wind: number): void {
     if (!this.ctx || !this.rustleGain) return

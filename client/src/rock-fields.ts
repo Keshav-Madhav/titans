@@ -219,7 +219,7 @@ export const PLAN: Record<RegionName, Array<[FormationKind, number]>> = {
  * Surface nets: one vertex per cell the surface passes through (the mean of
  * its edge crossings), a quad for every grid edge with a sign change.
  */
-function surfaceNets(f: Field, x0: number, y0: number, z0: number, nx: number, ny: number, nz: number, s: number): { pos: number[]; index: number[] } {
+export function surfaceNets(f: Field, x0: number, y0: number, z0: number, nx: number, ny: number, nz: number, s: number): { pos: number[]; index: number[] } {
   const V = new Float32Array((nx + 1) * (ny + 1) * (nz + 1))
   const id = (i: number, j: number, k: number) => (k * (ny + 1) + j) * (nx + 1) + i
   for (let k = 0; k <= nz; k++) for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) V[id(i, j, k)] = f(x0 + i * s, y0 + j * s, z0 + k * s)

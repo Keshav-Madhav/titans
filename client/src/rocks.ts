@@ -225,7 +225,8 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           float vines = smoothstep(0.62, 0.72, vine) * (1.0 - smoothstep(creep * 1.2, creep * 2.6, vAbove.x)) * (1.0 - abs(rN.y));
           band = max(band, vines * 0.9);
           if (band > 0.001) {
-            bool dusty = abs(vLayer.y - 4.0) < 0.5;
+            // (Bone on bone — the Flute on its beach — dusty too: a green damp line along its foot.)
+            bool dusty = abs(vLayer.y - 4.0) < 0.5 || abs(vLayer.y - 10.0) < 0.5;
             vec3 damp = dusty ? vec3(0.93, 0.82, 0.62) : vec3(0.5, 0.56, 0.4);
             vec3 nM;
             vec3 mossC = triTex(13.0, 1.0 / 2.5, vRockPos, rN, nM);
@@ -245,9 +246,10 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           // A tree stands in its own litter; the moss band already greens its foot.)
           if (abs(vLayer.x - 11.0) < 0.5) soil = 0.0;
           if (soil > 0.001) {
-            bool sandy = abs(vLayer.y - 4.0) < 0.5;
+            bool boneOnBone = abs(vLayer.y - 10.0) < 0.5;
+            bool sandy = abs(vLayer.y - 4.0) < 0.5 || boneOnBone;
             vec3 nG;
-            vec3 ground = triTex(vLayer.y, 1.0 / 3.2, vRockPos, rN, nG);
+            vec3 ground = triTex(boneOnBone ? 4.0 : vLayer.y, 1.0 / 3.2, vRockPos, rN, nG);
             vec3 nE2;
             vec3 mud = triTex(3.0, 1.0 / 2.0, vRockPos + 53.0, rN, nE2);
             vec3 groundT = vLayer.y < 2.5 ? ground * vec3(0.8, 1.15, 0.7) : ground;
@@ -265,7 +267,9 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         // Ground layers on top get the ground's green; generated moss is coloured already.
         // (Green only for the grassy layers — grass, dry grass, forest litter: the Fallen's skull wore
         // its drifted sand as a lemon-green smear. Sand and snow keep their own colour.)
-        vec3 topTint = vLayer.y < 2.5 ? vec3(0.8, 1.15, 0.7) : vLayer.y < 7.5 ? vec3(1.0, 0.97, 0.9) : vec3(0.72, 0.8, 0.66);
+        // (And bone on bone — the Flute, the feathers' quills — weathers pale, not green: the Flute's top
+        // on the beach read as moss, 2026-11-22.)
+        vec3 topTint = vLayer.y < 2.5 ? vec3(0.8, 1.15, 0.7) : (vLayer.y < 7.5 || abs(vLayer.y - 10.0) < 0.5) ? vec3(1.0, 0.97, 0.9) : vec3(0.72, 0.8, 0.66);
         // The moss's repeat (QA cycle 7: on the Drowned One, 200 m long, its 3.2 m tile read as one
         // even knit from a few hundred metres). A second look at ~17 m, taking over with distance,
         // and broad lighter/darker swathes — only where there is moss.

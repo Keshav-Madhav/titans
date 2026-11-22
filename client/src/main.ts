@@ -105,6 +105,7 @@ import { featherVanes, quillGeometry, quillShape, type Feather } from './feather
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
+import { FLUTE_HALF, FLUTE_HALF_LEN, FLUTE_RISE, fluteBlockFloor, fluteGeometry, fluteDarkGlsl, fluteO, fluteShape } from './flute'
 import { RING_R, ringMesh, ringRise, ringSeat, ringShape, ringStandIn } from './ring'
 import { LANTERN_HALF, LANTERN_HALF_LEN, LANTERN_RISE, lanternCandle, lanternGlass, lanternIron, lanternShape, lanternStandIn } from './lantern'
 import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
@@ -204,7 +205,7 @@ terrainView.biome = biome
 const sky = new SkySystem(scene, renderer)
 // The day goes by in play; the tools hold it still (and set it) so shots are repeatable.
 sky.running = !toolMode
-installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pit: { ...PIT, top: terrain.base.pitTop } })
+installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pit: { ...PIT, top: terrain.base.pitTop }, dark: [{ glsl: fluteDarkGlsl('fogFlute'), uniform: 'fogFlute', value: fluteO }] })
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
 const post = new Post(renderer, scene, camera)
@@ -500,6 +501,51 @@ const urchinAt = new THREE.Vector3()
       urchinAt.set(x, h, z)
       break search
     }
+}
+// The Flute (flute.ts): on the Shore, east of the camp, a giant's bone flute washed up and half sunk in
+// the sand, lying along the beach. The first stretch of dry, level sand its whole length found walking
+// the coast east from due south — the Urchin has the west.
+const fluteAt = new THREE.Vector3()
+const fluteFind = new THREE.Vector3()
+let fluteRot = 0
+let fluteWait = 8
+{
+  search: for (let a = 0.07; a < 0.36; a += 0.006)
+    for (let r = 9250; r < 9850; r += 15)
+      for (const turn of [0, 0.3, -0.3, 0.6]) {
+        const x = Math.sin(a) * r
+        const z = Math.cos(a) * r
+        const h = terrain.heightAt(x, z)
+        if (h < 0.8 || h > 4) continue
+        // Along the beach (across the radial), turned as the sand lies level.
+        const rot = a + Math.PI / 2 + turn
+        const ax = Math.cos(rot)
+        const az = -Math.sin(rot)
+        let lo = Infinity
+        let hi = -Infinity
+        let ok = true
+        for (let i = -4; i <= 4 && ok; i++)
+          for (const w of [-1, 0, 1]) {
+            const px = x + ax * (i / 4) * FLUTE_HALF_LEN + Math.sin(rot) * w * FLUTE_HALF
+            const pz = z + az * (i / 4) * FLUTE_HALF_LEN + Math.cos(rot) * w * FLUTE_HALF
+            const hk = terrain.heightAt(px, pz)
+            lo = Math.min(lo, hk)
+            hi = Math.max(hi, hk)
+            if (hk < 0.4 || rocks.occupies(px, pz)) ok = false
+          }
+        // (Level: on a beach sloping up inland, the sand inside rose to its roof at one end.)
+        if (!ok || hi - lo > 1.1) continue
+        const y = lo + FLUTE_RISE - 0.2
+        const geo = fluteGeometry()
+        rocks.addBuilt(fluteShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.bone], scale: 5, tint: [1, 1, 1] })
+        geo.setAttribute('color', new THREE.BufferAttribute(geo.userData.tint as Float32Array, 3))
+        fluteAt.set(x, lo, z)
+        fluteRot = rot
+        Object.assign(fluteO, { x, y, z, w: rot })
+        fluteFind.copy(fluteBlockFloor()).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, 0, z))
+        fluteFind.y = terrain.heightAt(fluteFind.x, fluteFind.z)
+        break search
+      }
 }
 // The Ring (ring.ts): in the Dune Sea, a giant's ring standing on its edge in the sand, half sunk,
 // leaning — thirty metres across, its setting empty. One idea for its stretch of dunes: the first spot
@@ -1367,6 +1413,12 @@ const spots = (() => {
     tooth.castShadow = true
     placed.push({ id: 'urchin-tooth', kind: 'trinket', at: new THREE.Vector3(urchinAt.x + 1.2, terrain.heightAt(urchinAt.x + 1.2, urchinAt.z - 0.8), urchinAt.z - 0.8), model: tooth })
   }
+  // Inside the Flute, on the sand before the block: a wad of wax and wool someone once stopped a hole with.
+  if (fluteAt.lengthSq() > 0) {
+    const wad = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8).scale(1.2, 0.75, 1).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0xb8a77f, roughness: 0.95 }))
+    wad.castShadow = true
+    placed.push({ id: 'flute-wad', kind: 'trinket', at: fluteFind.clone(), model: wad })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -2093,6 +2145,7 @@ const sites: Site[] = [
   { id: 'undercroft', r: 280, at: near(HALL.x, HALL.z) },
   { id: 'board', r: 90, at: () => (boardAt.lengthSq() > 0 ? { x: boardAt.x, z: boardAt.z } : null) },
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
+  { id: 'flute', r: 70, at: () => (fluteAt.lengthSq() > 0 ? { x: fluteAt.x, z: fluteAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -4443,6 +4496,16 @@ function frameBody(now: number): void {
       for (const sh of SHELLS) near = Math.max(near, 1 - THREE.MathUtils.smoothstep(Math.hypot(p.x - sh.x, p.z - sh.z), sh.R * 1.2, sh.R * 1.2 + 60))
       sound.shellNote(near, weather.now.wind)
     }
+    // (The Flute, in the wind: now and then one low note along the beach — most often when it blows hard,
+    // seldom on a still day.)
+    if (fluteAt.lengthSq() > 0) {
+      fluteWait -= dt
+      if (fluteWait <= 0) {
+        fluteWait = 20 + Math.random() * 35
+        const d = Math.hypot(p.x - fluteAt.x, p.z - fluteAt.z)
+        if (d < 700 && Math.random() < THREE.MathUtils.smoothstep(weather.now.wind, 0.2, 0.65)) sound.fluteBreath(d, weather.now.wind, Math.random())
+      }
+    }
   }
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
@@ -5251,6 +5314,11 @@ const g = {
   lilyFlower,
   webAt,
   urchinAt,
+  fluteAt,
+  fluteFind,
+  get fluteRot() {
+    return fluteRot
+  },
   grassQuality,
   ringAt,
   ringChip,
