@@ -4855,16 +4855,14 @@ function frameBody(now: number): void {
  */
 const uploadTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType })
 function firstDraw(): void {
+  // (Only what is shown — in view or not: hidden things — far giants faded from the skyline, the made
+  // stand-ins, what waits to be revealed — go up when they first show. Shown too, they held ~110 MB
+  // more of GPU memory 10 s in, 242 MB to 134.)
   const culled: THREE.Object3D[] = []
-  const hidden: THREE.Object3D[] = []
   scene.traverse((o) => {
     if (o.frustumCulled) {
       culled.push(o)
       o.frustumCulled = false
-    }
-    if (!o.visible && ((o as THREE.Mesh).isMesh || (o as THREE.Group).isGroup)) {
-      hidden.push(o)
-      o.visible = true
     }
   })
   const prevTarget = renderer.getRenderTarget()
@@ -4875,9 +4873,9 @@ function firstDraw(): void {
   } finally {
     renderer.setRenderTarget(prevTarget)
     for (const o of culled) o.frustumCulled = true
-    for (const o of hidden) o.visible = false
   }
 }
+
 const birdSpots: Array<{ x: number; z: number; pale?: boolean }> = []
 const SHORE_BIRDS = [-0.3, -0.18, -0.06, 0.06, 0.24, 0.33]
 const mapGiants: Array<{ x: number; z: number }> = []
