@@ -550,6 +550,11 @@ Each phase ends playable. Phases are in PLAN.md §6.
         more held. CORRECTION: the Grove's "11-17 ms at 3x" was measured while its land was still
         building after the teleport (settled() is stale for ~800 ms); properly it is ~9.7 ms, like the
         Green — every land holds ~60 fps or better on a CPU a third as fast.
+        2026-11-22: ready once the land round you is built (far ring after, behind the title): 6.1 → 4.4 s.
+        The first-sight freeze gone (the travel probe's "single 195-270 ms frame"): turning somewhere new
+        sent 54 buffers / 32 MB, a dozen programs' first use and the scans' textures in one frame —
+        226-245 ms → 12-29 ms; now drawn once behind the title (shown things only: +40 MB of GPU
+        buffers, not +108). Travel run: worst frame 394-542 → 50 ms.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
