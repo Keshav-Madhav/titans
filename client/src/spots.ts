@@ -119,8 +119,11 @@ export class Spots {
         else m.position.copy(s.at).add(new THREE.Vector3(0, 0.25, 0))
         this.wrap(m, s.model ? 600 : 250)
         this.marks.set(s.id, m)
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: new THREE.Color(7, 6, 4.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false }))
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: new THREE.Color(5.5, 4.8, 3.4), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false }))
         sprite.position.copy(m.position)
+        // (Standing on the thing, not centred on it: a glint's lower half in the ground, seen far off over a
+        // dune, read as a glowing half-disc on the horizon — a second sun at dawn; golden tour 1122g.)
+        sprite.center.set(0.5, 0.25)
         sprite.renderOrder = 3
         this.group.add(sprite)
         this.glints.push({ id: s.id, sprite, phase: Math.random() * 10 })
@@ -233,7 +236,7 @@ export class Spots {
       // (Not drawn at all where it has faded out — past 2.6 km, and where the thing itself shows —
       // rather than drawn clear. By the material: the sprite's own `visible` says taken or hidden.)
       g.sprite.material.visible = far > 0.003
-      const s = 0.022 + 0.034 * tw
+      const s = 0.02 + 0.028 * tw
       g.sprite.scale.set(s, s, 1)
     }
     for (const [id, m] of this.marks) {
@@ -249,8 +252,11 @@ function glintTexture(): THREE.CanvasTexture {
   c.width = c.height = 64
   const g = c.getContext('2d')!
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  // (A small core and a thin halo, the rays doing the glinting: the old wide halo, through the bloom,
+  // was a glowing disc as big as the sun on the horizon at dawn — golden tour 1122g.)
   grad.addColorStop(0, 'rgba(255,255,255,1)')
-  grad.addColorStop(0.15, 'rgba(255,240,210,0.6)')
+  grad.addColorStop(0.1, 'rgba(255,240,210,0.55)')
+  grad.addColorStop(0.35, 'rgba(255,240,210,0.08)')
   grad.addColorStop(1, 'rgba(255,240,210,0)')
   g.fillStyle = grad
   g.fillRect(0, 0, 64, 64)

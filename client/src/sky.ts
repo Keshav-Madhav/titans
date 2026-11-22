@@ -84,7 +84,10 @@ export class SkySystem {
       // (Clamped first, then mixed: mixed first, the tenth of the disk left was still hundreds of
       // times the deck and the clamp made it a hard white coin in the storm sky — storm tour review.
       // Under a heavy deck the sun is a faint brighter patch at most.)
-      skyC = mix( skyC, min( skyC, vec3( mix( 1.2, 0.55, uOvercast ) ) ), smoothstep( 0.0, 0.3, uOvercast ) );
+      // (And as dim as the deck is lit: with the grey dimmed at a low sun and the clamp fixed, an overcast
+      // dawn showed the sun as a hard white half-disc on the horizon — golden tour 1122g.)
+      float sunCap = mix( 1.2, 0.6 * uGreyLit, smoothstep( 0.2, 0.6, uOvercast ) );
+      skyC = mix( skyC, min( skyC, vec3( sunCap ) ), smoothstep( 0.0, 0.3, uOvercast ) );
       skyC = mix( skyC, grey, uOvercast * 0.9 );
       gl_FragColor = vec4( skyC, 1.0 );`,
     )
