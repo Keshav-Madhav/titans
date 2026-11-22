@@ -81,7 +81,7 @@ function clockGeometry(): THREE.BufferGeometry {
   }
   // The receptacle: a small, pitted brown-green knob where the seeds are held.
   const head = at(1)
-  const knob = new THREE.IcosahedronGeometry(0.016, 1).toNonIndexed()
+  const knob = new THREE.IcosahedronGeometry(0.016, 1) // (polyhedra are built non-indexed already)
   const kp = knob.getAttribute('position')
   for (let i = 0; i < kp.count; i += 3) {
     const a = new THREE.Vector3().fromBufferAttribute(kp, i).add(head)
