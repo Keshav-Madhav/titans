@@ -1703,21 +1703,69 @@ const nearBell = (x: number, z: number) => sunkBells.bells.some((b) => Math.hypo
 const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z) || nearBell(x, z), rockMaterial(terrainTex))
 // Scanned boulders replace the made ones when they arrive (rock-scans.ts).
 // …and round the statues' feet, rubble and fallen fragments made from them (statue-skirts.ts).
-let skirts: StatueSkirts | null = null
-void loadRockScans().then((s) => {
+// (The made figures — not the giant trees' trunks, which are colossus shapes too, nor the bones,
+// which lie in sand that drifts over them instead.)
+const STATUES = new Set(['sentinel', 'sword', 'monolith', 'reclining', 'husk', 'mourner'])
+const skirts = new StatueSkirts(
+  rocks.formations.filter((f) => STATUES.has(f.kind as string) && !f.float),
+  terrain,
+  (x, y, z) => rocks.sdfAt(x, y, z),
+  [vegetation.asset('fern'), vegetation.asset('fern'), vegetation.asset('shrub')],
+  (x, z) => 1 - biome.desert(x, z),
+)
+scene.add(skirts.group)
+// (They arrive when they arrive — often after the title is up, as you wake. So each step in a frame of its
+// own: their shaders compiled off the main thread first, then the textures up one a frame, then the swap,
+// then one draw of just them (the shadow pass's programs). All at once, as they came, it was a ~130 ms
+// frame a second after you woke; qa/cycle7/wakegl.mjs, wakeloaf.mjs, 2026-11-22.)
+const nextFrame = () => new Promise<void>((done) => requestAnimationFrame(() => done()))
+void loadRockScans().then(async (s) => {
   if (!s) return
+  const mats = [...s.near.map((n) => n.mat), ...(s.pebble ? [s.pebble.mat] : [])]
+  skirts.attach(s.near, s.far)
+  // (Twins of each new material, shown, in a scene of their own — compile only makes what is visible —
+  // plain, instanced and instanced with colours, as each use differs: a variant missed is made at first
+  // sight after all.)
+  const probe = new THREE.Scene()
+  const twin = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[]) => {
+    const a = new THREE.Mesh(geo, mat)
+    const b = new THREE.InstancedMesh(geo, mat, 1)
+    const c = new THREE.InstancedMesh(geo, mat, 1)
+    c.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3)
+    for (const o of [a, b, c]) {
+      o.receiveShadow = true
+      probe.add(o)
+    }
+  }
+  for (const n of s.near) twin(n.geo, n.mat)
+  if (s.pebble) twin(s.pebble.geo, s.pebble.mat)
+  for (const m of skirts.stone) twin(m.geometry, m.material)
+  // (Made for a linear target, as the game draws: for the canvas, as compileAsync would by default, it made
+  // sRGB-out variants nothing uses, and the real ones were still made at first sight.)
+  const prevTarget = renderer.getRenderTarget()
+  renderer.setRenderTarget(uploadTarget)
+  const compiled = renderer.compileAsync(probe, camera, scene)
+  renderer.setRenderTarget(prevTarget)
+  await compiled.catch(() => undefined)
+  // (Their textures to the GPU before the first sight of a boulder: left to it, the scans' 1024² maps
+  // went up — decoded and all — in the frame you first turned toward one, ~300 ms;
+  // qa/cycle7/firstsightprof.mjs, 2026-11-22.)
+  for (const m of mats)
+    for (const v of Object.values(m as unknown as Record<string, unknown>))
+      if (v instanceof THREE.Texture) {
+        await nextFrame()
+        renderer.initTexture(v)
+      }
+  await nextFrame()
   vegetation.useScannedRocks(s.near, s.far, s.pebble)
-  // (Their textures to the GPU now, as they arrive (with the world still loading): left to first sight,
-  // the scans' 1024² maps went up — decoded and all — in the frame you first turned toward a boulder,
-  // ~300 ms; qa/cycle7/firstsightprof.mjs, 2026-11-22.)
-  for (const m of [...s.near.map((n) => n.mat), ...(s.pebble ? [s.pebble.mat] : [])])
-    for (const v of Object.values(m as unknown as Record<string, unknown>)) if (v instanceof THREE.Texture) renderer.initTexture(v)
-  // (The made figures — not the giant trees' trunks, which are colossus shapes too, nor the bones,
-  // which lie in sand that drifts over them instead.)
-  const STATUES = new Set(['sentinel', 'sword', 'monolith', 'reclining', 'husk', 'mourner'])
-  const standing = rocks.formations.filter((f) => STATUES.has(f.kind as string) && !f.float)
-  skirts = new StatueSkirts(standing, terrain, (x, y, z) => rocks.sdfAt(x, y, z), s.near, s.far, [vegetation.asset('fern'), vegetation.asset('fern'), vegetation.asset('shrub')], (x, z) => 1 - biome.desert(x, z))
-  scene.add(skirts.group)
+  skirts.show()
+  const uses = new Set<THREE.Material>(mats)
+  const roots: THREE.Object3D[] = [skirts.group]
+  vegetation.group.traverse((o) => {
+    const m = (o as THREE.Mesh).material
+    if (m && !Array.isArray(m) && uses.has(m)) roots.push(o)
+  })
+  firstDrawOf(roots)
 })
 scene.add(vegetation.group)
 // Dense grass round you, rolling in the wind.
@@ -1727,8 +1775,20 @@ const bareAt = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < CA
 // on the parapet or on a fallen block.)
 const grass = new Grass(terrain, biome, lakes, (x, z) => rocks.occupies(x, z) || nearCairn(x, z) || bareAt(x, z) || mireView.wetAt(x, z), (x, z) => {
   if (!inHall(x, z, -3)) return null
-  const t = rocks.topAt(x, z)
-  return t !== null && Math.abs(t - (terrain.base.hallTop + 1)) < 0.1 ? t : null
+  // (Stone just under the plaza's level and open air just over it — two samples of the field. It was
+  // rocks.topAt, which marches down from the formation's top: ~15 ms a grass cell over the plaza, the
+  // hitches when you woke there, 2026-11-22.)
+  const top = terrain.base.hallTop + 1
+  if (!(rocks.sdfAt(x, top - 0.1, z) < 0 && rocks.sdfAt(x, top + 0.1, z) >= 0)) return null
+  // (And where in that band the stone's top is, as topAt found it: weathered, it sits a little low.)
+  let a = top - 0.1
+  let b = top + 0.1
+  for (let k = 0; k < 3; k++) {
+    const m = (a + b) / 2
+    if (rocks.sdfAt(x, m, z) < 0) a = m
+    else b = m
+  }
+  return b
 })
 scene.add(grass.mesh)
 // The Tallgrass: grass three and four times your height, at the Grove's edge (tallgrass.ts).
@@ -4386,7 +4446,7 @@ function frameBody(now: number): void {
   }
   sound.mood(weather.now.dark, weather.now.rain, Math.min(1, weather.now.wind + 0.45 * vertigo + 0.35 * Math.max(seeds.lastK, thermals.lastK)), awe())
   { const _t = performance.now(); vegetation.update(dt, camera.position); costNote('veg', performance.now() - _t) }
-  skirts?.update(camera.position)
+  skirts.update(camera.position)
   { const _t = performance.now(); grass.update(dt, camera.position, wanderer.pos, weather.now.wind, camera); costNote('grass', performance.now() - _t) }
   tallgrass.update(dt, camera.position, wanderer.pos, weather.now.wind, sky.sunDir)
   giantFerns.update(dt, camera.position)
@@ -4707,7 +4767,7 @@ function frameBody(now: number): void {
   if (wanderer.lantern.parent !== scene) scene.attach(wanderer.lantern)
   wanderer.obj.visible = !tooClose
   wanderer.world.visible = !tooClose
-  { const _t = performance.now(); terrainView.update(camera.position, ready && !travelHold && farBuilt ? 5 : 40); costNote('terrain', performance.now() - _t) }
+  { const _t = performance.now(); terrainView.update(camera.position, !ready || travelHold ? 40 : farBuilt ? 5 : 8); costNote('terrain', performance.now() - _t) }
   sky.follow(focus, camera)
   renderer.info.reset()
   // Near plants and stones: only those in view (the camera is final for this frame now).
@@ -4757,9 +4817,10 @@ function frameBody(now: number): void {
   }
   if (work.length > 1200) work.shift()
 
-  // (Ready once the land round you is built — the far ring finishes behind the title, at the loading
-  // rate, a second or two: you wake underground, in the dark, where none of it can be seen. It was
-  // 1.6 s of a 5.7 s start: qa/cycle7/bootsplit.mjs, 2026-11-22.)
+  // (Ready once the land round you is built — the far ring finishes after, a few seconds, 8 ms a frame:
+  // you wake underground, in the dark, where none of it can be seen. It was 1.6 s of a 5.7 s start:
+  // qa/cycle7/bootsplit.mjs, 2026-11-22. Not at the loading rate: clicking to wake at once, the waking
+  // stuttered — 13 frames over 50 ms in its first 4 s, qa/cycle7/wakeclick.mjs.)
   if (ready && !farBuilt && terrainView.settled()) farBuilt = true
   if (!ready && terrainView.nearSettled()) {
     ready = true
@@ -4873,6 +4934,39 @@ function firstDraw(): void {
   } finally {
     renderer.setRenderTarget(prevTarget)
     for (const o of culled) o.frustumCulled = true
+  }
+}
+
+/** firstDraw for things that arrive later (the rock scans): only they drawn, into the same 1×1 target,
+ *  so their shadow pass's programs are made there and not in the frame they first come into view. (The
+ *  shadow map is redrawn every frame: this pass's partial one is gone by the next.) */
+function firstDrawOf(roots: THREE.Object3D[]): void {
+  const keep = new Set<THREE.Object3D>()
+  for (const r of roots) r.traverse((o) => keep.add(o))
+  const hidden: THREE.Object3D[] = []
+  const culled: THREE.Object3D[] = []
+  scene.traverse((o) => {
+    if (keep.has(o)) {
+      if (o.frustumCulled) {
+        culled.push(o)
+        o.frustumCulled = false
+      }
+      return
+    }
+    const d = o as THREE.Object3D & { isMesh?: boolean; isPoints?: boolean; isLine?: boolean; isSprite?: boolean }
+    if ((d.isMesh || d.isPoints || d.isLine || d.isSprite) && o.visible) {
+      hidden.push(o)
+      o.visible = false
+    }
+  })
+  const prevTarget = renderer.getRenderTarget()
+  renderer.setRenderTarget(uploadTarget)
+  try {
+    renderer.render(scene, camera)
+  } finally {
+    renderer.setRenderTarget(prevTarget)
+    for (const o of culled) o.frustumCulled = true
+    for (const o of hidden) o.visible = true
   }
 }
 

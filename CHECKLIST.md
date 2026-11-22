@@ -555,6 +555,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
         sent 54 buffers / 32 MB, a dozen programs' first use and the scans' textures in one frame —
         226-245 ms → 12-29 ms; now drawn once behind the title (shown things only: +40 MB of GPU
         buffers, not +108). Travel run: worst frame 394-542 → 50 ms.
+        The earlier ready cost the first seconds after waking (clicking at once: 13 frames > 50 ms, worst
+        ~180). Three causes, each fixed: the far ring kept its 40 ms budget after ready (now 8); over the
+        Undercroft's plaza each grass cell asked rocks.topAt per blade (~15 ms a cell; now the dice
+        first, then two samples of the field and a short bisection: 45-55 ms grass frames → ≤ 11); and
+        the rock scans, arriving as you woke, compiled, uploaded and laid the statues' rubble all in one
+        frame (115 ms; now the rubble is laid out while loading, the shaders compiled off-thread for the
+        linear target, the textures one a frame, the shadow programs drawn once off screen). Waking:
+        0 frames > 50 ms, worst 33-50 ms — as before the earlier ready, 1.7 s sooner.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most

@@ -326,10 +326,14 @@ export class Grass {
       // as an untextured grey floor from the meadow, the tour, 2026-11-17). (Its density from the plaza's
       // height: the land under it is the pit's floor, 70 m down, where none grows.)
       if (inHall(x, z, 2)) {
-        const top = this.plaza ? this.plaza(x, z) : null
-        if (top !== null) d = this.density(x, z, top, true)
+        // (The dice first, at the plaza's level, then the stone asked whether it is there: asking it
+        // for every point was ~10 ms a cell over the plaza — the hitches on waking there, 2026-11-22.)
+        if (!this.plaza) continue
+        d = this.density(x, z, this.plazaY, true)
         const patch = Math.sin(x * 0.09 + Math.sin(z * 0.07) * 2) * Math.sin(z * 0.11 + Math.sin(x * 0.05) * 2)
-        if (top === null || rand() > d * Math.min(1, Math.max(0, (patch + 0.25) / 0.9))) continue
+        if (rand() > d * Math.min(1, Math.max(0, (patch + 0.25) / 0.9))) continue
+        const top = this.plaza(x, z)
+        if (top === null) continue
         h = top
       } else if (rand() > d || this.occupied(x, z) || this.wet(x, z) || (seaward(x, z) && this.terrain.heightAt(x, z) < SHORE.sea + 0.4)) continue
       // Clumps: taller in some places, cropped short in others.
@@ -350,6 +354,10 @@ export class Grass {
   }
 
   private readonly cellY = new Map<number, number>()
+  /** The plaza's level (the stone's top is within a hand of it). */
+  private get plazaY(): number {
+    return this.terrain.base.hallTop + 1
+  }
 
   update(dt: number, cam: THREE.Vector3, player: THREE.Vector3, wind: number, view?: THREE.Camera): void {
     const u = this.uniforms

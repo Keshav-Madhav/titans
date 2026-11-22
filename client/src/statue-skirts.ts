@@ -3,7 +3,7 @@
 // breaks"). Round each standing colossus: rubble heaped against its foot — pieces broken off it and
 // fallen stone, half sunk — and, further out, a few great fragments that came down long ago.
 //
-// Made from the scanned boulders (rock-scans.ts) once they load: the near shape within NEAR_R of
+// Laid out as the world loads; the stone made from the scanned boulders (rock-scans.ts) once they load: the near shape within NEAR_R of
 // the camera, the far one beyond, re-split as you move. Placement is seeded and found once, from
 // the formation's own shape (rocks.sdfAt): walk out from its middle until you leave the stone.
 
@@ -52,7 +52,9 @@ export class StatueSkirts {
   readonly group = new THREE.Group()
   private readonly pieces: Piece[] = []
   private readonly near: THREE.InstancedMesh[] = []
-  private readonly far: THREE.InstancedMesh
+  private far: THREE.InstancedMesh | null = null
+  /** The stone is made (attach) but drawn only once show() is called (its shaders made first). */
+  private live = false
   private readonly last = new THREE.Vector3(Infinity, 0, 0)
   private readonly green: (x: number, z: number) => number
   /** Tools: how many pieces in all, and near you now. */
@@ -64,17 +66,34 @@ export class StatueSkirts {
     formations: SkirtFormation[],
     terrain: Terrain,
     sdfAt: (x: number, y: number, z: number) => number,
-    near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>,
-    farGeo: THREE.BufferGeometry,
     /** Plants that grow in the rubble where it is green (none in sand), and how green (x, z) is. */
     plants: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }> = [],
     green: (x: number, z: number) => number = () => 1,
   ) {
     for (const p of plants) this.plants.push({ ...p, list: [], xz: [] })
     this.green = green
+    // (Laid out now, with the world loading — ~80 ms of walking out from the statues' middles; the
+    // stone itself comes with the scans, in attach(). Laid out when they came, it was a 115 ms frame
+    // a second after you woke; qa/cycle7/wakeloaf.mjs, 2026-11-22.)
     for (const f of formations) this.place(f, terrain, sdfAt)
     this.stats.pieces = this.pieces.length
-    // One instanced mesh per scanned shape near you; one for every piece far off.
+    for (const p of this.plants) {
+      p.mesh = new THREE.InstancedMesh(p.geo, p.mat, Math.max(1, p.list.length))
+      p.mesh.count = 0
+      p.mesh.visible = false
+      p.mesh.frustumCulled = false
+      p.mesh.receiveShadow = true
+      const col = new Float32Array(Math.max(1, p.list.length) * 3)
+      for (let i = 0; i < col.length; i += 3) col.set([0.85 + ((i * 37) % 9) * 0.03, 0.95, 0.8], i)
+      p.mesh.instanceColor = new THREE.InstancedBufferAttribute(col, 3)
+      this.group.add(p.mesh)
+    }
+  }
+
+  /** The stone, from the scanned boulders as they arrive: one instanced mesh per scanned shape near you,
+   *  one for every piece far off. */
+  attach(near: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }>, farGeo: THREE.BufferGeometry): void {
+    if (this.far) return
     // The scans' own material, greyed: broken off a statue, the pieces are its stone, not the
     // scans' orange granite (a tint alone left them brown). The per-piece colour warms them again
     // in sand.
@@ -102,17 +121,6 @@ export class StatueSkirts {
       this.near.push(m)
       this.group.add(m)
     }
-    for (const p of this.plants) {
-      p.mesh = new THREE.InstancedMesh(p.geo, p.mat, Math.max(1, p.list.length))
-      p.mesh.count = 0
-      p.mesh.visible = false
-      p.mesh.frustumCulled = false
-      p.mesh.receiveShadow = true
-      const col = new Float32Array(Math.max(1, p.list.length) * 3)
-      for (let i = 0; i < col.length; i += 3) col.set([0.85 + ((i * 37) % 9) * 0.03, 0.95, 0.8], i)
-      p.mesh.instanceColor = new THREE.InstancedBufferAttribute(col, 3)
-      this.group.add(p.mesh)
-    }
     this.far = new THREE.InstancedMesh(farGeo, near[0].mat, CAP)
     this.far.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3)
     this.far.count = 0
@@ -120,6 +128,17 @@ export class StatueSkirts {
     this.far.receiveShadow = true
     this.far.frustumCulled = false
     this.group.add(this.far)
+  }
+
+  /** The stone's meshes (to make their shaders before they show). */
+  get stone(): THREE.InstancedMesh[] {
+    return this.far ? [...this.near, this.far] : []
+  }
+
+  /** Start drawing the stone. */
+  show(): void {
+    this.live = this.far !== null
+    this.last.set(Infinity, 0, 0)
   }
 
   private place(f: SkirtFormation, terrain: Terrain, sdfAt: (x: number, y: number, z: number) => number): void {
@@ -209,22 +228,24 @@ export class StatueSkirts {
     this.last.copy(cam)
     const counts = this.near.map(() => 0)
     let farN = 0
+    const stone = this.live
     let i = 0
     for (const p of this.pieces) {
+      if (!stone) break
       const d2 = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2
       if (d2 < NEAR_R * NEAR_R) {
         const k = i++ % this.near.length
         this.near[k].setColorAt(counts[k], p.c)
         this.near[k].setMatrixAt(counts[k]++, p.m)
       } else if (d2 < FAR_R * FAR_R && p.s > FAR_MIN) {
-        this.far.setColorAt(farN, p.c)
-        this.far.setMatrixAt(farN++, p.m)
+        this.far!.setColorAt(farN, p.c)
+        this.far!.setMatrixAt(farN++, p.m)
       }
     }
     this.near.forEach((m, k) => {
       setInstances(m, counts[k])
     })
-    setInstances(this.far, farN)
+    if (this.far) setInstances(this.far, farN)
     // The plants: only near (they are small).
     for (const p of this.plants) {
       let n = 0
