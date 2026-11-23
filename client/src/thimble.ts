@@ -17,7 +17,8 @@ const R0 = 8.2
 const R1 = 7.4
 const WALL = 0.55
 /** Its axis above the litter it lies on, and how far it is sunk. */
-export const THIMBLE_RISE = R0 - 0.9
+// (Sunk deeper: at 0.9 m the litter inside was a 4.6 m strip between dark curving walls; now ~9 m of floor.)
+export const THIMBLE_RISE = R0 - 2.2
 export const THIMBLE_HALF = LEN / 2
 export const THIMBLE_R = R0
 
