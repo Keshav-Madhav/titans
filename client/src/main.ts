@@ -916,7 +916,29 @@ let spindleSaid = false
           }
           // The thread, wool, along the line.
           const curve = new THREE.CatmullRomCurve3(line.pts)
-          const thread = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.22, 7), new THREE.MeshStandardMaterial({ color: 0xcfc6b4, roughness: 1 }))
+          const wool = new THREE.MeshStandardMaterial({ color: 0xcfc6b4, roughness: 1 })
+          // (Thinned away near the eye, as the old ropes are: riding it, the stretch above your hands ran
+          // past the camera as a thick white bar across the screen — first ride, 2026-11-23.)
+          wool.onBeforeCompile = (sh) => {
+            sh.fragmentShader = sh.fragmentShader.replace(
+              '#include <clipping_planes_fragment>',
+              `#include <clipping_planes_fragment>
+              {
+                float near = smoothstep(0.8, 4.5, length(vViewPosition));
+                float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+                if (near < ign) discard;
+              }`,
+            )
+          }
+          // (As thick as an arm, not a leg: at 0.44 m across it slashed the whole frame through a ride. A
+          // hairline along it, as the old ropes have, keeps it a line across the valley.)
+          const thread = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.14, 7), wool)
+          const hp = curve.getPoints(160)
+          const hairPts: number[] = []
+          for (let i = 1; i < hp.length; i++) hairPts.push(hp[i - 1].x, hp[i - 1].y, hp[i - 1].z, hp[i].x, hp[i].y, hp[i].z)
+          const hairGeo = new THREE.BufferGeometry()
+          hairGeo.setAttribute('position', new THREE.Float32BufferAttribute(hairPts, 3))
+          scene.add(new THREE.LineSegments(hairGeo, new THREE.LineBasicMaterial({ color: 0xb8ae9c, transparent: true, opacity: 0.8 })))
           thread.castShadow = true
           thread.name = 'spindle-thread'
           scene.add(thread)
@@ -924,7 +946,7 @@ let spindleSaid = false
           // lets you go; the line itself ends in the air, as a ride must).
           const g0 = new THREE.Vector3(bx + Math.cos(ang) * 3.5, bh + 0.15, bz + Math.sin(ang) * 3.5)
           const tail = new THREE.CatmullRomCurve3([b.clone(), b.clone().lerp(g0, 0.5).setY(b.y - 1.6), g0, g0.clone().add(new THREE.Vector3(Math.cos(ang + 0.6) * 2.5, 0, Math.sin(ang + 0.6) * 2.5))])
-          const tailMesh = new THREE.Mesh(new THREE.TubeGeometry(tail, 24, 0.2, 7), thread.material)
+          const tailMesh = new THREE.Mesh(new THREE.TubeGeometry(tail, 24, 0.13, 7), thread.material)
           tailMesh.castShadow = true
           scene.add(tailMesh)
           spindleAt.set(x, lo, z)
