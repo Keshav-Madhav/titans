@@ -102,6 +102,7 @@ import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
+import { COMB_HALF, combGeometry, combHairPath, combShape } from './comb'
 import { HOURGLASS_GRAIN, HOURGLASS_HALF, HOURGLASS_RISE, HOURGLASS_W, hourglassGlass, hourglassShape, hourglassSolids } from './hourglass'
 import { SPINDLE_HALF, spindleGeometry, spindleShape, spindleThread } from './spindle'
 import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
@@ -639,6 +640,64 @@ const ringChip = new THREE.Vector3()
       ringChip.copy(ringSeat()).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
       break search
     }
+}
+// The Comb (comb.ts): on the Green, a giant's horn comb dropped tines-up, its back sunk in the turf; one
+// of its owner's hairs caught in it, trailing away over the grass. Level turf, clear of the giants, the
+// first camp and the stones.
+const combAt = new THREE.Vector3()
+const combHairEnd = new THREE.Vector3()
+let combRot = 0
+{
+  const far = [...colossi.places.values()]
+  const cr = mulberry32(0xc0b8)
+  for (let tries = 0; tries < 900; tries++) {
+    const r = 600 + cr() * 2600
+    const a = cr() * Math.PI * 2
+    const x = Math.sin(a) * r
+    const z = Math.cos(a) * r
+    if (terrain.base.regions.name(x, z) !== 'valley' || far.some((p) => Math.hypot(p.x - x, p.z - z) < 400) || Math.hypot(x - CAMP.x, z - CAMP.z) < 300) continue
+    // (Clear of the First Ones' trails, as the stones are: those footfalls are stamped in after this runs,
+    // and one dug a stream's trench right under its back — level here, a bridge in the game.)
+    if (trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < COMB_HALF + 90)) continue
+    // (And well off the Undercroft's plaza, where you wake: one thing to an area.)
+    if (inHall(x, z, 250)) continue
+    const rot = cr() * Math.PI * 2
+    const c = Math.cos(rot)
+    const sn = Math.sin(rot)
+    const hs: number[] = []
+    let clear = true
+    // (Every 4 m along it: sampled at its ends and middle only, it stood across a stream's gully, its back
+    // a bridge over the water — first look.)
+    for (let u = -1; u <= 1.001; u += 4 / COMB_HALF / 2)
+      for (const v of [-6, 0, 6, 26]) {
+        const lx = u * COMB_HALF
+        const px = x + lx * c + v * sn
+        const pz = z - lx * sn + v * c
+        if (v < 20) hs.push(terrain.heightAt(px, pz))
+        if (rocks.occupies(px, pz) || lakes.lakes.some((l) => px > l.basin.x0 && px < l.basin.x0 + l.basin.w && pz > l.basin.z0 && pz < l.basin.z0 + l.basin.h)) clear = false
+      }
+    const lo = Math.min(...hs)
+    // (Within a metre: its back is sunk 2.5 m, and at 2.2 m a stream's shallow gully passed under it — the
+    // back stood over the water like a bridge.)
+    if (!clear || Math.max(...hs) - lo > 1.0) continue
+    const y = lo
+    const geo = combGeometry()
+    rocks.addBuilt(combShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.bone], scale: 5, tint: [0.52, 0.36, 0.2] })
+    // The hair: a dark cord through the teeth, over and away down onto the grass.
+    const toWorld = (p: THREE.Vector3) => p.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
+    const pts = combHairPath((lx, lz) => {
+      const w = toWorld(new THREE.Vector3(lx, 0, lz))
+      return terrain.heightAt(w.x, w.z) - y
+    }).map(toWorld)
+    const hair = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 0.1, 6), new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.55 }))
+    hair.castShadow = true
+    hair.name = 'comb-hair'
+    scene.add(hair)
+    combAt.set(x, lo, z)
+    combRot = rot
+    combHairEnd.copy(pts[pts.length - 1])
+    break
+  }
 }
 // The Hourglass (hourglass.ts): in the Dune Sea, a giant's hourglass lying on its side, half sunk, one
 // bulb broken open and the desert blown in. Level sand well clear of the Ring and the giants.
@@ -1652,6 +1711,12 @@ const spots = (() => {
     grain.castShadow = true
     placed.push({ id: 'hourglass-grain', kind: 'trinket', at: hourglassGrain.clone(), model: grain })
   }
+  // At the end of the hair caught in the Comb, in the grass: a coil of it.
+  if (combAt.lengthSq() > 0) {
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.018, 6, 20).rotateX(Math.PI / 2).translate(0, 0.03, 0), new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.55 }))
+    coil.castShadow = true
+    placed.push({ id: 'comb-hair', kind: 'trinket', at: combHairEnd.clone().setY(combHairEnd.y - 0.1), model: coil })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -2382,6 +2447,7 @@ const sites: Site[] = [
   { id: 'snowshoe', r: 70, at: () => (snowshoeAt.lengthSq() > 0 ? { x: snowshoeAt.x, z: snowshoeAt.z } : null) },
   { id: 'spindle', r: 70, at: () => (spindleAt.lengthSq() > 0 ? { x: spindleAt.x, z: spindleAt.z } : null) },
   { id: 'hourglass', r: 70, at: () => (hourglassAt.lengthSq() > 0 ? { x: hourglassAt.x, z: hourglassAt.z } : null) },
+  { id: 'comb', r: 70, at: () => (combAt.lengthSq() > 0 ? { x: combAt.x, z: combAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -5563,6 +5629,12 @@ const g = {
   },
   spindleTuft,
   hourglassAt,
+  combAt,
+  trailPoints,
+  combHairEnd,
+  get combRot() {
+    return combRot
+  },
   hourglassGrain,
   get hourglassRot() {
     return hourglassRot
