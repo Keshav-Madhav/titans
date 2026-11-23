@@ -102,6 +102,7 @@ import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
+import { HOURGLASS_GRAIN, HOURGLASS_HALF, HOURGLASS_RISE, HOURGLASS_W, hourglassGlass, hourglassShape, hourglassSolids } from './hourglass'
 import { SPINDLE_HALF, spindleGeometry, spindleShape, spindleThread } from './spindle'
 import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
@@ -638,6 +639,66 @@ const ringChip = new THREE.Vector3()
       ringChip.copy(ringSeat()).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
       break search
     }
+}
+// The Hourglass (hourglass.ts): in the Dune Sea, a giant's hourglass lying on its side, half sunk, one
+// bulb broken open and the desert blown in. Level sand well clear of the Ring and the giants.
+const hourglassAt = new THREE.Vector3()
+const hourglassGrain = new THREE.Vector3()
+let hourglassRot = 0
+{
+  const far = [...colossi.places.values()]
+  const hr = mulberry32(0x4061)
+  for (let tries = 0; tries < 900; tries++) {
+    const r = 3000 + hr() * 3600
+    const a = hr() * Math.PI * 2
+    const x = Math.sin(a) * r
+    const z = Math.cos(a) * r
+    if (terrain.base.regions.name(x, z) !== 'desert' || far.some((p) => Math.hypot(p.x - x, p.z - z) < 600)) continue
+    if (ringAt.lengthSq() > 0 && Math.hypot(ringAt.x - x, ringAt.z - z) < 1500) continue
+    const rot = hr() * Math.PI * 2
+    const c = Math.cos(rot)
+    const sn = Math.sin(rot)
+    const hs: number[] = []
+    let clear = true
+    for (const u of [-1, -0.5, 0, 0.5, 1])
+      for (const v of [-1, 0, 1]) {
+        const lx = u * HOURGLASS_HALF
+        const lz = v * HOURGLASS_W
+        const px = x + lx * c + lz * sn
+        const pz = z - lx * sn + lz * c
+        hs.push(terrain.heightAt(px, pz))
+        if (rocks.occupies(px, pz)) clear = false
+      }
+    const lo = Math.min(...hs)
+    if (!clear || Math.max(...hs) - lo > 3 || lo < 2) continue
+    const y = lo + HOURGLASS_RISE
+    const { geo, postsFrom, sandFrom } = hourglassSolids()
+    rocks.addBuilt(hourglassShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.sand], scale: 5, tint: [1, 1, 1] })
+    // (Each part its own stuff: wood gone grey for the caps and posts, the sand as the dunes'.)
+    const layer = geo.getAttribute('aLayer') as THREE.BufferAttribute
+    const col = geo.getAttribute('color') as THREE.BufferAttribute
+    for (let i = 0; i < layer.count; i++) {
+      if (i < sandFrom) {
+        // (Bark at a broad scale for wood gone grey along its grain: in bone it read as spotted marble.)
+        layer.setXYZ(i, LAYER.bark, LAYER.sand, i < postsFrom ? 10 : 8)
+        col.setXYZ(i, i < postsFrom ? 1.55 : 1.65, i < postsFrom ? 1.48 : 1.58, i < postsFrom ? 1.38 : 1.46)
+      } else {
+        layer.setXYZ(i, LAYER.sand, LAYER.sand, 6)
+        col.setXYZ(i, 1, 1, 1)
+      }
+    }
+    const glass = new THREE.Mesh(hourglassGlass(), new THREE.MeshStandardMaterial({ color: 0xe9eee9, roughness: 0.45, metalness: 0, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }))
+    glass.position.set(x, y, z)
+    glass.rotation.y = rot
+    // (Frosted: scoured by the blown sand for longer than anyone has watched it. Clear, at a fifth, the
+    // bulbs all but vanished in the light and it read as an empty frame — first look.)
+    glass.name = 'hourglass-glass'
+    scene.add(glass)
+    hourglassAt.set(x, lo, z)
+    hourglassRot = rot
+    hourglassGrain.copy(HOURGLASS_GRAIN).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
+    break
+  }
 }
 // The Board (gameboard.ts): in the Ruins, a game the giants left unfinished — eight by eight squares
 // six metres wide on a low plinth, stone pieces taller than you on the dark ones, one tipped on its
@@ -1585,6 +1646,12 @@ const spots = (() => {
     tuft.castShadow = true
     placed.push({ id: 'spindle-tuft', kind: 'trinket', at: spindleTuft.clone(), model: tuft })
   }
+  // On the sand inside the Hourglass's broken bulb: one grain of its sand.
+  if (hourglassAt.lengthSq() > 0) {
+    const grain = new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 2).translate(0, 0.08, 0), new THREE.MeshStandardMaterial({ color: 0xe6d2a8, roughness: 0.25 }))
+    grain.castShadow = true
+    placed.push({ id: 'hourglass-grain', kind: 'trinket', at: hourglassGrain.clone(), model: grain })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -2314,6 +2381,7 @@ const sites: Site[] = [
   { id: 'flute', r: 70, at: () => (fluteAt.lengthSq() > 0 ? { x: fluteAt.x, z: fluteAt.z } : null) },
   { id: 'snowshoe', r: 70, at: () => (snowshoeAt.lengthSq() > 0 ? { x: snowshoeAt.x, z: snowshoeAt.z } : null) },
   { id: 'spindle', r: 70, at: () => (spindleAt.lengthSq() > 0 ? { x: spindleAt.x, z: spindleAt.z } : null) },
+  { id: 'hourglass', r: 70, at: () => (hourglassAt.lengthSq() > 0 ? { x: hourglassAt.x, z: hourglassAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -5494,6 +5562,11 @@ const g = {
     return spindleBootMs
   },
   spindleTuft,
+  hourglassAt,
+  hourglassGrain,
+  get hourglassRot() {
+    return hourglassRot
+  },
   get spindleRot() {
     return spindleRot
   },
