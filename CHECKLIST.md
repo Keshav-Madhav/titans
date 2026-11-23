@@ -563,6 +563,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
         frame (115 ms; now the rubble is laid out while loading, the shaders compiled off-thread for the
         linear target, the textures one a frame, the shadow programs drawn once off screen). Waking:
         0 frames > 50 ms, worst 33-50 ms — as before the earlier ready, 1.7 s sooner.
+        2026-11-23, running: rocks.near()/occupies() scanned every formation per call — a 256 m grid
+        (identical answers): grass re-lays over 8 ms on the 40 s travel run ~50 -> 0. Vegetation's
+        cell-maker ran past its 2.5 ms budget 37-49 times a run (220 pebbles in one step; a grass cell
+        begun with the budget spent): split and fitted — 0, the same plants. The map's "5 ms frames"
+        are its deliberate budget while minimap tiles are missing, not overruns. The governor at 6x
+        CPU throttle in the Grove now holds full quality (11-21: L1 in ~7 s, L2 by 30 s).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
