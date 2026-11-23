@@ -103,13 +103,14 @@ import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
 import { COMB_HALF, combGeometry, combHairPath, combShape } from './comb'
+import { THIMBLE_HALF, THIMBLE_R, THIMBLE_RISE, thimbleGeometry, thimblePin, thimbleShape } from './thimble'
 import { HOURGLASS_GRAIN, HOURGLASS_HALF, HOURGLASS_RISE, HOURGLASS_W, hourglassGlass, hourglassShape, hourglassSolids } from './hourglass'
 import { SPINDLE_HALF, spindleGeometry, spindleShape, spindleThread } from './spindle'
 import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
-import { FLUTE_HALF, FLUTE_HALF_LEN, FLUTE_RISE, fluteBlockFloor, fluteGeometry, fluteDarkGlsl, fluteO, fluteShape } from './flute'
+import { FLUTE_HALF, FLUTE_HALF_LEN, FLUTE_RISE, fluteBlockFloor, fluteGeometry, fluteDarkGlsl, fluteO, fluteShafts, fluteShape } from './flute'
 import { RING_R, ringMesh, ringRise, ringSeat, ringShape, ringStandIn } from './ring'
 import { LANTERN_HALF, LANTERN_HALF_LEN, LANTERN_RISE, lanternCandle, lanternGlass, lanternIron, lanternShape, lanternStandIn } from './lantern'
 import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
@@ -555,6 +556,36 @@ const urchinAt = new THREE.Vector3()
 // the sand, lying along the beach. The first stretch of dry, level sand its whole length found walking
 // the coast east from due south — the Urchin has the west.
 const fluteAt = new THREE.Vector3()
+/** The Flute's light shafts: brightest at the hole, fading to the sand; faint under cloud, gone at night. */
+const fluteShaftMat = new THREE.ShaderMaterial({
+  uniforms: { strength: { value: 1 } },
+  vertexShader: /* glsl */ `
+    varying float vT;
+    varying vec3 vN;
+    varying vec3 vView;
+    void main() {
+      vT = uv.y;
+      vec4 w = modelMatrix * vec4(position, 1.0);
+      vN = normalize(mat3(modelMatrix) * normal);
+      vView = normalize(cameraPosition - w.xyz);
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float strength;
+    varying float vT;
+    varying vec3 vN;
+    varying vec3 vView;
+    void main() {
+      // A beam: dense through its middle, soft at the edges you see it by.
+      float face = abs(dot(vN, vView));
+      float a = pow(face, 1.3) * (0.3 + 0.7 * vT) * 0.42 * strength;
+      gl_FragColor = vec4(vec3(1.0, 0.94, 0.8) * a, a);
+    }`,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+})
 const fluteFind = new THREE.Vector3()
 let fluteRot = 0
 let fluteWait = 8
@@ -590,6 +621,21 @@ let fluteWait = 8
         geo.setAttribute('color', new THREE.BufferAttribute(geo.userData.tint as Float32Array, 3))
         fluteAt.set(x, lo, z)
         fluteRot = rot
+        // Shafts of daylight down through its finger holes onto the sand inside (as the Undercroft's
+        // skylights have): soft, additive, as bright as the sun is.
+        {
+          const shafts = new THREE.Group()
+          for (const h of fluteShafts()) {
+            const len = h.y - h.floor
+            const g = new THREE.CylinderGeometry(h.r, h.r * 1.25, len, 20, 6, true).translate(h.x, h.y - len / 2, h.z)
+            const m = new THREE.Mesh(g, fluteShaftMat)
+            m.renderOrder = 4
+            shafts.add(m)
+          }
+          shafts.position.set(x, y, z)
+          shafts.rotation.y = rot
+          scene.add(shafts)
+        }
         Object.assign(fluteO, { x, y, z, w: rot })
         fluteFind.copy(fluteBlockFloor()).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, 0, z))
         fluteFind.y = terrain.heightAt(fluteFind.x, fluteFind.z)
@@ -696,6 +742,58 @@ let combRot = 0
     combAt.set(x, lo, z)
     combRot = rot
     combHairEnd.copy(pts[pts.length - 1])
+    break
+  }
+}
+// The Thimble (thimble.ts): in the Old Wood, a giant's brass thimble lying on its side in the litter, gone
+// green, a domed room you walk into; inside, a sewing pin as long as a spear, a knot of red thread on it.
+// Level litter in the wood, clear of the giant trees, the First Ones' trails and the stones.
+const thimbleAt = new THREE.Vector3()
+const thimbleKnot = new THREE.Vector3()
+let thimbleRot = 0
+/** Round places kept clear of trees and bushes (the Thimble's room): [x, z, r]. */
+const clearings: Array<[number, number, number]> = []
+{
+  const far = [...colossi.places.values()]
+  const tr = mulberry32(0x7b1e)
+  for (let tries = 0; tries < 1500; tries++) {
+    const r = 1800 + tr() * 3800
+    const a = tr() * Math.PI * 2
+    const x = Math.sin(a) * r
+    const z = Math.cos(a) * r
+    if (terrain.base.regions.name(x, z) !== 'forest' || far.some((p) => Math.hypot(p.x - x, p.z - z) < 260)) continue
+    if (trailPoints.some((p) => Math.hypot(p.x - x, p.z - z) < 120)) continue
+    const rot = tr() * Math.PI * 2
+    const c = Math.cos(rot)
+    const sn = Math.sin(rot)
+    const hs: number[] = []
+    let clear = true
+    for (let u = -1; u <= 1.001; u += 0.25)
+      for (const v of [-1, 0, 1]) {
+        const lx = u * (THIMBLE_HALF + 4)
+        const lz = v * THIMBLE_R
+        const px = x + lx * c + lz * sn
+        const pz = z - lx * sn + lz * c
+        hs.push(terrain.heightAt(px, pz))
+        if (rocks.occupies(px, pz)) clear = false
+      }
+    const lo = Math.min(...hs)
+    if (!clear || Math.max(...hs) - lo > 1.2) continue
+    const y = lo + THIMBLE_RISE
+    const geo = thimbleGeometry()
+    rocks.addBuilt(thimbleShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.moss], scale: 4, tint: [0.3, 0.4, 0.32] })
+    const pin = thimblePin()
+    const pinMesh = new THREE.Mesh(pin.geo, new THREE.MeshStandardMaterial({ color: 0x8c8a84, metalness: 0.75, roughness: 0.38 }))
+    pinMesh.castShadow = pinMesh.receiveShadow = true
+    pinMesh.position.set(x, y, z)
+    pinMesh.rotation.y = rot
+    scene.add(pinMesh)
+    thimbleAt.set(x, lo, z)
+    thimbleRot = rot
+    thimbleKnot.copy(pin.knot).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
+    thimbleKnot.y = terrain.heightAt(thimbleKnot.x, thimbleKnot.z)
+    // (A glade it lies in: kept clear only round its own length, the wood hid it from 20 m off.)
+    clearings.push([x, z, 30])
     break
   }
 }
@@ -1717,6 +1815,12 @@ const spots = (() => {
     coil.castShadow = true
     placed.push({ id: 'comb-hair', kind: 'trinket', at: combHairEnd.clone().setY(combHairEnd.y - 0.1), model: coil })
   }
+  // On the pin in the Thimble: a knot of red thread, still tied to its eye.
+  if (thimbleAt.lengthSq() > 0) {
+    const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.06, 0.022, 40, 6, 2, 3).translate(0, 0.07, 0), new THREE.MeshStandardMaterial({ color: 0x9c2a22, roughness: 0.85 }))
+    knot.castShadow = true
+    placed.push({ id: 'thimble-thread', kind: 'trinket', at: thimbleKnot.clone(), model: knot })
+  }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
     const bundle = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: 0x7d7870, roughness: 1 }))
@@ -2050,7 +2154,8 @@ const nearCairn = (x: number, z: number) => cairnPlaces.some((c) => Math.abs(c.x
 // A clearing round each bell: nothing grows within 16 m (a pine beside the Wood's had the camera
 // in its branches as you struck the bell).
 const nearBell = (x: number, z: number) => sunkBells.bells.some((b) => Math.hypot(b.def.x - x, b.def.z - z) < 16)
-const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z) || nearBell(x, z), rockMaterial(terrainTex))
+const inClearing = (x: number, z: number) => clearings.some(([cx, cz, r]) => Math.hypot(cx - x, cz - z) < r)
+const vegetation = new Vegetation(terrain, biome, lakes, paint, pave, (x, z) => rocks.occupies(x, z) || inHall(x, z, 6) || nearCairn(x, z) || nearBell(x, z) || inClearing(x, z), rockMaterial(terrainTex))
 // Scanned boulders replace the made ones when they arrive (rock-scans.ts).
 // …and round the statues' feet, rubble and fallen fragments made from them (statue-skirts.ts).
 // (The made figures — not the giant trees' trunks, which are colossus shapes too, nor the bones,
@@ -2448,6 +2553,7 @@ const sites: Site[] = [
   { id: 'spindle', r: 70, at: () => (spindleAt.lengthSq() > 0 ? { x: spindleAt.x, z: spindleAt.z } : null) },
   { id: 'hourglass', r: 70, at: () => (hourglassAt.lengthSq() > 0 ? { x: hourglassAt.x, z: hourglassAt.z } : null) },
   { id: 'comb', r: 70, at: () => (combAt.lengthSq() > 0 ? { x: combAt.x, z: combAt.z } : null) },
+  { id: 'thimble', r: 60, at: () => (thimbleAt.lengthSq() > 0 ? { x: thimbleAt.x, z: thimbleAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -4758,6 +4864,7 @@ function frameBody(now: number): void {
     post.grade.uniforms.streakT.value = (post.grade.uniforms.streakT.value as number) + dt * (0.6 + v * 0.06)
   }
   undercroft.update(sky.sun.intensity / 3)
+  fluteShaftMat.uniforms.strength.value = Math.min(1.2, sky.sun.intensity / 3) * (1 - 0.8 * weather.now.dark)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); costNote('map', performance.now() - _t) }
@@ -5630,6 +5737,11 @@ const g = {
   spindleTuft,
   hourglassAt,
   combAt,
+  thimbleAt,
+  thimbleKnot,
+  get thimbleRot() {
+    return thimbleRot
+  },
   trailPoints,
   combHairEnd,
   get combRot() {

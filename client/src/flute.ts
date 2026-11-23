@@ -186,3 +186,14 @@ export function fluteDarkGlsl(u: string): string {
     }
   }`
 }
+
+/** Shafts of daylight down through the finger holes onto the sand (local, lying): each hole's centre on
+ *  the outside, its radius, and the floor's height under it. */
+export function fluteShafts(): Array<{ x: number; y: number; z: number; r: number; floor: number }> {
+  const c = Math.cos(ROLL)
+  const s = Math.sin(ROLL)
+  return HOLES.map(([x, r]) => {
+    const rr = radius(x) - WALL * 0.5
+    return { x, y: c * rr, z: s * rr, r: r * 0.85, floor: -FLUTE_RISE }
+  })
+}
