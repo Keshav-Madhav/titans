@@ -56,11 +56,11 @@ export function spindleGeometry(): { geo: THREE.BufferGeometry; whorlFrom: numbe
   )!
   along(w, WX)
   const copFrom = whorlFrom + w.getAttribute('position').count
-  // The cop: the wound wool, fat in the middle, in turns (a ridge every 0.7 m).
+  // The cop: the wound wool, fat in the middle, in turns (a ridge every 0.45 m: coarser, under a low moon they striped it like a hive).
   const cp: THREE.Vector2[] = []
-  for (let i = 0; i <= 60; i++) {
-    const x = CX0 + (i / 60) * (CX1 - CX0)
-    cp.push(new THREE.Vector2(Math.max(rAt(x) + 0.05, copR(x) * (1 + 0.045 * Math.sin(x * 9))), x - (CX0 + CX1) / 2))
+  for (let i = 0; i <= 120; i++) {
+    const x = CX0 + (i / 120) * (CX1 - CX0)
+    cp.push(new THREE.Vector2(Math.max(rAt(x) + 0.05, copR(x) * (1 + 0.03 * Math.sin(x * 14))), x - (CX0 + CX1) / 2))
   }
   const cop = new THREE.LatheGeometry(cp, 28).toNonIndexed()
   along(cop, (CX0 + CX1) / 2)
