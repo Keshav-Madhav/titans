@@ -6,6 +6,7 @@
 //   spores   — the Old Wood: slow motes hanging in the light
 //   seeds    — the Green: a few seed tufts carried along on the breeze
 //   drifts   — the Dune Sea again: soft low sheets of blown sand racing over it
+//   leaves   — the Old Wood: a few leaves coming down, tumbling, carried by the wind
 //
 // All of them light up when they are between you and the sun (forward
 // scattering), which is most of the look: dust only shows against the light.
@@ -13,7 +14,7 @@
 import * as THREE from 'three'
 import { mulberry32 } from '@titans/shared'
 
-const COUNTS = [1400, 700, 320, 300]
+const COUNTS = [1400, 700, 320, 300, 420]
 /** The box round the camera (metres): wide, and lower than it is wide. */
 const BOX = new THREE.Vector3(56, 22, 56)
 
@@ -33,10 +34,13 @@ uniform float uPx;
 /** The ground under the camera, relative to it. */
 uniform float uFloor;
 varying vec4 vCol;
+/** A leaf: x 1 for one, y its turn on screen, z how edge-on it is as it tumbles. */
+varying vec3 vLeaf;
 
 void main() {
   int k = int(aKind + 0.5);
-  float dens = k == 0 || k == 3 ? uDensity.x : k == 1 ? uDensity.y : uDensity.z;
+  vLeaf = vec3(0.0);
+  float dens = k == 0 || k == 3 ? uDensity.x : k == 1 ? uDensity.y : k == 4 ? uDensity.w : uDensity.z;
   if (aSeed.w >= dens) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   float t = uTime;
   float s = aSeed.w * 61.0;
@@ -59,11 +63,20 @@ void main() {
     drift = uWind * t * (1.4 + 3.0 * uWindK) + vec3(1.2 * sin(t * 0.5 + s), 0.8 * sin(t * 0.37 + s * 1.3), 1.2 * cos(t * 0.43 + s * 0.7));
     base = vec3(1.0, 0.98, 0.94);
     size = 0.2;
-  } else {
+  } else if (k == 3) {
     // A sheet of blown sand: big, faint, fast, hugging the ground.
     drift = uWind * t * (4.0 + 18.0 * uWindK) * (0.8 + 0.4 * aSeed.x);
     base = vec3(0.88, 0.74, 0.56);
     size = 2.6 + 2.0 * aSeed.y;
+  } else {
+    // A leaf coming down: falling slowly, swinging side to side as it goes, carried by the wind.
+    float sw = sin(t * (0.9 + 0.5 * aSeed.y) + s);
+    drift = vec3(1.6 * sw, -t * (0.7 + 0.5 * aSeed.x), 1.1 * cos(t * 0.8 + s * 1.3)) + uWind * t * (0.6 + 2.2 * uWindK);
+    // Autumn in the wood: gold, rust and a few still green.
+    // (Larger than life and bright: at a leaf's true size they were a few dark pixels in the dim wood.)
+    base = aSeed.y < 0.45 ? vec3(1.0, 0.72, 0.26) : aSeed.y < 0.8 ? vec3(0.86, 0.42, 0.16) : vec3(0.62, 0.72, 0.26);
+    size = 0.3 + 0.12 * aSeed.x;
+    vLeaf = vec3(1.0, t * (1.2 + aSeed.x) + s, abs(sin(t * (2.1 + aSeed.y) + s * 3.0)));
   }
   vec3 rel = mod(aSeed.xyz * uBox + drift - uCam + 0.5 * uBox, uBox) - 0.5 * uBox;
   // Grit and flies keep low: a layer a few metres deep lying on the ground.
@@ -94,6 +107,10 @@ void main() {
     // through the whole layer of them at once (looking down at your feet, the dunes went white).
     float steep = abs(rel.y) / max(d, 0.1);
     a *= 0.075 * (1.0 - 0.9 * smoothstep(0.12, 0.45, steep));
+  } else if (k == 4) {
+    // A leaf is solid, lit like the rest (and dimmer: leaves do not glow like dust in the light).
+    a *= 0.95;
+    col = base * (uAmb * 1.6 + uSunCol * (0.6 + 0.7 * g));
   } else {
     a *= k == 1 ? 0.75 : 0.9;
   }
@@ -103,8 +120,18 @@ void main() {
 
 const frag = /* glsl */ `
 varying vec4 vCol;
+varying vec3 vLeaf;
 void main() {
-  float r = length(gl_PointCoord - 0.5);
+  vec2 p = gl_PointCoord - 0.5;
+  float r = length(p);
+  if (vLeaf.x > 0.5) {
+    // A leaf: an almond shape turning, thinning to a sliver as it tumbles edge-on.
+    float c = cos(vLeaf.y);
+    float sn = sin(vLeaf.y);
+    vec2 q = vec2(c * p.x - sn * p.y, sn * p.x + c * p.y);
+    q.y /= 0.12 + 0.88 * vLeaf.z;
+    r = length(vec2(q.x * 0.95, q.y * 2.1)) + 0.15 * abs(q.x);
+  }
   float a = vCol.a * (1.0 - smoothstep(0.18, 0.5, r));
   if (a < 0.003) discard;
   gl_FragColor = vec4(vCol.rgb, a);
@@ -188,7 +215,8 @@ export class Motes {
       air.desert * low * dry * (0.3 + 0.7 * air.wind),
       air.forest * dry * (0.35 + 0.65 * day) * (1 - 0.6 * air.indoors),
       air.open * (1 - air.desert) * dry * day * (0.4 + 0.6 * air.wind) * 0.8,
-      0,
+      // (Leaves: in the wood, under the trees, by day and in the dusk; more when it blows.)
+      air.forest * low * (1 - 0.7 * air.rain) * (0.25 + 0.75 * day) * (0.4 + 0.6 * air.wind) * (1 - air.indoors),
     )
     // A land's air eases in over a few seconds.
     const e = 1 - Math.exp(-dt * 0.6)
