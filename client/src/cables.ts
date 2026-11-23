@@ -192,6 +192,14 @@ export class Cables {
     return { a: A, b: B, pts, len }
   }
 
+  /** One more line to ride (a → b, a the higher), drawn by its owner (the Spindle's thread): null if
+   *  the land is in the way. */
+  addLine(a: THREE.Vector3, b: THREE.Vector3, terrain: Terrain): Cable | null {
+    const c = this.make(a, b, terrain)
+    if (c) this.cables.push(c)
+    return c
+  }
+
   /** The point on a cable at t (0 … 1). */
   at(c: Cable, t: number, out: THREE.Vector3): THREE.Vector3 {
     const f = THREE.MathUtils.clamp(t, 0, 1) * SEG

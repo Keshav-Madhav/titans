@@ -86,7 +86,7 @@ import { Prints } from './prints'
 import { Sea } from './sea'
 import { Frozen } from './frozen'
 import { Grapple, RANGE as GRAPPLE_RANGE } from './grapple'
-import { Cables, HANG as CABLE_HANG } from './cables'
+import { Cables, HANG as CABLE_HANG, type Cable } from './cables'
 import { scrubNaN } from './scrub'
 import { Spots, type Spot } from './spots'
 import { Wisps } from './wisps'
@@ -102,6 +102,7 @@ import { MireView, poolWater } from './mire'
 import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
+import { SPINDLE_HALF, spindleGeometry, spindleShape, spindleThread } from './spindle'
 import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
@@ -852,6 +853,91 @@ const _cablesT0 = performance.now()
 const cables = new Cables(rocks, terrain, WORLD_SEED, CAMP)
 const cablesBootMs = performance.now() - _cablesT0
 scene.add(cables.group)
+// The Spindle (spindle.ts): on a high terrace of the Steps, a giant's drop spindle dropped as if from a
+// lap, its thread running down the terraces — a line to ride (cables.addLine). The highest level
+// stretch of the Steps that has a ride down from it: 220-420 m off and 40 m or more below, clear.
+const spindleAt = new THREE.Vector3()
+const spindleTuft = new THREE.Vector3()
+let spindleRot = 0
+let spindleBootMs = 0
+let spindleLine: Cable | null = null
+let spindleSaid = false
+{
+  const _sp0 = performance.now()
+  const cands: Array<[number, number, number]> = []
+  for (let x = -2000; x <= 3500; x += 70)
+    for (let z = -6000; z <= -800; z += 70) if (terrain.base.regions.name(x, z) === 'ruins') cands.push([x, z, terrain.heightAt(x, z)])
+  cands.sort((p, q) => q[2] - p[2])
+  const sr = mulberry32(0x5b1d)
+  search: for (const [x, z] of cands.slice(0, 160)) {
+    for (let k = 0; k < 6; k++) {
+      const rot = sr() * Math.PI * 2
+      const c = Math.cos(rot)
+      const sn = Math.sin(rot)
+      const hs: number[] = []
+      for (const u of [-1, -0.5, 0, 0.5, 1])
+        for (const v of [-6, 6]) hs.push(terrain.heightAt(x + u * SPINDLE_HALF * c + v * sn, z - u * SPINDLE_HALF * sn + v * c))
+      const lo = Math.min(...hs)
+      if (Math.max(...hs) - lo > 2.5 || rocks.occupies(x, z) || hs.some((h) => h < 1)) continue
+      const y = lo - 0.15
+      // The far end: down the terraces, off to one side of the shaft (not along it).
+      for (let j = 0; j < 24; j++) {
+        const ang = (j / 24) * Math.PI * 2
+        // Across the shaft: its local z (+z at rot is (sin rot, cos rot) in world x, z).
+        const across = Math.cos(ang) * sn + Math.sin(ang) * c
+        if (Math.abs(across) < 0.7) continue
+        const a = spindleThread(Math.sign(across)).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
+        for (const d of [260, 340, 420, 220]) {
+          const bx = a.x + Math.cos(ang) * d
+          const bz = a.z + Math.sin(ang) * d
+          const bh = terrain.heightAt(bx, bz)
+          if (bh > a.y - 40 || bh < 1 || rocks.occupies(bx, bz)) continue
+          const b = new THREE.Vector3(bx, bh + 2.6, bz)
+          const line = cables.addLine(a, b, terrain)
+          if (!line) continue
+          spindleLine = line
+          const { geo, whorlFrom, copFrom } = spindleGeometry()
+          rocks.addBuilt(spindleShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.bone], scale: 4, tint: [1, 1, 1] })
+          // (Each part its own stuff: addBuilt gives every vertex the same layers and tint.)
+          const layer = geo.getAttribute('aLayer') as THREE.BufferAttribute
+          const col = geo.getAttribute('color') as THREE.BufferAttribute
+          for (let i = 0; i < layer.count; i++) {
+            if (i < whorlFrom) {
+              layer.setXYZ(i, LAYER.bone, LAYER.bone, 4)
+              col.setXYZ(i, 0.62, 0.44, 0.28)
+            } else if (i < copFrom) {
+              layer.setXYZ(i, LAYER.carved, LAYER.moss, 6)
+              col.setXYZ(i, 0.9, 0.88, 0.84)
+            } else {
+              // (Smooth, the turns in its shape: in hide it read as a giant pine cone — first look.)
+              layer.setXYZ(i, LAYER.bone, LAYER.bone, 12)
+              col.setXYZ(i, 1.08, 1.02, 0.9)
+            }
+          }
+          // The thread, wool, along the line.
+          const curve = new THREE.CatmullRomCurve3(line.pts)
+          const thread = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.22, 7), new THREE.MeshStandardMaterial({ color: 0xcfc6b4, roughness: 1 }))
+          thread.castShadow = true
+          thread.name = 'spindle-thread'
+          scene.add(thread)
+          // Its loose end, off the line's last point and down onto the grass, trailing (where the ride
+          // lets you go; the line itself ends in the air, as a ride must).
+          const g0 = new THREE.Vector3(bx + Math.cos(ang) * 3.5, bh + 0.15, bz + Math.sin(ang) * 3.5)
+          const tail = new THREE.CatmullRomCurve3([b.clone(), b.clone().lerp(g0, 0.5).setY(b.y - 1.6), g0, g0.clone().add(new THREE.Vector3(Math.cos(ang + 0.6) * 2.5, 0, Math.sin(ang + 0.6) * 2.5))])
+          const tailMesh = new THREE.Mesh(new THREE.TubeGeometry(tail, 24, 0.2, 7), thread.material)
+          tailMesh.castShadow = true
+          scene.add(tailMesh)
+          spindleAt.set(x, lo, z)
+          spindleRot = rot
+          spindleTuft.set(bx + Math.cos(ang) * 1.5, 0, bz + Math.sin(ang) * 1.5)
+          spindleTuft.y = terrain.heightAt(spindleTuft.x, spindleTuft.z)
+          break search
+        }
+      }
+    }
+  }
+  spindleBootMs = performance.now() - _sp0
+}
 const _cHand = new THREE.Vector3()
 let cableSaid = false
 /** The last frame whose positions were all numbers (for the safety net's report). */
@@ -1470,6 +1556,12 @@ const spots = (() => {
     const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.022, 40, 6, 2, 3).translate(0, 0.07, 0), new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.9 }))
     knot.castShadow = true
     placed.push({ id: 'snowshoe-thong', kind: 'trinket', at: snowshoeFind.clone(), model: knot })
+  }
+  // At the far end of the Spindle's thread, on the ground: a tuft of its wool.
+  if (spindleAt.lengthSq() > 0) {
+    const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1).scale(1.3, 0.7, 1).translate(0, 0.06, 0), new THREE.MeshStandardMaterial({ color: 0xcfc6b4, roughness: 1 }))
+    tuft.castShadow = true
+    placed.push({ id: 'spindle-tuft', kind: 'trinket', at: spindleTuft.clone(), model: tuft })
   }
   // Under the Web, on the floor: something wrapped in its silk, fallen from far above.
   {
@@ -2199,6 +2291,7 @@ const sites: Site[] = [
   { id: 'urchin', r: 70, at: () => (urchinAt.lengthSq() > 0 ? { x: urchinAt.x, z: urchinAt.z } : null) },
   { id: 'flute', r: 70, at: () => (fluteAt.lengthSq() > 0 ? { x: fluteAt.x, z: fluteAt.z } : null) },
   { id: 'snowshoe', r: 70, at: () => (snowshoeAt.lengthSq() > 0 ? { x: snowshoeAt.x, z: snowshoeAt.z } : null) },
+  { id: 'spindle', r: 70, at: () => (spindleAt.lengthSq() > 0 ? { x: spindleAt.x, z: spindleAt.z } : null) },
   { id: 'ring', r: 70, at: () => (ringAt.lengthSq() > 0 ? { x: ringAt.x, z: ringAt.z } : null) },
   { id: 'lantern', r: 60, at: () => (lanternAt.lengthSq() > 0 ? { x: lanternAt.x, z: lanternAt.z } : null) },
   { id: 'web', r: 45, at: () => (wanderer.pos.y < terrain.base.hallTop - 40 ? { x: webAt.x, z: webAt.z } : null) },
@@ -3305,7 +3398,10 @@ function simulate(dt: number): void {
       wanderer.gliding = false
       cables.ride = { c: n.c, t: n.t, v: Math.max(2, Math.hypot(wanderer.vel.x, wanderer.vel.z) * 0.6) }
       sound.pickUp()
-      if (!cableSaid) {
+      if (n.c === spindleLine && !spindleSaid) {
+        spindleSaid = true
+        narration.say('Wool, spun as thick as your arm. It takes your weight, and down you go. Space lets go.')
+      } else if (n.c !== spindleLine && !cableSaid) {
         cableSaid = true
         narration.say('Old rope, still sound. It takes your weight and you go. Space lets go.')
       }
@@ -5371,6 +5467,14 @@ const g = {
   fluteFind,
   snowshoeAt,
   snowshoeFind,
+  spindleAt,
+  get spindleBootMs() {
+    return spindleBootMs
+  },
+  spindleTuft,
+  get spindleRot() {
+    return spindleRot
+  },
   get snowshoeRot() {
     return snowshoeRot
   },
