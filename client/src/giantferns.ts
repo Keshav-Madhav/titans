@@ -129,26 +129,59 @@ function frondTexture(): THREE.CanvasTexture {
       c.scale(sgn, 1)
       c.rotate(-0.42)
       // The leaflet: a long blade, toothed, along +x from the midrib (scaled to the side by the rotation).
-      c.beginPath()
-      c.moveTo(0, 0)
+      const lp = new Path2D()
+      lp.moveTo(0, 0)
       const teeth = 9
       for (let k = 0; k <= teeth; k++) {
         const u = k / teeth
         const hw = wid * Math.sin(Math.PI * Math.min(1, u * 1.1 + 0.05)) * (1 - 0.6 * u) + (k % 2 ? 1.6 : 0)
-        c.lineTo(u * len, -hw)
+        lp.lineTo(u * len, -hw)
       }
       for (let k = teeth; k >= 0; k--) {
         const u = k / teeth
         const hw = wid * Math.sin(Math.PI * Math.min(1, u * 1.1 + 0.05)) * (1 - 0.6 * u) + (k % 2 ? 1.6 : 0)
-        c.lineTo(u * len, hw)
+        lp.lineTo(u * len, hw)
       }
-      c.closePath()
+      lp.closePath()
       const grd = c.createLinearGradient(0, 0, len, 0)
       // (Brighter than looks right on the canvas: sRGB, darkened again by the lighting under the trees.)
       grd.addColorStop(0, `rgb(${Math.round(60 + 40 * g)},${Math.round(110 + 60 * g)},${Math.round(30 + 25 * g)})`)
       grd.addColorStop(1, `rgb(${Math.round(110 + 50 * g)},${Math.round(160 + 50 * g)},${Math.round(55 + 30 * g)})`)
       c.fillStyle = grd
-      c.fill()
+      c.fill(lp)
+      // (Inside the leaflet's outline: paler side veins out from the midvein, a few darker blotches, now
+      // and then a browned tip, and its edge darkened — one even gradient a leaflet, a fern close by
+      // in an overcast golden-hour wood read as flat green paper, tour review 2026-11-25.)
+      c.save()
+      c.clip(lp)
+      c.strokeStyle = 'rgba(190,220,120,0.28)'
+      c.lineWidth = 1
+      for (let v = 0.12; v < 0.9; v += 0.11) {
+        c.beginPath()
+        c.moveTo(v * len, 0)
+        c.lineTo(v * len + wid * 0.9, -wid)
+        c.moveTo(v * len, 0)
+        c.lineTo(v * len + wid * 0.9, wid)
+        c.stroke()
+      }
+      for (let b = 0; b < 3; b++) {
+        if (rand() < 0.45) continue
+        c.fillStyle = `rgba(${Math.round(30 + 30 * rand())},${Math.round(45 + 25 * rand())},15,${(0.18 + 0.2 * rand()).toFixed(2)})`
+        c.beginPath()
+        c.ellipse(len * (0.2 + 0.7 * rand()), (rand() - 0.5) * wid, wid * (0.3 + 0.5 * rand()), wid * (0.2 + 0.3 * rand()), rand() * 3, 0, Math.PI * 2)
+        c.fill()
+      }
+      if (rand() < 0.22) {
+        const tip = c.createLinearGradient(len * 0.6, 0, len, 0)
+        tip.addColorStop(0, 'rgba(120,95,40,0)')
+        tip.addColorStop(1, 'rgba(120,95,40,0.75)')
+        c.fillStyle = tip
+        c.fillRect(len * 0.6, -wid * 1.5, len * 0.45, wid * 3)
+      }
+      c.restore()
+      c.strokeStyle = 'rgba(25,45,12,0.45)'
+      c.lineWidth = 1.6
+      c.stroke(lp)
       // Its midvein.
       c.strokeStyle = 'rgba(30,55,18,0.55)'
       c.lineWidth = 1.4
