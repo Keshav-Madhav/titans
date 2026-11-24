@@ -20,7 +20,7 @@ const RADIUS = 2.6
 
 export class Eyes {
   readonly group = new THREE.Group()
-  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; normal: THREE.Vector3; mat: THREE.MeshBasicMaterial; halo: THREE.Sprite; shut: boolean }> = []
+  private readonly irises: Array<{ set: EyeSet; k: number; at: THREE.Vector3; normal: THREE.Vector3; mat: THREE.MeshBasicMaterial; halo: THREE.Sprite; shut: boolean; parts: THREE.Mesh[] }> = []
   /** An eye closed; all of a set closed (`done`). */
   onShut: (set: EyeSet, done: boolean) => void = () => {}
 
@@ -66,7 +66,7 @@ export class Eyes {
         g.position.copy(e.at)
         g.lookAt(e.at.clone().add(e.normal))
         this.group.add(g)
-        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), normal: e.normal.clone().normalize(), mat, halo, shut: false })
+        this.irises.push({ set, k, at: e.at.clone().addScaledVector(e.normal, 0.45), normal: e.normal.clone().normalize(), mat, halo, shut: false, parts: [body, i, r] })
       })
     }
   }
@@ -78,6 +78,10 @@ export class Eyes {
    */
   update(camera: THREE.Camera): void {
     for (const e of this.irises) {
+      // (Past 3.5 km an eye is a pixel or two: its stone, iris and pupil are three draws for nothing — from
+      // the High Places, 24 of them. The glow, which is how one reads from far off, stays.)
+      const near = camera.position.distanceToSquared(e.at) < 3500 * 3500
+      if (near !== e.parts[0].visible) for (const m of e.parts) m.visible = near
       if (e.shut) continue
       this._to.copy(camera.position).sub(e.at).normalize()
       const front = THREE.MathUtils.smoothstep(this._to.dot(e.normal), 0.05, 0.45)
