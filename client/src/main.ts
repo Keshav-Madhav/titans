@@ -103,14 +103,14 @@ import { CLOCKS, Dandelions } from './dandelions'
 import { shellAt, shellGeometry, shellShape } from './shells'
 import { featherVanes, quillGeometry, quillShape, type Feather } from './feathers'
 import { COMB_HALF, combGeometry, combHairPath, combShape } from './comb'
-import { THIMBLE_HALF, THIMBLE_R, THIMBLE_RISE, thimbleGeometry, thimblePin, thimbleShape } from './thimble'
+import { THIMBLE_HALF, THIMBLE_R, THIMBLE_RISE, thimbleDarkGlsl, thimbleGeometry, thimbleO, thimblePin, thimbleShape } from './thimble'
 import { HOURGLASS_GRAIN, HOURGLASS_HALF, HOURGLASS_RISE, HOURGLASS_W, hourglassGlass, hourglassShape, hourglassSolids } from './hourglass'
 import { SPINDLE_HALF, spindleGeometry, spindleShape, spindleThread } from './spindle'
 import { SNOWSHOE_BINDING, SNOWSHOE_FOOT, SNOWSHOE_W, snowshoeGeometry, snowshoeShape } from './snowshoe'
 import { flowerGeometry, padGeometry, padShape } from './lilypads'
 import { webObject } from './webs'
 import { urchinMesh, urchinShape, urchinSink } from './urchin'
-import { FLUTE_HALF, FLUTE_HALF_LEN, FLUTE_RISE, fluteBlockFloor, fluteGeometry, fluteDarkGlsl, fluteO, fluteShafts, fluteShape } from './flute'
+import { FLUTE_HALF, FLUTE_HALF_LEN, FLUTE_RISE, fluteBlockFloor, fluteGeometry, fluteDarkGlsl, fluteO, fluteShafts, fluteSun, fluteShape } from './flute'
 import { RING_R, ringMesh, ringRise, ringSeat, ringShape, ringStandIn } from './ring'
 import { LANTERN_HALF, LANTERN_HALF_LEN, LANTERN_RISE, lanternCandle, lanternGlass, lanternIron, lanternShape, lanternStandIn } from './lantern'
 import { CELL, HALF, PLINTH, darkSquares, layout, pieceGeometry, pieceShape, plinth, stepCourse } from './gameboard'
@@ -210,7 +210,7 @@ terrainView.biome = biome
 const sky = new SkySystem(scene, renderer)
 // The day goes by in play; the tools hold it still (and set it) so shots are repeatable.
 sky.running = !toolMode
-installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pit: { ...PIT, top: terrain.base.pitTop }, dark: [{ glsl: fluteDarkGlsl('fogFlute'), uniform: 'fogFlute', value: fluteO }] })
+installAtmosphere(sky.sunDir, { hall: { ...HALL, top: terrain.base.hallTop }, pit: { ...PIT, top: terrain.base.pitTop }, dark: [{ glsl: fluteDarkGlsl('fogFlute'), uniform: 'fogFlute', value: fluteO }, { glsl: '', uniform: 'fogFluteSun', value: fluteSun }, { glsl: thimbleDarkGlsl('fogThimble'), uniform: 'fogThimble', value: thimbleO }] })
 const quality = new Quality(renderer, terrainView, sky.sun, params.get('quality'))
 // Bloom, god rays and the grade (?post=0 renders straight to the screen).
 const post = new Post(renderer, scene, camera)
@@ -812,6 +812,7 @@ const clearings: Array<[number, number, number]> = []
     pinMesh.rotation.y = rot
     scene.add(pinMesh)
     thimbleAt.set(x, lo, z)
+    Object.assign(thimbleO, { x, y, z, w: rot })
     thimbleRot = rot
     thimbleKnot.copy(pin.knot).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot).add(new THREE.Vector3(x, y, z))
     thimbleKnot.y = terrain.heightAt(thimbleKnot.x, thimbleKnot.z)
@@ -4890,6 +4891,7 @@ function frameBody(now: number): void {
   combHairSway.t.value += dt
   combHairSway.k.value = weather.now.wind
   fluteShaftMat.uniforms.strength.value = Math.min(1.2, sky.sun.intensity / 3) * (1 - 0.8 * weather.now.dark)
+  fluteSun.x = fluteShaftMat.uniforms.strength.value
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
   { const _t = performance.now(); worldMap.update(dt, wanderer.pos, wanderer.yaw, mapGiants, lakes.lakes); costNote('map', performance.now() - _t) }

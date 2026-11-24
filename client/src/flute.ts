@@ -154,6 +154,9 @@ export function fluteBlockFloor(): THREE.Vector3 {
 
 /** Where it lies, for the shaders (x, y, z: its axis's middle; w: its turn): set when it is placed. */
 export const fluteO = { x: 0, y: -1e5, z: 0, w: 0 }
+/** The light through its holes (x: the shafts' strength — under storm cloud the pools on the sand went
+ *  on shining as in full sun, the shafts above them faded). */
+export const fluteSun = { x: 1, y: 0, z: 0, w: 0 }
 
 const g = (v: number) => v.toFixed(3)
 /**
@@ -178,7 +181,7 @@ export function fluteDarkGlsl(u: string): string {
     float tin = (1.0 - smoothstep(ri + ${g(WALL * 0.3)}, ri + ${g(WALL * 0.85)}, rho)) * (1.0 - smoothstep(${g(HALF - 2.5)}, ${g(HALF + 0.5)}, lx)) * step(${g(-HALF - 0.5)}, lx);
     if (tin > 0.0) {
       float lit = (1.0 - smoothstep(0.0, ${g(6 * K)}, ${g(HALF)} - lx)) * 0.9;
-      ${HOLES.map(([hx, hr]) => `lit = max(lit, (1.0 - smoothstep(${g(hr * 0.8)}, ${g(hr * 1.5)}, length(vec2(lx - ${g(hx)}, zz)))) * 0.85);`).join('\n      ')}
+      ${HOLES.map(([hx, hr]) => `lit = max(lit, (1.0 - smoothstep(${g(hr * 0.8)}, ${g(hr * 1.5)}, length(vec2(lx - ${g(hx)}, zz)))) * 0.85 * min(1.0, fogFluteSun.x * 1.25));`).join('\n      ')}
       lit = max(lit, (1.0 - smoothstep(${g(1.0 * K)}, ${g(1.9 * K)}, length(vec2(lx - ${g(WIN_X)}, zz)))) * 0.85);
       float lamp = 1.0 - smoothstep(3.0, 14.0, distance(vFogWorld, cameraPosition));
       vec3 dim = vec3(0.12 + 0.85 * lit) + vec3(1.0, 0.78, 0.5) * lamp * 0.45;

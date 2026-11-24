@@ -132,3 +132,27 @@ export function thimblePin(): { geo: THREE.BufferGeometry; knot: THREE.Vector3 }
   geo.rotateZ(-Math.PI / 2).rotateY(0.22).translate(-0.5, floor + 0.12, 0.8)
   return { geo, knot: new THREE.Vector3(-L / 2 + 1.2, floor + 0.02, 0.8 + Math.sin(0.22) * (L / 2 - 1.2)) }
 }
+
+const gl = (v: number) => v.toFixed(3)
+/** Where it lies (x, the axis's y, z, rot), for the dark inside it (atmosphere.ts dark places). */
+export const thimbleO = { x: 0, y: -1e5, z: 0, w: 0 }
+/** Its inside in shade: darker the further in from the mouth (in a storm, the fill light from all round
+ *  lit the dome brighter than the open day outside), a little light carried with you. */
+export function thimbleDarkGlsl(u: string): string {
+  return /* glsl */ `
+  vec3 tq = vFogWorld - ${u}.xyz;
+  if (abs(tq.x) + abs(tq.z) < ${gl(LEN + R0 + 4)} && abs(tq.y) < ${gl(R0 + 2)}) {
+    float qc = cos(${u}.w);
+    float qs = sin(${u}.w);
+    float qx = tq.x * qc - tq.z * qs + ${gl(LEN / 2)};
+    float qz = tq.x * qs + tq.z * qc;
+    float qr = length(vec2(tq.y, qz));
+    float qin = (1.0 - smoothstep(${gl(R1 - WALL * 0.7)}, ${gl(R1 - WALL * 0.15)}, qr)) * smoothstep(-0.5, 1.5, qx) * step(qx, ${gl(LEN)});
+    if (qin > 0.0) {
+      float deep = smoothstep(1.0, ${gl(LEN * 0.85)}, qx);
+      float lamp = 1.0 - smoothstep(3.0, 12.0, distance(vFogWorld, cameraPosition));
+      vec3 dim = vec3(1.0 - 0.6 * deep) + vec3(1.0, 0.78, 0.5) * lamp * 0.3 * deep;
+      gl_FragColor.rgb *= mix(vec3(1.0), dim, qin);
+    }
+  }`
+}
