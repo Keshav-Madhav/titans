@@ -126,7 +126,7 @@ export class Weather {
     uNoise: { value: null as THREE.Texture | null },
     uWind: { value: new THREE.Vector2(1, 0.4) },
   }
-  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uSand: { value: 0 }, uSnow: { value: 0 }, uNight: { value: 0 } }
+  private readonly rainUniforms = { uTime: { value: 0 }, uRain: { value: 0 }, uWind: { value: 0.5 }, uRoof: { value: 0 }, uShelter: { value: 0 }, uSand: { value: 0 }, uSnow: { value: 0 }, uNight: { value: 0 } }
   /**
    * How much of where you stand is the Dune Sea (main.ts sets it): there a
    * storm brings no rain but sand — ochre air, grit driven flat by the wind.
@@ -268,7 +268,7 @@ export class Weather {
       new THREE.ShaderMaterial({
         uniforms: this.rainUniforms,
         vertexShader: /* glsl */ `
-          uniform float uTime, uRain, uWind, uRoof, uSand, uSnow;
+          uniform float uTime, uRain, uWind, uRoof, uShelter, uSand, uSnow;
           varying float vA;
           varying vec2 vUv;
           float h(float n) { return fract(sin(n) * 43758.5453); }
@@ -304,6 +304,10 @@ export class Weather {
             // No rain under the Undercroft's roof.
             vec2 hq = abs(base.xz - vec2(${HALL.x.toFixed(1)}, ${HALL.z.toFixed(1)}));
             if (hq.x < ${HALL.hx.toFixed(1)} && hq.y < ${HALL.hz.toFixed(1)} && base.y < uRoof - 2.0) vA = 0.0;
+            // Nor round you under any other roof (in the Flute, the Thimble, a hollow log): a storm's
+            // streaks were drawn across the dark inside the Flute as if it had no top. The far ones,
+            // out past a mouth, still fall.
+            vA *= mix(1.0, smoothstep(20.0, 34.0, dc), uShelter);
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
@@ -363,6 +367,11 @@ export class Weather {
   /** The Undercroft's roof height (rain stops under it). */
   set roof(y: number) {
     this.rainUniforms.uRoof.value = y
+  }
+
+  /** 0 … 1: how far the camera is under a roof (rock or wood overhead); the rain round it stops. */
+  set shelter(k: number) {
+    this.rainUniforms.uShelter.value = k
   }
 
   /** 0 … 1: how far the cloud is drawn back from something you must see. */

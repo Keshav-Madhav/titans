@@ -586,6 +586,8 @@ const fluteShaftMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   side: THREE.DoubleSide,
 })
+/** How far the camera is under a roof, eased (the rain round it stops). */
+let camShelter = 0
 const fluteFind = new THREE.Vector3()
 let fluteRot = 0
 let fluteWait = 8
@@ -4929,6 +4931,14 @@ function frameBody(now: number): void {
     if (rocks.sdfAt(p.x, p.y + 2, p.z) > 1) for (let h = 4; h <= 50 && !inLog; h += 3) inLog = rocks.sdfAt(p.x, p.y + h, p.z) < 0
     const roof = inHall(p.x, p.z) && p.y < terrain.base.hallTop - 10 ? 1 : inLog ? 0.85 : tallAt(p.x, p.z) > 0.5 ? 0.25 : 0
     sound.enclosed += (roof - sound.enclosed) * Math.min(1, dt * 2)
+    // (The rain, by the camera: under a roof over it, the streaks round you stop.)
+    {
+      const c = camera.position
+      let over = false
+      if (rocks.sdfAt(c.x, c.y, c.z) > 0.5) for (let h = 3; h <= 40 && !over; h += 3) over = rocks.sdfAt(c.x, c.y + h, c.z) < 0
+      camShelter += ((over ? 1 : 0) - camShelter) * Math.min(1, dt * 3)
+      weather.shelter = camShelter
+    }
     sound.rustle(THREE.MathUtils.smoothstep(tallAt(p.x, p.z), 0.2, 0.7), weather.now.wind)
     // (The great shells' low note: loudest at a mouth, heard out to ~60 m.)
     {
