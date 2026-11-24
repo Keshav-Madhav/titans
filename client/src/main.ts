@@ -4912,6 +4912,7 @@ function frameBody(now: number): void {
       rain: Math.max(weather.now.rain * (1 - biome.desert(cx, cz)), post.grade.uniforms.under.value as number),
       night: sky.night,
       indoors: inHall(cx, cz) && camera.position.y < terrain.base.hallTop - 10 ? 1 : 0,
+      mire: biome.mire(cx, cz),
     })
     // (Seeds fly on dry days; rain beats them down.)
     seeds.update(dt, camera, post.sceneHeight, sky.sun, sky.sunDir, sky.fog.color, 1 - sky.night, 1 - weather.now.rain)

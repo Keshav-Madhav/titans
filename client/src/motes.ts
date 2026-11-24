@@ -7,6 +7,7 @@
 //   seeds    — the Green: a few seed tufts carried along on the breeze
 //   drifts   — the Dune Sea again: soft low sheets of blown sand racing over it
 //   leaves   — the Old Wood: a few leaves coming down, tumbling, carried by the wind
+//   darters  — the Mire: dragonflies darting low over it by day, hover and dash
 //
 // All of them light up when they are between you and the sun (forward
 // scattering), which is most of the look: dust only shows against the light.
@@ -14,7 +15,7 @@
 import * as THREE from 'three'
 import { mulberry32 } from '@titans/shared'
 
-const COUNTS = [1400, 700, 320, 300, 420]
+const COUNTS = [1400, 700, 320, 300, 420, 140]
 /** The box round the camera (metres): wide, and lower than it is wide. */
 const BOX = new THREE.Vector3(56, 22, 56)
 
@@ -25,6 +26,8 @@ uniform vec3 uCam;
 uniform vec3 uBox;
 uniform float uTime;
 uniform vec4 uDensity;
+/** x: the Mire's dragonflies. */
+uniform vec4 uDensity2;
 uniform vec3 uWind;
 uniform float uWindK;
 uniform vec3 uSun;
@@ -40,7 +43,7 @@ varying vec3 vLeaf;
 void main() {
   int k = int(aKind + 0.5);
   vLeaf = vec3(0.0);
-  float dens = k == 0 || k == 3 ? uDensity.x : k == 1 ? uDensity.y : k == 4 ? uDensity.w : uDensity.z;
+  float dens = k == 0 || k == 3 ? uDensity.x : k == 1 ? uDensity.y : k == 4 ? uDensity.w : k == 5 ? uDensity2.x : uDensity.z;
   if (aSeed.w >= dens) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   float t = uTime;
   float s = aSeed.w * 61.0;
@@ -68,6 +71,17 @@ void main() {
     drift = uWind * t * (4.0 + 18.0 * uWindK) * (0.8 + 0.4 * aSeed.x);
     base = vec3(0.88, 0.74, 0.56);
     size = 2.6 + 2.0 * aSeed.y;
+  } else if (k == 5) {
+    // A dragonfly: hovers, then dashes to the next spot a few metres off, low over the ground.
+    float seg = floor(t * (0.7 + 0.5 * aSeed.y) + s);
+    float f = fract(t * (0.7 + 0.5 * aSeed.y) + s);
+    vec3 h0 = vec3(fract(sin(seg * 12.9898 + s) * 43758.5), fract(sin(seg * 78.233 + s) * 12345.6), fract(sin(seg * 37.719 + s) * 24680.1)) - 0.5;
+    vec3 h1 = vec3(fract(sin((seg + 1.0) * 12.9898 + s) * 43758.5), fract(sin((seg + 1.0) * 78.233 + s) * 12345.6), fract(sin((seg + 1.0) * 37.719 + s) * 24680.1)) - 0.5;
+    drift = mix(h0, h1, smoothstep(0.0, 0.22, f)) * vec3(7.0, 1.2, 7.0) + vec3(0.0, 0.08 * sin(t * 31.0 + s), 0.0);
+    base = mix(vec3(0.15, 0.55, 0.65), vec3(0.35, 0.7, 0.3), aSeed.y);
+    // (Larger than life, as the leaves are: at their true size you saw one in a minute.)
+    size = 0.34;
+    vLeaf = vec3(1.0, 0.6 + 0.4 * aSeed.x, 0.18);
   } else {
     // A leaf coming down: falling slowly, swinging side to side as it goes, carried by the wind.
     float sw = sin(t * (0.9 + 0.5 * aSeed.y) + s);
@@ -82,6 +96,7 @@ void main() {
   // Grit and flies keep low: a layer a few metres deep lying on the ground.
   if (k == 0) rel.y = uFloor + (rel.y / uBox.y + 0.5) * (rel.y / uBox.y + 0.5) * 5.0;
   if (k == 3) rel.y = uFloor + 0.3 + (rel.y / uBox.y + 0.5) * 1.1;
+  if (k == 5) rel.y = uFloor + 0.5 + (rel.y / uBox.y + 0.5) * 1.6 + drift.y;
   vec4 mv = viewMatrix * vec4(uCam + rel, 1.0);
   gl_Position = projectionMatrix * mv;
   float d = length(rel);
@@ -107,6 +122,10 @@ void main() {
     // through the whole layer of them at once (looking down at your feet, the dunes went white).
     float steep = abs(rel.y) / max(d, 0.1);
     a *= 0.075 * (1.0 - 0.9 * smoothstep(0.12, 0.45, steep));
+  } else if (k == 5) {
+    // A dragonfly: a glint of blue-green when the sun catches it.
+    a *= 1.0 - smoothstep(10.0, 18.0, d);
+    col = base * (uAmb * 1.4 + uSunCol * (0.6 + 1.2 * pow(g, 4.0)));
   } else if (k == 4) {
     // A leaf is solid, lit like the rest (and dimmer: leaves do not glow like dust in the light).
     a *= 0.95;
@@ -150,6 +169,8 @@ export interface AirHere {
   night: number
   /** Under a roof (the Undercroft): no sun on them. */
   indoors: number
+  /** 0 … 1 of the Mire. */
+  mire?: number
 }
 
 export class Motes {
@@ -158,6 +179,7 @@ export class Motes {
   private time = 0
   /** Eased densities (a land's air comes and goes as you walk, never at once). */
   private readonly dens = new THREE.Vector4()
+  private readonly dens2 = new THREE.Vector4()
 
   constructor() {
     const n = COUNTS.reduce((a, b) => a + b, 0)
@@ -181,6 +203,7 @@ export class Motes {
       uBox: { value: BOX.clone() },
       uTime: { value: 0 },
       uDensity: { value: new THREE.Vector4() },
+      uDensity2: { value: new THREE.Vector4() },
       uWind: { value: new THREE.Vector3(1, 0, 0.4).normalize() },
       uWindK: { value: 0 },
       uSun: { value: new THREE.Vector3() },
@@ -221,10 +244,13 @@ export class Motes {
     // A land's air eases in over a few seconds.
     const e = 1 - Math.exp(-dt * 0.6)
     this.dens.lerp(want, e)
+    // (Dragonflies: over the Mire, low, in daylight, not in rain or a gale.)
+    this.dens2.x += ((air.mire ?? 0) * low * day * dry * (1 - 0.7 * air.wind) - this.dens2.x) * e
     const u = this.u
     u.uTime.value = this.time
     ;(u.uCam.value as THREE.Vector3).copy(camera.position)
     ;(u.uDensity.value as THREE.Vector4).copy(this.dens)
+    ;(u.uDensity2.value as THREE.Vector4).copy(this.dens2)
     u.uWindK.value = air.wind
     ;(u.uSun.value as THREE.Vector3).copy(sunDir)
     const sc = u.uSunCol.value as THREE.Color
@@ -232,6 +258,8 @@ export class Motes {
     ;(u.uAmb.value as THREE.Color).copy(fog).multiplyScalar(0.35)
     u.uFloor.value = -air.above
     u.uPx.value = viewH * 0.5 * camera.projectionMatrix.elements[5]
-    this.points.visible = this.dens.x + this.dens.y + this.dens.z > 0.003
+    // (All the kinds: the leaves (w) and the darters were left out, and with nothing else in the air they
+    // would not have drawn.)
+    this.points.visible = this.dens.x + this.dens.y + this.dens.z + this.dens.w + this.dens2.x > 0.003
   }
 }
