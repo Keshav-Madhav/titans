@@ -569,6 +569,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
         begun with the budget spent): split and fitted — 0, the same plants. The map's "5 ms frames"
         are its deliberate budget while minimap tiles are missing, not overruns. The governor at 6x
         CPU throttle in the Grove now holds full quality (11-21: L1 in ~7 s, L2 by 30 s).
+        2026-11-23/24, the giant lost things the user asked for more of (and then: not as a streak): the
+        Flute (Shore), Snowshoe (High Places), Spindle (Steps; its thread a 420 m ride), Hourglass (Dune Sea),
+        Comb (Green), Thimble (Old Wood) — each its own model, looked at by day and night, played (found
+        near, a way in or up, a find), gated. Then the rest of the game again: daylight shafts down the
+        Flute's holes, leaves falling in the Old Wood, the Comb's hair in the wind, the Thimble's floor,
+        storms dimming with the evening, find glints that no longer read as a second sun. Full sweeps
+        61/61 on each batch. Ready 4.0-4.1 s; GPU buffers 178 MB; no leak over long play (heap and GPU
+        level off after the first lap of the world).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
