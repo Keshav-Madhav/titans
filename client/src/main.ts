@@ -692,6 +692,8 @@ const ringChip = new THREE.Vector3()
 // first camp and the stones.
 const combAt = new THREE.Vector3()
 const combHairEnd = new THREE.Vector3()
+/** The Comb's hair swaying: time and how windy it is (frame). */
+const combHairSway = { t: { value: 0 }, k: { value: 0 } }
 let combRot = 0
 {
   const far = [...colossi.places.values()]
@@ -735,7 +737,28 @@ let combRot = 0
       const w = toWorld(new THREE.Vector3(lx, 0, lz))
       return terrain.heightAt(w.x, w.z) - y
     }).map(toWorld)
-    const hair = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 0.1, 6), new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.55 }))
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.55 })
+    // (Its free length, from the tooth it is caught in down to the grass, sways in the wind; both ends stay
+    // put. Still, a cord in the wind read as wire.)
+    hairMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uHairT = combHairSway.t
+      sh.uniforms.uHairK = combHairSway.k
+      sh.uniforms.uHairTop = { value: pts[0].y }
+      sh.uniforms.uHairBase = { value: y }
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uHairT, uHairK, uHairTop, uHairBase;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          {
+            float tt = clamp((position.y - uHairBase - 0.6) / max(uHairTop - uHairBase - 2.2, 1.0), 0.0, 1.0);
+            float w = sin(3.14159 * tt) * (0.18 + 0.75 * uHairK);
+            transformed.x += w * (0.9 * sin(uHairT * 1.6 + position.y * 0.35) + 0.4 * sin(uHairT * 3.7 + position.x));
+            transformed.z += w * 0.45 * sin(uHairT * 1.1 + position.y * 0.5 + 1.3);
+          }`,
+        )
+    }
+    const hair = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 0.1, 6), hairMat)
     hair.castShadow = true
     hair.name = 'comb-hair'
     scene.add(hair)
@@ -4864,6 +4887,8 @@ function frameBody(now: number): void {
     post.grade.uniforms.streakT.value = (post.grade.uniforms.streakT.value as number) + dt * (0.6 + v * 0.06)
   }
   undercroft.update(sky.sun.intensity / 3)
+  combHairSway.t.value += dt
+  combHairSway.k.value = weather.now.wind
   fluteShaftMat.uniforms.strength.value = Math.min(1.2, sky.sun.intensity / 3) * (1 - 0.8 * weather.now.dark)
   mapGiants.length = 0
   for (const a of titans.values()) mapGiants.push({ x: a.titan.gait.x, z: a.titan.gait.z })
