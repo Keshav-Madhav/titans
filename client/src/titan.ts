@@ -555,8 +555,11 @@ export class Titan {
 
   /** Show or hide the plates, fur and eyes (a few pixels on a far silhouette: dozens of draw calls). */
   showArmor(on: boolean): void {
+    if (on === this.armorOn) return
+    this.armorOn = on
     for (const a of this.armors) a.visible = on
   }
+  private armorOn = true
 
   /** Heave the shoulders to throw off climbers. */
   /**

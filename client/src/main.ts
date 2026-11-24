@@ -4631,6 +4631,9 @@ function frameBody(now: number): void {
     a.titan.pose(terrain, dt)
     a.titan.group.updateMatrixWorld(true)
     a.titan.setLodFor(camera.position)
+    // (Plates, fur and eyes only within 3 km, as the frozen one and the wader: from the High Places the
+    // herd and the walkers far below were ~44 draw calls each, a few pixels of armour apiece.)
+    a.titan.showArmor(Math.hypot(camera.position.x - a.titan.gait.x, camera.position.z - a.titan.gait.z) < 3000)
   }
   noticeIdle(dt)
   // The first slide: say how it goes, once.
@@ -4718,6 +4721,7 @@ function frameBody(now: number): void {
     t.group.updateMatrixWorld(true)
     t.setLodFor(camera.position)
   }
+  for (const t of herd.giants) t.showArmor(Math.hypot(camera.position.x - t.gait.x, camera.position.z - t.gait.z) < 3000)
   leviathans.update(dt)
   striders.update(dt)
   watchers.update(dt, wanderer.pos, weather.now.dark, camera)
