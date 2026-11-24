@@ -197,6 +197,19 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           cA *= vec3(1.02, 0.97, 0.86);
           cA *= mix(1.0, 0.6, smoothstep(0.1, -0.7, rN.y));
         }
+        // Metal (the Thimble, the Ring, the Lantern: a layer id with a fraction, 10.3 — the array
+        // still samples bone): cast and worn smooth, so none of the bone's cracks (inside the Thimble
+        // at golden hour they were black seams down a brass wall). An even ground under the tint, in
+        // broad patches of patina, the normal map all but flattened; darker where it faces down.
+        if (fract(vLayer.x) > 0.2) {
+          vec3 nM;
+          float pat = triTex(vLayer.x, 1.0 / (vLayer.z * 9.0), vRockPos + 77.0, rN, nM).g;
+          vec3 nM2;
+          float fine = triTex(vLayer.x, 1.0 / (vLayer.z * 1.3), vRockPos + 5.0, rN, nM2).g;
+          cA = vec3(0.62) * (0.78 + 0.34 * smoothstep(0.3, 0.7, pat) + 0.08 * (fine - 0.5));
+          cA *= mix(1.0, 0.62, smoothstep(0.1, -0.7, rN.y));
+          nA = normalize(mix(rN, nA, 0.12));
+        }
         // Carving worn away (the Colonnade: "carved all over with figures too worn to read" — it was
         // crisp, even wallpaper to the clouds). In broad patches, and more toward the weather side
         // (up), the carved stone gives way to plain worn rock: the relief softened and gone.

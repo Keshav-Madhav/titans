@@ -675,7 +675,7 @@ const ringChip = new THREE.Vector3()
       if (!clear || hi - lo > 5 || lo < 2) continue
       const y = lo + ringRise()
       // (Through addBuilt for the standing, climbing and grappling only; drawn by its own mesh.)
-      rocks.addBuilt(ringShape(), ringStandIn(), { x, y, z, rot, layers: [LAYER.bone, LAYER.sand], scale: 5, tint: [0.5, 0.35, 0.18] })
+      rocks.addBuilt(ringShape(), ringStandIn(), { x, y, z, rot, layers: [LAYER.bone + 0.3, LAYER.sand], scale: 5, tint: [0.5, 0.35, 0.18] })
       const f = rocks.formations[rocks.formations.length - 1]
       if (f.mesh) f.mesh.visible = false
       const rm = ringMesh()
@@ -804,7 +804,7 @@ const clearings: Array<[number, number, number]> = []
     if (!clear || Math.max(...hs) - lo > 1.2) continue
     const y = lo + THIMBLE_RISE
     const geo = thimbleGeometry()
-    rocks.addBuilt(thimbleShape(), geo, { x, y, z, rot, layers: [LAYER.bone, LAYER.moss], scale: 4, tint: [0.3, 0.4, 0.32] })
+    rocks.addBuilt(thimbleShape(), geo, { x, y, z, rot, layers: [LAYER.bone + 0.3, LAYER.moss], scale: 4, tint: [0.3, 0.4, 0.32] })
     const pin = thimblePin()
     const pinMesh = new THREE.Mesh(pin.geo, new THREE.MeshStandardMaterial({ color: 0x8c8a84, metalness: 0.75, roughness: 0.38 }))
     pinMesh.castShadow = pinMesh.receiveShadow = true
@@ -2380,7 +2380,7 @@ let lanternEmber: THREE.Mesh | null = null
         }
       if (!ok || hi - lo > 3) continue
       const y = lo + LANTERN_RISE - 0.4
-      rocks.addBuilt(lanternShape(), lanternStandIn(), { x, y, z, rot, layers: [LAYER.bone, LAYER.mud], scale: 5, tint: [0.2, 0.18, 0.16] })
+      rocks.addBuilt(lanternShape(), lanternStandIn(), { x, y, z, rot, layers: [LAYER.bone + 0.3, LAYER.mud], scale: 5, tint: [0.2, 0.18, 0.16] })
       const f = rocks.formations[rocks.formations.length - 1]
       if (f.mesh) f.mesh.visible = false
       const group = new THREE.Group()
