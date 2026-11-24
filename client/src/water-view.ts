@@ -181,7 +181,8 @@ export class WaterView {
     this.ripples.offset.set(this.t * 0.012, this.t * 0.007)
   }
 
-  sync(lakes: readonly Lake[], heightAt: (x: number, z: number) => number): void {
+  /** `eye`: the camera, for leaving out lakes too small to see from it. */
+  sync(lakes: readonly Lake[], heightAt: (x: number, z: number) => number, eye?: THREE.Vector3): void {
     const live = new Set<number>()
     brimDepth.clear()
     for (const lake of lakes) {
@@ -203,7 +204,18 @@ export class WaterView {
         this.jobs.set(lake.id, { lake, version: lake.version, data: null, row: 0 })
       }
       e.mesh.position.y = shown(lake)
-      e.mesh.visible = lake.level > lake.basin.bottom + 0.05
+      let wet = lake.level > lake.basin.bottom + 0.05
+      // (A pond a few pixels across is a draw call for nothing: from the High Places, 57 lakes were
+      // drawn, most of them specks kilometres off. Out of sight under ~3 px across; a big lake
+      // still shines from as far as it ever did.)
+      if (wet && eye) {
+        const g = e.mesh.geometry
+        if (!g.boundingSphere) g.computeBoundingSphere()
+        const bs = g.boundingSphere!
+        const d = Math.hypot(bs.center.x + e.mesh.position.x - eye.x, bs.center.y + e.mesh.position.y - eye.y, bs.center.z + e.mesh.position.z - eye.z)
+        wet = bs.radius > d * 0.0012
+      }
+      e.mesh.visible = wet
     }
     for (const [id, e] of this.entries) {
       if (live.has(id)) continue

@@ -586,6 +586,15 @@ const fluteShaftMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   side: THREE.DoubleSide,
 })
+/** Hide a group's direct children (placed at their world positions) past `r` metres from the camera. */
+function hideFar(group: THREE.Group, r: number): void {
+  const c = camera.position
+  const r2 = r * r
+  for (const o of group.children) {
+    const near = (o.position.x - c.x) ** 2 + (o.position.z - c.z) ** 2 < r2
+    if (o.visible !== near) o.visible = near
+  }
+}
 /** How far the camera is under a roof, eased (the rain round it stops). */
 let camShelter = 0
 const fluteFind = new THREE.Vector3()
@@ -4812,7 +4821,7 @@ function frameBody(now: number): void {
     wanderer.backlit = THREE.MathUtils.smoothstep(_bl.x * sky.sunDir.x + _bl.z * sky.sunDir.z, 0.15, 0.75) * (1 - sky.night)
   }
   wanderer.animate(dt, groundAt, clothWind, Math.max(weather.now.dark, sky.night, sky.dusk * 0.8, inHall(wanderer.pos.x, wanderer.pos.z) && wanderer.pos.y < terrain.base.hallTop - 10 ? 1 : 0))
-  { const _t = performance.now(); water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z)); costNote('water', performance.now() - _t) }
+  { const _t = performance.now(); water.sync(lakes.lakes, (x, z) => terrain.heightAt(x, z), camera.position); costNote('water', performance.now() - _t) }
   { const _t = performance.now(); water.syncStreams(dt, lakes, (x, z) => terrain.heightAt(x, z)); costNote('streams', performance.now() - _t) }
   water.update(dt)
   water.weather(weather.now.dark, weather.now.rain, [sea.mesh.material as THREE.MeshStandardMaterial])
@@ -4991,6 +5000,10 @@ function frameBody(now: number): void {
   foliageNight.value = sky.night * 0.22
   snowPrints.sun.value.copy(sky.keyDir)
   eyes.update(camera)
+  // (Small things far off: the resonance stones and the sunk bells, a few metres each, drawn from the High
+  // Places 14 km away — 37 draw calls of sub-pixel stone and bronze.)
+  hideFar(resonance.group, 2000)
+  hideFar(sunkBells.group, 2500)
   dread.update(dt, dreadWorld(), terrain)
   mireView.update(camera.position)
   {
