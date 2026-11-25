@@ -59,6 +59,8 @@ export class Bow {
     for (let i = 0; i < ARROWS; i++) {
       const m = new THREE.Mesh(shaft, mat)
       m.add(new THREE.Mesh(head, mat), new THREE.Mesh(fletch, pale), new THREE.Mesh(fletch.clone().rotateZ(Math.PI / 2), pale))
+      // (Its head and fletching never move on it: no matrices recomputed every frame — hidden arrows too.)
+      for (const c of m.children) c.matrixAutoUpdate = false
       m.visible = false
       this.group.add(m)
       this.arrows.push({ mesh: m, pos: new THREE.Vector3(), vel: new THREE.Vector3(), flying: false, age: 0 })
