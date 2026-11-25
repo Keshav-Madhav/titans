@@ -4609,6 +4609,7 @@ function frameBody(now: number): void {
     throw new Error('qa: a frame broken on purpose')
   }
   narration.paused = anyOpen()
+  input.tick()
   // The pad, read once a frame (before anything asks the keys).
   input.pollPad(Math.min(0.1, Math.max(0, (now - padAt) / 1000)))
   padAt = now

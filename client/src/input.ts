@@ -111,6 +111,19 @@ export class Input {
    * took hold of a giant — and threw you off it on the first step of the climb.
    */
   private readonly pressedOnce = new Map<string, number>()
+  /** The frame each fresh press arrived in (see tick). */
+  private readonly pressedFrame = new Map<string, number>()
+  private frameN = 0
+  /** Once a frame, before anything asks for presses. */
+  tick(): void {
+    this.frameN++
+  }
+  /** A press is fresh for PRESS_FRESH_MS, or until two frames have run since it — whichever is longer:
+   *  by time alone, a key tapped during a long frame (a teleport's world-building, a hitch on a slow
+   *  machine) was stale before any frame saw it (the cairns gate's E, 2026-11-25). */
+  private fresh(code: string, at: number): boolean {
+    return performance.now() - at < PRESS_FRESH_MS || this.frameN - (this.pressedFrame.get(code) ?? -9) <= 2
+  }
   lookX = 0
   lookY = 0
   wheel = 0
@@ -126,6 +139,7 @@ export class Input {
         if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.down.add(a)
         this.pressedOnce.set(a, performance.now())
+        this.pressedFrame.set(a, this.frameN)
       }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault()
     })
@@ -248,6 +262,7 @@ export class Input {
         if (this.toggles && TOGGLEABLE.has(a)) this.flip(a)
         this.padHeld.add(a)
         this.pressedOnce.set(a, performance.now())
+        this.pressedFrame.set(a, this.frameN)
       } else if (!on && was) this.padHeld.delete(a)
     })
   }
@@ -255,7 +270,7 @@ export class Input {
   /** Is there a fresh press of `code` waiting (without taking it)? */
   peek(code: string): boolean {
     const at = this.pressedOnce.get(code)
-    return at !== undefined && performance.now() - at < PRESS_FRESH_MS
+    return at !== undefined && this.fresh(code, at)
   }
 
   /** True once per physical press. */
@@ -263,7 +278,7 @@ export class Input {
     const at = this.pressedOnce.get(code)
     if (at === undefined) return false
     this.pressedOnce.delete(code)
-    return performance.now() - at < PRESS_FRESH_MS
+    return this.fresh(code, at)
   }
 
   /** Movement axes from WASD/arrows: x = strafe right, y = forward. */
@@ -307,6 +322,7 @@ export class Input {
   press(code: string): void {
     this.down.add(code)
     this.pressedOnce.set(code, performance.now())
+    this.pressedFrame.set(code, this.frameN)
   }
 
   release(code: string): void {
