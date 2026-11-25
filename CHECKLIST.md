@@ -577,6 +577,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
         storms dimming with the evening, find glints that no longer read as a second sun. Full sweeps
         61/61 on each batch. Ready 4.0-4.1 s; GPU buffers 178 MB; no leak over long play (heap and GPU
         level off after the first lap of the world).
+        2026-11-24/25, one standard everywhere, then draw calls: the metal giants (Thimble, Ring, Lantern)
+        cast smooth instead of cracked bone; inside the Flute and the Thimble a storm's light behaves (the
+        pools of sun fade under cloud, the Thimble's dome is a dark place); no rain under any roof over
+        the camera; a sandstorm at night is night (its haze's floor falls with the dark); the giant ferns'
+        leaflets veined and edged. From the High Places 798 -> 512 draws a frame: giants past 3 km leave
+        off plates, fur and eyes; stone eyes past 3.5 km only their glow; resonance stones and sunk bells
+        past 2-2.5 km, and lakes under ~3 px, left out (A/B frame time inside the machine's noise; the
+        calls are gone either way). Full sweep 61/61 (keys and discover pass solo: load flakes).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
