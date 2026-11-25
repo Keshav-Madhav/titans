@@ -236,6 +236,8 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
           vec3 nV;
           float vine = triTex(vLayer.x, 1.0, vec3(vRockPos.x * 0.35, vRockPos.y * 0.02, vRockPos.z * 0.35) + 3.0, vec3(rN.x, 0.0, rN.z) + 1e-3, nV).g;
           float vines = smoothstep(0.62, 0.72, vine) * (1.0 - smoothstep(creep * 1.2, creep * 2.6, vAbove.x)) * (1.0 - abs(rN.y));
+          // (Not on cast metal: inside the Thimble the vines' narrow streaks read as scratches down the brass.)
+          if (fract(vLayer.x) > 0.2) vines = 0.0;
           band = max(band, vines * 0.9);
           if (band > 0.001) {
             // (Bone on bone — the Flute on its beach — dusty too: a green damp line along its foot.)
