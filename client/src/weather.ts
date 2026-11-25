@@ -479,7 +479,10 @@ export class Weather {
     this.mireK += (this.mire - this.mireK) * Math.min(1, dt * 0.18)
     sky.fog.density = b.fog * w.fog * lb.haze * (1 + this.sand * 24) * (1 + this.mireK * 2.2)
     u.uSand.value = this.sand
-    sky.sky.material.uniforms.uSand.value = this.sand * Math.max(0.15, lit)
+    // (The sandstorm's floor falls with the night: at 0.15 a night sandstorm was a tan dusk — the
+    // dunes bright as at sundown beside a black stormy Green, night storm tour 1125sn.)
+    const sandFloor = 0.15 * (1 - 0.7 * sky.night)
+    sky.sky.material.uniforms.uSand.value = this.sand * Math.max(sandFloor, lit)
     // How much of a tall thing the deck swallows: none in clear air, nearly all in a storm.
     // In a flash the cloud goes thin for an instant: whatever stands in it
     // (and beyond the Wall) shows as a shape, then is gone again.
@@ -489,7 +492,7 @@ export class Weather {
     // The Mire's air: green-grey and close.
     sky.fog.color.lerp(_fogK.copy(MIRE_FOG).multiplyScalar(Math.max(0.12, lit)), this.mireK * 0.6)
     // A sandstorm: the air thick and ochre (dimmer as the day goes).
-    sky.fog.color.lerp(_fogK.copy(SAND_FOG).multiplyScalar(Math.max(0.15, lit)), this.sand * 0.92)
+    sky.fog.color.lerp(_fogK.copy(SAND_FOG).multiplyScalar(Math.max(sandFloor, lit)), this.sand * 0.92)
     // After rain, with the sun back low behind you: a rainbow opposite it.
     this.wet = Math.max(this.wet - dt / 150, w.rain > 0.3 && this.sand < 0.3 ? 1 : 0)
     const sunUp = sky.sunDir.y
