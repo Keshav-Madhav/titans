@@ -24,7 +24,10 @@ const spots = await page.evaluate(([count, seed, LANDS_ONLY]) => {
   const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280)
   const out = []
   // (TOUR_LANDS_ONLY=1: skip the colossi — reviewed every tour — and go straight to the random spots.)
-  if (!LANDS_ONLY) for (const [name, p] of g.colossi.places) out.push({ tag: 'colossus-' + name, x: p.x + 40, z: p.z + 40 })
+  // (Out along the diagonal until clear of it, then 30 m more: at +40 m the Sentinel's spot was under its
+  // own body — every tour's first two shots black. 2026-11-25.)
+  const clear = (p) => { let d = 40; while (d < 600 && g.rocks.occupies(p.x + d * 0.707, p.z + d * 0.707)) d += 10; return d + 30 }
+  if (!LANDS_ONLY) for (const [name, p] of g.colossi.places) { const d = clear(p); out.push({ tag: 'colossus-' + name, x: p.x + d * 0.707, z: p.z + d * 0.707 }) }
   let tries = 0
   while (out.length < count + (LANDS_ONLY ? 0 : g.colossi.places.size) && tries++ < 4000) {
     const a = rnd() * Math.PI * 2, r = 200 + rnd() * 5200
