@@ -585,6 +585,14 @@ Each phase ends playable. Phases are in PLAN.md §6.
         off plates, fur and eyes; stone eyes past 3.5 km only their glow; resonance stones and sunk bells
         past 2-2.5 km, and lakes under ~3 px, left out (A/B frame time inside the machine's noise; the
         calls are gone either way). Full sweep 61/61 (keys and discover pass solo: load flakes).
+        2026-11-25, later: placed-once things (rock formations, the find spots' wrappers and the parts
+        of pages and carved stones, lakes and streams, arrows' heads and fletching) stop recomputing
+        their matrices every frame (2,162 -> ~1,600 a frame); a key tapped during a hitch is no longer
+        lost (a press is fresh for 300 ms or two frames, whichever is longer — the cairns gate's E
+        was dropped after a teleport); a sandstorm at night is night; the giant ferns veined; no vine
+        streaks on cast metal. A/B on the High Places, quiet machine: frame time within noise
+        (13.0 vs 12.8 ms at 3x) — the draw and matrix cuts are less work, not a measured gain;
+        ready time unchanged (4.74 vs 4.79 s medians).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
