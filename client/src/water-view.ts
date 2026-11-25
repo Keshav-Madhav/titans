@@ -154,6 +154,7 @@ export class WaterView {
     this.streamMesh = new THREE.Mesh(merged, this.material)
     this.streamMesh.renderOrder = 1
     this.streamMesh.receiveShadow = true
+    this.streamMesh.matrixAutoUpdate = false
     this.group.add(this.streamMesh)
   }
 
@@ -204,6 +205,7 @@ export class WaterView {
         this.jobs.set(lake.id, { lake, version: lake.version, data: null, row: 0 })
       }
       e.mesh.position.y = shown(lake)
+      e.mesh.updateMatrix()
       let wet = lake.level > lake.basin.bottom + 0.05
       // (A pond a few pixels across is a draw call for nothing: from the High Places, 57 lakes were
       // drawn, most of them specks kilometres off. Out of sight under ~3 px across; a big lake
@@ -262,6 +264,7 @@ export class WaterView {
         e.mesh = this.makeLake(j.lake, heightAt, j.data)
         e.version = j.version
         e.mesh.position.y = shown(j.lake)
+        e.mesh.updateMatrix()
         e.mesh.visible = j.lake.level > j.lake.basin.bottom + 0.05
       }
       this.jobs.delete(id)
@@ -273,6 +276,8 @@ export class WaterView {
     const mesh = new THREE.Mesh(surface(lake), this.lakeMaterial(lake, heightAt, pre))
     mesh.receiveShadow = true
     mesh.renderOrder = 1
+    // (Moved only when its level changes, in sync: no matrix recomputed every frame.)
+    mesh.matrixAutoUpdate = false
     this.group.add(mesh)
     return mesh
   }

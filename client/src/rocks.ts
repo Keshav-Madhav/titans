@@ -490,6 +490,9 @@ export class Rocks {
     const mesh = new THREE.Mesh(geometry, p.occlusion ? rockMaterial(this.textures, p.occlusion, true) : this.material)
     mesh.position.set(p.x, p.y, p.z)
     mesh.rotation.y = p.rot
+    // (Placed once: no matrix recomputed every frame. ~2,100 objects did, most never moving.)
+    mesh.matrixAutoUpdate = false
+    mesh.updateMatrix()
     mesh.castShadow = true
     mesh.receiveShadow = true
     mesh.name = 'colossus-built'
@@ -523,9 +526,11 @@ export class Rocks {
       if (!f.float || !f.mesh) continue
       f.mesh.position.y = f.y + Math.sin(t * 0.13 + f.float.phase) * f.float.amp
       f.mesh.rotation.y = f.rot + t * f.float.spin
+      f.mesh.updateMatrix()
       if (f.far) {
         f.far.position.y = f.mesh.position.y
         f.far.rotation.y = f.mesh.rotation.y
+        f.far.updateMatrix()
       }
     }
   }
@@ -638,6 +643,9 @@ export class Rocks {
     const mesh = new THREE.Mesh(g, f.always ? this.giantMaterial : this.material)
     mesh.position.set(f.x, f.y, f.z)
     mesh.rotation.y = f.rot
+    // (Placed once; the floating ones' bob and turn update theirs in animate.)
+    mesh.matrixAutoUpdate = false
+    mesh.updateMatrix()
     mesh.castShadow = true
     mesh.receiveShadow = true
     mesh.name = `rock-${f.kind}${far ? '-far' : ''}`

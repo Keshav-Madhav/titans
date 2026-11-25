@@ -41,6 +41,15 @@ export interface Spot {
 
 const REACH = 2.8
 
+/** A mark's own parts, placed once inside it (the mark itself still moves: taken up into the hand). */
+function freezeParts(g: THREE.Object3D): void {
+  g.traverse((o) => {
+    if (o === g) return
+    o.updateMatrix()
+    o.matrixAutoUpdate = false
+  })
+}
+
 export class Spots {
   readonly group = new THREE.Group()
   private readonly marks = new Map<string, THREE.Object3D>()
@@ -56,6 +65,8 @@ export class Spots {
   /** `at`: whose position is the distance's (the mark itself, placed in world coordinates). */
   private wrap(o: THREE.Object3D, r: number, parent: THREE.Object3D = this.group, at: THREE.Object3D = o): void {
     const w = new THREE.Group()
+    // (Never moves: its matrix stays the identity, not recomputed every frame.)
+    w.matrixAutoUpdate = false
     parent.add(w)
     w.add(o)
     this.culled.push({ wrap: w, at, r })
@@ -81,6 +92,7 @@ export class Spots {
         g.rotation.y = Math.random() * 6.28
         this.wrap(g, 250)
         this.marks.set(s.id, g)
+        freezeParts(g)
       } else if (s.kind === 'stone') {
         // A standing slab, leaning a little, a carved line catching the light,
         // and a few pebbles stacked at its foot.
@@ -113,6 +125,7 @@ export class Spots {
         this.wrap(g, 900)
         this.wrap(detail, 160, g, g)
         this.marks.set(s.id, g)
+        freezeParts(g)
       } else {
         const m = s.model ?? new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), thing)
         if (s.model) m.position.copy(s.at)

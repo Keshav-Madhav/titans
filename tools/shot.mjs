@@ -143,7 +143,10 @@ const scenes = {
         const c = g.cairns.cairns.find((q) => q.name === name)
         if (!c) continue
         g.wanderer.place(c.x + 2, c.y + 0.2, c.z + 1)
-        await wait(300)
+        // (Long enough for the world to build round a teleport: a press waits only 300 ms for a frame
+        // (input.ts PRESS_FRESH_MS), and the first frame after a jump on a loaded machine ran past it —
+        // Moss Crown, the first, never lit; 2026-11-25.)
+        await wait(1500)
         g.input.press('KeyE')
         await wait(120)
         g.input.release('KeyE')
