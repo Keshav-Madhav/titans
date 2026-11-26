@@ -47,7 +47,9 @@ const VERDIGRIS = new THREE.Color(0.07, 0.2, 0.15)
 /** The band: a torus in the XY plane (axis Z), drawn out along Z into a flat band, with its relief. */
 function bandGeometry(): THREE.BufferGeometry {
   // (Fine enough across the band for its relief: at 28 round the tube the chevrons fell between vertices.)
-  const g = new THREE.TorusGeometry(RING_R, TUBE, 64, 300)
+  // (160 round the tube, 360 round the ring: at 64 × 300 the outer face had ~16 vertices across, and the
+  // chevrons' diagonal edges stepped across them like a low-res image, side on.)
+  const g = new THREE.TorusGeometry(RING_R, TUBE, 160, 360)
   g.deleteAttribute('uv')
   const pos = g.getAttribute('position') as THREE.BufferAttribute
   const col = new Float32Array(pos.count * 3)
@@ -71,7 +73,7 @@ function bandGeometry(): THREE.BufferGeometry {
       // Chevrons: a zigzag running round the band, between the rims.
       const u = ang * RING_R * 0.45
       const zig = Math.abs(((u + Math.abs(s) * 1.6) % 2 + 2) % 2 - 1)
-      const cut = (1 - THREE.MathUtils.smoothstep(edge, 0.45, 0.55)) * THREE.MathUtils.smoothstep(zig, 0.22, 0.06)
+      const cut = (1 - THREE.MathUtils.smoothstep(edge, 0.45, 0.55)) * THREE.MathUtils.smoothstep(zig, 0.28, 0.04)
       out = k * (0.3 * rim - 0.24 * cut)
     }
     const nr = rr + out
@@ -80,7 +82,9 @@ function bandGeometry(): THREE.BufferGeometry {
     // on the inner face and low down.
     const up = Math.sin(ang) * t // outer top faces up
     c.copy(BRONZE).lerp(SCOURED, THREE.MathUtils.clamp(up * 1.4, 0, 0.8))
-    const green = THREE.MathUtils.clamp((out < -0.05 ? 0.7 : 0) + (t < -0.3 ? 0.45 : 0) + (Math.sin(ang) < -0.2 ? 0.35 : 0) + 0.2 * Math.sin(ang * 7 + s * 3), 0, 0.85)
+    // (The cuts' verdigris eased in with their depth: stepped on at a threshold, each chevron's edge was a
+    // staircase of vertices, blocky as a low-res image, from the side — storm look, 2026-11-26.)
+    const green = THREE.MathUtils.clamp(0.7 * THREE.MathUtils.smoothstep(-out, 0.01, 0.12) + (t < -0.3 ? 0.45 : 0) + (Math.sin(ang) < -0.2 ? 0.35 : 0) + 0.2 * Math.sin(ang * 7 + s * 3), 0, 0.85)
     c.lerp(VERDIGRIS, green)
     col.set([c.r, c.g, c.b], i * 3)
   }
