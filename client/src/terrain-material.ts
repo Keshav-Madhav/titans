@@ -357,6 +357,10 @@ export function makeTerrainMaterial(tex: TerrainTextures, detail: THREE.Texture)
         // strata belong to the mesas' near-vertical walls — the tour, 2026-11-07, found whole dune
         // faces painted as red cliff, sawtoothed where they met the sand.)
         float gSteep = 1.0 - smoothstep(mix(0.58, 0.24, vColor.b), mix(0.8, 0.42, vColor.b), min(gN.y, abs(gFlat.y) + 0.06));
+        // (But a triangle steeper than a slip face ever is — ~60° and up — is the cliff's, whatever the
+        // smooth normal says: at a mesa's foot the sand ran up the wall's first triangles in pale lit
+        // teeth, tour 1126d spot 20. A dune's slip face, ~34°, is far from it.)
+        gSteep = max(gSteep, vColor.b * (1.0 - smoothstep(0.35, 0.5, abs(gFlat.y))));
         // The facing on steep ground comes from the triangle (the smoothed normal can
         // still point up on a wall at coarse detail); only its horizontal part, so the
         // projection turns smoothly round a cliff instead of jumping at each edge.
