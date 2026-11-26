@@ -278,7 +278,11 @@ export function rockMaterial(tex: TerrainTextures, occlusion?: { glsl: string; u
         // stone showing through (a big flat top must not read as one green sheet).
         vec3 nTmp;
         float patchy = triTex(vLayer.x, 1.0 / (vLayer.z * 6.0), vRockPos + 17.0, rN, nTmp).g;
-        float topT = smoothstep(0.55, 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
+        // (Snow: its patches from its own texture, not the side's — on dark bark the side's was ~0.2 and the
+        // Snowshoe stood bare in a snowstorm; and it clings to steeper faces than moss does.)
+        bool snowTop = abs(vLayer.y - 7.0) < 0.5;
+        if (snowTop) patchy = triTex(vLayer.y, 1.0 / (vLayer.z * 6.0), vRockPos + 17.0, rN, nTmp).g;
+        float topT = smoothstep(snowTop ? 0.35 : 0.55, snowTop ? 0.65 : 0.8, rN.y + 0.15 * (cA.r - 0.3)) * smoothstep(0.25, 0.55, patchy + 0.12);
         // Ground layers on top get the ground's green; generated moss is coloured already.
         // (Green only for the grassy layers — grass, dry grass, forest litter: the Fallen's skull wore
         // its drifted sand as a lemon-green smear. Sand and snow keep their own colour.)
