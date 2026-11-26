@@ -983,6 +983,28 @@ export class Vegetation {
   // --- generation ------------------------------------------------------------
 
   /** Can a plant stand here? Dry, unpaved, unbuilt, untrodden, not too steep, not alpine. */
+  /** The ground's height round the cell being made, on a 2 m grid (ground's and walled's neighbour
+   *  tests read it: each plant asked the terrain ~29 times — slope, ledge, wall — and in the Grove a
+   *  cell's trees were ~5,000 terrain samples; the grid is 2,809). Exact heights stay exact. */
+  private hg: { x0: number; z0: number; n: number; h: Float32Array } | null = null
+  private near(x: number, z: number): number {
+    const g = this.hg
+    if (g) {
+      const fx = (x - g.x0) / 2
+      const fz = (z - g.z0) / 2
+      const ix = Math.floor(fx)
+      const iz = Math.floor(fz)
+      if (ix >= 0 && iz >= 0 && ix < g.n - 1 && iz < g.n - 1) {
+        const tx = fx - ix
+        const tz = fz - iz
+        const k = iz * g.n + ix
+        const a = g.h[k] + (g.h[k + 1] - g.h[k]) * tx
+        const b = g.h[k + g.n] + (g.h[k + g.n + 1] - g.h[k + g.n]) * tx
+        return a + (b - a) * tz
+      }
+    }
+    return this.terrain.heightAt(x, z)
+  }
   private ground(x: number, z: number, maxH = 250): number | null {
     const h = this.terrain.heightAt(x, z)
     if (h > maxH) return null
@@ -993,10 +1015,10 @@ export class Vegetation {
     // (Nothing growing on the sea's bed.)
     if (h < SHORE.sea + 0.4 && seaward(x, z)) return null
     // Steeper than ~35°, measured both ways (one-sided, a slope falling away to −x or −z passed).
-    const hx0 = this.terrain.heightAt(x - 2, z)
-    const hx1 = this.terrain.heightAt(x + 2, z)
-    const hz0 = this.terrain.heightAt(x, z - 2)
-    const hz1 = this.terrain.heightAt(x, z + 2)
+    const hx0 = this.near(x - 2, z)
+    const hx1 = this.near(x + 2, z)
+    const hz0 = this.near(x, z - 2)
+    const hz1 = this.near(x, z + 2)
     const sx = Math.max(Math.abs(hx1 - h), Math.abs(h - hx0))
     const sz = Math.max(Math.abs(hz1 - h), Math.abs(h - hz0))
     if (sx * sx + sz * sz > 2.2) return null
@@ -1004,7 +1026,7 @@ export class Vegetation {
     // stood on a sheer wall, on its narrow flat steps).
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2
-      if (this.terrain.heightAt(x + Math.cos(a) * 3, z + Math.sin(a) * 3) < h - 3.5) return null
+      if (this.near(x + Math.cos(a) * 3, z + Math.sin(a) * 3) < h - 3.5) return null
     }
     return h
   }
@@ -1017,7 +1039,7 @@ export class Vegetation {
   private walled(x: number, z: number, h: number): boolean {
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2
-      for (const r of [2.5, 4.5]) if (this.terrain.heightAt(x + Math.cos(a) * r, z + Math.sin(a) * r) > h + r * 0.9 + 1.2) return true
+      for (const r of [2.5, 4.5]) if (this.near(x + Math.cos(a) * r, z + Math.sin(a) * r) > h + r * 0.9 + 1.2) return true
     }
     return false
   }
@@ -1069,9 +1091,21 @@ export class Vegetation {
     const batch = (k: keyof CellData) => (out[k] ??= { m: [], c: [], n: 0 })
     const x0 = cx * CELL
     const z0 = cz * CELL
+    // The ground round the cell (a 6 m margin: the ledge and wall tests reach 4.5 m past a plant), a few
+    // rows a step.
+    const gn = (CELL + 12) / 2 + 1
+    const gh = new Float32Array(gn * gn)
+    for (let j = 0; j < gn; j++) {
+      if (j % 6 === 0) yield
+      for (let i = 0; i < gn; i++) gh[j * gn + i] = this.terrain.heightAt(x0 - 6 + i * 2, z0 - 6 + j * 2)
+    }
+    const grid = { x0: x0 - 6, z0: z0 - 6, n: gn, h: gh }
+    // (Set again after each pause: another cell may be made meanwhile, and set its own.)
+    this.hg = grid
     // Trees on a jittered 7 m grid: dense in forests, the odd lone tree in the open.
     for (let gz = 0; gz < CELL; gz += 7) {
       yield
+      this.hg = grid
       for (let gx = 0; gx < CELL; gx += 7) {
         const x = x0 + gx + rand() * 7
         const z = z0 + gz + rand() * 7
@@ -1091,6 +1125,7 @@ export class Vegetation {
       }
     }
     yield
+    this.hg = grid
     // Boulders: scattered everywhere, more on rough ground.
     for (let i = 0; i < 7; i++) {
       const x = x0 + rand() * CELL
@@ -1114,13 +1149,17 @@ export class Vegetation {
       this.add(batch(vk), x, h - sc * 0.15, z, ry, sc, sy, this.col)
     }
     yield
+    this.hg = grid
     // Small stones in the grass (graphics pass, 2026-11-04: ground with nothing on it but grass read
     // as a lawn): a couple of hundred a cell (one in ~40 m²), mostly a hand's width, now and then a
     // fist or a loaf. (At a third of that you never saw one.)
     for (let i = 0; i < 220; i++) {
       // (A step every 64: the 220 in one were the slowest step of a cell, ~5 ms past the budget at a run;
       // qa/cycle7/vegcost.mjs, 2026-11-23. The same stones — only the work is spread.)
-      if ((i & 63) === 63) yield
+      if ((i & 63) === 63) {
+        yield
+        this.hg = grid
+      }
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const h = this.ground(x, z, 400)
@@ -1135,6 +1174,7 @@ export class Vegetation {
       this.add(batch('pebble'), x, h - sc * 0.08, z, rand() * 6.28, sc, sc * (0.75 + rand() * 0.5), this.col)
     }
     yield
+    this.hg = grid
     // Bushes: along forest edges and near water.
     for (let i = 0; i < 30; i++) {
       const x = x0 + rand() * CELL
@@ -1151,6 +1191,7 @@ export class Vegetation {
       this.add(batch('bush'), x, h - 0.1, z, rand() * 6.28, sc, sc, this.col)
     }
     yield
+    this.hg = grid
     // Scrub across the plain, thick in places, thin in others.
     for (let i = 0; i < 70; i++) {
       const x = x0 + rand() * CELL
@@ -1166,9 +1207,13 @@ export class Vegetation {
       this.add(batch('shrub'), x, h - 0.15, z, rand() * 6.28, sc * (1 - 0.35 * d), sc * (0.7 + rand() * 0.6) * (1 - 0.35 * d), this.col)
     }
     yield
+    this.hg = grid
     // Ferns on the woods' floor; tall flowering stems out on the Green's meadows.
     for (let i = 0; i < 420; i++) {
-      if ((i & 63) === 63) yield
+      if ((i & 63) === 63) {
+        yield
+        this.hg = grid
+      }
       const x = x0 + rand() * CELL
       const z = z0 + rand() * CELL
       const f = this.biome.forest(x, z)
@@ -1193,6 +1238,7 @@ export class Vegetation {
       }
     }
     yield
+    this.hg = grid
     // Reeds round the Mire's pools, thick on the banks.
     if (this.biome.mire(x0 + CELL / 2, z0 + CELL / 2) > 0.2) {
       for (let i = 0; i < 260; i++) {
@@ -1207,6 +1253,7 @@ export class Vegetation {
       }
     }
     yield
+    this.hg = grid
     // Reeds in the shallows of the Titans' lakes.
     for (const l of this.lakes.lakes) {
       const b = l.basin
@@ -1225,6 +1272,7 @@ export class Vegetation {
         this.add(batch('reed'), x, this.terrain.heightAt(x, z) - 0.1, z, rand() * 6.28, sc, sc, this.col)
       }
     }
+    this.hg = null
     for (const k of Object.keys(out) as Array<keyof CellData>) out[k] = pack(out[k]!)
     return out
   }
