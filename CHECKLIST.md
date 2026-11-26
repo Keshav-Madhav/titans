@@ -602,8 +602,9 @@ Each phase ends playable. Phases are in PLAN.md §6.
         Then the giant things in storm and night: the Ring's chevrons cut clean (160 x 360, the green eased
         in: side on they were stepped like a low-res image), the Lantern's candle dull old wax (it glared
         white), the Snowshoe holds snow (its patches from snow's own texture), the feather dark slate with
-        barbs (a black hole in the snow); desert triangles past ~45 degrees are rock (ledges along the mesas
-        had pale sand spikes). Full sweep 61/61 with solo reruns: sight, glide, woodbell fail only under
+        barbs (a black hole in the snow). (Desert triangles past ~45 degrees as rock took the sand spikes
+        off the mesas' ledge paths but checkered a dune's steep crest red: back to ~60; the ledge flaps
+        are a mesh problem, still open.) Full sweep 61/61 with solo reruns: sight, glide, woodbell fail only under
         load (their real E/Space presses) — a bisect of 8 commits found no regression.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
