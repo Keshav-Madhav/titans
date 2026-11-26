@@ -105,6 +105,10 @@ void main() {
   float px = size * uPx / max(-mv.z, 0.1);
   // Smaller than a pixel: draw a pixel, fainter, so they do not crawl.
   float a = fade * min(1.0, px * px);
+  // (A speck of dust or a spore a few metres off is already tens of pixels: past ~24 px it fades out, by
+  // 64 gone — one drifting past the lens was a big soft grey disc on the grass, golden tour 1126g spot 6.
+  // Leaves and dragonflies are meant to be seen; they keep their size.)
+  if (k != 4 && k != 5) a *= 1.0 - smoothstep(24.0, 64.0, px);
   gl_PointSize = clamp(px, 1.0, 256.0);
   // Lit by the sun from the side, and far brighter between you and it
   // (forward scattering: dust only really shows against the light).
