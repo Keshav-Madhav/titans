@@ -599,6 +599,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
         tours: broadleaf trunks thin into the crown (a sawn top stood proud of the fork), desert
         triangles steeper than a slip face are rock (fewer sand teeth up a mesa's foot; the rest is the
         2 m grid's own outline), motes near the lens fade by their size (a grey disc on the grass).
+        Then the giant things in storm and night: the Ring's chevrons cut clean (160 x 360, the green eased
+        in: side on they were stepped like a low-res image), the Lantern's candle dull old wax (it glared
+        white), the Snowshoe holds snow (its patches from snow's own texture), the feather dark slate with
+        barbs (a black hole in the snow); desert triangles past ~45 degrees are rock (ledges along the mesas
+        had pale sand spikes). Full sweep 61/61 with solo reruns: sight, glide, woodbell fail only under
+        load (their real E/Space presses) — a bisect of 8 commits found no regression.
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
