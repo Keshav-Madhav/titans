@@ -593,6 +593,12 @@ Each phase ends playable. Phases are in PLAN.md §6.
         streaks on cast metal. A/B on the High Places, quiet machine: frame time within noise
         (13.0 vs 12.8 ms at 3x) — the draw and matrix cuts are less work, not a measured gain;
         ready time unchanged (4.74 vs 4.79 s medians).
+        2026-11-26: vegetation cells made ~1.7x faster (the ground round a cell sampled once on a 2 m grid
+        for the slope, ledge and wall tests; the same plants): the Grove's ring fills in ~10-12 s, not
+        ~21 s, and the Grove at 6x CPU went 38 -> ~25-32 ms. Full sweep 61/61 first time each. From the
+        tours: broadleaf trunks thin into the crown (a sawn top stood proud of the fork), desert
+        triangles steeper than a slip face are rock (fewer sand teeth up a mesa's foot; the rest is the
+        2 m grid's own outline), motes near the lens fade by their size (a grey disc on the grass).
 
 ## P2 playtest (user, 2026-11-03: "i like it alot, there are still small issues… dont hyperfocus")
 - [x] Undercroft: the bow is the only thing below, and it can't be picked up before going up (most
