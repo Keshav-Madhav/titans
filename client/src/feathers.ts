@@ -46,8 +46,15 @@ function vaneTexture(seed: number): THREE.CanvasTexture {
     const u = x / W
     if (splits.some((s) => Math.abs(u - s) < 0.006)) continue
     const w = width(u) * (0.92 + 0.08 * Math.sin(u * 90 + rand()))
-    const shade = 16 + Math.floor(10 * rand()) + ((x >> 1) % 3 === 0 ? 14 : 0)
-    c.strokeStyle = `rgb(${shade + 3},${shade + 5},${shade + 11})`
+    // (A dark feather, not a hole in the snow: at 16-40 of 255, flat, it read as a black cut-out in a
+    // snowfield, storm look 2026-11-26. Slate, each barb darker at the rachis and lighter, a little blue,
+    // toward the thinning edge, as a black feather's edge catches the light.)
+    const shade = 34 + Math.floor(14 * rand()) + ((x >> 1) % 3 === 0 ? 18 : 0)
+    const grd = c.createLinearGradient(x, 0, x + w * 0.55, w)
+    grd.addColorStop(0, `rgb(${Math.round(shade * 0.55)},${Math.round(shade * 0.58)},${Math.round(shade * 0.66)})`)
+    grd.addColorStop(0.7, `rgb(${shade + 3},${shade + 6},${shade + 14})`)
+    grd.addColorStop(1, `rgb(${shade + 26},${shade + 32},${shade + 44})`)
+    c.strokeStyle = grd
     c.lineWidth = 2.2
     c.beginPath()
     c.moveTo(x, 0)
