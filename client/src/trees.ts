@@ -246,6 +246,9 @@ function trunkNear(r0: number, r1: number, h: number, hex: number, seed: number)
     let k = 1 + 0.75 * Math.exp(-t * 11) * lobes
     // Bark ridges.
     k *= 1 + 0.035 * Math.sin(a * 11 + t * 3 + seed)
+    // (Thinning to a leader into the crown above the limbs: it ended in a flat sawn top standing proud of
+    // the fork — seen from a camera in the crown, a stump with branches round it, tour 1126d spot 8.)
+    k *= 1 - 0.9 * THREE.MathUtils.smoothstep(t, 0.7, 1)
     // A slight bend, more toward the top.
     const bx = Math.sin(seed * 1.7) * 0.18 * t * t
     const bz = Math.cos(seed * 1.3) * 0.18 * t * t
