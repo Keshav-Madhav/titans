@@ -2400,7 +2400,8 @@ let lanternEmber: THREE.Mesh | null = null
       iron.castShadow = iron.receiveShadow = true
       const glass = new THREE.Mesh(lanternGlass(), new THREE.MeshStandardMaterial({ color: 0x8f8a74, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }))
       const c = lanternCandle()
-      const wax = new THREE.Mesh(c.wax, new THREE.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.75 }))
+      // (Old wax, dulled and dirty: cream, it glared white in a storm's grey light.)
+      const wax = new THREE.Mesh(c.wax, new THREE.MeshStandardMaterial({ color: 0xa89a7c, roughness: 0.88 }))
       wax.castShadow = wax.receiveShadow = true
       // The ember: a coal on the wick, dark by day, glowing faintly by night (frame: sky.night).
       lanternEmber = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10).translate(c.ember.x, c.ember.y, c.ember.z), new THREE.MeshStandardMaterial({ color: 0x1a0d06, emissive: new THREE.Color(2.2, 0.55, 0.1), emissiveIntensity: 0 }))
