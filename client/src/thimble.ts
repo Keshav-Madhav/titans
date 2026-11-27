@@ -8,7 +8,7 @@
 // standing, climbing and walking in.
 
 import * as THREE from 'three'
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Shape } from './rock-fields'
 
 /** Its length (mouth to crown), radius at the mouth and at the crown's start, the wall's thickness. */
@@ -74,26 +74,14 @@ export function thimbleGeometry(): THREE.BufferGeometry {
   }
   const g0 = new THREE.BufferGeometry()
   g0.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-  // (Smooth normals: welded, then averaged — per-face, the dimples shaded as facets.)
-  const g = mergeVertices(g0).toNonIndexed()
+  // (Welded and kept indexed, its normals averaged smooth: unshared again for the merge, it was ~227k
+  // vertices, 12.7 MB of GPU buffers for one thing in the wood, and its normals came out per face.)
+  const g = mergeVertices(g0)
   g.computeVertexNormals()
   // The rolled rim at the mouth.
-  const rim = new THREE.TorusGeometry(R0 - WALL / 2, WALL * 0.9, 10, 96).rotateY(Math.PI / 2).translate(-LEN / 2, 0, 0).toNonIndexed()
+  const rim = new THREE.TorusGeometry(R0 - WALL / 2, WALL * 0.9, 10, 96).rotateY(Math.PI / 2).translate(-LEN / 2, 0, 0)
   rim.deleteAttribute('uv')
-  const merged = new THREE.BufferGeometry()
-  const a = g.getAttribute('position').array as Float32Array
-  const b = rim.getAttribute('position').array as Float32Array
-  const na = g.getAttribute('normal').array as Float32Array
-  const nb = rim.getAttribute('normal').array as Float32Array
-  const p = new Float32Array(a.length + b.length)
-  p.set(a)
-  p.set(b, a.length)
-  const n = new Float32Array(na.length + nb.length)
-  n.set(na)
-  n.set(nb, na.length)
-  merged.setAttribute('position', new THREE.BufferAttribute(p, 3))
-  merged.setAttribute('normal', new THREE.BufferAttribute(n, 3))
-  return merged
+  return mergeGeometries([g, rim])!
 }
 
 /** Signed distance (local, lying: axis along x, the mouth at −x; negative inside the metal). */
