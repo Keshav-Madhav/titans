@@ -764,11 +764,14 @@ const scenes = {
       const g = window.__g
       const s = g.spots.spots.find((s) => s.id === 'sight')
       g.teleport(s.at.x + 0.6, s.at.z)
-      await new Promise((r) => setTimeout(r, 200))
+      // (Settled before the press, and the taking waited for: on a loaded machine the first frames after a
+      // teleport ran long, and a fixed 200 ms / 250 ms read 'took: false' with nothing wrong — 2026-11-27.)
+      for (let k = 0; k < 30 && !g.wanderer.grounded; k++) await new Promise((r) => setTimeout(r, 100))
+      await new Promise((r) => setTimeout(r, 300))
       g.input.press('KeyE')
       await new Promise((r) => setTimeout(r, 150))
       g.input.release('KeyE')
-      await new Promise((r) => setTimeout(r, 100))
+      for (let k = 0; k < 20 && !g.finds.has('sight'); k++) await new Promise((r) => setTimeout(r, 100))
       return g.finds.has('sight')
     })
     // On the Green at the first camp, looking along its trail: without, then through the stone.
@@ -1554,11 +1557,14 @@ const scenes = {
       const g = window.__g
       const s = g.spots.spots.find((s) => s.id === 'bow')
       g.teleport(s.at.x - 1.2, s.at.z, s.at.y - 1.1)
-      await new Promise((r) => setTimeout(r, 200))
+      // (Settled before the press, and the taking waited for: on a loaded machine the first frames after a
+      // teleport ran long, and a fixed 200 ms / 250 ms read 'took: false' with nothing wrong — 2026-11-27.)
+      for (let k = 0; k < 30 && !g.wanderer.grounded; k++) await new Promise((r) => setTimeout(r, 100))
+      await new Promise((r) => setTimeout(r, 300))
       g.input.press('KeyE')
       await new Promise((r) => setTimeout(r, 150))
       g.input.release('KeyE')
-      await new Promise((r) => setTimeout(r, 100))
+      for (let k = 0; k < 20 && !g.finds.has('bow'); k++) await new Promise((r) => setTimeout(r, 100))
       return g.finds.has('bow')
     })
     console.log(`took the bow: ${took}`)
