@@ -124,8 +124,12 @@ function settingGeometry(): THREE.BufferGeometry {
 
 /** The ring as drawn, local (centre at the origin, its axis along Z, leaning). */
 export function ringGeometry(): THREE.BufferGeometry {
-  const band = bandGeometry().toNonIndexed()
-  const g = mergeGeometries([band, settingGeometry()])!
+  // (The band kept indexed: at 160 x 360 it is ~58k vertices shared by ~115k triangles; unshared, it
+  // was 12 MB of GPU buffers for one landmark. The small setting gets a plain index to merge with it.)
+  const band = bandGeometry()
+  const setting = settingGeometry()
+  setting.setIndex(Array.from({ length: setting.getAttribute('position').count }, (_, i) => i))
+  const g = mergeGeometries([band, setting])!
   g.rotateZ(LEAN)
   return g
 }
